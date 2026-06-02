@@ -13,6 +13,10 @@ dependencies = [
     "pyrender",
 ]
 
+[project.scripts]
+# `nv` = ncad viewer — launch the browser 3D viewer (alias for `python -m ncad.viewer`).
+nv = "ncad.viewer.__main__:main"
+
 [project.optional-dependencies]
 # CAD interchange — DXF/IFC floor plans (plan.md Phase 7 / 11)
 interchange = [
@@ -44,6 +48,10 @@ target-version = "py313"
 [tool.ruff.lint]
 # pycodestyle (E), pyflakes (F), isort (I), pyupgrade (UP), naming (N)
 select = ["E", "F", "I", "UP", "N"]
+
+[tool.ruff.lint.per-file-ignores]
+# viewer_page.py is an embedded HTML/JS document; long markup lines are expected.
+"src/ncad/viewer/viewer_page.py" = ["E501"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["ncad"]

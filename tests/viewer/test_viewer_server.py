@@ -1,0 +1,95 @@
+"""Integration tests for the viewer HTTP server.
+
+Starts the server on an ephemeral port in a background thread and exercises its routes.
+No browser needed — these check the HTTP contract the frontend depends on.
+"""
+
+import json
+import urllib.request
+
+import pytest
+
+from ncad.viewer.viewer_server import ViewerServer
+
+
+@pytest.fixture
+def server(tmp_path):
+    (tmp_path / "box.gltf").write_text('{"asset": {"version": "2.0"}}')
+    srv = ViewerServer(models_dir=str(tmp_path), host="127.0.0.1", port=0)
+    srv.start()
+    try:
+        yield srv
+    finally:
+        srv.stop()
+
+
+def _get(url: str):
+    with urllib.request.urlopen(url, timeout=5) as response:
+        return response.status, response.read(), response.headers
+
+
+def test_index_serves_html(server) -> None:
+    status, body, headers = _get(f"{server.base_url}/")
+
+    assert status == 200
+    assert b"<!DOCTYPE html>" in body or b"<!doctype html>" in body
+    assert "text/html" in headers["Content-Type"]
+
+
+def test_api_models_lists_models(server) -> None:
+    status, body, headers = _get(f"{server.base_url}/api/models")
+
+    assert status == 200
+    assert "application/json" in headers["Content-Type"]
+    assert json.loads(body) == {"models": ["box.gltf"]}
+
+
+def test_model_bytes_are_served(server) -> None:
+    status, body, headers = _get(f"{server.base_url}/models/box.gltf")
+
+    assert status == 200
+    assert b'"version": "2.0"' in body
+
+
+def test_unknown_model_returns_404(server) -> None:
+    with pytest.raises(urllib.error.HTTPError) as exc:
+        _get(f"{server.base_url}/models/nope.gltf")
+
+    assert exc.value.code == 404
+
+
+def test_path_traversal_is_rejected(server) -> None:
+    with pytest.raises(urllib.error.HTTPError) as exc:
+        _get(f"{server.base_url}/models/..%2fsecret.gltf")
+
+    assert exc.value.code in (400, 404)
+
+
+def test_gltf_companion_bin_buffer_is_served(tmp_path) -> None:
+    """Regression: a text .gltf references an external .bin buffer the loader fetches.
+
+    The server must serve that sidecar, or models fail to load in the browser.
+    """
+    (tmp_path / "m.gltf").write_text('{"buffers":[{"uri":"m.bin"}]}')
+    (tmp_path / "m.bin").write_bytes(b"\x01\x02\x03\x04")
+    srv = ViewerServer(models_dir=str(tmp_path), host="127.0.0.1", port=0)
+    srv.start()
+    try:
+        status, body, headers = _get(f"{srv.base_url}/models/m.bin")
+        assert status == 200
+        assert body == b"\x01\x02\x03\x04"
+        assert "octet-stream" in headers["Content-Type"]
+    finally:
+        srv.stop()
+
+
+def test_glb_served_with_binary_content_type(tmp_path) -> None:
+    (tmp_path / "m.glb").write_bytes(b"glTF\x02\x00\x00\x00")
+    srv = ViewerServer(models_dir=str(tmp_path), host="127.0.0.1", port=0)
+    srv.start()
+    try:
+        status, body, headers = _get(f"{srv.base_url}/models/m.glb")
+        assert status == 200
+        assert "model/gltf-binary" in headers["Content-Type"]
+    finally:
+        srv.stop()

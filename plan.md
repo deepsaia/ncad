@@ -19,7 +19,8 @@ Each phase should leave `generate → build → render → BOM` in a working sta
 | 2 | Generator (room-centric, v1 box) | `[x]` |
 | 2.5 | Plan render (SVG, spec-only) — pulled forward | `[x]` |
 | 3 | Builder + kernel (build123d) | `[x]` |
-| 4 | BOM + validators + glTF export (plan render done in 2.5) | `[ ]` |
+| 4 | BOM + validators + glTF export (plan render done in 2.5) | `[x]` |
+| 4.5 | Browser 3D viewer (Three.js + stdlib server) | `[x]` |
 | 5 | **v1 spine complete** (milestone gate) | `[ ]` |
 | 6 | Breadth: roofs, footprints, openings | `[ ]` |
 | 7 | Floor plans & CAD interchange — forward (`spec → DXF/IFC`) | `[ ]` |
@@ -129,13 +130,25 @@ Goal: the three outputs that make the spine real.
 - [ ] **BOM** — `quantities(spec)` traversal: wall volume/area (minus openings),
       door/window counts by type/size, slab area, roof area. **From spec, not mesh.**
   - [ ] Golden BOM test
-- [ ] **Validators** — geometric, topological, architectural-sanity passes returning
-      structured issues tagged with `id`s
-  - [ ] Tests: known-bad specs produce expected issues
-- [ ] **Export** — glTF (render) + STEP (CAD) writers
-- [ ] **Plan render** — top-down plan straight from spec (matplotlib/SVG), colored by
-      semantic type, with `id` labels
-  - [ ] Golden plan image test
+- [x] **BOM** — `BomCalculator.quantities(spec)` traversal (`Bom` value type): wall volume/face area minus openings, door/window counts, floor area, roof area. **From spec, not mesh.** (TDD, 7 tests)
+- [x] **Validators** — `SemanticValidator` over `GeometryValidator` (opening fit/overlap), `TopologyValidator` (room reachability via door graph), `ArchitecturalValidator` (min area/ceiling/door); structured `Issue`s tagged with ids (TDD, 8 tests)
+  - [x] Known-bad specs produce expected issues; generated spec is clean (cross-check with generator)
+- [x] **Export** — glTF/GLB + STEP + STL via the kernel (Phase 3); `.glb` is the self-contained default for the viewer
+- [x] **Plan render** — done in Phase 2.5 (`PlanRenderer` → SVG)
+
+> **Bug caught in real use:** text `.gltf` writes an external `.bin` buffer; the viewer
+> 404'd on it. Fixed two ways — kernel now exports self-contained `.glb` (binary), and
+> the server serves sidecar buffers too. Regression tests added.
+
+## Phase 4.5 — Browser 3D viewer
+
+Goal: view glTF/GLB models in any browser, no installs (machines without CAD/GL software).
+
+- [x] `ModelCatalog` — lists/safely-resolves models in a dir; path-traversal rejected (TDD, 6 tests)
+- [x] `ViewerServer` (+ handler) — stdlib `http.server`; routes `/`, `/api/models`, `/models/<name>`; correct MIME per ext (TDD integration, 7 tests)
+- [x] `viewer_page` — polished Three.js SPA (CDN importmap, no npm): Solid/Material/Wireframe/X-ray modes, edges/grid/auto-rotate, orbit controls, live size/triangle/mesh readout
+- [x] `python -m ncad.viewer [dir] [--port]` launcher; **`nv` console-script alias**
+- [x] Verified in a real browser (Playwright): renders, mode-switches; zero console errors
 
 ## Phase 5 — v1 spine complete (milestone gate)
 

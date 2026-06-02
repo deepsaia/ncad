@@ -4,7 +4,8 @@ Adding a roof type is a new function plus a registry entry — not a new branch 
 through the builder (design.md §3). v1 ships ``flat`` only.
 """
 
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from ncad.kernel.kernel import Kernel
 

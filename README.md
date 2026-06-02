@@ -39,6 +39,18 @@ uv sync --extra interchange   # ezdxf + ifcopenshell (DXF/IFC floor plans)
 uv sync --extra agents        # neuro-san (multi-agent orchestration)
 ```
 
+## Browser 3D viewer
+
+View exported glTF/GLB models in any browser — no CAD or GL software needed. The `nv`
+command (alias for `python -m ncad.viewer`) serves a polished Three.js viewer with
+solid / material / wireframe / x-ray modes, edge overlay, grid, and orbit controls.
+
+```bash
+nv                 # serve models in ./out at http://127.0.0.1:8000
+nv out --port 8777 # explicit directory and port
+```
+
 ## Status
 
-Phase 0 (bootstrap). See [`plan.md`](./plan.md) for the live tracker.
+Spine complete through Phase 4 (`generate → build → 3D/STEP + plan render + BOM +
+validators`), plus a browser 3D viewer. See [`plan.md`](./plan.md) for the live tracker.

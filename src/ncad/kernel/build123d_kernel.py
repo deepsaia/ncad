@@ -47,8 +47,12 @@ class Build123dKernel(Kernel):
 
     def export(self, solid: Any, path: str) -> None:
         lowered = path.lower()
-        if lowered.endswith(".gltf") or lowered.endswith(".glb"):
-            export_gltf(solid, path, unit=Unit.M)
+        if lowered.endswith(".glb"):
+            # Binary glTF: a single self-contained file (no external .bin sidecar).
+            export_gltf(solid, path, unit=Unit.M, binary=True)
+        elif lowered.endswith(".gltf"):
+            # Text glTF writes a companion <name>.bin buffer alongside the .gltf.
+            export_gltf(solid, path, unit=Unit.M, binary=False)
         elif lowered.endswith(".step") or lowered.endswith(".stp"):
             export_step(solid, path, unit=Unit.M)
         elif lowered.endswith(".stl"):
