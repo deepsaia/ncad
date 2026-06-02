@@ -22,7 +22,7 @@ Each phase should leave `generate → build → render → BOM` in a working sta
 | 4 | BOM + validators + glTF export (plan render done in 2.5) | `[x]` |
 | 4.5 | Browser 3D viewer (Three.js + stdlib server; BOM + plan panels, materials, lighting) | `[x]` |
 | 5 | **v1 spine complete** (milestone gate) | `[x]` |
-| 6 | Breadth: roofs, footprints, openings | `[ ]` |
+| 6 | Breadth: roofs + opening fix done (slice 1); footprints/multi-storey deferred | `[~]` |
 | 7 | Floor plans & CAD interchange — forward (`spec → DXF/IFC`) | `[ ]` |
 | 8 | Agent interface (sessions + typed mutations) | `[ ]` |
 | 9 | Multi-agent system (neuro-san) | `[ ]` |
@@ -169,11 +169,19 @@ Goal: view glTF/GLB models in any browser, no installs (machines without CAD/GL 
 
 ## Phase 6 — Breadth (additive, post-spine)
 
-- [ ] Roofs: `shed`, `gable` (registry functions); `hip` via straight skeleton
-- [ ] Footprints: union of rectangles → L/T/U shapes
-- [ ] Opening placement rules; multi-storey support
+**Slice 1 — pitched roofs + opening fix (done):**
+- [x] Kernel gains a `prism` primitive (vertical profile extruded along a horizontal axis); implemented in `Build123dKernel` (real extrude) + `FakeKernel` (sampled). Additive — `box/union/subtract/flat` untouched.
+- [x] Roofs: `shed`, `gable` via `ROOF_BUILDERS` registry + `kernel.prism`; optional `pitch`/`ridge_axis` defaulted; **schema** `enum` → `[flat, shed, gable]`, with `pitch`/`ridge_axis` properties (additive, old flat specs still valid)
+- [x] Opening placement: front door no longer overlaps the first window (`OpeningPlacer` drops windows whose span hits the door). Seed 7 now validates clean; **seed-42 golden unchanged** (targeted fix, no breakage)
+- [x] Viewer: query-string routing fix; demos regenerated via `ArtifactExporter` so BOM + plan sidecars populate for pitched-roof models
+- [x] Verified in browser: gable house renders, BOM + plan panels populate (119 tests: 109 fast + 10 slow)
+
+**Slice 2+ — deferred (higher risk, own slices):**
+- [ ] Footprints: union of rectangles → L/T/U shapes (reworks slab/roof off bounding-box → polygon)
+- [ ] Multi-storey support (Builder currently builds `storeys[0]` only)
+- [ ] `hip` roof via straight skeleton
 - [ ] Orthographic elevations + isometric views (legible-to-model styling)
-- [ ] Materials (post-export)
+- [ ] Materials carried in the spec (post-export)
 
 ## Phase 7 — Floor plans & CAD interchange (forward: `spec → DXF/IFC`)
 

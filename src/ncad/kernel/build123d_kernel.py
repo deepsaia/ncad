@@ -9,9 +9,21 @@ slow on first load — keep it out of the fast test path.
 import logging
 from typing import Any
 
-from build123d import Box, Pos, Unit, export_gltf, export_step, export_stl
+from build123d import (
+    Box,
+    Edge,
+    Face,
+    Pos,
+    Unit,
+    Vector,
+    Wire,
+    export_gltf,
+    export_step,
+    export_stl,
+    extrude,
+)
 
-from ncad.kernel.kernel import Bounds, Kernel, Point3
+from ncad.kernel.kernel import Bounds, Kernel, Point2, Point3
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +35,21 @@ class Build123dKernel(Kernel):
         cx, cy, cz = center
         sx, sy, sz = size
         return Pos(cx, cy, cz) * Box(sx, sy, sz)
+
+    def prism(self, profile: list[Point2], axis: str, start: float, end: float) -> Any:
+        lo, length = min(start, end), abs(end - start)
+        if axis == "x":
+            points = [Vector(lo, cross, z) for cross, z in profile]
+            direction = Vector(1, 0, 0)
+        elif axis == "y":
+            points = [Vector(cross, lo, z) for cross, z in profile]
+            direction = Vector(0, 1, 0)
+        else:
+            raise ValueError(f"prism axis must be 'x' or 'y', got {axis!r}")
+        closed = points + [points[0]]
+        edges = [Edge.make_line(closed[i], closed[i + 1]) for i in range(len(points))]
+        face = Face(Wire(edges))
+        return extrude(face, amount=length, dir=direction)
 
     def union(self, solids: list[Any]) -> Any:
         if not solids:

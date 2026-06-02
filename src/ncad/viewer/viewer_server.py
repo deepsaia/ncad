@@ -50,16 +50,17 @@ class _ViewerRequestHandler(BaseHTTPRequestHandler):
         super().__init__(*args, **kwargs)
 
     def do_GET(self) -> None:  # noqa: N802 (name fixed by BaseHTTPRequestHandler)
-        if self.path == "/" or self.path == "/index.html":
+        path = self.path.split("?", 1)[0]  # ignore any query string for routing
+        if path == "/" or path == "/index.html":
             self._send_index()
-        elif self.path == "/api/models":
+        elif path == "/api/models":
             self._send_model_list()
-        elif self.path.startswith(_BOM_ROUTE):
-            self._send_bom(self.path[len(_BOM_ROUTE) :])
-        elif self.path.startswith(_PLAN_ROUTE):
-            self._send_plan(self.path[len(_PLAN_ROUTE) :])
-        elif self.path.startswith(_MODEL_ROUTE):
-            self._send_model(self.path[len(_MODEL_ROUTE) :])
+        elif path.startswith(_BOM_ROUTE):
+            self._send_bom(path[len(_BOM_ROUTE) :])
+        elif path.startswith(_PLAN_ROUTE):
+            self._send_plan(path[len(_PLAN_ROUTE) :])
+        elif path.startswith(_MODEL_ROUTE):
+            self._send_model(path[len(_MODEL_ROUTE) :])
         else:
             self.send_error(404, "not found")
 

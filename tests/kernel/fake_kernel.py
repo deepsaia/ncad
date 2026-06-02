@@ -8,7 +8,7 @@ without importing the OCP backend. Not for production geometry.
 
 from typing import Any
 
-from ncad.kernel.kernel import Bounds, Kernel, Point3
+from ncad.kernel.kernel import Bounds, Kernel, Point2, Point3
 
 _SAMPLES_PER_AXIS = 40
 
@@ -30,6 +30,33 @@ class _Box:
         )
 
 
+class _Prism:
+    """A vertical 2D profile (cross, z) extruded along a horizontal axis."""
+
+    def __init__(self, profile: list[Point2], axis: str, start: float, end: float) -> None:
+        self._profile = profile
+        self._axis = axis
+        self._lo, self._hi = (start, end) if start <= end else (end, start)
+        crosses = [p[0] for p in profile]
+        zs = [p[1] for p in profile]
+        cmin, cmax, zmin, zmax = min(crosses), max(crosses), min(zs), max(zs)
+        if axis == "x":  # extrude along x; cross-section spans y/z
+            self.min = (self._lo, cmin, zmin)
+            self.max = (self._hi, cmax, zmax)
+        else:  # axis == "y"; cross-section spans x/z
+            self.min = (cmin, self._lo, zmin)
+            self.max = (cmax, self._hi, zmax)
+
+    def contains(self, x: float, y: float, z: float) -> bool:
+        if self._axis == "x":
+            if not self._lo <= x <= self._hi:
+                return False
+            return _point_in_polygon(y, z, self._profile)
+        if not self._lo <= y <= self._hi:
+            return False
+        return _point_in_polygon(x, z, self._profile)
+
+
 class _Solid:
     """A CSG expression: additive boxes minus subtractive ones."""
 
@@ -43,6 +70,9 @@ class FakeKernel(Kernel):
 
     def box(self, center: Point3, size: Point3) -> Any:
         return _Solid(additive=[_Box(center, size)], subtractive=[])
+
+    def prism(self, profile: list[Point2], axis: str, start: float, end: float) -> Any:
+        return _Solid(additive=[_Prism(profile, axis, start, end)], subtractive=[])
 
     def union(self, solids: list[Any]) -> Any:
         additive: list[_Box] = []
@@ -92,7 +122,23 @@ class FakeKernel(Kernel):
             handle.write(f"fake solid: vol={self.volume(solid):.4f}\n")
 
     def _point_inside(self, solid: _Solid, x: float, y: float, z: float) -> bool:
-        in_additive = any(b.contains(x, y, z) for b in solid.additive)
+        in_additive = any(shape.contains(x, y, z) for shape in solid.additive)
         if not in_additive:
             return False
-        return not any(b.contains(x, y, z) for b in solid.subtractive)
+        return not any(shape.contains(x, y, z) for shape in solid.subtractive)
+
+
+def _point_in_polygon(u: float, v: float, polygon: list[Point2]) -> bool:
+    """Ray-casting point-in-polygon test for a 2D (u, v) point."""
+    inside = False
+    count = len(polygon)
+    j = count - 1
+    for i in range(count):
+        ui, vi = polygon[i]
+        uj, vj = polygon[j]
+        if (vi > v) != (vj > v):
+            slope_u = ui + (v - vi) / (vj - vi) * (uj - ui)
+            if u < slope_u:
+                inside = not inside
+        j = i
+    return inside

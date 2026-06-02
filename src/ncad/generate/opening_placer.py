@@ -40,15 +40,32 @@ class OpeningPlacer:
         openings_by_wall: dict[str, list[dict]] = {}
 
         for index, wall in enumerate(exterior_walls):
-            openings = self._windows_for(wall)
+            windows = self._windows_for(wall)
             if index == 0:
-                openings.insert(0, self._front_door(wall))
-            openings_by_wall[wall["id"]] = openings
+                door = self._front_door(wall)
+                windows = self._drop_windows_overlapping(windows, door, _wall_length(wall))
+                openings_by_wall[wall["id"]] = [door, *windows]
+            else:
+                openings_by_wall[wall["id"]] = windows
 
         for wall in interior_walls:
             openings_by_wall[wall["id"]] = [self._interior_door(wall)]
 
         return openings_by_wall
+
+    def _drop_windows_overlapping(
+        self, windows: list[dict], door: dict, length: float
+    ) -> list[dict]:
+        """Remove windows whose centerline span intersects the door's span."""
+        door_lo, door_hi = _span(door, length)
+        kept = []
+        for window in windows:
+            win_lo, win_hi = _span(window, length)
+            if win_lo < door_hi and door_lo < win_hi:
+                logger.debug("dropping window %s overlapping door %s", window["id"], door["id"])
+                continue
+            kept.append(window)
+        return kept
 
     def _windows_for(self, wall: dict) -> list[dict]:
         """Evenly spaced windows along ``wall``, count = floor(length / spacing)."""
@@ -93,3 +110,10 @@ def _wall_length(wall: dict) -> float:
     """Euclidean length of a wall from its start/end centerline points."""
     (x0, y0), (x1, y1) = wall["start"], wall["end"]
     return math.hypot(x1 - x0, y1 - y0)
+
+
+def _span(opening: dict, length: float) -> tuple[float, float]:
+    """The [low, high] extent of an opening along its wall, in meters."""
+    center = opening["along"] * length
+    half = opening["width"] / 2.0
+    return center - half, center + half

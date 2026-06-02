@@ -66,6 +66,23 @@ def test_unknown_roof_kind_is_reported() -> None:
     assert any("dome" in issue.message for issue in issues)
 
 
+def test_gable_and_shed_roofs_validate() -> None:
+    for kind in ("gable", "shed"):
+        spec = _valid_spec()
+        spec["roof"] = {"kind": kind, "pitch": 0.5, "ridge_axis": "x", "thickness": 0.2}
+
+        assert SchemaValidator().validate(spec) == [], f"{kind} roof should validate"
+
+
+def test_invalid_ridge_axis_is_reported() -> None:
+    spec = _valid_spec()
+    spec["roof"] = {"kind": "gable", "ridge_axis": "z"}
+
+    issues = SchemaValidator().validate(spec)
+
+    assert any("ridge_axis" in issue.location for issue in issues)
+
+
 def test_issue_carries_location_path_into_nested_field() -> None:
     spec = _valid_spec()
     spec["storeys"][0]["walls"][0]["thickness"] = -1  # violates exclusiveMinimum

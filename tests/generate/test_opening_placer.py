@@ -7,6 +7,32 @@ def _wall(wall_id: str, start, end) -> dict:
     return {"id": wall_id, "start": start, "end": end, "thickness": 0.2}
 
 
+def _spans_overlap(a: dict, b: dict, length: float) -> bool:
+    a_lo = a["along"] * length - a["width"] / 2
+    a_hi = a["along"] * length + a["width"] / 2
+    b_lo = b["along"] * length - b["width"] / 2
+    b_hi = b["along"] * length + b["width"] / 2
+    return a_lo < b_hi and b_lo < a_hi
+
+
+def test_front_door_does_not_overlap_any_window() -> None:
+    # Regression: seed-7's 16m south wall put the front door span [1.90,2.90] under the
+    # first window span [2.60,3.80]. The placer must keep doors and windows disjoint.
+    wall = _wall("ext_south", [0.0, 0.0], [16.0, 0.0])
+    length = 16.0
+
+    result = OpeningPlacer(window_spacing=3.5).place(exterior_walls=[wall], interior_walls=[])
+
+    openings = result["ext_south"]
+    doors = [o for o in openings if o["kind"] == "door"]
+    windows = [o for o in openings if o["kind"] == "window"]
+    for door in doors:
+        for window in windows:
+            assert not _spans_overlap(door, window, length), (
+                f"door {door['id']} overlaps window {window['id']}"
+            )
+
+
 def test_interior_wall_gets_one_centered_door() -> None:
     interior = [_wall("interior_0", [5.0, 0.0], [5.0, 6.0])]
     placer = OpeningPlacer()

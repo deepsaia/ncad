@@ -21,6 +21,21 @@ def test_box_volume_and_centering() -> None:
     assert (maxx, maxy, maxz) == pytest.approx((1.0, 2.0, 1.5))
 
 
+def test_prism_volume_and_bounds() -> None:
+    from ncad.kernel.build123d_kernel import Build123dKernel
+
+    kernel = Build123dKernel()
+    # Triangular cross-section (base 6 at z=0, apex at z=2) extruded along x for 8m.
+    profile = [(0.0, 0.0), (6.0, 0.0), (3.0, 2.0)]
+    prism = kernel.prism(profile=profile, axis="x", start=0.0, end=8.0)
+
+    assert kernel.volume(prism) == pytest.approx(48.0)  # 0.5*6*2*8
+    (minx, miny, minz), (maxx, maxy, maxz) = kernel.bounding_box(prism)
+    assert (minx, maxx) == pytest.approx((0.0, 8.0))  # extruded along x
+    assert (miny, maxy) == pytest.approx((0.0, 6.0))  # cross-section base
+    assert (minz, maxz) == pytest.approx((0.0, 2.0))  # apex height
+
+
 def test_union_then_subtract_volumes() -> None:
     from ncad.kernel.build123d_kernel import Build123dKernel
 
@@ -65,6 +80,27 @@ def test_end_to_end_generate_build_export(tmp_path) -> None:
     out = tmp_path / "box_house.gltf"
     kernel.export(solid, str(out))
     assert out.exists() and out.stat().st_size > 0
+
+
+def test_gable_roof_builds_and_exports(tmp_path) -> None:
+    from ncad.build.builder import Builder
+    from ncad.generate.generator import Generator
+    from ncad.kernel.build123d_kernel import Build123dKernel
+
+    spec = Generator({"width": 12.0, "depth": 9.0, "num_rooms": 4}).generate(seed=42)
+    spec["roof"] = {"kind": "gable", "pitch": 0.5}  # real pitched roof through the Builder
+    kernel = Build123dKernel()
+
+    solid = Builder(kernel).build(spec)
+
+    assert kernel.volume(solid) > 0
+    # Roof apex rises above the flat wall top (3.0 storey height).
+    (_, _, _), (_, _, maxz) = kernel.bounding_box(solid)
+    assert maxz > 3.5
+
+    out = tmp_path / "gable_house.glb"
+    kernel.export(solid, str(out))
+    assert out.exists() and out.read_bytes()[:4] == b"glTF"
 
 
 def test_unknown_export_extension_raises() -> None:

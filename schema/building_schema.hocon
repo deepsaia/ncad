@@ -120,9 +120,14 @@ properties {
     properties {
       kind {
         type = string
-        enum = ["flat"]   # v1 supports flat only; shed/gable/hip added later
+        enum = ["flat", "shed", "gable"]   # hip added later
       }
       thickness { type = number, exclusiveMinimum = 0 }   # roof slab thickness (m)
+      pitch { type = number, exclusiveMinimum = 0 }       # rise per unit run (shed/gable); optional, defaulted
+      ridge_axis {                                        # ridge/slope direction; defaults to footprint's longer axis
+        type = string
+        enum = ["x", "y"]
+      }
     }
   }
 }

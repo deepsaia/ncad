@@ -38,6 +38,14 @@ def test_index_serves_html(server) -> None:
     assert "text/html" in headers["Content-Type"]
 
 
+def test_query_string_is_ignored_for_routing(server) -> None:
+    # A trailing query string must not break route matching (regression).
+    status, body, _ = _get(f"{server.base_url}/?foo=bar")
+
+    assert status == 200
+    assert b"</html>" in body
+
+
 def test_api_models_lists_models(server) -> None:
     status, body, headers = _get(f"{server.base_url}/api/models")
 
