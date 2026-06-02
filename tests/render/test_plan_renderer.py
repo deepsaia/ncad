@@ -21,6 +21,13 @@ def test_render_returns_svg_string() -> None:
     assert "</svg>" in svg
 
 
+def test_render_includes_viewbox_so_it_scales() -> None:
+    svg = PlanRenderer().render(_spec())
+
+    # A viewBox is required for the SVG to scale into a fixed-width panel without clipping.
+    assert "viewBox=" in svg
+
+
 def test_render_includes_a_room_label_per_room() -> None:
     spec = _spec()
 

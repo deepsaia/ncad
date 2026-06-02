@@ -21,6 +21,8 @@ from ncad.viewer.viewer_page import render_viewer_page
 logger = logging.getLogger(__name__)
 
 _MODEL_ROUTE = "/models/"
+_BOM_ROUTE = "/api/bom/"
+_PLAN_ROUTE = "/api/plan/"
 _CONTENT_TYPES = {
     ".gltf": "model/gltf+json",
     ".glb": "model/gltf-binary",
@@ -52,6 +54,10 @@ class _ViewerRequestHandler(BaseHTTPRequestHandler):
             self._send_index()
         elif self.path == "/api/models":
             self._send_model_list()
+        elif self.path.startswith(_BOM_ROUTE):
+            self._send_bom(self.path[len(_BOM_ROUTE) :])
+        elif self.path.startswith(_PLAN_ROUTE):
+            self._send_plan(self.path[len(_PLAN_ROUTE) :])
         elif self.path.startswith(_MODEL_ROUTE):
             self._send_model(self.path[len(_MODEL_ROUTE) :])
         else:
@@ -71,6 +77,22 @@ class _ViewerRequestHandler(BaseHTTPRequestHandler):
             return
         with open(resolved, "rb") as handle:
             self._send_bytes(200, _content_type_for(resolved), handle.read())
+
+    def _send_bom(self, model_name: str) -> None:
+        resolved = self._catalog.resolve_bom(unquote(model_name))
+        if resolved is None:
+            self.send_error(404, "no BOM for model")
+            return
+        with open(resolved, "rb") as handle:
+            self._send_bytes(200, "application/json", handle.read())
+
+    def _send_plan(self, model_name: str) -> None:
+        resolved = self._catalog.resolve_plan(unquote(model_name))
+        if resolved is None:
+            self.send_error(404, "no plan for model")
+            return
+        with open(resolved, "rb") as handle:
+            self._send_bytes(200, "image/svg+xml; charset=utf-8", handle.read())
 
     def _send_bytes(self, status: int, content_type: str, body: bytes) -> None:
         self.send_response(status)

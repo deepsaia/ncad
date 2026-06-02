@@ -144,11 +144,13 @@ Goal: the three outputs that make the spine real.
 
 Goal: view glTF/GLB models in any browser, no installs (machines without CAD/GL software).
 
-- [x] `ModelCatalog` — lists/safely-resolves models in a dir; path-traversal rejected (TDD, 6 tests)
-- [x] `ViewerServer` (+ handler) — stdlib `http.server`; routes `/`, `/api/models`, `/models/<name>`; correct MIME per ext (TDD integration, 7 tests)
-- [x] `viewer_page` — polished Three.js SPA (CDN importmap, no npm): Solid/Material/Wireframe/X-ray modes, edges/grid/auto-rotate, orbit controls, live size/triangle/mesh readout
+- [x] `ModelCatalog` — lists/safely-resolves models + sidecars (`.bin`/`.bom.json`/`.plan.svg`); path-traversal rejected (TDD)
+- [x] `ViewerServer` (+ handler) — stdlib `http.server`; routes `/`, `/api/models`, `/models/<name>`, `/api/bom/<model>`, `/api/plan/<model>`; correct MIME per ext (TDD integration)
+- [x] `ArtifactExporter` — writes `<name>.glb` + `<name>.bom.json` + `<name>.plan.svg` sidecars (BOM/plan from spec, not mesh) (TDD)
+- [x] `viewer_page` — polished Three.js SPA (CDN importmap, no npm): Solid/Material/Wireframe/X-ray modes; 16 material presets (swatches shown only in Material mode); lighting presets (sun/studio/spotlight/overcast); edges/grid/shadows/auto-rotate; orbit controls; ground shadow; live size/tri/mesh readout
+- [x] Floating top-right panels: **BOM** + **Plan view**, each independently collapsible, state persisted in `localStorage`; fixed-width (no jitter); plan SVG scales via `viewBox`
 - [x] `python -m ncad.viewer [dir] [--port]` launcher; **`nv` console-script alias**
-- [x] Verified in a real browser (Playwright): renders, mode-switches; zero console errors
+- [x] Verified in a real browser (Playwright): renders, mode/material/light switching, panel collapse persistence; zero app console errors (only favicon 404)
 
 ## Phase 5 — v1 spine complete (milestone gate)
 

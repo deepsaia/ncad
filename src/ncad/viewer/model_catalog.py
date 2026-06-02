@@ -15,6 +15,9 @@ _MODEL_EXTENSIONS = (".gltf", ".glb")
 # Extensions the server may serve: models plus their external buffer/image sidecars
 # (a text .gltf references a companion .bin buffer that the loader fetches separately).
 _SERVABLE_EXTENSIONS = (".gltf", ".glb", ".bin", ".png", ".jpg", ".jpeg")
+# A model's sidecars sit beside it as "<stem><suffix>".
+_BOM_SUFFIX = ".bom.json"
+_PLAN_SUFFIX = ".plan.svg"
 
 
 class ModelCatalog:
@@ -45,6 +48,24 @@ class ModelCatalog:
         if os.path.dirname(candidate) != self._directory:
             return None
         if not candidate.lower().endswith(_SERVABLE_EXTENSIONS):
+            return None
+        if not os.path.isfile(candidate):
+            return None
+        return candidate
+
+    def resolve_bom(self, model_name: str) -> str | None:
+        """Resolve a model name to its BOM sidecar (``<stem>.bom.json``), or None."""
+        return self._resolve_sidecar(model_name, _BOM_SUFFIX)
+
+    def resolve_plan(self, model_name: str) -> str | None:
+        """Resolve a model name to its plan sidecar (``<stem>.plan.svg``), or None."""
+        return self._resolve_sidecar(model_name, _PLAN_SUFFIX)
+
+    def _resolve_sidecar(self, model_name: str, suffix: str) -> str | None:
+        """Resolve ``<stem><suffix>`` beside the model, or None if unsafe/absent."""
+        stem = os.path.splitext(model_name)[0]
+        candidate = os.path.abspath(os.path.join(self._directory, stem + suffix))
+        if os.path.dirname(candidate) != self._directory:
             return None
         if not os.path.isfile(candidate):
             return None

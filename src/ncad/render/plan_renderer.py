@@ -33,7 +33,12 @@ class PlanRenderer:
         """Render ``spec`` to an SVG document string."""
         storey = spec["storeys"][0]
         transform = self._build_transform(storey)
-        drawing = svgwrite.Drawing(size=(transform.canvas_width, transform.canvas_height))
+        # A viewBox lets the SVG scale to fit any container (e.g. the viewer's plan
+        # panel) without clipping, while size gives it a sensible intrinsic dimension.
+        drawing = svgwrite.Drawing(
+            size=(transform.canvas_width, transform.canvas_height),
+            viewBox=f"0 0 {transform.canvas_width} {transform.canvas_height}",
+        )
         drawing.add(
             drawing.rect(
                 insert=(0, 0),

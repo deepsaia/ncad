@@ -15,6 +15,8 @@ from ncad.viewer.viewer_server import ViewerServer
 @pytest.fixture
 def server(tmp_path):
     (tmp_path / "box.gltf").write_text('{"asset": {"version": "2.0"}}')
+    (tmp_path / "box.bom.json").write_text('{"floor_area": 24.0, "door_count": 1}')
+    (tmp_path / "box.plan.svg").write_text('<svg xmlns="http://www.w3.org/2000/svg"></svg>')
     srv = ViewerServer(models_dir=str(tmp_path), host="127.0.0.1", port=0)
     srv.start()
     try:
@@ -63,6 +65,46 @@ def test_path_traversal_is_rejected(server) -> None:
         _get(f"{server.base_url}/models/..%2fsecret.gltf")
 
     assert exc.value.code in (400, 404)
+
+
+def test_bom_endpoint_returns_sidecar_json(server) -> None:
+    status, body, headers = _get(f"{server.base_url}/api/bom/box.gltf")
+
+    assert status == 200
+    assert "application/json" in headers["Content-Type"]
+    assert json.loads(body) == {"floor_area": 24.0, "door_count": 1}
+
+
+def test_bom_endpoint_404_when_no_sidecar(tmp_path) -> None:
+    (tmp_path / "lonely.glb").write_bytes(b"glTF\x02\x00\x00\x00")  # model, no .bom.json
+    srv = ViewerServer(models_dir=str(tmp_path), host="127.0.0.1", port=0)
+    srv.start()
+    try:
+        with pytest.raises(urllib.error.HTTPError) as exc:
+            _get(f"{srv.base_url}/api/bom/lonely.glb")
+        assert exc.value.code == 404
+    finally:
+        srv.stop()
+
+
+def test_plan_endpoint_returns_svg(server) -> None:
+    status, body, headers = _get(f"{server.base_url}/api/plan/box.gltf")
+
+    assert status == 200
+    assert "image/svg+xml" in headers["Content-Type"]
+    assert b"</svg>" in body
+
+
+def test_plan_endpoint_404_when_no_sidecar(tmp_path) -> None:
+    (tmp_path / "lonely.glb").write_bytes(b"glTF\x02\x00\x00\x00")
+    srv = ViewerServer(models_dir=str(tmp_path), host="127.0.0.1", port=0)
+    srv.start()
+    try:
+        with pytest.raises(urllib.error.HTTPError) as exc:
+            _get(f"{srv.base_url}/api/plan/lonely.glb")
+        assert exc.value.code == 404
+    finally:
+        srv.stop()
 
 
 def test_gltf_companion_bin_buffer_is_served(tmp_path) -> None:
