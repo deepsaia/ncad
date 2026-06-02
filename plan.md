@@ -17,8 +17,9 @@ Each phase should leave `generate → build → render → BOM` in a working sta
 | 0 | Project bootstrap & dependency proof | `[x]` |
 | 1 | Spec layer (schema + load/validate) | `[x]` |
 | 2 | Generator (room-centric, v1 box) | `[x]` |
+| 2.5 | Plan render (SVG, spec-only) — pulled forward | `[x]` |
 | 3 | Builder + kernel (build123d) | `[ ]` |
-| 4 | BOM + validators + export + plan render | `[ ]` |
+| 4 | BOM + validators + glTF export (plan render done in 2.5) | `[ ]` |
 | 5 | **v1 spine complete** (milestone gate) | `[ ]` |
 | 6 | Breadth: roofs, footprints, openings | `[ ]` |
 | 7 | Floor plans & CAD interchange — forward (`spec → DXF/IFC`) | `[ ]` |
@@ -85,8 +86,20 @@ Goal: `generate(seed, params) → spec`, fully seeded & reproducible.
 
 > **Note:** room-centric without geometric dedup — tracking the BSP split segment yields
 > the interior wall directly, sidestepping the T-junction dedup problem design.md §2 warns
-> about. Visual confirmation deferred to Phase 4 (plan render); an ASCII sketch during dev
-> confirmed sensible layouts.
+> about.
+
+## Phase 2.5 — Plan render (pulled forward from Phase 4)
+
+Goal: see the generated spec as a real image, with no geometry kernel. Pulled forward
+for fast visual feedback once the generator existed.
+
+- [x] `PlanTransform` — world (m, Y-up) → SVG (px, Y-down), uniform scale + margin (TDD, 5 tests)
+- [x] `PlanRenderer` — spec → SVG: rooms, thickness-scaled walls, doors (red) / windows (blue) by type, room-id labels, title (TDD, 5 tests)
+- [x] SVG chosen over matplotlib: vector, deterministic (golden-testable), zero new deps (`svgwrite` already present), legible-by-structure for tests
+- [x] Verified visually: `out/box_house_seed42.svg` (rasterized via macOS `qlmanage`)
+
+> **Deferred to Phase 4 polish:** punch real gaps in walls for openings (currently drawn
+> as colored overlays centered on the wall line); dimension lines, north arrow, scale bar.
 
 ## Phase 3 — Builder + kernel
 
