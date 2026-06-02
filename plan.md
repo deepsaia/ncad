@@ -16,7 +16,7 @@ Each phase should leave `generate → build → render → BOM` in a working sta
 |-------|-------|--------|
 | 0 | Project bootstrap & dependency proof | `[x]` |
 | 1 | Spec layer (schema + load/validate) | `[x]` |
-| 2 | Generator (room-centric, v1 box) | `[ ]` |
+| 2 | Generator (room-centric, v1 box) | `[x]` |
 | 3 | Builder + kernel (build123d) | `[ ]` |
 | 4 | BOM + validators + export + plan render | `[ ]` |
 | 5 | **v1 spine complete** (milestone gate) | `[ ]` |
@@ -75,13 +75,18 @@ Goal: a validatable spec contract; load/serialize from HOCON & JSON to a plain d
 
 Goal: `generate(seed, params) → spec`, fully seeded & reproducible.
 
-- [ ] `generate(seed, params)` entry point; all randomness seeded here
-- [ ] Footprint: single rectangle from params
-- [ ] BSP room subdivision targeting per-room areas (seeded)
-- [ ] Emit walls from room boundaries; **dedupe shared edges**
-- [ ] Place doors on shared edges; windows on exterior walls by spacing rule
-- [ ] Flat roof from footprint
-- [ ] Tests: same `(seed, params)` → byte-identical spec (golden spec)
+- [x] `Generator(params).generate(seed)` entry point; all randomness in one seeded `random.Random`
+- [x] Footprint: single rectangle from params (`Rectangle` value type)
+- [x] BSP room subdivision targeting balanced areas, seeded (`BspSubdivider`, largest-first, longer-axis, jittered, respects `min_room_size`)
+- [x] Emit walls: 4 exterior (footprint edges) + interior from split segments — **dedup-free** (each split = exactly one wall; N rooms ⇒ N−1 interior walls)
+- [x] Place doors on interior walls (spanning-tree reachability) + front door; windows on exterior by spacing (`OpeningPlacer`)
+- [x] Flat roof from footprint
+- [x] Tests (TDD, 32 passing): generated spec is schema-valid; same `(seed,params)` → identical; golden-spec fixture pins exact output; unique ids; counts
+
+> **Note:** room-centric without geometric dedup — tracking the BSP split segment yields
+> the interior wall directly, sidestepping the T-junction dedup problem design.md §2 warns
+> about. Visual confirmation deferred to Phase 4 (plan render); an ASCII sketch during dev
+> confirmed sensible layouts.
 
 ## Phase 3 — Builder + kernel
 
