@@ -20,8 +20,8 @@ Each phase should leave `generate → build → render → BOM` in a working sta
 | 2.5 | Plan render (SVG, spec-only) — pulled forward | `[x]` |
 | 3 | Builder + kernel (build123d) | `[x]` |
 | 4 | BOM + validators + glTF export (plan render done in 2.5) | `[x]` |
-| 4.5 | Browser 3D viewer (Three.js + stdlib server) | `[x]` |
-| 5 | **v1 spine complete** (milestone gate) | `[ ]` |
+| 4.5 | Browser 3D viewer (Three.js + stdlib server; BOM + plan panels, materials, lighting) | `[x]` |
+| 5 | **v1 spine complete** (milestone gate) | `[x]` |
 | 6 | Breadth: roofs, footprints, openings | `[ ]` |
 | 7 | Floor plans & CAD interchange — forward (`spec → DXF/IFC`) | `[ ]` |
 | 8 | Agent interface (sessions + typed mutations) | `[ ]` |
@@ -154,10 +154,16 @@ Goal: view glTF/GLB models in any browser, no installs (machines without CAD/GL 
 
 ## Phase 5 — v1 spine complete (milestone gate)
 
-- [ ] End-to-end: `generate → build → glTF + plan render + BOM + validators` for the box
-- [ ] One documented `examples/` run produces all artifacts
-- [ ] README quickstart reproduces it
-- [ ] ✅ **Gate:** spine works before any Phase 6+ breadth work begins
+- [x] `Pipeline(kernel).run(seed, params, out_dir, name)` — generate → schema-validate (raises on contract failure) → semantic-validate (collects issues) → persist spec → build + export (`ArtifactExporter`); returns `PipelineResult` (TDD vs FakeKernel, 5 tests)
+- [x] End-to-end with the **real** build123d kernel produces `.glb`/`.bom.json`/`.plan.svg`/`.spec.json`, clean schema + semantic, `glTF` magic bytes verified (slow test)
+- [x] `ncad` console command (`python -m ncad.pipeline --seed N …`) prints artifacts + BOM + issues; `nv` to view
+- [x] README quickstart reproduces it
+- [x] ✅ **Gate passed:** the whole spine composes into one pipeline with no glue surprises; safe to start Phase 6 breadth
+
+> **Surfaced by the gate (Phase 6 backlog):** seed 7 produced an `opening_overlap`
+> between the front door and the first south-wall window — the `OpeningPlacer` window
+> spacing doesn't reserve the door's footprint. The pipeline correctly *reported* it
+> (issues are data, not a crash). Fix when revisiting opening placement.
 
 ---
 

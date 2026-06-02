@@ -14,6 +14,8 @@ dependencies = [
 ]
 
 [project.scripts]
+# `ncad` = run the full spine (generate → validate → build → export).
+ncad = "ncad.pipeline.__main__:main"
 # `nv` = ncad viewer — launch the browser 3D viewer (alias for `python -m ncad.viewer`).
 nv = "ncad.viewer.__main__:main"
 
