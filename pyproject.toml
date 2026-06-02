@@ -51,3 +51,6 @@ known-first-party = ["ncad"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra"
+markers = [
+    "slow: tests that import the geometry kernel (OCP); slow first import (~90s). Run with -m slow or deselect with -m 'not slow'.",
+]

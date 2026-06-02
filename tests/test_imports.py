@@ -9,19 +9,31 @@ import importlib
 
 import pytest
 
-CORE_MODULES = [
-    "build123d",
-    "OCP",  # OpenCASCADE binding pulled by build123d
+LIGHT_MODULES = [
     "jsonschema",
     "leaf_common",
     "numpy",
     "trimesh",
 ]
 
+# build123d / OCP carry a large native runtime; isolate behind the slow marker so the
+# fast suite stays fast (first OCP import is ~90s cold).
+HEAVY_MODULES = [
+    "build123d",
+    "OCP",  # OpenCASCADE binding pulled by build123d
+]
 
-@pytest.mark.parametrize("module_name", CORE_MODULES)
+
+@pytest.mark.parametrize("module_name", LIGHT_MODULES)
 def test_core_dependency_imports(module_name: str) -> None:
-    """Each core dependency imports without error."""
+    """Each lightweight core dependency imports without error."""
+    importlib.import_module(module_name)
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("module_name", HEAVY_MODULES)
+def test_kernel_dependency_imports(module_name: str) -> None:
+    """The heavy geometry-kernel dependencies import without error."""
     importlib.import_module(module_name)
 
 

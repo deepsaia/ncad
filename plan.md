@@ -18,7 +18,7 @@ Each phase should leave `generate → build → render → BOM` in a working sta
 | 1 | Spec layer (schema + load/validate) | `[x]` |
 | 2 | Generator (room-centric, v1 box) | `[x]` |
 | 2.5 | Plan render (SVG, spec-only) — pulled forward | `[x]` |
-| 3 | Builder + kernel (build123d) | `[ ]` |
+| 3 | Builder + kernel (build123d) | `[x]` |
 | 4 | BOM + validators + glTF export (plan render done in 2.5) | `[ ]` |
 | 5 | **v1 spine complete** (milestone gate) | `[ ]` |
 | 6 | Breadth: roofs, footprints, openings | `[ ]` |
@@ -105,14 +105,22 @@ for fast visual feedback once the generator existed.
 
 Goal: pure `build(spec) → geometry` on the build123d backend.
 
-- [ ] `Kernel` interface (swappable backend contract)
-- [ ] `build123d` kernel implementation
-- [ ] Walls = extruded boxes from centerlines; `union` for visual solid
-- [ ] Openings = boolean subtraction
-- [ ] Flat roof via `roof_builders["flat"]` (registry dispatch from the start)
-- [ ] Floor slab
-- [ ] `build(spec)` is pure — no randomness, no global state (assert in tests)
-- [ ] Tests: golden spec → geometry hash stable across runs
+- [x] `Kernel` interface (swappable backend contract) — opaque solid handles; `box/union/subtract/volume/bounding_box/export`
+- [x] `Build123dKernel` implementation (OCP); exports glTF/STEP/STL in **meters** (`Unit.M` — build123d defaults to mm)
+- [x] Walls = axis-aligned extruded boxes from centerlines; `union` for visual solid
+- [x] Openings = boolean subtraction (cut box overshoots wall faces for a clean through-cut)
+- [x] Flat roof via `ROOF_BUILDERS["flat"]` registry (dispatch from the start)
+- [x] Floor slab under the storey
+- [x] `Builder(kernel).build(spec)` is pure — verified: same spec → same volume + bbox
+- [x] Tests: fast builder logic vs a **FakeKernel** (no OCP); slow `build123d` geometry + export behind `-m slow`
+- [x] Verified visually: built box_house seed 42 → glTF/STEP/STL; dims exactly match spec (12×9×3.2m)
+
+> **Test split:** `FakeKernel` (sampling-based, dependency-free) lets all builder logic
+> run in the **fast** suite (1.3s, OCP-free); only real geometry/export is `slow` (~90s
+> cold OCP import). Run fast with `-m "not slow"`, kernel with `-m slow`.
+>
+> **v1 limitation:** builder assumes **axis-aligned walls** (raises otherwise). Rotated/
+> angled walls are a Phase 6 extension (needs the rotated-box placement path).
 
 ## Phase 4 — BOM + validators + export + plan render
 

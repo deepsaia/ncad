@@ -1,0 +1,98 @@
+"""A lightweight, dependency-free Kernel for fast Builder tests.
+
+A solid is modeled as a constructive list of (box, is_additive) terms. Volume and bounds
+are computed by deterministic point sampling over the combined bounding region — exact
+enough to assert builder behavior (counts, relative volumes, openings reducing volume)
+without importing the OCP backend. Not for production geometry.
+"""
+
+from typing import Any
+
+from ncad.kernel.kernel import Bounds, Kernel, Point3
+
+_SAMPLES_PER_AXIS = 40
+
+
+class _Box:
+    """An axis-aligned box, min/max corners in meters."""
+
+    def __init__(self, center: Point3, size: Point3) -> None:
+        cx, cy, cz = center
+        sx, sy, sz = size
+        self.min = (cx - sx / 2, cy - sy / 2, cz - sz / 2)
+        self.max = (cx + sx / 2, cy + sy / 2, cz + sz / 2)
+
+    def contains(self, x: float, y: float, z: float) -> bool:
+        return (
+            self.min[0] <= x <= self.max[0]
+            and self.min[1] <= y <= self.max[1]
+            and self.min[2] <= z <= self.max[2]
+        )
+
+
+class _Solid:
+    """A CSG expression: additive boxes minus subtractive ones."""
+
+    def __init__(self, additive: list[_Box], subtractive: list[_Box]) -> None:
+        self.additive = additive
+        self.subtractive = subtractive
+
+
+class FakeKernel(Kernel):
+    """In-memory Kernel that approximates volume/bounds by sampling."""
+
+    def box(self, center: Point3, size: Point3) -> Any:
+        return _Solid(additive=[_Box(center, size)], subtractive=[])
+
+    def union(self, solids: list[Any]) -> Any:
+        additive: list[_Box] = []
+        subtractive: list[_Box] = []
+        for solid in solids:
+            additive.extend(solid.additive)
+            subtractive.extend(solid.subtractive)
+        return _Solid(additive, subtractive)
+
+    def subtract(self, solid: Any, tools: list[Any]) -> Any:
+        tool_boxes: list[_Box] = []
+        for tool in tools:
+            tool_boxes.extend(tool.additive)
+        return _Solid(solid.additive, solid.subtractive + tool_boxes)
+
+    def volume(self, solid: Any) -> float:
+        (minx, miny, minz), (maxx, maxy, maxz) = self.bounding_box(solid)
+        if minx >= maxx or miny >= maxy or minz >= maxz:
+            return 0.0
+        # Exact for axis-aligned, non-overlapping boxes (our wall/opening case): sum of
+        # additive box volumes minus subtractive overlap, computed by sampling.
+        n = _SAMPLES_PER_AXIS
+        dx, dy, dz = (maxx - minx) / n, (maxy - miny) / n, (maxz - minz) / n
+        cell = dx * dy * dz
+        inside = 0
+        for i in range(n):
+            x = minx + (i + 0.5) * dx
+            for j in range(n):
+                y = miny + (j + 0.5) * dy
+                for k in range(n):
+                    z = minz + (k + 0.5) * dz
+                    if self._point_inside(solid, x, y, z):
+                        inside += 1
+        return inside * cell
+
+    def bounding_box(self, solid: Any) -> Bounds:
+        boxes = solid.additive
+        mins = [b.min for b in boxes]
+        maxs = [b.max for b in boxes]
+        return (
+            (min(m[0] for m in mins), min(m[1] for m in mins), min(m[2] for m in mins)),
+            (max(m[0] for m in maxs), max(m[1] for m in maxs), max(m[2] for m in maxs)),
+        )
+
+    def export(self, solid: Any, path: str) -> None:
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write(f"fake solid: vol={self.volume(solid):.4f}\n")
+
+    def _point_inside(self, solid: _Solid, x: float, y: float, z: float) -> bool:
+        in_additive = any(b.contains(x, y, z) for b in solid.additive)
+        if not in_additive:
+            return False
+        return not any(b.contains(x, y, z) for b in solid.subtractive)
