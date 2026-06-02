@@ -1,0 +1,53 @@
+[project]
+name = "ncad"
+version = "0.0.1"
+description = "Prompt to 3D models — architecture-first parametric modeling driven by a declarative spec."
+readme = "README.md"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+    "build123d",
+    "jsonschema",
+    "leaf-common",
+    "numpy",
+    "trimesh",
+    "pyrender",
+]
+
+[project.optional-dependencies]
+# CAD interchange — DXF/IFC floor plans (plan.md Phase 7 / 11)
+interchange = [
+    "ezdxf",
+    "ifcopenshell",
+]
+# Multi-agent orchestration (plan.md Phase 9)
+agents = [
+    "neuro-san",
+]
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "ruff",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ncad"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+# pycodestyle (E), pyflakes (F), isort (I), pyupgrade (UP), naming (N)
+select = ["E", "F", "I", "UP", "N"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["ncad"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"

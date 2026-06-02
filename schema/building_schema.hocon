@@ -1,0 +1,128 @@
+# ncad building spec — schema (HOCON)
+#
+# This is a JSON-Schema (draft 2020-12) *vocabulary* authored in HOCON. The validator
+# loads it to a plain dict (via leaf-common) and hands it to jsonschema, which never
+# reads the file itself — so the on-disk format is ours to choose, and HOCON wins:
+# comments (like this), and DRY via HOCON ${...} substitution instead of $ref.
+#
+# Reuse: shared definitions live under `definitions` (a legacy JSON-Schema keyword that
+# draft 2020-12 ignores, so it is harmless to leave in) and are inlined at load time via
+# ${definitions.<name>}. We deliberately avoid every $-prefixed key ($schema/$id/$ref/
+# $defs), because HOCON treats `$` as its substitution sigil and mangles such keys.
+#
+# Units are meters, Z-up. The spec is the single source of truth.
+#
+# Intentionally PERMISSIVE while the system is young: no `additionalProperties = false`,
+# so unknown fields pass and the schema can grow without rejecting future specs. We only
+# constrain what has settled (required structural fields, positive dimensions, `along`
+# in 0..1). Tighten specific fields later — bumping `schema_version` on incompatible
+# changes — once their shape is stable.
+
+# --- reusable definitions (inlined wherever referenced via ${definitions.x}) ---
+definitions {
+  # A 2D point (x, y) in meters.
+  vec2 {
+    type = array
+    items { type = number }
+    minItems = 2
+    maxItems = 2
+  }
+
+  # Stable, unique entity identifier (e.g. "wall_0", "window_3").
+  id {
+    type = string
+    minLength = 1
+  }
+}
+
+# --- the schema proper ---
+type = object
+required = ["schema_version", "seed", "units", "storeys", "roof"]
+properties {
+
+  schema_version {
+    type = integer
+    const = 1   # bumped only on incompatible schema changes
+  }
+
+  seed {
+    type = integer   # the seed that produced this spec; all generator randomness derives from it
+  }
+
+  units {
+    type = string
+    const = "m"   # meters only, for v1
+  }
+
+  storeys {
+    type = array
+    minItems = 1
+    items {
+      type = object
+      required = ["elevation", "height", "walls", "rooms"]
+      properties {
+        elevation { type = number }                        # z of finished floor (m)
+        height { type = number, exclusiveMinimum = 0 }     # floor-to-floor height (m)
+        walls {
+          type = array
+          items {
+            type = object
+            required = ["id", "start", "end", "thickness"]
+            properties {
+              id = ${definitions.id}
+              start = ${definitions.vec2}                  # centerline start
+              end = ${definitions.vec2}                    # centerline end
+              thickness { type = number, exclusiveMinimum = 0 }   # centered on centerline (m)
+              height {                                     # null inherits storey height
+                type = ["number", "null"]
+                exclusiveMinimum = 0
+              }
+              openings {
+                type = array
+                items {
+                  type = object
+                  required = ["id", "kind", "along", "width", "height"]
+                  properties {
+                    id = ${definitions.id}
+                    kind { type = string, enum = ["door", "window"] }
+                    along { type = number, minimum = 0, maximum = 1 }   # center position along centerline (0..1)
+                    width { type = number, exclusiveMinimum = 0 }
+                    height { type = number, exclusiveMinimum = 0 }
+                    sill { type = number, minimum = 0 }                 # bottom above floor (m); 0 for doors
+                  }
+                }
+              }
+            }
+          }
+        }
+        rooms {
+          type = array
+          items {
+            type = object
+            required = ["id", "polygon"]
+            properties {
+              id = ${definitions.id}
+              polygon {                                    # ordered boundary vertices; not closed (first != last)
+                type = array
+                minItems = 3
+                items = ${definitions.vec2}
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  roof {
+    type = object
+    required = ["kind"]
+    properties {
+      kind {
+        type = string
+        enum = ["flat"]   # v1 supports flat only; shed/gable/hip added later
+      }
+      thickness { type = number, exclusiveMinimum = 0 }   # roof slab thickness (m)
+    }
+  }
+}

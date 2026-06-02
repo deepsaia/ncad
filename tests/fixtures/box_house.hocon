@@ -1,0 +1,54 @@
+# box_house — the v1 "boring box": one storey, two rooms, flat roof.
+# Hand-authored example spec. Demonstrates HOCON authoring: comments, and a shared
+# value (wall_thickness) referenced via ${...} so it stays consistent everywhere.
+#
+# Footprint: 8m x 6m, split into two rooms by an interior wall at x = 5.
+# Units: meters, Z-up. Origin at the (0,0) corner.
+
+schema_version = 1
+seed = 42
+units = "m"
+
+# Shared defaults (HOCON substitution inlines these at load time)
+wall_thickness = 0.2
+
+storeys = [
+  {
+    elevation = 0.0
+    height = 3.0
+
+    walls = [
+      # --- exterior perimeter (clockwise) ---
+      { id = ext_south, start = [0, 0], end = [8, 0], thickness = ${wall_thickness}
+        openings = [
+          { id = door_front, kind = door,   along = 0.3, width = 1.0, height = 2.1, sill = 0.0 }
+          { id = win_south,  kind = window, along = 0.7, width = 1.2, height = 1.4, sill = 0.9 }
+        ]
+      }
+      { id = ext_east,  start = [8, 0], end = [8, 6], thickness = ${wall_thickness} }
+      { id = ext_north, start = [8, 6], end = [0, 6], thickness = ${wall_thickness}
+        openings = [
+          { id = win_north, kind = window, along = 0.5, width = 1.2, height = 1.4, sill = 0.9 }
+        ]
+      }
+      { id = ext_west,  start = [0, 6], end = [0, 0], thickness = ${wall_thickness} }
+
+      # --- interior partition splitting the footprint into two rooms ---
+      { id = interior_0, start = [5, 0], end = [5, 6], thickness = ${wall_thickness}
+        openings = [
+          { id = door_interior, kind = door, along = 0.5, width = 0.9, height = 2.1, sill = 0.0 }
+        ]
+      }
+    ]
+
+    rooms = [
+      { id = living, polygon = [[0, 0], [5, 0], [5, 6], [0, 6]] }
+      { id = bedroom, polygon = [[5, 0], [8, 0], [8, 6], [5, 6]] }
+    ]
+  }
+]
+
+roof = {
+  kind = flat
+  thickness = 0.2
+}
