@@ -111,6 +111,46 @@ def _l_spec() -> dict:
     }
 
 
+def _rect_footprint_spec(roof_kind: str) -> dict:
+    return {
+        "schema_version": 1,
+        "seed": 1,
+        "units": "m",
+        "storeys": [
+            {
+                "elevation": 0.0,
+                "height": 3.0,
+                "walls": [{"id": "w0", "start": [0, 0], "end": [8, 0], "thickness": 0.2}],
+                "rooms": [{"id": "r0", "polygon": [[0, 0], [8, 0], [8, 6], [0, 6]]}],
+                "footprint": [[0, 0], [8, 0], [8, 6], [0, 6]],
+            }
+        ],
+        "roof": {"kind": roof_kind, "thickness": 0.2, "pitch": 0.5},
+    }
+
+
+def test_gable_roof_over_rect_footprint_builds() -> None:
+    # A pitched roof over a rectangular footprint must build (routed to ROOF_BUILDERS).
+    kernel = FakeKernel()
+
+    solid = Builder(kernel).build(_rect_footprint_spec("gable"))
+
+    assert kernel.volume(solid) > 0
+    # Apex rises above the flat wall top (storey 3.0 + slab).
+    (_, _, _), (_, _, maxz) = kernel.bounding_box(solid)
+    assert maxz > 3.5
+
+
+def test_pitched_roof_over_nonrect_footprint_still_raises() -> None:
+    # L footprint + gable is genuinely deferred (needs straight skeleton).
+    kernel = FakeKernel()
+    spec = _l_spec()
+    spec["roof"] = {"kind": "gable", "thickness": 0.2, "pitch": 0.5}
+
+    with pytest.raises(ValueError, match="roof"):
+        Builder(kernel).build(spec)
+
+
 def test_footprint_polygon_slab_excludes_notch() -> None:
     kernel = FakeKernel()
 

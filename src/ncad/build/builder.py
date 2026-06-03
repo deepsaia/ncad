@@ -64,15 +64,23 @@ class Builder:
         return self._extrude_footprint(footprint, base_z=top_z - thickness, height=thickness)
 
     def _build_polygon_roof(self, roof: dict, footprint: list, top_z: float):
-        """Flat roof following an arbitrary footprint polygon (pitched is deferred)."""
+        """Roof over a footprint polygon: flat follows the outline; pitched roofs are
+        allowed only over a rectangular footprint (routed to the roof registry via its
+        bounding box). Pitched over non-rectangular footprints needs a straight skeleton
+        and stays deferred.
+        """
         kind = roof["kind"]
-        if kind != "flat":
+        if kind == "flat":
+            thickness = roof.get("thickness", _SLAB_THICKNESS)
+            return self._extrude_footprint(footprint, base_z=top_z, height=thickness)
+
+        bounds = _footprint_rectangle_bounds(footprint)
+        if bounds is None:
             raise ValueError(
-                f"roof kind {kind!r} is not supported over a non-rectangular footprint yet; "
-                "only 'flat'"
+                f"roof kind {kind!r} is only supported over a rectangular footprint; "
+                "pitched roofs over L/T/U/irregular shapes are not implemented yet"
             )
-        thickness = roof.get("thickness", _SLAB_THICKNESS)
-        return self._extrude_footprint(footprint, base_z=top_z, height=thickness)
+        return self._build_roof(roof, bounds, top_z)
 
     def _extrude_footprint(self, footprint: list, base_z: float, height: float):
         """Extrude a footprint, rounding any corners that carry a positive corner_radius."""
@@ -182,6 +190,19 @@ class Builder:
         xs = [p for wall in walls for p in (wall["start"][0], wall["end"][0])]
         ys = [p for wall in walls for p in (wall["start"][1], wall["end"][1])]
         return (min(xs), min(ys)), (max(xs), max(ys))
+
+
+def _footprint_rectangle_bounds(footprint: list):
+    """``((minx,miny),(maxx,maxy))`` if the footprint is a plain axis-aligned rectangle,
+    else None. Rounded (object) vertices or non-rectangular outlines return None.
+    """
+    if len(footprint) != 4 or any(isinstance(v, dict) for v in footprint):
+        return None
+    xs = sorted({round(v[0], 6) for v in footprint})
+    ys = sorted({round(v[1], 6) for v in footprint})
+    if len(xs) != 2 or len(ys) != 2:
+        return None
+    return (xs[0], ys[0]), (xs[1], ys[1])
 
 
 def _is_axis_aligned(wall: dict) -> bool:

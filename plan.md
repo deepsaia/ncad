@@ -204,10 +204,14 @@ Goal: view glTF/GLB models in any browser, no installs (machines without CAD/GL 
 - [x] **Opening-junction flaw:** `JunctionValidator` flags any opening whose span reaches within clearance of a wall's *joined* endpoint (no openings on/near a junction — door+window across a corner no longer collide). Generated specs already pass (placer margins suffice); the validator guards hand-authored/agent specs.
 - [x] **Agent-authorable specs (strategic — design.md §0):** corner-rounding math extracted to pure `generate/corner_rounding.py` (shared by generator + compiler, no duplication; rounded L/T/U output byte-identical after refactor). New `compile/spec_compiler.py`: an LLM-emittable **brief** (round-number footprint + `rounded_corners {index: radius}` + rooms/height/roof) compiles to a precise schema+semantic-valid spec. Verified end-to-end (brief → build → real geometry), incl. irregular polygons. Prereq for Phase 8.
 - [x] Persist **all** viewer selections in localStorage: display mode + scene toggles (edges/grid/shadows/auto-rotate) now persist alongside light/material/panel-collapse. Verified via Playwright reload.
+- [x] **Examples are now briefs:** `examples/*.brief.hocon` (gitignored, reference) + `tests/fixtures/briefs/` (auto-validated by `tests/compile/test_brief_fixtures.py`) — round-number footprint + `rounded_corners` + roof. Cover rect / rounded-rect / irregular pentagon / complex composite (multi-wing) + roof types.
+- [x] **Pitched roofs over rectangular footprints:** builder routes gable/shed over a rect footprint to `ROOF_BUILDERS` (via bbox); non-rect stays flat (straight-skeleton deferred). Briefs can set `roof = "gable"/"shed"`.
+- [x] **Full visual trip (nv + Playwright):** all 6 example briefs render correctly — flat/gable/shed roofs, sharp/rounded corners, rect/irregular/composite footprints (186 tests: 165 fast + 21 slow).
 
 **Slice 3+ — deferred (higher risk, own slices):**
 - [ ] Openings on diagonal/arc walls (currently only axis-aligned walls take openings)
 - [ ] Multi-room subdivision of arbitrary/irregular footprints (compiler emits one room today)
+- [ ] Pitched roofs over non-rectangular footprints (needs straight skeleton)
 - [ ] Orthographic elevations + isometric views (legible-to-model styling)
 - [ ] Materials carried in the spec (post-export)
 

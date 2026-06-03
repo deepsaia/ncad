@@ -179,6 +179,31 @@ def test_rounded_shapes_build_and_export(shape, tmp_path) -> None:
     assert out.exists() and out.read_bytes()[:4] == b"glTF"
 
 
+def test_brief_with_gable_roof_builds(tmp_path) -> None:
+    from ncad.build.builder import Builder
+    from ncad.compile.spec_compiler import SpecCompiler
+    from ncad.kernel.build123d_kernel import Build123dKernel
+
+    # An agent brief: rectangle + gable roof, round numbers only.
+    brief = {
+        "footprint": [[0, 0], [12, 0], [12, 9], [0, 9]],
+        "rounded_corners": {},
+        "num_rooms": 4,
+        "storey_height": 3.0,
+        "roof": "gable",
+    }
+    kernel = Build123dKernel()
+    solid = Builder(kernel).build(SpecCompiler().compile(brief))
+
+    assert kernel.volume(solid) > 0
+    (_, _, _), (_, _, maxz) = kernel.bounding_box(solid)
+    assert maxz > 3.5  # gable apex above the flat wall top
+
+    out = tmp_path / "brief_gable.glb"
+    kernel.export(solid, str(out))
+    assert out.exists() and out.read_bytes()[:4] == b"glTF"
+
+
 def test_irregular_mixed_corner_hocon_builds(tmp_path) -> None:
     from pathlib import Path
 
