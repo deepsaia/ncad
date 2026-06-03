@@ -51,6 +51,13 @@ class Build123dKernel(Kernel):
         face = Face(Wire(edges))
         return extrude(face, amount=length, dir=direction)
 
+    def extrude_polygon(self, polygon: list[Point2], base_z: float, height: float) -> Any:
+        points = [Vector(x, y, base_z) for x, y in polygon]
+        closed = points + [points[0]]
+        edges = [Edge.make_line(closed[i], closed[i + 1]) for i in range(len(points))]
+        face = Face(Wire(edges))
+        return extrude(face, amount=height, dir=Vector(0, 0, 1))
+
     def union(self, solids: list[Any]) -> Any:
         if not solids:
             raise ValueError("union requires at least one solid")

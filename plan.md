@@ -22,7 +22,7 @@ Each phase should leave `generate → build → render → BOM` in a working sta
 | 4 | BOM + validators + glTF export (plan render done in 2.5) | `[x]` |
 | 4.5 | Browser 3D viewer (Three.js + stdlib server; BOM + plan panels, materials, lighting) | `[x]` |
 | 5 | **v1 spine complete** (milestone gate) | `[x]` |
-| 6 | Breadth: roofs + opening fix done (slice 1); footprints/multi-storey deferred | `[~]` |
+| 6 | Breadth: roofs+opening (slice 1), L/T/U footprints (slice 2) done; curves/multi-storey deferred | `[~]` |
 | 7 | Floor plans & CAD interchange — forward (`spec → DXF/IFC`) | `[ ]` |
 | 8 | Agent interface (sessions + typed mutations) | `[ ]` |
 | 9 | Multi-agent system (neuro-san) | `[ ]` |
@@ -176,8 +176,19 @@ Goal: view glTF/GLB models in any browser, no installs (machines without CAD/GL 
 - [x] Viewer: query-string routing fix; demos regenerated via `ArtifactExporter` so BOM + plan sidecars populate for pitched-roof models
 - [x] Verified in browser: gable house renders, BOM + plan panels populate (119 tests: 109 fast + 10 slow)
 
-**Slice 2+ — deferred (higher risk, own slices):**
-- [ ] Footprints: union of rectangles → L/T/U shapes (reworks slab/roof off bounding-box → polygon)
+**Slice 2 — L/T/U footprints, straight corners (done):**
+- [x] Kernel gains `extrude_polygon` (horizontal polygon → vertical prism), distinct from `prism`; `Build123dKernel` (Face/Wire/extrude up) + `FakeKernel` (`_PolygonPrism`, point-in-polygon). Additive.
+- [x] `footprint_grid.py`: occupancy grid + L/T/U masks → marching-squares boundary (directed-edge cancellation) → CCW polygon w/ colinear collapse; greedy rectangle wings. Pure/deterministic (no RNG → rect stream untouched).
+- [x] Generator `footprint_shape` param (`rect` default = **frozen path**, golden byte-identical); `L/T/U` → polygon walls (longest edge first) + per-wing BSP rooms + door-bearing seam walls; emits optional `storeys[0].footprint`; raises on pitched roof over shaped footprint.
+- [x] Builder: slab + flat roof use `extrude_polygon` when `footprint` present (notch genuinely empty), else frozen box/bounds path. Schema documents optional `footprint`.
+- [x] **Specs from HOCON too:** hand-authored `tests/fixtures/L_house.hocon` + generator-exported `T_house.hocon`/`U_house.hocon`; all load + validate + build. New `golden_spec_L_seed42.json`.
+- [x] Verified in browser (nv + Playwright): L and U render with empty notches, BOM + plan panels populate (145 tests: 132 fast + 13 slow)
+
+**Slice 2b — curved corners (deferred to its own slice):**
+- [ ] Footprint vertices carry an optional **arc/bulge** (schema + validation designed here, built in 2b) for rounded "human-touch" corners — the full 6-piece dual-tile set
+- [ ] Kernel arc support (arc-aware `extrude_polygon`) + non-axis-aligned/curved walls (generalize `_wall_box`)
+
+**Slice 3+ — deferred (higher risk, own slices):**
 - [ ] Multi-storey support (Builder currently builds `storeys[0]` only)
 - [ ] `hip` roof via straight skeleton
 - [ ] Orthographic elevations + isometric views (legible-to-model styling)

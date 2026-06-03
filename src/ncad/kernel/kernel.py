@@ -33,6 +33,16 @@ class Kernel(ABC):
         """
 
     @abstractmethod
+    def extrude_polygon(self, polygon: list[Point2], base_z: float, height: float) -> Any:
+        """Extrude a horizontal 2D polygon vertically into a prism.
+
+        Used for slabs and flat roofs over arbitrary (e.g. L/T/U) footprints. The
+        ``polygon`` is an ordered list of ``(x, y)`` boundary vertices in meters, not
+        closed (first != last). The solid spans ``base_z`` to ``base_z + height``.
+        Distinct from :meth:`prism`, which extrudes a vertical cross-section horizontally.
+        """
+
+    @abstractmethod
     def union(self, solids: list[Any]) -> Any:
         """Boolean-union a non-empty list of solids into one."""
 

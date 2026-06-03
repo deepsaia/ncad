@@ -1,0 +1,61 @@
+# L_house — a hand-authored L-shaped building spec (HOCON).
+# Demonstrates that non-rectangular footprints are authorable by hand, not only via the
+# generator: the `footprint` polygon on the storey drives the slab/roof shape, and the
+# builder reads it straight from this spec. Two wings (a 8x4 base + a 4x5 upstand) sharing
+# an edge, connected by an interior door. Units: meters, Z-up.
+
+schema_version = 1
+seed = 0
+units = "m"
+
+wall_thickness = 0.2
+
+storeys = [
+  {
+    elevation = 0.0
+    height = 3.0
+
+    # Outer boundary of the L (CCW, not closed). 8x9 bounding box with a 4x5 notch top-right.
+    footprint = [[0, 0], [8, 0], [8, 4], [4, 4], [4, 9], [0, 9]]
+
+    walls = [
+      # --- exterior boundary, one wall per footprint edge ---
+      { id = ext_0, start = [0, 0], end = [8, 0], thickness = ${wall_thickness}
+        openings = [
+          { id = front_door, kind = door,   along = 0.3, width = 1.0, height = 2.1, sill = 0.0 }
+          { id = win_s,      kind = window, along = 0.7, width = 1.2, height = 1.4, sill = 0.9 }
+        ]
+      }
+      { id = ext_1, start = [8, 0], end = [8, 4], thickness = ${wall_thickness} }
+      { id = ext_2, start = [8, 4], end = [4, 4], thickness = ${wall_thickness} }
+      { id = ext_3, start = [4, 4], end = [4, 9], thickness = ${wall_thickness}
+        openings = [
+          { id = win_e, kind = window, along = 0.5, width = 1.2, height = 1.4, sill = 0.9 }
+        ]
+      }
+      { id = ext_4, start = [4, 9], end = [0, 9], thickness = ${wall_thickness} }
+      { id = ext_5, start = [0, 9], end = [0, 0], thickness = ${wall_thickness}
+        openings = [
+          { id = win_w, kind = window, along = 0.5, width = 1.2, height = 1.4, sill = 0.9 }
+        ]
+      }
+
+      # --- interior partition on the shared wing edge (y = 4), with a connecting door ---
+      { id = interior_0, start = [0, 4], end = [4, 4], thickness = ${wall_thickness}
+        openings = [
+          { id = inner_door, kind = door, along = 0.5, width = 0.9, height = 2.1, sill = 0.0 }
+        ]
+      }
+    ]
+
+    rooms = [
+      { id = living, polygon = [[0, 0], [8, 0], [8, 4], [0, 4]] }
+      { id = wing,   polygon = [[0, 4], [4, 4], [4, 9], [0, 9]] }
+    ]
+  }
+]
+
+roof = {
+  kind = flat
+  thickness = 0.2
+}

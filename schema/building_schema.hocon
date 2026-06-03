@@ -63,6 +63,11 @@ properties {
       properties {
         elevation { type = number }                        # z of finished floor (m)
         height { type = number, exclusiveMinimum = 0 }     # floor-to-floor height (m)
+        footprint {                                        # optional: outer boundary polygon
+          type = array                                     # for non-rectangular (L/T/U) shapes;
+          minItems = 3                                     # absent for plain rectangles (slab/roof
+          items = ${definitions.vec2}                      # then derive from wall bounds)
+        }
         walls {
           type = array
           items {

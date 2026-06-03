@@ -57,6 +57,24 @@ class _Prism:
         return _point_in_polygon(x, z, self._profile)
 
 
+class _PolygonPrism:
+    """A horizontal 2D polygon extruded vertically from base_z to base_z + height."""
+
+    def __init__(self, polygon: list[Point2], base_z: float, height: float) -> None:
+        self._polygon = polygon
+        self._base_z = base_z
+        self._top_z = base_z + height
+        xs = [p[0] for p in polygon]
+        ys = [p[1] for p in polygon]
+        self.min = (min(xs), min(ys), base_z)
+        self.max = (max(xs), max(ys), self._top_z)
+
+    def contains(self, x: float, y: float, z: float) -> bool:
+        if not self._base_z <= z <= self._top_z:
+            return False
+        return _point_in_polygon(x, y, self._polygon)
+
+
 class _Solid:
     """A CSG expression: additive boxes minus subtractive ones."""
 
@@ -73,6 +91,9 @@ class FakeKernel(Kernel):
 
     def prism(self, profile: list[Point2], axis: str, start: float, end: float) -> Any:
         return _Solid(additive=[_Prism(profile, axis, start, end)], subtractive=[])
+
+    def extrude_polygon(self, polygon: list[Point2], base_z: float, height: float) -> Any:
+        return _Solid(additive=[_PolygonPrism(polygon, base_z, height)], subtractive=[])
 
     def union(self, solids: list[Any]) -> Any:
         additive: list[_Box] = []
