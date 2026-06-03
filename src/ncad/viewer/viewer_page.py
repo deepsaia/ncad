@@ -416,9 +416,10 @@ MATERIALS.forEach((m, i) => {
   swatchWrap.appendChild(s);
 });
 
-// ---- mode + toggles ----
+// ---- mode + toggles (all persisted to localStorage) ----
 function setMode(next) {
   mode = next;
+  localStorage.setItem("ncad.mode", next);
   document.querySelectorAll("#modes .btn").forEach(b =>
     b.classList.toggle("active", b.dataset.mode === next));
   syncMaterialBlock();
@@ -426,11 +427,26 @@ function setMode(next) {
 }
 document.querySelectorAll("#modes .btn").forEach(btn =>
   btn.addEventListener("click", () => setMode(btn.dataset.mode)));
-document.getElementById("t-edges").addEventListener("change", e => { showEdges = e.target.checked; applyMode(); });
-document.getElementById("t-grid").addEventListener("change", e => { grid.visible = e.target.checked; });
-document.getElementById("t-shadow").addEventListener("change", e => { castShadows = e.target.checked; applyMode(); });
-document.getElementById("t-rotate").addEventListener("change", e => { controls.autoRotate = e.target.checked; });
+
+// A persisted boolean scene toggle: restores the saved state, applies it, and saves changes.
+function bindToggle(id, key, apply) {
+  const el = document.getElementById(id);
+  const saved = localStorage.getItem(key);
+  if (saved !== null) el.checked = saved === "1";
+  apply(el.checked);
+  el.addEventListener("change", e => {
+    localStorage.setItem(key, e.target.checked ? "1" : "0");
+    apply(e.target.checked);
+  });
+}
+bindToggle("t-edges", "ncad.edges", v => { showEdges = v; applyMode(); });
+bindToggle("t-grid", "ncad.grid", v => { grid.visible = v; });
+bindToggle("t-shadow", "ncad.shadow", v => { castShadows = v; applyMode(); });
+bindToggle("t-rotate", "ncad.rotate", v => { controls.autoRotate = v; });
 document.getElementById("reset-view").addEventListener("click", () => { if (modelRoot) frameModel(); });
+
+// Restore the saved display mode (default solid). Buttons reflect it; applyMode on load.
+setMode(localStorage.getItem("ncad.mode") || "solid");
 
 // Lighting selector (persisted).
 const lightSelect = document.getElementById("light-select");

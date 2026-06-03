@@ -118,3 +118,64 @@ def test_irregular_closed_loop_passes(tmp_path) -> None:
     issues = SemanticValidator().validate(spec)
 
     assert not any(i.kind == "open_wall_loop" for i in issues)
+
+
+def test_opening_too_close_to_junction_is_flagged() -> None:
+    # Two walls meeting at (6,0). A door at the far end of w1 hugs that shared corner,
+    # where a window on the joined w2 would visually collide — flag it.
+    spec = _clean_spec()
+    storey = spec["storeys"][0]
+    storey["walls"] = [
+        {
+            "id": "w1",
+            "start": [0.0, 0.0],
+            "end": [6.0, 0.0],
+            "thickness": 0.2,
+            "openings": [
+                # along ~0.95 on a 6m wall → center at 5.7m, right edge at 6.2m: past the
+                # junction at x=6, far too close to the corner shared with w2.
+                {"id": "corner_door", "kind": "door", "along": 0.95, "width": 1.0,
+                 "height": 2.1, "sill": 0.0},
+            ],
+        },
+        {"id": "w2", "start": [6.0, 0.0], "end": [6.0, 4.0], "thickness": 0.2},
+    ]
+    storey["rooms"] = [{"id": "r0", "polygon": [[0, 0], [6, 0], [6, 4], [0, 4]]}]
+
+    issues = SemanticValidator().validate(spec)
+
+    assert any(i.kind == "opening_near_junction" and i.entity_id == "corner_door"
+               for i in issues)
+
+
+def test_opening_clear_of_junction_passes() -> None:
+    # The same wall, but the door centered well away from both ends: no junction issue.
+    spec = _clean_spec()
+    storey = spec["storeys"][0]
+    storey["walls"] = [
+        {
+            "id": "w1",
+            "start": [0.0, 0.0],
+            "end": [6.0, 0.0],
+            "thickness": 0.2,
+            "openings": [
+                {"id": "mid_door", "kind": "door", "along": 0.5, "width": 1.0,
+                 "height": 2.1, "sill": 0.0},
+            ],
+        },
+        {"id": "w2", "start": [6.0, 0.0], "end": [6.0, 4.0], "thickness": 0.2},
+    ]
+    storey["rooms"] = [{"id": "r0", "polygon": [[0, 0], [6, 0], [6, 4], [0, 4]]}]
+
+    issues = SemanticValidator().validate(spec)
+
+    assert not any(i.kind == "opening_near_junction" for i in issues)
+
+
+def test_generated_specs_have_no_junction_issues() -> None:
+    # The generator's placement guard must keep openings clear of junctions.
+    for seed in (1, 7, 42, 99):
+        issues = SemanticValidator().validate(
+            Generator({"width": 14.0, "depth": 10.0, "num_rooms": 5}).generate(seed)
+        )
+        assert not any(i.kind == "opening_near_junction" for i in issues), f"seed {seed}"

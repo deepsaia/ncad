@@ -11,6 +11,7 @@ import math
 import random
 
 from ncad.generate.bsp_subdivider import BspSubdivider
+from ncad.generate.corner_rounding import longest_wall_first, round_corners
 from ncad.generate.footprint_grid import FootprintGrid
 from ncad.generate.opening_placer import OpeningPlacer
 from ncad.generate.rectangle import Rectangle
@@ -103,7 +104,12 @@ class Generator:
         polygon = grid.polygon()
 
         if self._corner_radius > 0:
-            straight_walls, arc_walls, footprint = self._rounded_exterior(polygon)
+            # Round every corner uniformly; the shared compiler does the tangent/arc math.
+            radii = {i: self._corner_radius for i in range(len(polygon))}
+            rounded = round_corners(polygon, radii, self._wall_thickness)
+            straight_walls = longest_wall_first(rounded["straight_walls"])
+            arc_walls = rounded["arc_walls"]
+            footprint = rounded["footprint"]
         else:
             straight_walls = self._exterior_walls_from_polygon(polygon)
             arc_walls = []
@@ -137,78 +143,6 @@ class Generator:
                 }
             ],
             "roof": {"kind": "flat", "thickness": _DEFAULT_ROOF_THICKNESS},
-        }
-
-    def _rounded_exterior(self, polygon: list):
-        """Round convex corners: straight walls between tangent points + arc corner walls.
-
-        Returns ``(straight_walls, arc_walls, footprint)`` where footprint mixes plain
-        points (sharp corners) and object vertices (rounded). The radius is clamped per
-        corner to half the shorter adjacent edge so the fillet never overruns an edge.
-        """
-        count = len(polygon)
-        # Per-vertex: (tangent_in, tangent_out, radius) for rounded corners, else None.
-        plans = [self._corner_plan(polygon, i) for i in range(count)]
-
-        straight_walls = []
-        arc_walls = []
-        footprint = []
-        wall_index = 0
-        for i in range(count):
-            corner = polygon[i]
-            plan = plans[i]
-            # Footprint vertex: object form if rounded, else plain point.
-            if plan is None:
-                footprint.append(list(corner))
-            else:
-                footprint.append({"point": list(corner), "corner_radius": plan[2]})
-            # Straight edge from this corner's exit point to the next corner's entry point.
-            start = plan[1] if plan is not None else corner
-            next_plan = plans[(i + 1) % count]
-            next_corner = polygon[(i + 1) % count]
-            end = next_plan[0] if next_plan is not None else next_corner
-            straight_walls.append(self._wall(f"ext_{wall_index}", start, end))
-            wall_index += 1
-            # Arc wall turning this corner (between tangent_in and tangent_out).
-            if plan is not None:
-                arc_walls.append(self._corner_arc_wall(f"ext_arc_{i}", corner, plan))
-
-        # Front door on the longest straight edge.
-        straight_walls = _longest_first(straight_walls)
-        return straight_walls, arc_walls, footprint
-
-    def _corner_plan(self, polygon: list, i: int):
-        """Rounding plan for any corner: (tangent_in, tangent_out, radius, convex), or None.
-
-        Both convex (outward, left-turn) and concave (inward, right-turn) corners round;
-        the tangent-setback math is identical, only the arc sweep direction flips.
-        """
-        count = len(polygon)
-        prev_pt, corner, next_pt = polygon[(i - 1) % count], polygon[i], polygon[(i + 1) % count]
-        turn = _cross(prev_pt, corner, next_pt)
-        if turn == 0:  # colinear — no corner to round
-            return None
-        convex = turn > 0
-        in_len = _dist(prev_pt, corner)
-        out_len = _dist(corner, next_pt)
-        radius = min(self._corner_radius, 0.5 * min(in_len, out_len))
-        if radius <= 0:
-            return None
-        setback = radius / math.tan(_half_angle(prev_pt, corner, next_pt))
-        setback = min(setback, 0.5 * in_len, 0.5 * out_len)
-        tan_in = _along(corner, prev_pt, setback)
-        tan_out = _along(corner, next_pt, setback)
-        return tan_in, tan_out, radius, convex
-
-    def _corner_arc_wall(self, wall_id: str, corner, plan) -> dict:
-        tan_in, tan_out, radius, convex = plan
-        return {
-            "id": wall_id,
-            "start": [tan_in[0], tan_in[1]],
-            "end": [tan_out[0], tan_out[1]],
-            "thickness": self._wall_thickness,
-            # Convex corners arc outward (CCW from in->out); concave arc inward (CW).
-            "arc": {"center": list(_arc_center(corner, plan)), "clockwise": not convex},
         }
 
     def _exterior_walls_from_polygon(self, polygon: list) -> list[dict]:
@@ -310,52 +244,3 @@ def _shared_edge(a: Rectangle, b: Rectangle):
         if hi > lo:
             return (lo, y), (hi, y)
     return None
-
-
-def _longest_first(walls: list[dict]) -> list[dict]:
-    """Rotate the wall list so the longest wall is first (keeps the front door valid)."""
-    longest = max(range(len(walls)), key=lambda i: _dist(walls[i]["start"], walls[i]["end"]))
-    return walls[longest:] + walls[:longest]
-
-
-def _dist(a, b) -> float:
-    return math.hypot(b[0] - a[0], b[1] - a[1])
-
-
-def _cross(prev_pt, corner, next_pt) -> float:
-    """Z of (corner-prev) x (next-corner); >0 = convex left turn on a CCW polygon."""
-    return (corner[0] - prev_pt[0]) * (next_pt[1] - corner[1]) - (
-        corner[1] - prev_pt[1]
-    ) * (next_pt[0] - corner[0])
-
-
-def _unit(frm, to) -> tuple:
-    length = _dist(frm, to) or 1.0
-    return ((to[0] - frm[0]) / length, (to[1] - frm[1]) / length)
-
-
-def _along(frm, toward, distance) -> tuple:
-    u = _unit(frm, toward)
-    return (frm[0] + u[0] * distance, frm[1] + u[1] * distance)
-
-
-def _half_angle(prev_pt, corner, next_pt) -> float:
-    """Half the interior angle at ``corner`` between its two edges."""
-    u_in = _unit(corner, prev_pt)
-    u_out = _unit(corner, next_pt)
-    cos_full = max(-1.0, min(1.0, u_in[0] * u_out[0] + u_in[1] * u_out[1]))
-    return math.acos(cos_full) / 2.0
-
-
-def _arc_center(corner, plan) -> tuple:
-    """Fillet arc center: along the corner's angle bisector at radius / sin(half)."""
-    tan_in, tan_out, radius, _convex = plan
-    # Bisector direction = sum of the two edge unit vectors from the corner.
-    u_in = _unit(corner, tan_in)
-    u_out = _unit(corner, tan_out)
-    bisector = (u_in[0] + u_out[0], u_in[1] + u_out[1])
-    blen = math.hypot(*bisector) or 1.0
-    half = math.acos(max(-1.0, min(1.0, u_in[0] * u_out[0] + u_in[1] * u_out[1]))) / 2.0
-    center_dist = radius / math.sin(half)
-    return (corner[0] + bisector[0] / blen * center_dist,
-            corner[1] + bisector[1] / blen * center_dist)

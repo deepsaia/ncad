@@ -196,11 +196,18 @@ Goal: view glTF/GLB models in any browser, no installs (machines without CAD/GL 
 - [x] Verified in browser (nv + Playwright): rounded L/T/U (both corner types correct) + irregular hexagon render and round-trip (174 tests: 154 fast + 20 slow)
 - Bug found & fixed via visual review: arc band swept the **major** arc (inverted concave corners) — normalized to minor arc.
 
+**Slice 3 — multi-storey + hip roofs (NEXT):**
+- [ ] Multi-storey support: Builder loops all `storeys` (today builds `storeys[0]` only), stacking elevations; generator emits N floors
+- [ ] `hip` roof via straight skeleton (registry function, like shed/gable)
+
+**Open concerns (raised after slice 2b) — RESOLVED:**
+- [x] **Opening-junction flaw:** `JunctionValidator` flags any opening whose span reaches within clearance of a wall's *joined* endpoint (no openings on/near a junction — door+window across a corner no longer collide). Generated specs already pass (placer margins suffice); the validator guards hand-authored/agent specs.
+- [x] **Agent-authorable specs (strategic — design.md §0):** corner-rounding math extracted to pure `generate/corner_rounding.py` (shared by generator + compiler, no duplication; rounded L/T/U output byte-identical after refactor). New `compile/spec_compiler.py`: an LLM-emittable **brief** (round-number footprint + `rounded_corners {index: radius}` + rooms/height/roof) compiles to a precise schema+semantic-valid spec. Verified end-to-end (brief → build → real geometry), incl. irregular polygons. Prereq for Phase 8.
+- [x] Persist **all** viewer selections in localStorage: display mode + scene toggles (edges/grid/shadows/auto-rotate) now persist alongside light/material/panel-collapse. Verified via Playwright reload.
+
 **Slice 3+ — deferred (higher risk, own slices):**
 - [ ] Openings on diagonal/arc walls (currently only axis-aligned walls take openings)
-- [ ] Generator-driven irregular shapes + per-corner radius mix (hand-authored works today)
-- [ ] Multi-storey support (Builder currently builds `storeys[0]` only)
-- [ ] `hip` roof via straight skeleton
+- [ ] Multi-room subdivision of arbitrary/irregular footprints (compiler emits one room today)
 - [ ] Orthographic elevations + isometric views (legible-to-model styling)
 - [ ] Materials carried in the spec (post-export)
 
