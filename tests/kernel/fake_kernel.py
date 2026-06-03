@@ -76,12 +76,57 @@ class _PolygonPrism:
         return _point_in_polygon(x, y, self._polygon)
 
 
-class _Solid:
-    """A CSG expression: additive boxes minus subtractive ones."""
+class _Sphere:
+    """A solid sphere."""
 
-    def __init__(self, additive: list[_Box], subtractive: list[_Box]) -> None:
+    def __init__(self, center: Point3, radius: float) -> None:
+        self._c = center
+        self._r = radius
+        self.min = (center[0] - radius, center[1] - radius, center[2] - radius)
+        self.max = (center[0] + radius, center[1] + radius, center[2] + radius)
+
+    def contains(self, x: float, y: float, z: float) -> bool:
+        cx, cy, cz = self._c
+        return (x - cx) ** 2 + (y - cy) ** 2 + (z - cz) ** 2 <= self._r * self._r
+
+
+class _Barrel:
+    """Top half of a horizontal cylinder whose axis runs along a segment at base_z."""
+
+    def __init__(self, start: Point2, end: Point2, radius: float, base_z: float) -> None:
+        self._a = start
+        self._b = end
+        self._r = radius
+        self._base_z = base_z
+        xs = [start[0], end[0]]
+        ys = [start[1], end[1]]
+        self.min = (min(xs) - radius, min(ys) - radius, base_z)
+        self.max = (max(xs) + radius, max(ys) + radius, base_z + radius)
+
+    def contains(self, x: float, y: float, z: float) -> bool:
+        if z < self._base_z:
+            return False
+        # Perpendicular distance from (x,y,z) to the axis line (which lies in z=base_z).
+        ax, ay = self._a
+        bx, by = self._b
+        dx, dy = bx - ax, by - ay
+        seg_len_sq = dx * dx + dy * dy or 1.0
+        t = ((x - ax) * dx + (y - ay) * dy) / seg_len_sq
+        if t < 0.0 or t > 1.0:  # beyond the segment ends (no spherical caps here)
+            return False
+        px, py = ax + t * dx, ay + t * dy
+        radial_sq = (x - px) ** 2 + (y - py) ** 2 + (z - self._base_z) ** 2
+        return radial_sq <= self._r * self._r
+
+
+class _Solid:
+    """A CSG expression: additive shapes minus subtractive ones, optionally intersected
+    with one or more clip groups (a point must lie inside every clip group)."""
+
+    def __init__(self, additive, subtractive, clips=None) -> None:
         self.additive = additive
         self.subtractive = subtractive
+        self.clips = clips or []  # list of lists of shapes; AND across groups
 
 
 class FakeKernel(Kernel):
@@ -108,19 +153,37 @@ class FakeKernel(Kernel):
         band = _annular_band(center, radius, start_angle, end_angle, thickness)
         return _Solid(additive=[_PolygonPrism(band, base_z, height)], subtractive=[])
 
+    def sphere(self, center: Point3, radius: float) -> Any:
+        return _Solid(additive=[_Sphere(center, radius)], subtractive=[])
+
+    def barrel(self, start: Point2, end: Point2, radius: float, base_z: float) -> Any:
+        return _Solid(additive=[_Barrel(start, end, radius, base_z)], subtractive=[])
+
+    def intersect(self, solids: list[Any]) -> Any:
+        # Bounds = the first solid's additive shapes; membership requires being inside
+        # every operand. Model each operand as a clip group on a carrier solid.
+        carrier = solids[0]
+        clips = list(carrier.clips)
+        for other in solids[1:]:
+            clips.append(other.additive)
+            clips.extend(other.clips)
+        return _Solid(carrier.additive, carrier.subtractive, clips)
+
     def union(self, solids: list[Any]) -> Any:
-        additive: list[_Box] = []
-        subtractive: list[_Box] = []
+        additive = []
+        subtractive = []
+        clips = []
         for solid in solids:
             additive.extend(solid.additive)
             subtractive.extend(solid.subtractive)
-        return _Solid(additive, subtractive)
+            clips.extend(solid.clips)
+        return _Solid(additive, subtractive, clips)
 
     def subtract(self, solid: Any, tools: list[Any]) -> Any:
-        tool_boxes: list[_Box] = []
+        tool_shapes = []
         for tool in tools:
-            tool_boxes.extend(tool.additive)
-        return _Solid(solid.additive, solid.subtractive + tool_boxes)
+            tool_shapes.extend(tool.additive)
+        return _Solid(solid.additive, solid.subtractive + tool_shapes, solid.clips)
 
     def volume(self, solid: Any) -> float:
         (minx, miny, minz), (maxx, maxy, maxz) = self.bounding_box(solid)
@@ -143,13 +206,13 @@ class FakeKernel(Kernel):
         return inside * cell
 
     def bounding_box(self, solid: Any) -> Bounds:
-        boxes = solid.additive
-        mins = [b.min for b in boxes]
-        maxs = [b.max for b in boxes]
-        return (
-            (min(m[0] for m in mins), min(m[1] for m in mins), min(m[2] for m in mins)),
-            (max(m[0] for m in maxs), max(m[1] for m in maxs), max(m[2] for m in maxs)),
-        )
+        lo, hi = _bounds_of(solid.additive)
+        # Each clip group narrows the bounds to the overlap (boolean intersection).
+        for group in solid.clips:
+            glo, ghi = _bounds_of(group)
+            lo = (max(lo[0], glo[0]), max(lo[1], glo[1]), max(lo[2], glo[2]))
+            hi = (min(hi[0], ghi[0]), min(hi[1], ghi[1]), min(hi[2], ghi[2]))
+        return (lo, hi)
 
     def export(self, solid: Any, path: str) -> None:
         with open(path, "w", encoding="utf-8") as handle:
@@ -159,7 +222,12 @@ class FakeKernel(Kernel):
         in_additive = any(shape.contains(x, y, z) for shape in solid.additive)
         if not in_additive:
             return False
-        return not any(shape.contains(x, y, z) for shape in solid.subtractive)
+        if any(shape.contains(x, y, z) for shape in solid.subtractive):
+            return False
+        # Must lie inside every clip group (boolean intersection).
+        return all(
+            any(shape.contains(x, y, z) for shape in group) for group in solid.clips
+        )
 
 
 _FILLET_SEGMENTS = 8  # chord segments approximating each rounded corner
@@ -228,6 +296,16 @@ def _annular_band(center, radius, start_angle, end_angle, thickness) -> list[Poi
         outer.append((cx + r_out * math.cos(ang), cy + r_out * math.sin(ang)))
         inner.append((cx + r_in * math.cos(ang), cy + r_in * math.sin(ang)))
     return outer + list(reversed(inner))
+
+
+def _bounds_of(shapes: list) -> tuple:
+    """Axis-aligned bounds enclosing a list of shapes (each exposes .min/.max)."""
+    mins = [s.min for s in shapes]
+    maxs = [s.max for s in shapes]
+    return (
+        (min(m[0] for m in mins), min(m[1] for m in mins), min(m[2] for m in mins)),
+        (max(m[0] for m in maxs), max(m[1] for m in maxs), max(m[2] for m in maxs)),
+    )
 
 
 def _point_in_polygon(u: float, v: float, polygon: list[Point2]) -> bool:

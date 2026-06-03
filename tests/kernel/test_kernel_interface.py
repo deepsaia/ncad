@@ -5,6 +5,8 @@ backend. These tests use a tiny in-memory fake to confirm the contract is satisf
 without importing the heavy OCP backend.
 """
 
+import math
+
 import pytest
 
 from ncad.kernel.kernel import Kernel
@@ -118,3 +120,47 @@ def test_fake_kernel_arc_wall_volume() -> None:
     assert kernel.volume(wall) == pytest.approx(expected, rel=0.15)
     (_, _, minz), (_, _, maxz) = kernel.bounding_box(wall)
     assert (minz, maxz) == pytest.approx((0.0, 3.0))
+
+
+def test_fake_kernel_sphere_volume_and_bounds() -> None:
+    from tests.kernel.fake_kernel import FakeKernel
+
+    kernel = FakeKernel()
+    s = kernel.sphere(center=(0.0, 0.0, 0.0), radius=3.0)
+
+    assert kernel.volume(s) == pytest.approx((4 / 3) * math.pi * 27, rel=0.1)
+    (minx, miny, minz), (maxx, maxy, maxz) = kernel.bounding_box(s)
+    assert (minx, miny, minz) == pytest.approx((-3.0, -3.0, -3.0))
+    assert (maxx, maxy, maxz) == pytest.approx((3.0, 3.0, 3.0))
+
+
+def test_fake_kernel_intersect_is_hemisphere() -> None:
+    from tests.kernel.fake_kernel import FakeKernel
+
+    kernel = FakeKernel()
+    s = kernel.sphere(center=(0.0, 0.0, 0.0), radius=3.0)
+    upper = kernel.box(center=(0.0, 0.0, 3.0), size=(12.0, 12.0, 6.0))  # z in [0,6]
+    hemi = kernel.intersect([s, upper])
+
+    # Upper hemisphere = half the sphere volume.
+    assert kernel.volume(hemi) == pytest.approx((2 / 3) * math.pi * 27, rel=0.15)
+    (_, _, minz), (_, _, maxz) = kernel.bounding_box(hemi)
+    assert minz == pytest.approx(0.0, abs=0.2)
+    assert maxz == pytest.approx(3.0, abs=0.2)
+
+
+def test_fake_kernel_barrel_covers_edge_at_height() -> None:
+    from tests.kernel.fake_kernel import FakeKernel
+
+    kernel = FakeKernel()
+    # A barrel of radius 2 laid along the x-axis edge (0,0)->(8,0) at base_z 0.
+    barrel = kernel.barrel(start=(0.0, 0.0), end=(8.0, 0.0), radius=2.0, base_z=0.0)
+
+    assert kernel.volume(barrel) > 0
+    # A point above the edge midline, below the crown, is inside (the vault).
+    assert kernel._point_inside(barrel, 4.0, 0.0, 1.5)
+    # The top half only: a point below base_z is outside.
+    assert not kernel._point_inside(barrel, 4.0, 0.0, -1.0)
+    (_, _, minz), (_, _, maxz) = kernel.bounding_box(barrel)
+    assert minz == pytest.approx(0.0, abs=1e-6)
+    assert maxz == pytest.approx(2.0, abs=0.1)

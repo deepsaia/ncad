@@ -52,6 +52,30 @@ def test_extrude_polygon_l_shape_volume_and_bounds() -> None:
     assert (maxx, maxy, maxz) == pytest.approx((6.0, 6.0, 2.0))
 
 
+def test_sphere_and_barrel_and_intersect() -> None:
+    from ncad.kernel.build123d_kernel import Build123dKernel
+
+    kernel = Build123dKernel()
+
+    s = kernel.sphere(center=(0.0, 0.0, 0.0), radius=3.0)
+    assert kernel.volume(s) == pytest.approx((4 / 3) * math.pi * 27, rel=0.01)
+
+    # Hemisphere via intersect with an upper half-box (z in [0,6]).
+    upper = kernel.box(center=(0.0, 0.0, 3.0), size=(12.0, 12.0, 6.0))
+    hemi = kernel.intersect([s, upper])
+    assert kernel.volume(hemi) == pytest.approx((2 / 3) * math.pi * 27, rel=0.02)
+    (_, _, minz), (_, _, maxz) = kernel.bounding_box(hemi)
+    assert minz == pytest.approx(0.0, abs=1e-6)
+    assert maxz == pytest.approx(3.0, abs=1e-6)
+
+    # Barrel vault along x: crown at base_z + radius, flat cut at base_z.
+    barrel = kernel.barrel(start=(0.0, 0.0), end=(8.0, 0.0), radius=2.0, base_z=0.0)
+    assert kernel.volume(barrel) > 0
+    (_, _, bminz), (_, _, bmaxz) = kernel.bounding_box(barrel)
+    assert bminz == pytest.approx(0.0, abs=1e-6)
+    assert bmaxz == pytest.approx(2.0, abs=1e-6)
+
+
 def test_extrude_rounded_polygon_smaller_than_sharp() -> None:
     from ncad.kernel.build123d_kernel import Build123dKernel
 
@@ -175,6 +199,27 @@ def test_rounded_shapes_build_and_export(shape, tmp_path) -> None:
     assert kernel.volume(solid) > 0
 
     out = tmp_path / f"rounded_{shape}.glb"
+    kernel.export(solid, str(out))
+    assert out.exists() and out.read_bytes()[:4] == b"glTF"
+
+
+def test_brief_with_hip_roof_builds(tmp_path) -> None:
+    from ncad.build.builder import Builder
+    from ncad.compile.spec_compiler import SpecCompiler
+    from ncad.kernel.build123d_kernel import Build123dKernel
+
+    brief = {
+        "footprint": [[0, 0], [12, 0], [12, 9], [0, 9]],
+        "rounded_corners": {},
+        "num_rooms": 4,
+        "storey_height": 3.0,
+        "roof": "hip",
+    }
+    kernel = Build123dKernel()
+    solid = Builder(kernel).build(SpecCompiler().compile(brief))
+
+    assert kernel.volume(solid) > 0
+    out = tmp_path / "brief_hip.glb"
     kernel.export(solid, str(out))
     assert out.exists() and out.read_bytes()[:4] == b"glTF"
 

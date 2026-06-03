@@ -12,9 +12,12 @@ from typing import Any
 
 from build123d import (
     Box,
+    Cylinder,
     Edge,
     Face,
     Pos,
+    Rot,
+    Sphere,
     Unit,
     Vector,
     Wire,
@@ -73,6 +76,30 @@ class Build123dKernel(Kernel):
     ) -> Any:
         band = _annular_band(center, radius, start_angle, end_angle, thickness)
         return self.extrude_polygon(band, base_z, height)
+
+    def sphere(self, center: Point3, radius: float) -> Any:
+        return Pos(*center) * Sphere(radius)
+
+    def barrel(self, start: Point2, end: Point2, radius: float, base_z: float) -> Any:
+        (ax, ay), (bx, by) = start, end
+        length = math.hypot(bx - ax, by - ay)
+        # Build a half-cylinder vault in a LOCAL frame: cylinder axis along X, centered at
+        # the origin, then cut away everything below z=0 (keep the top half). Cut first
+        # while axis-aligned, then rotate/translate the finished vault into place.
+        cyl = Rot(0, 90, 0) * Cylinder(radius, length)  # axis Z -> X
+        top_half = Pos(0, 0, radius / 2) * Box(length + 2 * radius, 2 * radius, radius)
+        vault = cyl & top_half  # upper half-cylinder, crown at z=radius, flat cut at z=0
+        angle = math.degrees(math.atan2(by - ay, bx - ax))
+        midpoint = ((ax + bx) / 2, (ay + by) / 2, base_z)
+        return Pos(*midpoint) * Rot(0, 0, angle) * vault
+
+    def intersect(self, solids: list[Any]) -> Any:
+        if not solids:
+            raise ValueError("intersect requires at least one solid")
+        result = solids[0]
+        for solid in solids[1:]:
+            result = result & solid
+        return result
 
     def union(self, solids: list[Any]) -> Any:
         if not solids:

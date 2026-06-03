@@ -63,6 +63,28 @@ def build_shed_roof(kernel: Kernel, roof: dict, footprint_bounds: tuple, top_z: 
     return kernel.prism(profile=profile, axis=ridge_axis, start=run_lo, end=run_hi)
 
 
+def build_hip_roof(kernel: Kernel, roof: dict, footprint_bounds: tuple, top_z: float) -> Any:
+    """A hip (four-sided sloped) roof over a rectangle: the intersection of two
+    perpendicular gable tents peaking at the same height — every eave slopes inward to a
+    central ridge (rectangle) or apex (square).
+    """
+    (minx, miny), (maxx, maxy) = footprint_bounds
+    pitch = roof.get("pitch", _DEFAULT_PITCH)
+    rise = pitch * min(maxx - minx, maxy - miny) / 2.0
+    midx, midy = (minx + maxx) / 2.0, (miny + maxy) / 2.0
+    # Tent ridged along x (triangle spans y), peak `rise` above top_z.
+    tent_x = kernel.prism(
+        profile=[(miny, top_z), (maxy, top_z), (midy, top_z + rise)],
+        axis="x", start=minx, end=maxx,
+    )
+    # Tent ridged along y (triangle spans x), same peak.
+    tent_y = kernel.prism(
+        profile=[(minx, top_z), (maxx, top_z), (midx, top_z + rise)],
+        axis="y", start=miny, end=maxy,
+    )
+    return kernel.intersect([tent_x, tent_y])
+
+
 def _ridge_axis(roof: dict, footprint_bounds: tuple) -> str:
     """Ridge/slope direction: explicit ``ridge_axis``, else the footprint's longer axis."""
     explicit = roof.get("ridge_axis")
@@ -76,4 +98,5 @@ ROOF_BUILDERS: dict[str, RoofBuilder] = {
     "flat": build_flat_roof,
     "gable": build_gable_roof,
     "shed": build_shed_roof,
+    "hip": build_hip_roof,
 }

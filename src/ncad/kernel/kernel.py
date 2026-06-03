@@ -71,6 +71,22 @@ class Kernel(ABC):
         """
 
     @abstractmethod
+    def sphere(self, center: Point3, radius: float) -> Any:
+        """A solid sphere of ``radius`` centered at ``center``. Used for dome corners."""
+
+    @abstractmethod
+    def barrel(self, start: Point2, end: Point2, radius: float, base_z: float) -> Any:
+        """A horizontal half-cylinder vault: the top half of a cylinder of ``radius`` whose
+        axis runs along the segment ``start``->``end`` at height ``base_z``. The flat cut is
+        at ``base_z`` (vault sits on the wall); the crown reaches ``base_z + radius``. Used
+        for dome edges.
+        """
+
+    @abstractmethod
+    def intersect(self, solids: list[Any]) -> Any:
+        """Boolean-intersect a non-empty list of solids (the common volume)."""
+
+    @abstractmethod
     def union(self, solids: list[Any]) -> Any:
         """Boolean-union a non-empty list of solids into one."""
 

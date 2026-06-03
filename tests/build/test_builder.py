@@ -142,7 +142,7 @@ def test_wall_height_defaults_to_storey_height() -> None:
 def test_unknown_roof_kind_raises() -> None:
     kernel = FakeKernel()
     spec = _spec()
-    spec["roof"]["kind"] = "dome"
+    spec["roof"]["kind"] = "vault"  # not a known roof kind
 
     with pytest.raises(ValueError, match="roof"):
         Builder(kernel).build(spec)
@@ -196,6 +196,26 @@ def test_gable_roof_over_rect_footprint_builds() -> None:
     # Apex rises above the flat wall top (storey 3.0 + slab).
     (_, _, _), (_, _, maxz) = kernel.bounding_box(solid)
     assert maxz > 3.5
+
+
+def test_hip_roof_over_rect_builds_and_rises() -> None:
+    kernel = FakeKernel()
+    spec = _rect_footprint_spec("hip")
+
+    solid = Builder(kernel).build(spec)
+
+    assert kernel.volume(solid) > 0
+    (_, _, _), (_, _, maxz) = kernel.bounding_box(solid)
+    assert maxz > 3.5  # hip apex above wall top
+
+
+def test_hip_roof_over_l_footprint_raises() -> None:
+    kernel = FakeKernel()
+    spec = _l_spec()
+    spec["roof"] = {"kind": "hip", "pitch": 0.5}
+
+    with pytest.raises(ValueError, match="roof"):
+        Builder(kernel).build(spec)
 
 
 def test_pitched_roof_over_nonrect_footprint_still_raises() -> None:

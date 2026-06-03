@@ -59,11 +59,11 @@ def test_wrong_schema_version_const_is_reported() -> None:
 
 def test_unknown_roof_kind_is_reported() -> None:
     spec = _valid_spec()
-    spec["roof"]["kind"] = "dome"
+    spec["roof"]["kind"] = "vault"  # not in the roof kind enum
 
     issues = SchemaValidator().validate(spec)
 
-    assert any("dome" in issue.message for issue in issues)
+    assert any("vault" in issue.message for issue in issues)
 
 
 def test_gable_and_shed_roofs_validate() -> None:
@@ -72,6 +72,13 @@ def test_gable_and_shed_roofs_validate() -> None:
         spec["roof"] = {"kind": kind, "pitch": 0.5, "ridge_axis": "x", "thickness": 0.2}
 
         assert SchemaValidator().validate(spec) == [], f"{kind} roof should validate"
+
+
+def test_hip_roof_validates() -> None:
+    spec = _valid_spec()
+    spec["roof"] = {"kind": "hip", "pitch": 0.5}
+
+    assert SchemaValidator().validate(spec) == []
 
 
 def test_invalid_ridge_axis_is_reported() -> None:

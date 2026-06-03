@@ -102,7 +102,8 @@ class Builder:
         if bounds is None:
             raise ValueError(
                 f"roof kind {kind!r} is only supported over a rectangular footprint; "
-                "pitched roofs over L/T/U/irregular shapes are not implemented yet"
+                "pitched roofs over L/T/U/irregular shapes need a straight skeleton "
+                "(use 'flat' for non-rectangular footprints; dome is a future slice)"
             )
         return self._build_roof(roof, bounds, top_z)
 
