@@ -61,6 +61,10 @@ class _ViewerRequestHandler(BaseHTTPRequestHandler):
             self._send_plan(path[len(_PLAN_ROUTE) :])
         elif path.startswith(_MODEL_ROUTE):
             self._send_model(path[len(_MODEL_ROUTE) :])
+        elif self._catalog.resolve(unquote(path.lstrip("/"))) is not None:
+            # Deep link: /<model>.glb serves the SPA, which preselects that model from the
+            # URL path. (Model bytes are still fetched via /models/<name>.)
+            self._send_index()
         else:
             self.send_error(404, "not found")
 

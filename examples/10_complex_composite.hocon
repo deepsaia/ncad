@@ -1,0 +1,19 @@
+# A complex composite footprint: a stepped, multi-wing silhouette mixing sharp corners
+# with several rounded ones — the kind of varied outline a prompt like "an L-shaped house
+# with a rounded bay and a stepped back" might produce. Round numbers only.
+footprint = [
+  [0, 0]
+  [16, 0]
+  [16, 5]
+  [11, 5]
+  [11, 9]
+  [16, 9]
+  [16, 14]
+  [6, 14]
+  [6, 6]
+  [0, 6]
+]
+rounded_corners = { "1" = 1.5, "6" = 1.5, "7" = 2.0, "9" = 1.0 }
+num_rooms = 6
+storey_height = 3.0
+roof = "flat"

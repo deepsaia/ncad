@@ -459,7 +459,11 @@ lightSelect.addEventListener("change", () => setLighting(lightSelect.value));
 syncMaterialBlock();
 
 const select = document.getElementById("model-select");
-select.addEventListener("change", () => loadModel(select.value));
+// Selecting a model updates the URL path so it can be shared/deep-linked.
+select.addEventListener("change", () => {
+  loadModel(select.value);
+  history.replaceState(null, "", "/" + select.value);
+});
 
 fetch("/api/models").then(r => r.json()).then(data => {
   if (!data.models.length) { spinner.textContent = "no models in the models directory"; return; }
@@ -467,7 +471,11 @@ fetch("/api/models").then(r => r.json()).then(data => {
     const opt = document.createElement("option"); opt.value = name; opt.textContent = name;
     select.appendChild(opt);
   });
-  loadModel(data.models[0]);
+  // Deep link: /<model>.glb in the URL preselects that model; else the first one.
+  const requested = decodeURIComponent(location.pathname.replace(/^\//, ""));
+  const initial = data.models.includes(requested) ? requested : data.models[0];
+  select.value = initial;
+  loadModel(initial);
 });
 
 window.addEventListener("resize", () => {

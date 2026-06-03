@@ -1,0 +1,13 @@
+# A three-storey apartment block with balconies on the upper two floors (storeys 1 & 2),
+# each on the long front wall (wall index 0 = the longest exterior edge). Each balcony
+# forces a same-width access door on its wall; the ground floor keeps the front door.
+footprint = [[0, 0], [14, 0], [14, 9], [0, 9]]
+rounded_corners = {}
+num_rooms = 4
+num_storeys = 3
+storey_height = 3.0
+roof = "flat"
+balconies = [
+  { storey = 1, wall = 0, along = 0.5, length = 4.0, depth = 1.5 }
+  { storey = 2, wall = 0, along = 0.5, length = 4.0, depth = 1.5 }
+]

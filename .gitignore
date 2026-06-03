@@ -18,10 +18,8 @@ __pycache__/
 .coverage
 htmlcov/
 
-# Human scratch examples — not committed (test fixtures live in tests/fixtures/)
-examples/
-
-# Generated artifacts (models, renders, exports)
+# Generated artifacts (models, renders, exports) — out/ is built locally from examples/
+# via `ncad-examples`; the briefs in examples/ are the committed source of truth.
 out/
 *.gltf
 *.glb

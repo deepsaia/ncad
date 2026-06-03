@@ -1,0 +1,6 @@
+# Modern look: rectangle with a shed (mono-pitch) roof sloping one way.
+footprint = [[0, 0], [14, 0], [14, 8], [0, 8]]
+rounded_corners = {}
+num_rooms = 4
+storey_height = 3.0
+roof = "shed"

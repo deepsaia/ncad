@@ -36,7 +36,40 @@ class JunctionValidator:
         issues: list[Issue] = []
         for wall in storey["walls"]:
             issues.extend(self._validate_wall(wall, junctions))
+        walls_by_id = {wall["id"]: wall for wall in storey["walls"]}
+        for balcony in storey.get("balconies", []):
+            issues.extend(self._validate_balcony(balcony, walls_by_id, junctions))
         return issues
+
+    def _validate_balcony(self, balcony: dict, walls_by_id: dict, junctions: set) -> list[Issue]:
+        """A balcony's span must stay clear of its wall's joined endpoints (a balcony
+        spilling past a corner would project into empty space)."""
+        wall = walls_by_id.get(balcony["wall_id"])
+        if wall is None:
+            return []
+        length = _wall_length(wall)
+        if length == 0:
+            return []
+        center = balcony["along"] * length
+        half = balcony["length"] / 2.0
+        near = center - half
+        far = length - (center + half)
+        start_is_junction = _snap(wall["start"]) in junctions
+        end_is_junction = _snap(wall["end"]) in junctions
+        if (start_is_junction and near < _MIN_JUNCTION_CLEARANCE) or (
+            end_is_junction and far < _MIN_JUNCTION_CLEARANCE
+        ):
+            return [
+                Issue(
+                    kind="balcony_near_junction",
+                    entity_id=wall["id"],
+                    message=(
+                        f"balcony on wall {wall['id']!r} runs too close to a wall junction; "
+                        "it would project past the building corner"
+                    ),
+                )
+            ]
+        return []
 
     def _junction_points(self, walls: list[dict]) -> set:
         """Endpoint coordinates shared by more than one wall (i.e. wall corners)."""

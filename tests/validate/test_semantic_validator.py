@@ -217,6 +217,47 @@ def test_opening_too_close_to_junction_is_flagged() -> None:
                for i in issues)
 
 
+def test_balcony_on_junction_is_flagged() -> None:
+    # A balcony whose span runs into the wall's joined corner is geometrically invalid.
+    spec = _two_storey([
+        {"id": "ext_0", "start": [0, 0], "end": [8, 0], "thickness": 0.2},
+        {"id": "ext_1", "start": [8, 0], "end": [8, 5], "thickness": 0.2},
+        {"id": "ext_2", "start": [8, 5], "end": [0, 5], "thickness": 0.2},
+        {"id": "ext_3", "start": [0, 5], "end": [0, 0], "thickness": 0.2},
+    ])
+    # Balcony hugging the (8,0) corner: along ~0.95 on an 8m wall, 2m long → spills past the end.
+    spec["storeys"][1]["balconies"] = [
+        {"wall_id": "ext_0", "along": 0.95, "length": 2.0, "depth": 1.5}
+    ]
+    # Give it the paired door so it isn't flagged as floating instead.
+    spec["storeys"][1]["walls"][0]["openings"] = [
+        {"id": "bdoor", "kind": "door", "along": 0.95, "width": 2.0, "height": 2.5, "sill": 0.0}
+    ]
+
+    issues = SemanticValidator().validate(spec)
+
+    assert any(i.kind == "balcony_near_junction" for i in issues)
+
+
+def test_balcony_clear_of_junction_passes() -> None:
+    spec = _two_storey([
+        {"id": "ext_0", "start": [0, 0], "end": [8, 0], "thickness": 0.2},
+        {"id": "ext_1", "start": [8, 0], "end": [8, 5], "thickness": 0.2},
+        {"id": "ext_2", "start": [8, 5], "end": [0, 5], "thickness": 0.2},
+        {"id": "ext_3", "start": [0, 5], "end": [0, 0], "thickness": 0.2},
+    ])
+    spec["storeys"][1]["balconies"] = [
+        {"wall_id": "ext_0", "along": 0.5, "length": 3.0, "depth": 1.5}
+    ]
+    spec["storeys"][1]["walls"][0]["openings"] = [
+        {"id": "bdoor", "kind": "door", "along": 0.5, "width": 3.0, "height": 2.5, "sill": 0.0}
+    ]
+
+    issues = SemanticValidator().validate(spec)
+
+    assert not any(i.kind == "balcony_near_junction" for i in issues)
+
+
 def test_opening_clear_of_junction_passes() -> None:
     # The same wall, but the door centered well away from both ends: no junction issue.
     spec = _clean_spec()

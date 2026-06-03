@@ -38,6 +38,22 @@ def test_index_serves_html(server) -> None:
     assert "text/html" in headers["Content-Type"]
 
 
+def test_deep_link_to_model_serves_spa(server) -> None:
+    # /<model>.glb (a known model) serves the SPA HTML so the viewer can preselect it.
+    status, body, headers = _get(f"{server.base_url}/box.gltf")
+
+    assert status == 200
+    assert "text/html" in headers["Content-Type"]
+    assert b"</html>" in body
+
+
+def test_deep_link_to_unknown_model_404s(server) -> None:
+    with pytest.raises(urllib.error.HTTPError) as exc:
+        _get(f"{server.base_url}/nope.glb")
+
+    assert exc.value.code == 404
+
+
 def test_query_string_is_ignored_for_routing(server) -> None:
     # A trailing query string must not break route matching (regression).
     status, body, _ = _get(f"{server.base_url}/?foo=bar")

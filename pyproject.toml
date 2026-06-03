@@ -18,6 +18,8 @@ dependencies = [
 ncad = "ncad.pipeline.__main__:main"
 # `nv` = ncad viewer — launch the browser 3D viewer (alias for `python -m ncad.viewer`).
 nv = "ncad.viewer.__main__:main"
+# `ncad-examples` = compile every example brief into out/ for the viewer.
+ncad-examples = "ncad.pipeline.build_examples:main"
 
 [project.optional-dependencies]
 # CAD interchange — DXF/IFC floor plans (plan.md Phase 7 / 11)

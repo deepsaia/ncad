@@ -1,0 +1,11 @@
+# A two-storey house with rounded front corners and a balcony on the upper floor —
+# combining rounded corners, multi-storey, and a balcony in one building.
+footprint = [[0, 0], [13, 0], [13, 9], [0, 9]]
+rounded_corners = { "0" = 1.2, "1" = 1.2 }
+num_rooms = 4
+num_storeys = 2
+storey_height = 3.0
+roof = "flat"
+balconies = [
+  { storey = 1, wall = 0, along = 0.5, length = 5.0, depth = 1.5 }
+]

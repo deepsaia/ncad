@@ -1,0 +1,6 @@
+# Simplest building: a single-storey rectangle with a flat roof.
+footprint = [[0, 0], [12, 0], [12, 9], [0, 9]]
+rounded_corners = {}
+num_rooms = 4
+storey_height = 3.0
+roof = "flat"
