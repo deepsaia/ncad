@@ -80,6 +80,48 @@ def _two_storey_spec() -> dict:
     }
 
 
+def _balcony_spec() -> dict:
+    # Two storeys; the upper storey has a balcony cantilevered off its south wall.
+    def storey(elevation: float, balconies=None) -> dict:
+        s = {
+            "elevation": elevation,
+            "height": 3.0,
+            "walls": [{"id": "ext_0", "start": [0, 0], "end": [8, 0], "thickness": 0.2}],
+            "rooms": [{"id": "r", "polygon": [[0, 0], [8, 0], [8, 5], [0, 5]]}],
+            "footprint": [[0, 0], [8, 0], [8, 5], [0, 5]],
+        }
+        if balconies:
+            s["balconies"] = balconies
+        return s
+
+    return {
+        "schema_version": 1,
+        "seed": 1,
+        "units": "m",
+        "storeys": [
+            storey(0.0),
+            storey(
+                3.0,
+                balconies=[{"wall_id": "ext_0", "along": 0.5, "length": 3.0, "depth": 1.5}],
+            ),
+        ],
+        "roof": {"kind": "flat", "thickness": 0.2},
+    }
+
+
+def test_balcony_adds_volume_cantilevered_outside() -> None:
+    kernel = FakeKernel()
+
+    solid = Builder(kernel).build(_balcony_spec())
+
+    assert kernel.volume(solid) > 0
+    # A point just outside the south wall (y < 0), in the balcony slab (top at the upper
+    # floor level 3.0, so just below it) is solid; the wall itself is at y≈0.
+    assert kernel._point_inside(solid, 4.0, -0.7, 2.95)
+    # No balcony on the ground floor → outside the wall at ground level is empty.
+    assert not kernel._point_inside(solid, 4.0, -0.7, -0.05)
+
+
 def test_two_storey_stacks_to_full_height() -> None:
     kernel = FakeKernel()
 

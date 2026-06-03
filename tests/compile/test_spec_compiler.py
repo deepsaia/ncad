@@ -5,6 +5,8 @@ an LLM agent can emit. The compiler expands it (tangent points, arc centers, wal
 rooms) into a schema-valid, semantically-clean spec the builder consumes.
 """
 
+import pytest
+
 from ncad.compile.spec_compiler import SpecCompiler
 from ncad.spec.schema_validator import SchemaValidator
 from ncad.validate.semantic_validator import SemanticValidator
@@ -88,6 +90,39 @@ def test_default_is_single_storey() -> None:
 
     assert len(spec["storeys"]) == 1
     assert spec["storeys"][0]["elevation"] == 0.0
+
+
+def test_balcony_adds_paired_opening_and_entry() -> None:
+    brief = {**_brief(), "num_storeys": 2,
+             "balconies": [{"storey": 1, "wall": 0, "along": 0.5, "length": 3.0, "depth": 1.5}]}
+
+    spec = SpecCompiler().compile(brief)
+
+    upper = spec["storeys"][1]
+    assert len(upper["balconies"]) == 1
+    bwall_id = upper["balconies"][0]["wall_id"]
+    wall = next(w for w in upper["walls"] if w["id"] == bwall_id)
+    door = next(o for o in wall["openings"] if o["id"].endswith("_balcony_door"))
+    assert door["width"] == 3.0  # = balcony length
+    assert door["height"] == pytest.approx(0.9 * 3.0)  # 0.9 * storey height
+    # The whole thing still validates.
+    assert SchemaValidator().validate(spec) == []
+    assert SemanticValidator().validate(spec) == []
+
+
+def test_balcony_on_ground_floor_rejected() -> None:
+    brief = {**_brief(), "num_storeys": 2,
+             "balconies": [{"storey": 0, "wall": 0, "along": 0.5, "length": 3.0, "depth": 1.5}]}
+
+    with pytest.raises(ValueError, match="ground floor"):
+        SpecCompiler().compile(brief)
+
+
+def test_no_balconies_compiles_unchanged() -> None:
+    # A brief without balconies must not gain a balconies key anywhere.
+    spec = SpecCompiler().compile({**_brief(), "num_storeys": 2})
+
+    assert all("balconies" not in s for s in spec["storeys"])
 
 
 def test_num_storeys_stacks_floors() -> None:

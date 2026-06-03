@@ -140,6 +140,19 @@ properties {
             }
           }
         }
+        balconies {                                        # optional cantilevered balconies (upper storeys only)
+          type = array
+          items {
+            type = object
+            required = ["wall_id", "along", "length", "depth"]
+            properties {
+              wall_id = ${definitions.id}                  # the wall the balcony projects from
+              along { type = number, minimum = 0, maximum = 1 }   # center position along the wall
+              length { type = number, exclusiveMinimum = 0 }      # balcony width (m)
+              depth { type = number, exclusiveMinimum = 0 }       # cantilever depth (m)
+            }
+          }
+        }
       }
     }
   }

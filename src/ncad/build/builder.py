@@ -18,6 +18,11 @@ _AXIS_TOLERANCE = 1e-9
 # Extra depth on opening cut boxes so the boolean fully passes through the wall faces.
 _CUT_OVERSHOOT = 0.01
 _SLAB_THICKNESS = 0.2
+# Balcony proportions (meters): a thin floor slab + a waist-high railing of slim rods.
+_BALCONY_SLAB_THICKNESS = 0.15
+_RAILING_HEIGHT = 1.0
+_ROD_SIZE = 0.04
+_ROD_SPACING = 0.15
 
 
 class Builder:
@@ -81,7 +86,114 @@ class Builder:
                 else self._build_slab(bounds, top_z=top_z, thickness=_SLAB_THICKNESS)
 
         solid = self._kernel.union([floor, *wall_solids])
-        return self._kernel.union([solid, cap])
+        solid = self._kernel.union([solid, cap])
+
+        balcony_solids = self._build_balconies(storey, elevation, storey_height)
+        if balcony_solids:
+            solid = self._kernel.union([solid, *balcony_solids])
+        return solid
+
+    def _build_balconies(self, storey: dict, elevation: float, storey_height: float) -> list:
+        """Build a solid for each balcony on this storey (empty if none)."""
+        walls_by_id = {wall["id"]: wall for wall in storey["walls"]}
+        solids = []
+        for balcony in storey.get("balconies", []):
+            wall = walls_by_id.get(balcony["wall_id"])
+            if wall is not None:
+                solids.append(self._build_balcony(wall, balcony, elevation, storey_height))
+        return solids
+
+    def _build_balcony(self, wall: dict, balcony: dict, elevation: float, storey_height: float):
+        """A cantilevered balcony: floor slab + perimeter railing (vertical rods, side
+        fences, top rail) built from thin boxes, projecting out from the wall's exterior.
+        """
+        (x0, y0), (x1, y1) = wall["start"], wall["end"]
+        wx, wy = x1 - x0, y1 - y0
+        wlen = math.hypot(wx, wy) or 1.0
+        ux, uy = wx / wlen, wy / wlen          # along-wall unit
+        nx, ny = wy / wlen, -wx / wlen          # outward normal (exterior side, -y for south wall)
+        length = balcony["length"]
+        depth = balcony["depth"]
+        center_t = balcony["along"] * wlen
+        # Center of the balcony slab: at the wall, pushed out by depth/2.
+        cx = x0 + ux * center_t + nx * (depth / 2)
+        cy = y0 + uy * center_t + ny * (depth / 2)
+
+        pieces = [self._balcony_slab(cx, cy, ux, uy, nx, ny, length, depth, elevation)]
+        pieces.extend(
+            self._balcony_railing(x0, y0, ux, uy, nx, ny, center_t, length, depth, elevation)
+        )
+        return self._kernel.union(pieces)
+
+    def _balcony_slab(self, cx, cy, ux, uy, nx, ny, length, depth, elevation):
+        """The cantilevered floor slab, modelled as a polygon prism flush with the floor."""
+        hl, hd = length / 2, depth / 2
+        corners = [
+            (cx - ux * hl - nx * hd, cy - uy * hl - ny * hd),
+            (cx + ux * hl - nx * hd, cy + uy * hl - ny * hd),
+            (cx + ux * hl + nx * hd, cy + uy * hl + ny * hd),
+            (cx - ux * hl + nx * hd, cy - uy * hl + ny * hd),
+        ]
+        return self._kernel.extrude_polygon(
+            corners, base_z=elevation - _BALCONY_SLAB_THICKNESS, height=_BALCONY_SLAB_THICKNESS
+        )
+
+    def _balcony_railing(self, x0, y0, ux, uy, nx, ny, center_t, length, depth, elevation):
+        """Vertical rods around the outer + side edges, plus a top rail tying them."""
+        pieces = []
+        # Outer edge runs parallel to the wall at distance `depth`; the two side edges run
+        # outward at the balcony ends. Place rods along all three, then a top rail.
+        start_t = center_t - length / 2
+        # Outer-edge rod line endpoints (at the far edge).
+        ax = x0 + ux * start_t + nx * depth
+        ay = y0 + uy * start_t + ny * depth
+        bx = ax + ux * length
+        by = ay + uy * length
+        pieces.extend(self._rod_line((ax, ay), (bx, by), elevation))
+        # Two side edges: from the wall out to the outer corners.
+        wax, way = x0 + ux * start_t, y0 + uy * start_t
+        wbx, wby = wax + ux * length, way + uy * length
+        pieces.extend(self._rod_line((wax, way), (ax, ay), elevation))
+        pieces.extend(self._rod_line((wbx, wby), (bx, by), elevation))
+        # Top rail capping every railed edge: the outer edge AND both sides.
+        rail_z = elevation + _RAILING_HEIGHT
+        pieces.append(self._rail_box((ax, ay), (bx, by), rail_z))      # outer edge
+        pieces.append(self._rail_box((wax, way), (ax, ay), rail_z))    # left side
+        pieces.append(self._rail_box((wbx, wby), (bx, by), rail_z))    # right side
+        return pieces
+
+    def _rod_line(self, start, end, elevation):
+        """A row of thin vertical rod boxes spaced along a segment."""
+        (sx, sy), (ex, ey) = start, end
+        seg = math.hypot(ex - sx, ey - sy)
+        count = max(2, int(seg / _ROD_SPACING))
+        rods = []
+        for i in range(count + 1):
+            t = i / count
+            px, py = sx + (ex - sx) * t, sy + (ey - sy) * t
+            rods.append(
+                self._kernel.box(
+                    center=(px, py, elevation + _RAILING_HEIGHT / 2),
+                    size=(_ROD_SIZE, _ROD_SIZE, _RAILING_HEIGHT),
+                )
+            )
+        return rods
+
+    def _rail_box(self, start, end, z):
+        """A thin horizontal top-rail bar from start to end at height z."""
+        (sx, sy), (ex, ey) = start, end
+        length = math.hypot(ex - sx, ey - sy)
+        dx, dy = (ex - sx) / (length or 1.0), (ey - sy) / (length or 1.0)
+        # A thin oriented bar along the rail direction (perpendicular offset for width).
+        half = _ROD_SIZE
+        nx, ny = -dy, dx
+        corners = [
+            (sx - nx * half, sy - ny * half),
+            (ex - nx * half, ey - ny * half),
+            (ex + nx * half, ey + ny * half),
+            (sx + nx * half, sy + ny * half),
+        ]
+        return self._kernel.extrude_polygon(corners, base_z=z - _ROD_SIZE, height=_ROD_SIZE * 2)
 
     def _build_polygon_slab(self, footprint: list, top_z: float, thickness: float):
         """Slab following an arbitrary footprint polygon (rounded corners if present)."""

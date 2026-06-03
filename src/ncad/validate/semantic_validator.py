@@ -8,6 +8,7 @@ not validation findings.
 import logging
 
 from ncad.validate.architectural_validator import ArchitecturalValidator
+from ncad.validate.floating_door_validator import FloatingDoorValidator
 from ncad.validate.geometry_validator import GeometryValidator
 from ncad.validate.issue import Issue
 from ncad.validate.junction_validator import JunctionValidator
@@ -27,6 +28,7 @@ class SemanticValidator:
             ArchitecturalValidator(),
             LoopValidator(),
             JunctionValidator(),
+            FloatingDoorValidator(),
         ]
 
     def validate(self, spec: dict) -> list[Issue]:

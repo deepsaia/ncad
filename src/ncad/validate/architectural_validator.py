@@ -31,7 +31,7 @@ class ArchitecturalValidator:
     def validate(self, spec: dict) -> list[Issue]:
         """Return architectural issues for ``spec`` (empty if all minimums met)."""
         issues: list[Issue] = []
-        for storey in spec["storeys"]:
+        for index, storey in enumerate(spec["storeys"]):
             if storey["height"] < self._min_ceiling_height:
                 issues.append(
                     Issue(
@@ -41,6 +41,15 @@ class ArchitecturalValidator:
                             f"ceiling height {storey['height']:.2f} m below minimum "
                             f"{self._min_ceiling_height:.2f} m"
                         ),
+                    )
+                )
+            # Balconies belong on upper storeys only — never the ground floor.
+            if index == 0 and storey.get("balconies"):
+                issues.append(
+                    Issue(
+                        kind="balcony_on_ground_floor",
+                        entity_id="<storey>",
+                        message="balconies are not allowed on the ground floor (storey 0)",
                     )
                 )
             issues.extend(self._validate_rooms(storey["rooms"]))

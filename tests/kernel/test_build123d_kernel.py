@@ -203,6 +203,30 @@ def test_rounded_shapes_build_and_export(shape, tmp_path) -> None:
     assert out.exists() and out.read_bytes()[:4] == b"glTF"
 
 
+def test_brief_with_balcony_builds(tmp_path) -> None:
+    from ncad.build.builder import Builder
+    from ncad.compile.spec_compiler import SpecCompiler
+    from ncad.kernel.build123d_kernel import Build123dKernel
+
+    # Two-storey building with a balcony on the upper floor (railing rods etc.).
+    brief = {
+        "footprint": [[0, 0], [10, 0], [10, 7], [0, 7]],
+        "rounded_corners": {},
+        "num_rooms": 4,
+        "num_storeys": 2,
+        "storey_height": 3.0,
+        "roof": "flat",
+        "balconies": [{"storey": 1, "wall": 0, "along": 0.5, "length": 3.0, "depth": 1.5}],
+    }
+    kernel = Build123dKernel()
+    solid = Builder(kernel).build(SpecCompiler().compile(brief))
+
+    assert kernel.volume(solid) > 0
+    out = tmp_path / "brief_balcony.glb"
+    kernel.export(solid, str(out))
+    assert out.exists() and out.read_bytes()[:4] == b"glTF"
+
+
 def test_brief_with_hip_roof_builds(tmp_path) -> None:
     from ncad.build.builder import Builder
     from ncad.compile.spec_compiler import SpecCompiler

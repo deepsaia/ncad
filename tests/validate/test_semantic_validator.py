@@ -97,6 +97,75 @@ def test_issues_carry_entity_ids() -> None:
     assert any(i.entity_id == "bad" for i in issues)
 
 
+def _two_storey(upper_walls: list) -> dict:
+    ground = {
+        "elevation": 0.0,
+        "height": 3.0,
+        "walls": [{"id": "ext_0", "start": [0, 0], "end": [8, 0], "thickness": 0.2,
+                   "openings": [{"id": "front", "kind": "door", "along": 0.3, "width": 1.0,
+                                 "height": 2.1, "sill": 0.0}]},
+                  {"id": "ext_1", "start": [8, 0], "end": [8, 5], "thickness": 0.2},
+                  {"id": "ext_2", "start": [8, 5], "end": [0, 5], "thickness": 0.2},
+                  {"id": "ext_3", "start": [0, 5], "end": [0, 0], "thickness": 0.2}],
+        "rooms": [{"id": "r", "polygon": [[0, 0], [8, 0], [8, 5], [0, 5]]}],
+    }
+    upper = {**ground, "elevation": 3.0, "walls": upper_walls}
+    return {"schema_version": 1, "seed": 1, "units": "m",
+            "storeys": [ground, upper], "roof": {"kind": "flat", "thickness": 0.2}}
+
+
+def test_upper_exterior_door_without_balcony_is_flagged() -> None:
+    # A door on an upper-floor exterior wall with no balcony has nothing to open onto.
+    upper_walls = [
+        {"id": "ext_0", "start": [0, 0], "end": [8, 0], "thickness": 0.2,
+         "openings": [{"id": "floating_door", "kind": "door", "along": 0.5, "width": 1.0,
+                       "height": 2.1, "sill": 0.0}]},
+        {"id": "ext_1", "start": [8, 0], "end": [8, 5], "thickness": 0.2},
+        {"id": "ext_2", "start": [8, 5], "end": [0, 5], "thickness": 0.2},
+        {"id": "ext_3", "start": [0, 5], "end": [0, 0], "thickness": 0.2},
+    ]
+    spec = _two_storey(upper_walls)
+
+    issues = SemanticValidator().validate(spec)
+
+    assert any(i.kind == "floating_exterior_door" and i.entity_id == "floating_door"
+               for i in issues)
+
+
+def test_upper_exterior_door_with_balcony_is_allowed() -> None:
+    # The same door is fine when a balcony at that position gives it something to open onto.
+    upper_walls = [
+        {"id": "ext_0", "start": [0, 0], "end": [8, 0], "thickness": 0.2,
+         "openings": [{"id": "balcony_door", "kind": "door", "along": 0.5, "width": 3.0,
+                       "height": 2.7, "sill": 0.0}]},
+        {"id": "ext_1", "start": [8, 0], "end": [8, 5], "thickness": 0.2},
+        {"id": "ext_2", "start": [8, 5], "end": [0, 5], "thickness": 0.2},
+        {"id": "ext_3", "start": [0, 5], "end": [0, 0], "thickness": 0.2},
+    ]
+    spec = _two_storey(upper_walls)
+    spec["storeys"][1]["balconies"] = [
+        {"wall_id": "ext_0", "along": 0.5, "length": 3.0, "depth": 1.5}
+    ]
+
+    issues = SemanticValidator().validate(spec)
+
+    assert not any(i.kind == "floating_exterior_door" for i in issues)
+
+
+def test_ground_floor_exterior_door_is_allowed() -> None:
+    # The ground-floor front door opens onto the ground — always fine.
+    spec = _two_storey([
+        {"id": "ext_0", "start": [0, 0], "end": [8, 0], "thickness": 0.2},
+        {"id": "ext_1", "start": [8, 0], "end": [8, 5], "thickness": 0.2},
+        {"id": "ext_2", "start": [8, 5], "end": [0, 5], "thickness": 0.2},
+        {"id": "ext_3", "start": [0, 5], "end": [0, 0], "thickness": 0.2},
+    ])
+
+    issues = SemanticValidator().validate(spec)
+
+    assert not any(i.kind == "floating_exterior_door" for i in issues)
+
+
 def test_open_exterior_loop_is_flagged() -> None:
     # Break the perimeter: shorten one exterior wall so its end no longer meets the next.
     spec = _clean_spec()
