@@ -34,30 +34,54 @@ class Builder:
         :return: An opaque solid handle from the kernel.
         :raises ValueError: If the roof kind is unknown.
         """
-        storey = spec["storeys"][0]
+        storeys = spec["storeys"]
+        top_index = len(storeys) - 1
+
+        storey_solids = []
+        for index, storey in enumerate(storeys):
+            # Only the top storey carries the building roof; intermediate storeys get a
+            # flat ceiling slab (the floor of the storey above).
+            roof = spec["roof"] if index == top_index else None
+            storey_solids.append(self._build_storey(storey, roof))
+
+        # Single storey reduces to exactly today's geometry (one storey solid → returned
+        # as-is), keeping existing buildings byte-identical.
+        solid = storey_solids[0]
+        if len(storey_solids) > 1:
+            solid = self._kernel.union(storey_solids)
+
+        logger.debug(
+            "built model: storeys=%d volume=%.3f", len(storeys), self._kernel.volume(solid)
+        )
+        return solid
+
+    def _build_storey(self, storey: dict, roof: dict | None):
+        """Build one storey's solid: floor slab + walls, plus a roof (top) or ceiling.
+
+        ``roof`` is the building roof dict for the top storey, or None for intermediate
+        storeys (which get a flat ceiling slab instead). The single-storey, roof-bearing
+        case emits exactly the original two-step union, so existing geometry is unchanged.
+        """
         elevation = storey["elevation"]
         storey_height = storey["height"]
         footprint = storey.get("footprint")
+        top_z = elevation + storey_height
 
         wall_solids = [
             self._build_wall(wall, elevation, storey_height) for wall in storey["walls"]
         ]
-        top_z = elevation + storey_height
         if footprint is not None:
             floor = self._build_polygon_slab(footprint, top_z=elevation, thickness=_SLAB_THICKNESS)
-            roof_solid = self._build_polygon_roof(spec["roof"], footprint, top_z=top_z)
+            cap = self._build_polygon_roof(roof, footprint, top_z=top_z) if roof is not None \
+                else self._build_polygon_slab(footprint, top_z=top_z, thickness=_SLAB_THICKNESS)
         else:
             bounds = self._footprint_bounds(storey["walls"])
             floor = self._build_slab(bounds, top_z=elevation, thickness=_SLAB_THICKNESS)
-            roof_solid = self._build_roof(spec["roof"], bounds, top_z=top_z)
+            cap = self._build_roof(roof, bounds, top_z=top_z) if roof is not None \
+                else self._build_slab(bounds, top_z=top_z, thickness=_SLAB_THICKNESS)
 
         solid = self._kernel.union([floor, *wall_solids])
-        solid = self._kernel.union([solid, roof_solid])
-
-        logger.debug(
-            "built model: walls=%d volume=%.3f", len(wall_solids), self._kernel.volume(solid)
-        )
-        return solid
+        return self._kernel.union([solid, cap])
 
     def _build_polygon_slab(self, footprint: list, top_z: float, thickness: float):
         """Slab following an arbitrary footprint polygon (rounded corners if present)."""

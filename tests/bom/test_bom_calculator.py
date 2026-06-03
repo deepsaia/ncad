@@ -88,6 +88,28 @@ def test_bom_as_dict_is_serializable() -> None:
     assert "wall_volume" in data
 
 
+def test_multistorey_floor_sums_but_roof_is_top_only() -> None:
+    # Two identical 6x4 storeys: floor_area sums both (48), roof_area = top only (24).
+    storey = {
+        "elevation": 0.0,
+        "height": 3.0,
+        "walls": [{"id": "w", "start": [0, 0], "end": [6, 0], "thickness": 0.2}],
+        "rooms": [{"id": "r", "polygon": [[0, 0], [6, 0], [6, 4], [0, 4]]}],
+    }
+    spec = {
+        "schema_version": 1,
+        "seed": 1,
+        "units": "m",
+        "storeys": [{**storey, "elevation": 0.0}, {**storey, "elevation": 3.0}],
+        "roof": {"kind": "flat", "thickness": 0.2},
+    }
+
+    bom = BomCalculator().quantities(spec)
+
+    assert bom.floor_area == pytest.approx(48.0)
+    assert bom.roof_area == pytest.approx(24.0)
+
+
 def test_arc_wall_uses_arc_length_not_chord() -> None:
     import math
 

@@ -43,9 +43,10 @@ class BomCalculator:
                 window_count += windows
             floor_area += sum(_polygon_area(room["polygon"]) for room in storey["rooms"])
 
-        # Roof covers the footprint, which is the union of rooms (robust to non-
-        # rectangular footprints later). For v1 single-storey, that equals floor_area.
-        roof_area = floor_area
+        # The roof covers only the TOP storey's footprint (the union of its rooms), not
+        # the sum of all floors. For a single storey this equals floor_area (unchanged).
+        top_storey = spec["storeys"][-1]
+        roof_area = sum(_polygon_area(room["polygon"]) for room in top_storey["rooms"])
         bom = Bom(
             wall_volume=wall_volume,
             wall_face_area=wall_face_area,

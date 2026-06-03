@@ -47,7 +47,30 @@ class SpecCompiler:
         thickness = brief.get("wall_thickness", _DEFAULT_THICKNESS)
         storey_height = brief.get("storey_height", _DEFAULT_STOREY_HEIGHT)
         radii = {int(index): radius for index, radius in brief.get("rounded_corners", {}).items()}
+        num_storeys = max(1, int(brief.get("num_storeys", 1)))
 
+        # Stack identical footprints; each storey gets its own freshly-built wall dicts so
+        # opening lists never alias across floors.
+        storeys = [
+            self._build_storey_dict(
+                polygon, radii, thickness, storey_height, elevation=i * storey_height
+            )
+            for i in range(num_storeys)
+        ]
+        logger.info(
+            "compiled brief: %d-vertex footprint, %d rounded corner(s), %d storey(s)",
+            len(polygon), len(radii), num_storeys,
+        )
+        return {
+            "schema_version": _SCHEMA_VERSION,
+            "seed": 0,
+            "units": "m",
+            "storeys": storeys,
+            "roof": {"kind": brief.get("roof", "flat"), "thickness": _DEFAULT_ROOF_THICKNESS},
+        }
+
+    def _build_storey_dict(self, polygon, radii, thickness, storey_height, elevation):
+        """One storey dict: exterior + arc walls (with openings) + room + footprint."""
         rounded = round_corners(polygon, radii, thickness)
         straight_walls = longest_wall_first(rounded["straight_walls"])
         arc_walls = rounded["arc_walls"]
@@ -59,23 +82,10 @@ class SpecCompiler:
             if openings:
                 wall["openings"] = openings
 
-        rooms = [{"id": "room_0", "polygon": [list(point) for point in polygon]}]
-        logger.info(
-            "compiled brief: %d-vertex footprint, %d rounded corner(s), %d walls",
-            len(polygon), len(radii), len(walls),
-        )
         return {
-            "schema_version": _SCHEMA_VERSION,
-            "seed": 0,
-            "units": "m",
-            "storeys": [
-                {
-                    "elevation": 0.0,
-                    "height": storey_height,
-                    "walls": walls,
-                    "rooms": rooms,
-                    "footprint": rounded["footprint"],
-                }
-            ],
-            "roof": {"kind": brief.get("roof", "flat"), "thickness": _DEFAULT_ROOF_THICKNESS},
+            "elevation": elevation,
+            "height": storey_height,
+            "walls": walls,
+            "rooms": [{"id": "room_0", "polygon": [list(point) for point in polygon]}],
+            "footprint": rounded["footprint"],
         }

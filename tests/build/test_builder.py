@@ -43,6 +43,63 @@ def _spec(with_opening: bool = False) -> dict:
     }
 
 
+def test_single_storey_geometry_is_byte_stable() -> None:
+    # Frozen baseline captured before the multi-storey refactor. A single-storey build
+    # MUST keep this exact volume + bbox (no breaking change to existing buildings).
+    kernel = FakeKernel()
+
+    solid = Builder(kernel).build(_spec())
+
+    assert kernel.volume(solid) == pytest.approx(3.672, abs=1e-6)
+    (minx, miny, minz), (maxx, maxy, maxz) = kernel.bounding_box(solid)
+    assert (minx, miny, minz) == pytest.approx((0.0, -0.1, -0.2))
+    assert (maxx, maxy, maxz) == pytest.approx((6.0, 0.1, 3.2))
+
+
+def _two_storey_spec() -> dict:
+    def storey(elevation: float) -> dict:
+        return {
+            "elevation": elevation,
+            "height": 3.0,
+            "walls": [
+                {"id": "s", "start": [0, 0], "end": [6, 0], "thickness": 0.2},
+                {"id": "e", "start": [6, 0], "end": [6, 4], "thickness": 0.2},
+                {"id": "n", "start": [6, 4], "end": [0, 4], "thickness": 0.2},
+                {"id": "w", "start": [0, 4], "end": [0, 0], "thickness": 0.2},
+            ],
+            "rooms": [{"id": "r", "polygon": [[0, 0], [6, 0], [6, 4], [0, 4]]}],
+            "footprint": [[0, 0], [6, 0], [6, 4], [0, 4]],
+        }
+
+    return {
+        "schema_version": 1,
+        "seed": 1,
+        "units": "m",
+        "storeys": [storey(0.0), storey(3.0)],
+        "roof": {"kind": "flat", "thickness": 0.2},
+    }
+
+
+def test_two_storey_stacks_to_full_height() -> None:
+    kernel = FakeKernel()
+
+    solid = Builder(kernel).build(_two_storey_spec())
+
+    # Two 3m storeys + roof slab → top ≈ 6.2m; floor base at -0.2m.
+    (_, _, minz), (_, _, maxz) = kernel.bounding_box(solid)
+    assert maxz == pytest.approx(6.2, rel=0.02)
+    assert minz == pytest.approx(-0.2, abs=1e-6)
+
+
+def test_intermediate_storey_has_ceiling_slab() -> None:
+    kernel = FakeKernel()
+
+    solid = Builder(kernel).build(_two_storey_spec())
+
+    # A point at the slab between storeys (z just below 3.0, inside footprint) is solid.
+    assert kernel._point_inside(solid, 3.0, 2.0, 2.95)
+
+
 def test_build_returns_a_solid_with_positive_volume() -> None:
     kernel = FakeKernel()
 

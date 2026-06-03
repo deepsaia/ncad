@@ -30,9 +30,9 @@ class PlanRenderer:
     ROOM_FILL = "#f5f5f0"
     BACKGROUND = "#ffffff"
 
-    def render(self, spec: dict) -> str:
-        """Render ``spec`` to an SVG document string."""
-        storey = spec["storeys"][0]
+    def render(self, spec: dict, storey_index: int = 0) -> str:
+        """Render the plan of one storey (default: ground floor) to an SVG string."""
+        storey = spec["storeys"][storey_index]
         transform = self._build_transform(storey)
         # A viewBox lets the SVG scale to fit any container (e.g. the viewer's plan
         # panel) without clipping, while size gives it a sensible intrinsic dimension.
@@ -51,7 +51,7 @@ class PlanRenderer:
         self._draw_rooms(drawing, transform, storey["rooms"])
         self._draw_walls(drawing, transform, storey["walls"])
         self._draw_room_labels(drawing, transform, storey["rooms"])
-        self._draw_title(drawing, transform, spec)
+        self._draw_title(drawing, transform, spec, storey_index)
 
         return drawing.tostring()
 
@@ -140,8 +140,15 @@ class PlanRenderer:
                 )
             )
 
-    def _draw_title(self, drawing, transform: PlanTransform, spec: dict) -> None:
-        title = f"plan — seed {spec['seed']}, {len(spec['storeys'][0]['rooms'])} rooms"
+    def _draw_title(self, drawing, transform: PlanTransform, spec: dict, storey_index: int) -> None:
+        storeys = spec["storeys"]
+        rooms = len(storeys[storey_index]["rooms"])
+        # Keep the single-storey title byte-identical (golden SVG); add a storey label
+        # only for multi-storey buildings.
+        if len(storeys) > 1:
+            title = f"plan — seed {spec['seed']}, storey {storey_index}, {rooms} rooms"
+        else:
+            title = f"plan — seed {spec['seed']}, {rooms} rooms"
         drawing.add(
             drawing.text(
                 title,

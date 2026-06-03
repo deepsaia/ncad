@@ -81,3 +81,25 @@ def test_is_deterministic() -> None:
     b = SpecCompiler().compile(_brief())
 
     assert a == b
+
+
+def test_default_is_single_storey() -> None:
+    spec = SpecCompiler().compile(_brief())
+
+    assert len(spec["storeys"]) == 1
+    assert spec["storeys"][0]["elevation"] == 0.0
+
+
+def test_num_storeys_stacks_floors() -> None:
+    brief = _brief()
+    brief["num_storeys"] = 3
+
+    spec = SpecCompiler().compile(brief)
+
+    storeys = spec["storeys"]
+    assert len(storeys) == 3
+    assert [s["elevation"] for s in storeys] == [0.0, 3.0, 6.0]
+    # Each storey has its own wall dicts (no aliasing).
+    assert storeys[0]["walls"] is not storeys[1]["walls"]
+    assert SchemaValidator().validate(spec) == []
+    assert SemanticValidator().validate(spec) == []
