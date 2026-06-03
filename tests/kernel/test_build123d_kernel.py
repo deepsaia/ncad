@@ -4,6 +4,8 @@ Marked ``slow`` because importing OCP costs ~90s on first load. Run with ``-m sl
 the fast suite deselects these with ``-m 'not slow'``.
 """
 
+import math
+
 import pytest
 
 pytestmark = pytest.mark.slow
@@ -48,6 +50,52 @@ def test_extrude_polygon_l_shape_volume_and_bounds() -> None:
     (minx, miny, minz), (maxx, maxy, maxz) = kernel.bounding_box(solid)
     assert (minx, miny, minz) == pytest.approx((0.0, 0.0, 0.0))
     assert (maxx, maxy, maxz) == pytest.approx((6.0, 6.0, 2.0))
+
+
+def test_extrude_rounded_polygon_smaller_than_sharp() -> None:
+    from ncad.kernel.build123d_kernel import Build123dKernel
+
+    kernel = Build123dKernel()
+    square = [(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)]
+    sharp = kernel.extrude_polygon(polygon=square, base_z=0.0, height=3.0)
+    rounded = kernel.extrude_rounded_polygon(
+        polygon=square, corner_radii={2: 1.0}, base_z=0.0, height=3.0
+    )
+
+    # Rounding corner (4,4) removes a corner sliver: ~(1 - pi/4) * r^2 * height.
+    sharp_v = kernel.volume(sharp)
+    rounded_v = kernel.volume(rounded)
+    assert rounded_v < sharp_v
+    removed = sharp_v - rounded_v
+    expected_removed = (1 - math.pi / 4) * 1.0**2 * 3.0
+    assert removed == pytest.approx(expected_removed, rel=0.05)
+
+
+def test_extrude_rounded_polygon_only_one_corner_shrinks() -> None:
+    from ncad.kernel.build123d_kernel import Build123dKernel
+
+    kernel = Build123dKernel()
+    square = [(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)]
+    rounded = kernel.extrude_rounded_polygon(
+        polygon=square, corner_radii={2: 1.0}, base_z=0.0, height=3.0
+    )
+    # The other three corners are still sharp → bbox is unchanged 4x4x3.
+    (minx, miny, _), (maxx, maxy, _) = kernel.bounding_box(rounded)
+    assert (minx, miny, maxx, maxy) == pytest.approx((0.0, 0.0, 4.0, 4.0))
+
+
+def test_arc_wall_volume_and_height() -> None:
+    from ncad.kernel.build123d_kernel import Build123dKernel
+
+    kernel = Build123dKernel()
+    wall = kernel.arc_wall(
+        center=(0.0, 0.0), radius=3.0, start_angle=0.0, end_angle=90.0,
+        base_z=0.0, height=3.0, thickness=0.2,
+    )
+    expected = 3.0 * (math.pi / 2) * 0.2 * 3.0  # arc length * thickness * height
+    assert kernel.volume(wall) == pytest.approx(expected, rel=0.05)
+    (_, _, minz), (_, _, maxz) = kernel.bounding_box(wall)
+    assert (minz, maxz) == pytest.approx((0.0, 3.0))
 
 
 def test_extrude_polygon_square_equals_box() -> None:
@@ -105,6 +153,50 @@ def test_end_to_end_generate_build_export(tmp_path) -> None:
     out = tmp_path / "box_house.gltf"
     kernel.export(solid, str(out))
     assert out.exists() and out.stat().st_size > 0
+
+
+@pytest.mark.parametrize("shape", ["L", "T", "U"])
+def test_rounded_shapes_build_and_export(shape, tmp_path) -> None:
+    from ncad.build.builder import Builder
+    from ncad.generate.generator import Generator
+    from ncad.kernel.build123d_kernel import Build123dKernel
+
+    params = {
+        "width": 12.0,
+        "depth": 9.0,
+        "num_rooms": 5,
+        "footprint_shape": shape,
+        "corner_radius": 1.0,
+    }
+    spec = Generator(params).generate(seed=42)
+    kernel = Build123dKernel()
+
+    solid = Builder(kernel).build(spec)  # both convex + concave arc walls build
+    assert kernel.volume(solid) > 0
+
+    out = tmp_path / f"rounded_{shape}.glb"
+    kernel.export(solid, str(out))
+    assert out.exists() and out.read_bytes()[:4] == b"glTF"
+
+
+def test_irregular_mixed_corner_hocon_builds(tmp_path) -> None:
+    from pathlib import Path
+
+    from ncad.build.builder import Builder
+    from ncad.kernel.build123d_kernel import Build123dKernel
+    from ncad.spec.spec_loader import SpecLoader
+
+    fixtures = Path(__file__).resolve().parents[1] / "fixtures"
+    spec = SpecLoader().load(str(fixtures / "irregular_house.hocon"))
+    kernel = Build123dKernel()
+
+    # Irregular hexagon: diagonal straight walls + a mix of sharp and rounded corners.
+    solid = Builder(kernel).build(spec)
+    assert kernel.volume(solid) > 0
+
+    out = tmp_path / "irregular.glb"
+    kernel.export(solid, str(out))
+    assert out.exists() and out.read_bytes()[:4] == b"glTF"
 
 
 def test_l_footprint_builds_with_empty_notch(tmp_path) -> None:

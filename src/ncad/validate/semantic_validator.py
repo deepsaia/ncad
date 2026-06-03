@@ -10,6 +10,7 @@ import logging
 from ncad.validate.architectural_validator import ArchitecturalValidator
 from ncad.validate.geometry_validator import GeometryValidator
 from ncad.validate.issue import Issue
+from ncad.validate.loop_validator import LoopValidator
 from ncad.validate.topology_validator import TopologyValidator
 
 logger = logging.getLogger(__name__)
@@ -23,6 +24,7 @@ class SemanticValidator:
             GeometryValidator(),
             TopologyValidator(),
             ArchitecturalValidator(),
+            LoopValidator(),
         ]
 
     def validate(self, spec: dict) -> list[Issue]:

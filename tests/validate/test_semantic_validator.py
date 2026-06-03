@@ -95,3 +95,26 @@ def test_issues_carry_entity_ids() -> None:
 
     assert all(isinstance(i.entity_id, str) for i in issues)
     assert any(i.entity_id == "bad" for i in issues)
+
+
+def test_open_exterior_loop_is_flagged() -> None:
+    # Break the perimeter: shorten one exterior wall so its end no longer meets the next.
+    spec = _clean_spec()
+    spec["storeys"][0]["walls"][0]["end"] = [11.0, 0.0]  # was the corner; now a gap
+
+    issues = SemanticValidator().validate(spec)
+
+    assert any(i.kind == "open_wall_loop" for i in issues)
+
+
+def test_irregular_closed_loop_passes(tmp_path) -> None:
+    from pathlib import Path
+
+    from ncad.spec.spec_loader import SpecLoader
+
+    fixtures = Path(__file__).resolve().parents[1] / "fixtures"
+    spec = SpecLoader().load(str(fixtures / "irregular_house.hocon"))
+
+    issues = SemanticValidator().validate(spec)
+
+    assert not any(i.kind == "open_wall_loop" for i in issues)

@@ -119,3 +119,57 @@ def test_pitched_roof_on_shaped_footprint_raises() -> None:
 
     with pytest.raises(ValueError, match="roof"):
         Generator(params).generate(seed=42)
+
+
+# --- rounded corners (opt-in via corner_radius) ---
+
+_ROUNDED_L = {**_L_PARAMS, "corner_radius": 1.0}
+
+
+def test_corner_radius_default_zero_keeps_plain_footprint() -> None:
+    # Default (no corner_radius) must emit plain [x,y] footprint vertices — goldens frozen.
+    spec = Generator(_L_PARAMS).generate(seed=42)
+
+    assert all(isinstance(v, list) for v in spec["storeys"][0]["footprint"])
+
+
+@pytest.mark.parametrize("shape", ["L", "T", "U"])
+def test_rounded_shapes_are_valid_and_round_trip(shape: str) -> None:
+    spec = Generator({**_PARAMS, "footprint_shape": shape, "corner_radius": 1.0}).generate(seed=42)
+
+    assert SchemaValidator().validate(spec) == [], f"{shape} schema"
+    assert SemanticValidator().validate(spec) == [], f"{shape} semantic"
+    arc_walls = [w for w in spec["storeys"][0]["walls"] if "arc" in w]
+    assert arc_walls, f"{shape} should have arc walls"
+
+
+@pytest.mark.parametrize("shape", ["L", "T", "U"])
+def test_rounded_shapes_round_both_convex_and_concave(shape: str) -> None:
+    # Every shape has both convex (outer) and concave (notch) corners; both must round.
+    spec = Generator({**_PARAMS, "footprint_shape": shape, "corner_radius": 1.0}).generate(seed=42)
+
+    arcs = [w["arc"] for w in spec["storeys"][0]["walls"] if "arc" in w]
+    assert any(a["clockwise"] for a in arcs), f"{shape} missing concave (cw) arc"
+    assert any(not a["clockwise"] for a in arcs), f"{shape} missing convex (ccw) arc"
+
+
+def test_rounded_l_emits_object_footprint_vertices() -> None:
+    spec = Generator(_ROUNDED_L).generate(seed=42)
+
+    footprint = spec["storeys"][0]["footprint"]
+    rounded = [v for v in footprint if isinstance(v, dict) and v.get("corner_radius", 0) > 0]
+    assert rounded, "expected at least one rounded (object-form) vertex"
+
+
+def test_rounded_l_has_arc_walls() -> None:
+    spec = Generator(_ROUNDED_L).generate(seed=42)
+
+    arc_walls = [w for w in spec["storeys"][0]["walls"] if "arc" in w]
+    assert arc_walls, "expected at least one arc wall at a rounded corner"
+
+
+def test_rounded_l_is_deterministic() -> None:
+    a = Generator(_ROUNDED_L).generate(seed=42)
+    b = Generator(_ROUNDED_L).generate(seed=42)
+
+    assert a == b

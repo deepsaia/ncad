@@ -83,6 +83,53 @@ def test_invalid_ridge_axis_is_reported() -> None:
     assert any("ridge_axis" in issue.location for issue in issues)
 
 
+def test_plain_footprint_polygon_validates() -> None:
+    spec = _valid_spec()
+    spec["storeys"][0]["footprint"] = [[0, 0], [6, 0], [6, 4], [0, 4]]
+
+    assert SchemaValidator().validate(spec) == []
+
+
+def test_footprint_with_corner_radius_vertex_validates() -> None:
+    spec = _valid_spec()
+    # Mixed: plain points and an object vertex carrying a corner radius.
+    spec["storeys"][0]["footprint"] = [
+        [0, 0],
+        [6, 0],
+        {"point": [6, 4], "corner_radius": 1.0},
+        [0, 4],
+    ]
+
+    assert SchemaValidator().validate(spec) == []
+
+
+def test_negative_corner_radius_is_reported() -> None:
+    spec = _valid_spec()
+    spec["storeys"][0]["footprint"] = [
+        [0, 0],
+        [6, 0],
+        {"point": [6, 4], "corner_radius": -1.0},
+        [0, 4],
+    ]
+
+    assert SchemaValidator().validate(spec) != []
+
+
+def test_arc_wall_form_validates() -> None:
+    spec = _valid_spec()
+    spec["storeys"][0]["walls"].append(
+        {
+            "id": "arc_0",
+            "start": [6.0, 0.0],
+            "end": [6.0, 4.0],
+            "thickness": 0.2,
+            "arc": {"center": [4.0, 2.0], "clockwise": False},
+        }
+    )
+
+    assert SchemaValidator().validate(spec) == []
+
+
 def test_issue_carries_location_path_into_nested_field() -> None:
     spec = _valid_spec()
     spec["storeys"][0]["walls"][0]["thickness"] = -1  # violates exclusiveMinimum

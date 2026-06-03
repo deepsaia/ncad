@@ -61,3 +61,15 @@ def test_render_to_file_writes_svg(tmp_path) -> None:
 
     assert out.exists()
     assert "</svg>" in out.read_text()
+
+
+def test_arc_wall_renders_as_curve_not_straight_line() -> None:
+    # A rounded footprint's arc walls must render as multi-point curves in the plan,
+    # not straight chords (so rounded corners actually look rounded).
+    spec = Generator({**_PARAMS, "footprint_shape": "L", "corner_radius": 1.2}).generate(seed=42)
+
+    svg = PlanRenderer().render(spec)
+
+    # An SVG <polyline>/<path> with many points indicates a drawn curve; a plain plan of
+    # only straight walls would use <line> elements exclusively.
+    assert "polyline" in svg or "<path" in svg

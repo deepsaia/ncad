@@ -28,6 +28,23 @@ definitions {
     maxItems = 2
   }
 
+  # A footprint boundary vertex: either a plain (x, y) point, or an object that also
+  # carries a corner_radius for a rounded corner (0 / absent = sharp). The plain form
+  # keeps existing straight footprints valid (additive, backward-compatible).
+  footprint_vertex {
+    oneOf = [
+      ${definitions.vec2}
+      {
+        type = object
+        required = ["point"]
+        properties {
+          point = ${definitions.vec2}
+          corner_radius { type = number, minimum = 0 }
+        }
+      }
+    ]
+  }
+
   # Stable, unique entity identifier (e.g. "wall_0", "window_3").
   id {
     type = string
@@ -66,7 +83,7 @@ properties {
         footprint {                                        # optional: outer boundary polygon
           type = array                                     # for non-rectangular (L/T/U) shapes;
           minItems = 3                                     # absent for plain rectangles (slab/roof
-          items = ${definitions.vec2}                      # then derive from wall bounds)
+          items = ${definitions.footprint_vertex}          # then derive from wall bounds)
         }
         walls {
           type = array
@@ -78,6 +95,14 @@ properties {
               start = ${definitions.vec2}                  # centerline start
               end = ${definitions.vec2}                    # centerline end
               thickness { type = number, exclusiveMinimum = 0 }   # centered on centerline (m)
+              arc {                                        # optional: curved wall turning a rounded
+                type = object                              # corner. Absent = straight wall.
+                required = ["center"]
+                properties {
+                  center = ${definitions.vec2}             # arc center; radius = |center - start|
+                  clockwise { type = boolean }
+                }
+              }
               height {                                     # null inherits storey height
                 type = ["number", "null"]
                 exclusiveMinimum = 0

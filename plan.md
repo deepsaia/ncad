@@ -22,7 +22,7 @@ Each phase should leave `generate → build → render → BOM` in a working sta
 | 4 | BOM + validators + glTF export (plan render done in 2.5) | `[x]` |
 | 4.5 | Browser 3D viewer (Three.js + stdlib server; BOM + plan panels, materials, lighting) | `[x]` |
 | 5 | **v1 spine complete** (milestone gate) | `[x]` |
-| 6 | Breadth: roofs+opening (slice 1), L/T/U footprints (slice 2) done; curves/multi-storey deferred | `[~]` |
+| 6 | Breadth: roofs (s1), L/T/U (s2), curved corners + irregular shapes (s2b) done; multi-storey deferred | `[~]` |
 | 7 | Floor plans & CAD interchange — forward (`spec → DXF/IFC`) | `[ ]` |
 | 8 | Agent interface (sessions + typed mutations) | `[ ]` |
 | 9 | Multi-agent system (neuro-san) | `[ ]` |
@@ -184,11 +184,21 @@ Goal: view glTF/GLB models in any browser, no installs (machines without CAD/GL 
 - [x] **Specs from HOCON too:** hand-authored `tests/fixtures/L_house.hocon` + generator-exported `T_house.hocon`/`U_house.hocon`; all load + validate + build. New `golden_spec_L_seed42.json`.
 - [x] Verified in browser (nv + Playwright): L and U render with empty notches, BOM + plan panels populate (145 tests: 132 fast + 13 slow)
 
-**Slice 2b — curved corners (deferred to its own slice):**
-- [ ] Footprint vertices carry an optional **arc/bulge** (schema + validation designed here, built in 2b) for rounded "human-touch" corners — the full 6-piece dual-tile set
-- [ ] Kernel arc support (arc-aware `extrude_polygon`) + non-axis-aligned/curved walls (generalize `_wall_box`)
+**Slice 2b — curved/rounded corners + irregular shapes (done):**
+- [x] Schema: footprint vertex is `oneOf [vec2, {point, corner_radius}]`; optional wall `arc` form (additive; plain specs + goldens stay valid)
+- [x] Kernel `extrude_rounded_polygon` (fillet corners then extrude) + `arc_wall` (annular sector, **minor arc**); both backends (build123d true-arc, FakeKernel tessellated)
+- [x] Builder: rounded slab/roof dispatch on `corner_radius`; straight-vs-arc wall dispatch; **oriented (any-angle) straight walls** via `extrude_polygon` rectangle (diagonal walls build, not just axis-aligned)
+- [x] Generator `corner_radius` param (default 0 = frozen): rounds **both convex (CCW) and concave (CW)** corners, shortens adjacent walls to tangent points, inserts arc walls. rect+L goldens byte-identical.
+- [x] BOM + geometry validator use **arc length** for arc walls
+- [x] `LoopValidator`: exterior walls must close into a loop (angle-agnostic endpoint-degree check; interior `interior_*` walls excluded). Catches gaps in irregular outlines.
+- [x] PlanRenderer draws arc walls as sampled curves (rounded corners look rounded in the plan)
+- [x] **Irregular shapes:** hand-authored `tests/fixtures/irregular_house.hocon` — hexagon w/ diagonal straight walls + mix of sharp & rounded corners; loads, validates, builds, exports
+- [x] Verified in browser (nv + Playwright): rounded L/T/U (both corner types correct) + irregular hexagon render and round-trip (174 tests: 154 fast + 20 slow)
+- Bug found & fixed via visual review: arc band swept the **major** arc (inverted concave corners) — normalized to minor arc.
 
 **Slice 3+ — deferred (higher risk, own slices):**
+- [ ] Openings on diagonal/arc walls (currently only axis-aligned walls take openings)
+- [ ] Generator-driven irregular shapes + per-corner radius mix (hand-authored works today)
 - [ ] Multi-storey support (Builder currently builds `storeys[0]` only)
 - [ ] `hip` roof via straight skeleton
 - [ ] Orthographic elevations + isometric views (legible-to-model styling)

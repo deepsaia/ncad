@@ -68,3 +68,53 @@ def test_fake_kernel_extrude_polygon_l_shape_excludes_notch() -> None:
     assert kernel.volume(solid) == pytest.approx(54.0, rel=0.1)
     # A point in the notch is NOT inside the solid (bounding box would wrongly include it).
     assert not kernel._point_inside(solid, 4.5, 4.5, 1.0)
+
+
+def test_fake_kernel_extrude_rounded_polygon_is_smaller_than_sharp() -> None:
+    from tests.kernel.fake_kernel import FakeKernel
+
+    kernel = FakeKernel()
+    square = [(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)]
+    sharp = kernel.extrude_polygon(polygon=square, base_z=0.0, height=3.0)
+    # Round one corner (vertex index 2 = (4,4)) with radius 1.
+    rounded = kernel.extrude_rounded_polygon(
+        polygon=square, corner_radii={2: 1.0}, base_z=0.0, height=3.0
+    )
+
+    # The fillet removes material at the corner, so the rounded solid is strictly smaller.
+    assert kernel.volume(rounded) < kernel.volume(sharp)
+    # A point just inside the original sharp corner (clipped away by the fillet) is empty;
+    # the polygon interior is still solid.
+    assert not kernel._point_inside(rounded, 3.9, 3.9, 1.5)
+    assert kernel._point_inside(rounded, 2.0, 2.0, 1.5)
+
+
+def test_fake_kernel_rounded_polygon_no_radii_matches_sharp() -> None:
+    from tests.kernel.fake_kernel import FakeKernel
+
+    kernel = FakeKernel()
+    square = [(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)]
+    sharp = kernel.extrude_polygon(polygon=square, base_z=0.0, height=3.0)
+    rounded = kernel.extrude_rounded_polygon(
+        polygon=square, corner_radii={}, base_z=0.0, height=3.0
+    )
+
+    assert kernel.volume(rounded) == pytest.approx(kernel.volume(sharp), rel=0.05)
+
+
+def test_fake_kernel_arc_wall_volume() -> None:
+    import math
+
+    from tests.kernel.fake_kernel import FakeKernel
+
+    kernel = FakeKernel()
+    # Quarter arc (90deg), radius 3, thickness 0.2, height 3.
+    # Volume ≈ arc_length * thickness * height = (r * dθ) * t * h = 3*(pi/2)*0.2*3.
+    wall = kernel.arc_wall(
+        center=(0.0, 0.0), radius=3.0, start_angle=0.0, end_angle=90.0,
+        base_z=0.0, height=3.0, thickness=0.2,
+    )
+    expected = 3.0 * (math.pi / 2) * 0.2 * 3.0
+    assert kernel.volume(wall) == pytest.approx(expected, rel=0.15)
+    (_, _, minz), (_, _, maxz) = kernel.bounding_box(wall)
+    assert (minz, maxz) == pytest.approx((0.0, 3.0))

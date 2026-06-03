@@ -86,3 +86,36 @@ def test_bom_as_dict_is_serializable() -> None:
     data = bom.as_dict()
     assert data["door_count"] == 1
     assert "wall_volume" in data
+
+
+def test_arc_wall_uses_arc_length_not_chord() -> None:
+    import math
+
+    # A quarter arc, radius 3: straight chord ~4.24m, but arc length = 3*(pi/2) ~ 4.71m.
+    spec = {
+        "schema_version": 1,
+        "seed": 1,
+        "units": "m",
+        "storeys": [
+            {
+                "elevation": 0.0,
+                "height": 3.0,
+                "walls": [
+                    {
+                        "id": "arc_0",
+                        "start": [3.0, 0.0],
+                        "end": [0.0, 3.0],
+                        "thickness": 0.2,
+                        "arc": {"center": [0.0, 0.0], "clockwise": False},
+                    }
+                ],
+                "rooms": [{"id": "r0", "polygon": [[0, 0], [3, 0], [3, 3], [0, 3]]}],
+            }
+        ],
+        "roof": {"kind": "flat", "thickness": 0.2},
+    }
+    bom = BomCalculator().quantities(spec)
+
+    arc_len = 3.0 * (math.pi / 2)
+    # wall_volume = arc_length * height * thickness (no openings)
+    assert bom.wall_volume == pytest.approx(arc_len * 3.0 * 0.2, rel=0.01)

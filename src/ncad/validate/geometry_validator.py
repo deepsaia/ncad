@@ -88,5 +88,13 @@ class GeometryValidator:
 
 
 def _wall_length(wall: dict) -> float:
+    if "arc" in wall:
+        cx, cy = wall["arc"]["center"]
+        (sx, sy), (ex, ey) = wall["start"], wall["end"]
+        radius = math.hypot(sx - cx, sy - cy)
+        sweep = abs(math.atan2(ey - cy, ex - cx) - math.atan2(sy - cy, sx - cx))
+        if sweep > math.pi:
+            sweep = 2 * math.pi - sweep
+        return radius * sweep
     (x0, y0), (x1, y1) = wall["start"], wall["end"]
     return math.hypot(x1 - x0, y1 - y0)

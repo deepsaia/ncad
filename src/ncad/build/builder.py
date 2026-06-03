@@ -7,6 +7,7 @@ registry-dispatched roof complete the model. v1 assumes axis-aligned walls.
 """
 
 import logging
+import math
 
 from ncad.build.roof_builders import ROOF_BUILDERS
 from ncad.kernel.kernel import Kernel
@@ -59,9 +60,8 @@ class Builder:
         return solid
 
     def _build_polygon_slab(self, footprint: list, top_z: float, thickness: float):
-        """Slab following an arbitrary footprint polygon, top at ``top_z``."""
-        polygon = [(p[0], p[1]) for p in footprint]
-        return self._kernel.extrude_polygon(polygon, base_z=top_z - thickness, height=thickness)
+        """Slab following an arbitrary footprint polygon (rounded corners if present)."""
+        return self._extrude_footprint(footprint, base_z=top_z - thickness, height=thickness)
 
     def _build_polygon_roof(self, roof: dict, footprint: list, top_z: float):
         """Flat roof following an arbitrary footprint polygon (pitched is deferred)."""
@@ -71,17 +71,27 @@ class Builder:
                 f"roof kind {kind!r} is not supported over a non-rectangular footprint yet; "
                 "only 'flat'"
             )
-        polygon = [(p[0], p[1]) for p in footprint]
         thickness = roof.get("thickness", _SLAB_THICKNESS)
-        return self._kernel.extrude_polygon(polygon, base_z=top_z, height=thickness)
+        return self._extrude_footprint(footprint, base_z=top_z, height=thickness)
+
+    def _extrude_footprint(self, footprint: list, base_z: float, height: float):
+        """Extrude a footprint, rounding any corners that carry a positive corner_radius."""
+        polygon, corner_radii = _parse_footprint(footprint)
+        if corner_radii:
+            return self._kernel.extrude_rounded_polygon(polygon, corner_radii, base_z, height)
+        return self._kernel.extrude_polygon(polygon, base_z, height)
 
     def _build_wall(self, wall: dict, elevation: float, storey_height: float):
-        """One wall as a box with its openings subtracted."""
+        """One wall: arc band, axis-aligned box (with openings), or oriented rectangle."""
         height = wall.get("height") or storey_height
         thickness = wall["thickness"]
+        if "arc" in wall:
+            return self._build_arc_wall(wall, elevation, height, thickness)
+        if not _is_axis_aligned(wall):
+            return self._build_oriented_wall(wall, elevation, height, thickness)
+
         center, size = self._wall_box(wall, elevation, height, thickness)
         solid = self._kernel.box(center=center, size=size)
-
         cuts = [
             self._opening_box(wall, opening, elevation, thickness)
             for opening in wall.get("openings", [])
@@ -89,6 +99,40 @@ class Builder:
         if cuts:
             solid = self._kernel.subtract(solid, cuts)
         return solid
+
+    def _build_oriented_wall(self, wall: dict, elevation: float, height: float, thickness: float):
+        """A straight wall at any angle: a thin rectangle extruded up (no openings in v1)."""
+        (x0, y0), (x1, y1) = wall["start"], wall["end"]
+        dx, dy = x1 - x0, y1 - y0
+        length = math.hypot(dx, dy) or 1.0
+        # Unit normal to the wall direction, scaled to half-thickness.
+        nx, ny = -dy / length * thickness / 2, dx / length * thickness / 2
+        rectangle = [
+            (x0 + nx, y0 + ny),
+            (x1 + nx, y1 + ny),
+            (x1 - nx, y1 - ny),
+            (x0 - nx, y0 - ny),
+        ]
+        return self._kernel.extrude_polygon(rectangle, base_z=elevation, height=height)
+
+    def _build_arc_wall(self, wall: dict, elevation: float, height: float, thickness: float):
+        """A curved wall turning a rounded corner (no openings in v1 — corner arcs)."""
+        center = wall["arc"]["center"]
+        (sx, sy), (ex, ey) = wall["start"], wall["end"]
+        radius = math.hypot(sx - center[0], sy - center[1])
+        start_angle = math.degrees(math.atan2(sy - center[1], sx - center[0]))
+        end_angle = math.degrees(math.atan2(ey - center[1], ex - center[0]))
+        # The arc band always spans the minor arc between the two tangent points, so the
+        # endpoint order (and the clockwise flag) doesn't change the swept region.
+        return self._kernel.arc_wall(
+            center=(center[0], center[1]),
+            radius=radius,
+            start_angle=start_angle,
+            end_angle=end_angle,
+            base_z=elevation,
+            height=height,
+            thickness=thickness,
+        )
 
     def _wall_box(self, wall: dict, elevation: float, height: float, thickness: float):
         """Center and size of an axis-aligned wall box."""
@@ -138,3 +182,29 @@ class Builder:
         xs = [p for wall in walls for p in (wall["start"][0], wall["end"][0])]
         ys = [p for wall in walls for p in (wall["start"][1], wall["end"][1])]
         return (min(xs), min(ys)), (max(xs), max(ys))
+
+
+def _is_axis_aligned(wall: dict) -> bool:
+    """True if the wall runs along x or y (so the box + opening path applies)."""
+    (x0, y0), (x1, y1) = wall["start"], wall["end"]
+    return abs(y1 - y0) < _AXIS_TOLERANCE or abs(x1 - x0) < _AXIS_TOLERANCE
+
+
+def _parse_footprint(footprint: list) -> tuple:
+    """Split a footprint into a plain (x, y) polygon plus a {index: radius} corner map.
+
+    A vertex is either a plain ``[x, y]`` or an object ``{"point": [x, y],
+    "corner_radius": r}``; only positive radii populate the map.
+    """
+    polygon = []
+    corner_radii = {}
+    for index, vertex in enumerate(footprint):
+        if isinstance(vertex, dict):
+            point = vertex["point"]
+            radius = vertex.get("corner_radius", 0.0)
+            if radius > 0:
+                corner_radii[index] = radius
+        else:
+            point = vertex
+        polygon.append((point[0], point[1]))
+    return polygon, corner_radii

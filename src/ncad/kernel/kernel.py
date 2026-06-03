@@ -43,6 +43,34 @@ class Kernel(ABC):
         """
 
     @abstractmethod
+    def extrude_rounded_polygon(
+        self, polygon: list[Point2], corner_radii: dict[int, float], base_z: float, height: float
+    ) -> Any:
+        """Extrude a polygon with selected corners rounded (filleted), then extruded up.
+
+        Like :meth:`extrude_polygon`, but ``corner_radii`` maps a vertex index to a fillet
+        radius; vertices not present (or radius 0) stay sharp. Used for rounded footprint
+        slabs/roofs. ``corner_radii == {}`` is equivalent to :meth:`extrude_polygon`.
+        """
+
+    @abstractmethod
+    def arc_wall(
+        self,
+        center: Point2,
+        radius: float,
+        start_angle: float,
+        end_angle: float,
+        base_z: float,
+        height: float,
+        thickness: float,
+    ) -> Any:
+        """A curved wall: an annular sector (band of width ``thickness`` centered on
+        ``radius``) about ``center``, swept from ``start_angle`` to ``end_angle`` (degrees),
+        extruded vertically from ``base_z`` by ``height``. Used for walls turning a rounded
+        corner.
+        """
+
+    @abstractmethod
     def union(self, solids: list[Any]) -> Any:
         """Boolean-union a non-empty list of solids into one."""
 

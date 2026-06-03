@@ -124,6 +124,102 @@ def test_footprint_polygon_slab_excludes_notch() -> None:
     assert kernel._point_inside(solid, 4.5, 1.5, -0.1)
 
 
+def _rounded_rect_spec(radius: float) -> dict:
+    # A rectangular footprint where one corner (index 2 = (6,4)) is rounded.
+    corner = {"point": [6, 4], "corner_radius": radius} if radius > 0 else [6, 4]
+    return {
+        "schema_version": 1,
+        "seed": 1,
+        "units": "m",
+        "storeys": [
+            {
+                "elevation": 0.0,
+                "height": 3.0,
+                "walls": [{"id": "w0", "start": [0, 0], "end": [6, 0], "thickness": 0.2}],
+                "rooms": [{"id": "r0", "polygon": [[0, 0], [6, 0], [6, 4], [0, 4]]}],
+                "footprint": [[0, 0], [6, 0], corner, [0, 4]],
+            }
+        ],
+        "roof": {"kind": "flat", "thickness": 0.2},
+    }
+
+
+def test_rounded_corner_slab_is_smaller_than_sharp() -> None:
+    kernel = FakeKernel()
+
+    sharp = kernel.volume(Builder(kernel).build(_rounded_rect_spec(0.0)))
+    rounded = kernel.volume(Builder(kernel).build(_rounded_rect_spec(1.5)))
+
+    assert rounded < sharp  # the fillet removes slab + roof corner material
+
+
+def test_plain_footprint_builds_same_with_or_without_zero_radius() -> None:
+    # A footprint of all-plain points must build identically (dispatch must not change it).
+    kernel = FakeKernel()
+    spec_plain = _rounded_rect_spec(0.0)
+
+    solid = Builder(kernel).build(spec_plain)
+
+    assert kernel.volume(solid) > 0
+    # Notch-free rectangle: a deep-interior point is solid.
+    assert kernel._point_inside(solid, 3.0, 2.0, -0.1)
+
+
+def test_diagonal_straight_wall_builds() -> None:
+    # A non-axis-aligned straight wall must build (oriented rectangle), not raise.
+    kernel = FakeKernel()
+    spec = {
+        "schema_version": 1,
+        "seed": 1,
+        "units": "m",
+        "storeys": [
+            {
+                "elevation": 0.0,
+                "height": 3.0,
+                "walls": [
+                    {"id": "diag", "start": [0.0, 0.0], "end": [4.0, 3.0], "thickness": 0.2}
+                ],
+                "rooms": [{"id": "r0", "polygon": [[0, 0], [4, 0], [4, 3], [0, 3]]}],
+            }
+        ],
+        "roof": {"kind": "flat", "thickness": 0.2},
+    }
+
+    solid = Builder(kernel).build(spec)
+
+    assert kernel.volume(solid) > 0
+
+
+def test_arc_wall_builds_with_positive_volume() -> None:
+    kernel = FakeKernel()
+    spec = {
+        "schema_version": 1,
+        "seed": 1,
+        "units": "m",
+        "storeys": [
+            {
+                "elevation": 0.0,
+                "height": 3.0,
+                "walls": [
+                    {
+                        "id": "arc_0",
+                        "start": [3.0, 0.0],
+                        "end": [0.0, 3.0],
+                        "thickness": 0.2,
+                        "arc": {"center": [0.0, 0.0], "clockwise": False},
+                    }
+                ],
+                "rooms": [{"id": "r0", "polygon": [[0, 0], [3, 0], [3, 3], [0, 3]]}],
+            }
+        ],
+        "roof": {"kind": "flat", "thickness": 0.2},
+    }
+
+    solid = Builder(kernel).build(spec)
+
+    assert kernel.volume(solid) > 0
+
+
 def test_hand_authored_hocon_l_house_builds() -> None:
     # Specs originate from HOCON too: load the hand-written L house and build it.
     kernel = FakeKernel()

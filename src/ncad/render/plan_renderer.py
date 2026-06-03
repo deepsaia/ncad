@@ -7,6 +7,7 @@ deterministic, so it is golden-testable like the spec.
 """
 
 import logging
+import math
 
 import svgwrite
 
@@ -90,12 +91,21 @@ class PlanRenderer:
 
     def _draw_walls(self, drawing, transform: PlanTransform, walls: list[dict]) -> None:
         for wall in walls:
-            start = transform.point(*wall["start"])
-            end = transform.point(*wall["end"])
             width = max(2.0, transform.length(wall["thickness"]))
+            if "arc" in wall:
+                points = [transform.point(*p) for p in _arc_wall_points(wall)]
+                drawing.add(
+                    drawing.polyline(
+                        points=points, fill="none", stroke=self.WALL_COLOR, stroke_width=width
+                    )
+                )
+                continue
             drawing.add(
                 drawing.line(
-                    start=start, end=end, stroke=self.WALL_COLOR, stroke_width=width
+                    start=transform.point(*wall["start"]),
+                    end=transform.point(*wall["end"]),
+                    stroke=self.WALL_COLOR,
+                    stroke_width=width,
                 )
             )
             self._draw_openings(drawing, transform, wall)
@@ -156,3 +166,25 @@ def _centroid(polygon: list) -> tuple[float, float]:
     xs = [p[0] for p in polygon]
     ys = [p[1] for p in polygon]
     return sum(xs) / len(xs), sum(ys) / len(ys)
+
+
+_ARC_PLAN_SEGMENTS = 12  # samples per arc wall in the plan
+
+
+def _arc_wall_points(wall: dict) -> list[tuple[float, float]]:
+    """Sample an arc wall's centerline along its minor arc, in world coordinates."""
+    cx, cy = wall["arc"]["center"]
+    (sx, sy), (ex, ey) = wall["start"], wall["end"]
+    radius = math.hypot(sx - cx, sy - cy)
+    a0 = math.atan2(sy - cy, sx - cx)
+    a1 = math.atan2(ey - cy, ex - cx)
+    while a1 - a0 > math.pi:
+        a1 -= 2 * math.pi
+    while a1 - a0 < -math.pi:
+        a1 += 2 * math.pi
+    points = []
+    for s in range(_ARC_PLAN_SEGMENTS + 1):
+        t = s / _ARC_PLAN_SEGMENTS
+        ang = a0 + (a1 - a0) * t
+        points.append((cx + radius * math.cos(ang), cy + radius * math.sin(ang)))
+    return points
