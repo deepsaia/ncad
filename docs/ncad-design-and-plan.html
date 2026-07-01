@@ -1,0 +1,1448 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ncad — Target Engine: Design & Plan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,400;1,9..144,500&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#F1E8D4; --paper-2:#E9DEC6; --panel:#F6EFDF; --panel-2:#EFE6D0;
+  --ink:#221A10; --ink-soft:#5B5140; --ink-faint:#8A7C63;
+  --line:#C6B596; --line-soft:#D7CAAA;
+  --indigo:#283A6B; --indigo-2:#3B4F85;
+  --saffron:#AD5F0B; --marigold:#D98A24;
+  --teal:#1B6862;
+  --good:#1B6862; --warn:#AD5F0B; --no:#97382A;
+  --hatch:#C6B59644;
+  --shadow:0 1px 0 rgba(34,26,16,.05), 0 22px 44px -30px rgba(34,26,16,.45);
+  --maxw:68rem; --measure:60rem;
+}
+[data-theme="dark"]{
+  --paper:#15110A; --paper-2:#1B160E; --panel:#201A11; --panel-2:#181309;
+  --ink:#ECE1C8; --ink-soft:#B5A88B; --ink-faint:#897C62;
+  --line:#392F21; --line-soft:#2A2316;
+  --indigo:#9AAEE6; --indigo-2:#8093CB;
+  --saffron:#E59A3C; --marigold:#E7A24A;
+  --teal:#5CB8AF;
+  --good:#5CB8AF; --warn:#E59A3C; --no:#E08568;
+  --hatch:#5a4a2e3a;
+  --shadow:0 1px 0 rgba(0,0,0,.3), 0 26px 52px -32px rgba(0,0,0,.85);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth; scroll-padding-top:6.2rem}
+body{margin:0; background:var(--paper); color:var(--ink);
+  font-family:"Newsreader",Georgia,serif; font-size:18.5px; line-height:1.62; font-weight:400;
+  -webkit-font-smoothing:antialiased; transition:background .4s ease,color .4s ease}
+@media (prefers-reduced-motion:reduce){*{transition:none!important; scroll-behavior:auto}}
+.mono{font-family:"IBM Plex Mono",ui-monospace,monospace}
+.wrap{max-width:var(--maxw); margin:0 auto; padding:0 1.4rem}
+
+/* ---------- top bar ---------- */
+.topbar{position:sticky; top:0; z-index:60; backdrop-filter:saturate(1.2) blur(7px);
+  background:color-mix(in srgb,var(--paper) 85%, transparent); border-bottom:1px solid var(--line-soft)}
+.topbar-in{max-width:var(--maxw); margin:0 auto; padding:.5rem 1.4rem; display:flex; align-items:center; gap:1rem; justify-content:space-between}
+.brand{font-family:"IBM Plex Mono",monospace; font-size:.7rem; letter-spacing:.16em; text-transform:uppercase; color:var(--ink-soft); white-space:nowrap}
+.brand b{color:var(--saffron); font-weight:600}
+.topbar-right{display:flex; align-items:center; gap:.6rem}
+.tabs{display:inline-flex; border:1px solid var(--line); border-radius:3px; overflow:hidden}
+.tab{font-family:"IBM Plex Mono",monospace; font-size:.68rem; letter-spacing:.1em; text-transform:uppercase;
+  background:transparent; color:var(--ink-soft); border:none; padding:.42rem .8rem; cursor:pointer; transition:background .2s,color .2s}
+.tab + .tab{border-left:1px solid var(--line)}
+.tab[aria-selected="true"]{background:var(--indigo); color:var(--paper)}
+[data-theme="dark"] .tab[aria-selected="true"]{color:#15110A}
+.tab:focus-visible{outline:2px solid var(--saffron); outline-offset:-2px}
+.toggle{font-family:"IBM Plex Mono",monospace; font-size:.66rem; letter-spacing:.08em; text-transform:uppercase;
+  border:1px solid var(--line); background:transparent; color:var(--ink); padding:.42rem .6rem; border-radius:3px; cursor:pointer; display:inline-flex; align-items:center; gap:.45rem}
+.toggle:hover{border-color:var(--saffron); color:var(--saffron)}
+.toggle:focus-visible{outline:2px solid var(--indigo); outline-offset:2px}
+.toggle .dot{width:9px; height:9px; border-radius:50%; background:var(--marigold); box-shadow:0 0 0 1px var(--line)}
+[data-theme="dark"] .toggle .dot{background:var(--indigo)}
+
+/* ---------- masthead / title block ---------- */
+.masthead{padding:3rem 0 1rem}
+.eyebrow{font-family:"IBM Plex Mono",monospace; font-size:.7rem; letter-spacing:.26em; text-transform:uppercase; color:var(--saffron); margin:0 0 1rem}
+h1.title{font-family:"Fraunces",serif; font-weight:600; font-optical-sizing:auto;
+  font-size:clamp(2.3rem,6.2vw,3.7rem); line-height:1.02; letter-spacing:-.013em; margin:.1rem 0 .6rem}
+h1.title em{font-style:italic; color:var(--indigo); font-weight:500}
+.dek{font-size:clamp(1.08rem,2.3vw,1.28rem); color:var(--ink-soft); max-width:40rem; margin:.1rem 0 0; line-height:1.5}
+.titleblock{margin-top:2rem; border:1px solid var(--line); border-radius:3px; background:var(--panel);
+  display:grid; grid-template-columns:repeat(4,1fr); overflow:hidden; box-shadow:var(--shadow)}
+.tb{padding:.75rem .95rem; border-right:1px solid var(--line-soft); border-bottom:1px solid var(--line-soft)}
+.tb:nth-child(4n){border-right:none}
+.tb-k{font-family:"IBM Plex Mono",monospace; font-size:.58rem; letter-spacing:.18em; text-transform:uppercase; color:var(--ink-faint)}
+.tb-v{font-family:"IBM Plex Mono",monospace; font-size:.82rem; color:var(--ink); margin-top:.25rem; font-weight:500}
+.tb-v.acc{color:var(--saffron)}
+@media(max-width:620px){.titleblock{grid-template-columns:repeat(2,1fr)} .tb:nth-child(4n){border-right:1px solid var(--line-soft)} .tb:nth-child(2n){border-right:none}}
+
+/* ---------- section index (sticky chips) ---------- */
+.indexbar{position:sticky; top:2.85rem; z-index:55; background:color-mix(in srgb,var(--paper) 92%,transparent);
+  border-bottom:1px solid var(--line-soft); backdrop-filter:blur(6px)}
+.indexbar-in{max-width:var(--maxw); margin:0 auto; padding:.45rem 1.4rem; display:flex; gap:.4rem; overflow-x:auto; scrollbar-width:thin}
+.indexbar-in::-webkit-scrollbar{height:4px}
+.indexbar-in::-webkit-scrollbar-thumb{background:var(--line)}
+.chip{flex:0 0 auto; font-family:"IBM Plex Mono",monospace; font-size:.64rem; letter-spacing:.04em; text-transform:uppercase;
+  color:var(--ink-soft); text-decoration:none; padding:.28rem .55rem; border:1px solid transparent; border-radius:2px; white-space:nowrap}
+.chip:hover{color:var(--saffron); border-color:var(--line-soft)}
+.chip.active{color:var(--indigo); border-color:var(--indigo); background:color-mix(in srgb,var(--indigo) 10%,transparent)}
+
+/* ---------- panes ---------- */
+.pane{display:none}
+.pane.show{display:block}
+
+/* ---------- typography ---------- */
+h2{font-family:"Fraunces",serif; font-weight:600; font-size:clamp(1.5rem,3.7vw,2.1rem); line-height:1.08; letter-spacing:-.01em; margin:.3rem 0 .8rem; scroll-margin-top:6.2rem}
+h2 .secno{font-family:"IBM Plex Mono",monospace; font-size:.58em; font-weight:600; color:var(--saffron); letter-spacing:.04em; vertical-align:.18em; margin-right:.55rem}
+h3{font-family:"Fraunces",serif; font-weight:600; font-size:1.24rem; line-height:1.2; margin:1.9rem 0 .5rem; color:var(--ink)}
+h4{font-family:"IBM Plex Mono",monospace; font-weight:600; font-size:.8rem; letter-spacing:.07em; text-transform:uppercase; color:var(--indigo); margin:1.4rem 0 .35rem}
+p{margin:0 0 1.02rem}
+a{color:var(--saffron); text-decoration:none; border-bottom:1px solid color-mix(in srgb,var(--saffron) 38%,transparent)}
+a:hover{border-bottom-color:var(--saffron)}
+strong{font-weight:600; color:var(--ink)}
+.lede{font-size:1.16rem; color:var(--ink-soft); line-height:1.55}
+section{padding:.3rem 0 .5rem}
+/* prose reads at a comfortable measure; figures, tables, cards & dividers use full width */
+section > p, section > ul, section > ol, section > h3, section > h4,
+section > blockquote, section > .lede, section > pre,
+.phase-body > p, .phase-body > ul, .phase-body > h4{max-width:var(--measure)}
+
+/* lists */
+ul,ol{margin:.2rem 0 1.15rem; padding-left:0; list-style:none}
+li{position:relative; padding-left:1.5rem; margin:.46rem 0}
+ul.bul li::before{content:""; position:absolute; left:.1rem; top:.72em; width:7px; height:1px; background:var(--saffron)}
+ol.num{counter-reset:li}
+ol.num li{counter-increment:li}
+ol.num li::before{content:counter(li,decimal-leading-zero); position:absolute; left:0; top:.04em; font-family:"IBM Plex Mono",monospace; font-size:.72rem; color:var(--marigold); font-weight:600}
+
+/* dimension-line divider */
+.dim{display:flex; align-items:center; gap:.8rem; margin:3rem 0 1.5rem}
+.dim .tick{width:1px; height:11px; background:var(--line)}
+.dim .seg{flex:1; height:1px; background:var(--line)}
+.dim .lbl{font-family:"IBM Plex Mono",monospace; font-size:.66rem; letter-spacing:.2em; text-transform:uppercase; color:var(--ink-soft); white-space:nowrap}
+.dim .lbl b{color:var(--saffron); font-weight:600}
+
+/* cards */
+.card{border:1px solid var(--line); border-radius:3px; background:var(--panel); padding:1.15rem 1.3rem; margin:1.3rem 0; box-shadow:var(--shadow)}
+.card.dec{border-left:3px solid var(--indigo)}
+.card.note-card{border-left:3px solid var(--marigold); background:var(--panel-2)}
+.qrow{display:flex; gap:.85rem; padding:.6rem 0; border-bottom:1px dashed var(--line-soft)}
+.qrow:last-child{border-bottom:none}
+.qk{flex:0 0 3.1rem; font-family:"IBM Plex Mono",monospace; font-size:.74rem; color:var(--saffron); font-weight:600; padding-top:.05rem}
+.qv{flex:1}
+
+blockquote{margin:1.25rem 0; padding:.15rem 0 .15rem 1.15rem; border-left:2px solid var(--marigold); color:var(--ink-soft); font-style:italic; font-size:1.04rem}
+
+/* code */
+pre{margin:1.15rem 0; background:var(--panel-2); border:1px solid var(--line-soft); border-radius:4px; padding:1rem 1.1rem; overflow-x:auto}
+pre code{font-family:"IBM Plex Mono",monospace; font-size:.76rem; line-height:1.6; color:var(--ink); white-space:pre}
+code{font-family:"IBM Plex Mono",monospace; font-size:.85em; background:color-mix(in srgb,var(--marigold) 12%,transparent); padding:.06em .32em; border-radius:3px; color:var(--saffron)}
+pre code .c{color:var(--ink-faint); font-style:italic}
+pre code .k{color:var(--indigo); font-weight:600}
+pre code .s{color:var(--teal)}
+pre code .n{color:var(--marigold)}
+pre code .o{color:var(--ink-soft)}
+.codecap{font-family:"IBM Plex Mono",monospace; font-size:.62rem; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-faint); margin:1.3rem 0 -.45rem}
+
+/* tables */
+.tw{overflow-x:auto; margin:1.2rem 0; border:1px solid var(--line-soft); border-radius:4px}
+table{border-collapse:collapse; width:100%; font-size:.8rem; min-width:34rem}
+th,td{text-align:left; padding:.58rem .75rem; border-bottom:1px solid var(--line-soft); vertical-align:top}
+thead th{font-family:"IBM Plex Mono",monospace; font-size:.6rem; letter-spacing:.09em; text-transform:uppercase; color:var(--ink-faint); background:var(--panel-2); border-bottom:1px solid var(--line)}
+tbody tr:last-child td{border-bottom:none}
+td b{color:var(--ink)}
+.yes{color:var(--good); font-weight:600}
+.partial{color:var(--warn); font-weight:600}
+.nope{color:var(--no); font-weight:600}
+
+/* figures / schematics */
+figure{margin:1.5rem 0}
+.dwg{width:100%; height:auto; border:1px solid var(--line); border-radius:4px; background:var(--panel); display:block; box-shadow:var(--shadow)}
+figcaption{font-family:"IBM Plex Mono",monospace; font-size:.63rem; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-faint); margin-top:.65rem; text-align:center}
+.dwg .frame{stroke:var(--indigo); stroke-width:1.2; fill:var(--panel-2)}
+.dwg .frame-soft{stroke:var(--line); stroke-width:1; fill:none}
+.dwg .flow{stroke:var(--saffron); stroke-width:1.7; fill:none}
+.dwg .aux{stroke:var(--teal); stroke-width:1; fill:none; stroke-dasharray:3 3}
+.dwg .con{stroke:var(--line); stroke-width:1; fill:none}
+.dwg .fillpanel{fill:var(--panel-2)}
+.dwg .fillteal{fill:color-mix(in srgb,var(--teal) 14%,transparent); stroke:var(--teal); stroke-width:1.1}
+.dwg .fillsaf{fill:color-mix(in srgb,var(--marigold) 16%,transparent); stroke:var(--saffron); stroke-width:1.1}
+.dwg .arrowS{fill:var(--saffron)}
+.dwg .arrowT{fill:var(--teal)}
+.dwg text{font-family:"IBM Plex Mono",monospace; fill:var(--ink)}
+.dwg .lab{font-size:11px; font-weight:600}
+.dwg .lab-i{font-size:11px; font-weight:600; fill:var(--indigo)}
+.dwg .sub{font-size:8px; fill:var(--ink-faint)}
+.dwg .tagS{font-size:8px; fill:var(--saffron); letter-spacing:.04em}
+.dwg .tagT{font-size:8px; fill:var(--teal); letter-spacing:.04em}
+.dwg .bignum{font-size:13px; font-weight:600; fill:var(--saffron)}
+.dwg .balloon{fill:var(--panel); stroke:var(--saffron); stroke-width:1.1}
+.dwg .ttl{font-size:8px; fill:var(--ink-faint); letter-spacing:.1em}
+
+/* checklist (plan) */
+.ck{margin:.4rem 0 1rem; padding-left:0; list-style:none}
+.ck li{position:relative; padding-left:1.65rem; margin:.34rem 0; font-size:.92rem; line-height:1.5}
+.ck li::before{content:"\25A1"; position:absolute; left:0; top:0; font-family:"IBM Plex Mono",monospace; color:var(--ink-faint); font-size:.9rem}
+.ck li.done::before{content:"\2713"; color:var(--teal)}
+.ck li.prog::before{content:"\7E"; color:var(--saffron)}
+.ck li .sub2{display:block; color:var(--ink-faint); font-size:.86rem; padding-left:.1rem}
+
+/* phase card */
+.phase{border:1px solid var(--line); border-radius:5px; background:var(--panel); margin:1.4rem 0; overflow:hidden; box-shadow:var(--shadow)}
+.phase-h{display:flex; align-items:baseline; gap:.7rem; padding:.85rem 1.1rem .7rem; border-bottom:1px solid var(--line-soft); flex-wrap:wrap}
+.phase-no{font-family:"IBM Plex Mono",monospace; font-weight:600; font-size:.95rem; color:var(--paper); background:var(--indigo); padding:.12rem .5rem; border-radius:3px; letter-spacing:.02em}
+[data-theme="dark"] .phase-no{color:#15110A}
+.phase-t{font-family:"Fraunces",serif; font-weight:600; font-size:1.12rem; line-height:1.15; flex:1; min-width:12rem}
+.phase-body{padding:.85rem 1.1rem 1rem}
+.goal{font-size:.95rem; color:var(--ink-soft); margin:.1rem 0 .7rem}
+.goal b{color:var(--ink)}
+.gate{margin-top:.8rem; padding:.6rem .8rem; background:color-mix(in srgb,var(--teal) 9%,transparent); border:1px solid color-mix(in srgb,var(--teal) 32%,transparent); border-radius:3px; font-size:.85rem}
+.gate .gk{font-family:"IBM Plex Mono",monospace; font-size:.6rem; letter-spacing:.12em; text-transform:uppercase; color:var(--teal); font-weight:600; display:block; margin-bottom:.2rem}
+.note-inline{margin-top:.7rem; font-size:.85rem; color:var(--ink-faint); border-top:1px dashed var(--line-soft); padding-top:.5rem}
+
+/* track tag */
+.trk{font-family:"IBM Plex Mono",monospace; font-size:.56rem; letter-spacing:.08em; text-transform:uppercase; padding:.14rem .45rem; border-radius:2px; border:1px solid currentColor; white-space:nowrap}
+.trk.core{color:var(--indigo)} .trk.solid{color:var(--saffron)} .trk.assembly{color:var(--teal)}
+.trk.motion{color:#9a5bb8} .trk.docs{color:#3b7a8c} .trk.surface{color:#a0682a}
+.trk.profiles{color:#5a8a3a} .trk.interop{color:#8a6a2a} .trk.aspir{color:var(--no)}
+[data-theme="dark"] .trk.motion{color:#cba0e0} [data-theme="dark"] .trk.docs{color:#7fc4d6}
+[data-theme="dark"] .trk.surface{color:#d6a06a} [data-theme="dark"] .trk.profiles{color:#a8d68a} [data-theme="dark"] .trk.interop{color:#d6b87a}
+
+/* legend pills */
+.legend{display:flex; flex-wrap:wrap; gap:.5rem 1rem; font-family:"IBM Plex Mono",monospace; font-size:.66rem; color:var(--ink-soft); margin:.6rem 0 1rem}
+.legend span b{color:var(--ink); font-weight:600}
+
+/* misc */
+.note{font-size:.9rem; color:var(--ink-faint); border-top:1px dashed var(--line-soft); padding-top:.55rem; margin-top:1.1rem}
+footer{margin:3.5rem 0 2.5rem; padding-top:1.3rem; border-top:1px solid var(--line); color:var(--ink-faint); font-family:"IBM Plex Mono",monospace; font-size:.68rem; letter-spacing:.05em; line-height:1.7}
+.totop{position:fixed; right:1rem; bottom:1rem; z-index:40; font-family:"IBM Plex Mono",monospace; font-size:.62rem; letter-spacing:.08em; text-transform:uppercase; border:1px solid var(--line); background:var(--panel); color:var(--ink-soft); padding:.45rem .6rem; border-radius:3px; cursor:pointer; opacity:0; pointer-events:none; transition:opacity .3s}
+.totop.show{opacity:1; pointer-events:auto}
+.totop:hover{color:var(--saffron); border-color:var(--saffron)}
+.anim{opacity:0; transform:translateY(10px)}
+.anim.in{opacity:1; transform:none; transition:opacity .6s ease, transform .6s cubic-bezier(.2,.7,.2,1)}
+@media (prefers-reduced-motion:reduce){.anim{opacity:1!important; transform:none!important}}
+.kbd{font-family:"IBM Plex Mono",monospace; font-size:.85em}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="topbar-in">
+    <span class="brand">ncad &middot; <b>target engine</b></span>
+    <div class="topbar-right">
+      <div class="tabs" role="tablist" aria-label="Document">
+        <button class="tab" id="tab-design" role="tab" aria-selected="true" aria-controls="pane-design">Design</button>
+        <button class="tab" id="tab-plan" role="tab" aria-selected="false" aria-controls="pane-plan">Plan</button>
+      </div>
+      <button class="toggle" id="themeBtn" aria-label="Toggle light and dark theme"><span class="dot" aria-hidden="true"></span><span id="themeLbl">Dark</span></button>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+  <header class="masthead anim">
+    <p class="eyebrow">Design document &amp; implementation plan</p>
+    <h1 class="title">A declarative, parametric &amp; direct <em>CAD / CAE engine</em></h1>
+    <p class="dek">Define a part, an assembly, or a mechanism as data; a pure executor replays it on an exact-geometry kernel into solids, motion, drawings, PMI, and a bill of materials. One substrate, many part profiles.</p>
+    <div class="titleblock" aria-label="document metadata">
+      <div class="tb"><div class="tb-k">Project</div><div class="tb-v">ncad / core engine</div></div>
+      <div class="tb"><div class="tb-k">Kernel</div><div class="tb-v">OpenCASCADE</div></div>
+      <div class="tb"><div class="tb-k">Basis</div><div class="tb-v">build123d &middot; OCP</div></div>
+      <div class="tb"><div class="tb-k">Modeling</div><div class="tb-v acc">parametric + direct</div></div>
+      <div class="tb"><div class="tb-k">Motion</div><div class="tb-v">first-class</div></div>
+      <div class="tb"><div class="tb-k">Profiles</div><div class="tb-v">solid&middot;surf&middot;sheet&middot;mold&middot;bldg</div></div>
+      <div class="tb"><div class="tb-k">Units</div><div class="tb-v">mm &middot; Z-up</div></div>
+      <div class="tb"><div class="tb-k">Rev</div><div class="tb-v acc">B &mdash; Jun 2026</div></div>
+    </div>
+  </header>
+</div>
+
+<!-- =================== DESIGN PANE =================== -->
+<div class="pane show" id="pane-design" role="tabpanel" aria-labelledby="tab-design">
+  <div class="indexbar">
+    <div class="indexbar-in" id="idx-design">
+      <a class="chip" href="#d0">00&middot;Principles</a><a class="chip" href="#d1">01&middot;Document</a><a class="chip" href="#d2">02&middot;References</a><a class="chip" href="#d3">03&middot;Dual model</a><a class="chip" href="#d4">04&middot;Executor</a><a class="chip" href="#d5">05&middot;Sketch</a><a class="chip" href="#d6">06&middot;Profiles</a><a class="chip" href="#d7">07&middot;Assembly</a><a class="chip" href="#d8">08&middot;Motion</a><a class="chip" href="#d9">09&middot;BOM</a><a class="chip" href="#d10">10&middot;Validate</a><a class="chip" href="#d11">11&middot;Drafting/PMI</a><a class="chip" href="#d12">12&middot;Server</a><a class="chip" href="#d13">13&middot;Viewer</a><a class="chip" href="#d14">14&middot;Interop</a><a class="chip" href="#d15">15&middot;Deps</a><a class="chip" href="#d16">16&middot;Modules</a><a class="chip" href="#d17">17&middot;Non-goals</a><a class="chip" href="#d18">18&middot;Milestone</a><a class="chip" href="#d19">19&middot;Open</a>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <figure class="anim">
+      <svg class="dwg" viewBox="0 0 960 384" role="img" aria-label="One-way data flow: authors produce a document; a pure executor builds the model on OCCT; outputs are validated, BOM'd, animated, drawn, annotated, exported, and viewed; the server CRUD loop feeds edits back to the document.">
+        <!-- frame ticks + titleblock -->
+        <line class="frame-soft" x1="16" y1="16" x2="30" y2="16"/><line class="frame-soft" x1="16" y1="16" x2="16" y2="30"/>
+        <line class="frame-soft" x1="944" y1="368" x2="930" y2="368"/><line class="frame-soft" x1="944" y1="368" x2="944" y2="354"/>
+        <text class="ttl" x="22" y="13">NCAD / CORE ENGINE — ONE-WAY DATA FLOW — SCHEMATIC — SHEET D-01</text>
+
+        <!-- inputs -->
+        <text class="tagS" x="34" y="74">AUTHORS</text>
+        <text class="sub" x="34" y="88">human &middot; agent</text>
+        <text class="sub" x="34" y="99">generator(seed)</text>
+        <text class="sub" x="34" y="116">ingest: STEP/DXF</text>
+        <path class="flow" d="M150 86 H198"/><polygon class="arrowS" points="198,86 190,82 190,90"/>
+
+        <!-- SPEC -->
+        <rect class="frame" x="202" y="58" width="150" height="58" rx="3"/>
+        <text class="lab-i" x="216" y="82">DOCUMENT</text>
+        <text class="sub" x="216" y="97">HOCON/YAML &rarr; dict</text>
+        <text class="sub" x="216" y="108">schema-validated &middot; SOT</text>
+        <circle class="balloon" cx="345" cy="64" r="9"/><text class="bignum" x="345" y="68" text-anchor="middle" font-size="11">1</text>
+        <path class="flow" d="M352 86 H400"/><polygon class="arrowS" points="400,86 392,82 392,90"/>
+
+        <!-- RESOLVE -->
+        <rect class="frame" x="404" y="58" width="150" height="58" rx="3"/>
+        <text class="lab-i" x="418" y="82">RESOLVE</text>
+        <text class="sub" x="418" y="97">expr &middot; refs &middot; order</text>
+        <text class="sub" x="418" y="108">provenance map</text>
+        <path class="flow" d="M554 86 H602"/><polygon class="arrowS" points="602,86 594,82 594,90"/>
+
+        <!-- EXECUTE -->
+        <rect class="frame" x="606" y="58" width="168" height="58" rx="3"/>
+        <text class="lab-i" x="620" y="82">EXECUTE</text>
+        <text class="sub" x="620" y="97">feature replay (pure)</text>
+        <text class="sub" x="620" y="108">OCCT &middot; build123d/OCP</text>
+        <circle class="balloon" cx="767" cy="64" r="9"/><text class="bignum" x="767" y="68" text-anchor="middle" font-size="11">2</text>
+
+        <!-- cache aux -->
+        <rect class="aux" x="606" y="126" width="168" height="22" rx="3"/>
+        <text class="tagT" x="620" y="141">content-addressed cache &rarr; incremental</text>
+        <path class="aux" d="M690 126 V118"/>
+
+        <!-- constraint subsystem -->
+        <rect class="aux" x="404" y="158" width="370" height="40" rx="3"/>
+        <text class="tagT" x="418" y="176">CONSTRAINT / SOLVER SUBSYSTEM</text>
+        <text class="sub" x="418" y="190">2D sketch (py-slvs/planegcs) &middot; 3D joints &amp; DoF</text>
+        <path class="aux" d="M470 158 V120"/><path class="aux" d="M700 158 V148"/>
+
+        <!-- bus -->
+        <path class="flow" d="M690 148 V214"/><polygon class="arrowS" points="690,214 686,206 694,206"/>
+        <line class="con" x1="120" y1="216" x2="836" y2="216" stroke-dasharray="2 3"/>
+        <text class="sub" x="120" y="210">B-REP + MESH MODEL &nbsp; &middot; &nbsp; stable element ids &nbsp; &middot; &nbsp; feature provenance</text>
+
+        <!-- outputs row -->
+        <path class="flow" d="M150 216 V250"/><polygon class="arrowS" points="150,250 146,242 154,242"/>
+        <rect class="frame" x="96" y="252" width="120" height="48" rx="3"/>
+        <text class="lab" x="108" y="272" font-size="10">VALIDATE</text><text class="sub" x="108" y="286">issues by id</text>
+
+        <path class="flow" d="M300 216 V250"/><polygon class="arrowS" points="300,250 296,242 304,242"/>
+        <rect class="frame" x="232" y="252" width="150" height="48" rx="3"/>
+        <text class="lab" x="244" y="272" font-size="10">DERIVE</text><text class="sub" x="244" y="286">BOM&middot;mass&middot;draw&middot;PMI</text>
+
+        <path class="flow" d="M470 216 V250"/><polygon class="arrowS" points="470,250 466,242 474,242"/>
+        <rect class="fillteal" x="398" y="252" width="150" height="48" rx="3"/>
+        <text class="lab" x="410" y="272" font-size="10">MOTION</text><text class="sub" x="410" y="286">solve&middot;trace&middot;collide</text>
+        <circle class="balloon" cx="541" cy="258" r="9"/><text class="bignum" x="541" y="262" text-anchor="middle" font-size="11">3</text>
+
+        <path class="flow" d="M640 216 V250"/><polygon class="arrowS" points="640,250 636,242 644,242"/>
+        <rect class="frame" x="564" y="252" width="160" height="48" rx="3"/>
+        <text class="lab" x="576" y="272" font-size="10">EXPORT</text><text class="sub" x="576" y="286">STEP242&middot;glTF&middot;DXF&middot;3MF</text>
+
+        <!-- serve + view -->
+        <rect class="fillsaf" x="96" y="324" width="286" height="46" rx="3"/>
+        <text class="lab" x="108" y="345" font-size="10">SERVE — CRUD sessions / API</text>
+        <text class="sub" x="108" y="360">validated dict-patches &rarr; incremental rebuild</text>
+        <path class="aux" d="M239 324 V216"/><text class="tagT" x="247" y="316">edits</text>
+
+        <rect class="frame" x="564" y="324" width="160" height="46" rx="3"/>
+        <text class="lab" x="576" y="345" font-size="10">VIEW</text><text class="sub" x="576" y="360">three.js + element-map + motion</text>
+        <path class="flow" d="M644 300 V322"/><polygon class="arrowS" points="644,322 640,314 648,314"/>
+
+        <!-- legend -->
+        <text class="ttl" x="800" y="262">KEY</text>
+        <text class="sub" x="800" y="276">1 source of truth</text>
+        <text class="sub" x="800" y="288">2 pure replay</text>
+        <text class="sub" x="800" y="300">3 first-class</text>
+        <line class="flow" x1="800" y1="320" x2="824" y2="320"/><text class="sub" x="830" y="323">one-way</text>
+        <line class="aux" x1="800" y1="334" x2="824" y2="334"/><text class="sub" x="830" y="337">feedback</text>
+      </svg>
+      <figcaption>Fig. D-01 &mdash; the document is the single source of truth; every output is derived, the executor is pure, the only loop is edits</figcaption>
+    </figure>
+    <div class="dim" id="d0"><span class="tick"></span><span class="seg"></span><span class="lbl"><b>00</b> &nbsp;Scope &amp; first principles</span><span class="seg"></span><span class="tick"></span></div>
+    <section>
+      <p class="lede">The shift from v1 is one of <em>generality</em>, not philosophy. The spec/geometry split, the pure builder, the traversal BOM, and the text-first validatable document all carry over. What is new: motion as a first-class output; a <em>dual</em> modeling paradigm (history-based and direct); parts as multi-domain profiles; drafting, PMI, convergent modeling, and surfacing; and a plugin/converter ecosystem.</p>
+
+      <h3>The one decision that shapes everything: separate the document from the geometry</h3>
+      <p>The system is one-way (Fig. D-01), the document is the single source of truth, and the executor is a pure function:</p>
+      <ul class="bul">
+        <li><strong>Document</strong> &mdash; structured, validatable data: a feature tree per part, an assembly tree, plus optional motion, drawing, and annotation blocks. The single source of truth.</li>
+        <li><strong>Executor</strong> &mdash; a pure function <code>build(document) &rarr; model</code>. Same document &rarr; identical geometry, against a pinned kernel.</li>
+        <li><strong>Authors</strong> &mdash; anything that produces or edits the document: a person, the agent layer, or a seeded generator <code>generate(seed, params) &rarr; document</code>. All randomness lives on the authoring side, never in the executor.</li>
+      </ul>
+
+      <h3>Two modeling paradigms over one model</h3>
+      <p>The engine supports both <strong>parametric / history</strong> modeling (the ordered, replayed feature tree &mdash; the default) and <strong>direct / synchronous</strong> modeling (history-free edits that transform the current B-rep in place &mdash; move/offset/replace/delete faces, resize a fillet, make faces coaxial). Both are operations in the same document over the same model; &sect;3 details how they coexist, and why direct modeling is what forces a real persistent-naming layer (&sect;2).</p>
+
+      <h3>Parts are profiles over a common substrate</h3>
+      <p>"Solid," "surface," "sheet metal," "mold," and "building" are not separate engines &mdash; each is a <strong>profile</strong>: a feature vocabulary plus validators (and, where needed, specialized representations) layered on the shared kernel, references, executor, sketches, assembly, and BOM (&sect;6). The architecture profile is exactly this: a higher-level profile that lowers to substrate ops &mdash; "sheet-metal-like, but more high-level."</p>
+
+      <div class="card note-card">
+        <p style="margin:0"><strong>The corollary that defines this engine: a reference is not a face number.</strong> A feature that says "fillet <em>this</em> edge," a direct edit that offsets <em>that</em> face, a joint that pins <em>this</em> axis, and a PMI callout on <em>that</em> surface all need to name geometry in a way that survives upstream edits regenerating the topology. This is the Topological Naming Problem &mdash; intrinsic and unsolvable-in-full &mdash; and &sect;2 is the engine's answer.</p>
+      </div>
+
+      <h4>Cross-cutting conventions (fixed on day one)</h4>
+      <ul class="bul">
+        <li><strong>Units:</strong> the document declares <code>units</code> (<span class="kbd">mm</span> | <span class="kbd">m</span> | <span class="kbd">in</span>); canonical internal unit is millimetres (build123d default; OCCT is unit-agnostic). <strong>Up axis:</strong> Z-up. <strong>Origin:</strong> documented, at the reference datum.</li>
+        <li><strong>Angles:</strong> degrees in the document; radians internally.</li>
+        <li><strong>Identity:</strong> every node carries a stable <code>id</code>, never reused even after delete &mdash; ids anchor references, provenance, joints, and annotations.</li>
+        <li><strong>Versioning:</strong> every document carries a domain <code>schema_version</code>; migrations convert old definitions forward on load (&sect;14).</li>
+        <li><strong>Determinism:</strong> the executor is pure; <code>seed</code> is part of the document; the kernel version is pinned, because geometry equality &mdash; and the cache &mdash; is only meaningful against a fixed kernel.</li>
+      </ul>
+    </section>
+
+    <div class="dim" id="d1"><span class="tick"></span><span class="seg"></span><span class="lbl"><b>01</b> &nbsp;The document &amp; spec layer</span><span class="seg"></span><span class="tick"></span></div>
+    <section>
+      <p>The document is a plain Python <strong>dict</strong>, authored in <strong>HOCON</strong> (JSON and YAML also load), governed by schemas. We deliberately do <strong>not</strong> use Pydantic classes in v1: the value of the document is that it is validatable, and the JSON-Schema vocabulary (draft 2020-12) + <code>jsonschema</code> delivers that without class boilerplate. Schemas are authored in HOCON (inline comments; DRY via <code>${...}</code> substitution, not <code>$ref</code>), avoiding all <code>$</code>-prefixed keys. IO is via <code>leaf-common</code> (returning plain dicts), the same path v1 uses.</p>
+      <p>A document's top-level blocks: <code>parameters</code> (resolved before geometry), <code>datums</code> (the most robust references), <code>parts</code> (each an ordered feature list, declaring its <code>profile</code>), <code>assembly</code> (instances + constraints/joints), <code>motion</code> (drivers and studies), <code>drawings</code> (derived 2D docs), and <code>annotations</code> (PMI). The last four are optional.</p>
+
+      <h3>The expression model &mdash; references and functions in HOCON, logic in code <span style="color:var(--saffron);font-family:'IBM Plex Mono',monospace;font-size:.7rem;letter-spacing:.08em">Q3</span></h3>
+      <p>Parameters are <strong>equations</strong>, but the language is deliberately small. HOCON carries exactly three things:</p>
+      <ol class="num">
+        <li><strong>literals</strong> (<code>8</code>, <code>"mm"</code>, <code>[0,0,1]</code>),</li>
+        <li><strong>parameter references</strong> and <strong>arithmetic</strong> (<code>margin = "${hole_d} * 1.5"</code>),</li>
+        <li><strong>calls to named functions defined in code</strong> &mdash; <code>radius = "fillet_for(${thickness}, 'steel')"</code> &mdash; against a registered, sandboxed function library (pure Python).</li>
+      </ol>
+      <p>What HOCON does <strong>not</strong> carry: control flow, loops, conditionals, or arbitrary logic-as-text. If logic is needed it lives in a registered function or a generator. The evaluator is a small safe evaluator (restricted AST, units-aware); expressions cannot reach the filesystem, network, or global state.</p>
+      <blockquote>The document stays declarative, diffable, and safe; the logic stays in versioned, unit-tested code &mdash; not buried in spec strings. The FeatureScript-style split (data in the model, behaviour in code) without embedding a programming language in the document.</blockquote>
+
+      <p class="codecap">part &mdash; a feature tree (abbreviated)</p>
+      <pre><code><span class="o">{</span>
+  <span class="k">"schema_version"</span>: <span class="n">2</span>, <span class="k">"units"</span>: <span class="s">"mm"</span>,
+  <span class="k">"parameters"</span>: <span class="o">{</span> <span class="k">"width"</span>: <span class="n">80</span>, <span class="k">"thickness"</span>: <span class="n">8</span>, <span class="k">"hole_d"</span>: <span class="n">6</span>,
+                  <span class="k">"margin"</span>: <span class="s">"${hole_d} * 1.5"</span> <span class="o">}</span>,        <span class="c">// refs + arithmetic</span>
+  <span class="k">"datums"</span>:     <span class="o">{</span> <span class="k">"base"</span>: <span class="o">{</span> <span class="k">"type"</span>: <span class="s">"plane"</span>, <span class="k">"ref"</span>: <span class="s">"XY"</span> <span class="o">}</span> <span class="o">}</span>,
+  <span class="k">"parts"</span>: <span class="o">{</span>
+    <span class="k">"bracket"</span>: <span class="o">{</span>
+      <span class="k">"profile"</span>: <span class="s">"solid"</span>,
+      <span class="k">"features"</span>: <span class="o">[</span>
+        <span class="o">{</span> <span class="k">"id"</span>: <span class="s">"sk"</span>, <span class="k">"op"</span>: <span class="s">"sketch"</span>, <span class="k">"plane"</span>: <span class="s">"datums.base"</span>,
+          <span class="k">"elements"</span>: <span class="o">[</span> <span class="o">{</span> <span class="k">"id"</span>: <span class="s">"r"</span>, <span class="k">"type"</span>: <span class="s">"rectangle"</span>, <span class="k">"w"</span>: <span class="s">"${width}"</span>, <span class="k">"h"</span>: <span class="n">60</span> <span class="o">}</span> <span class="o">]</span> <span class="o">}</span>,
+        <span class="o">{</span> <span class="k">"id"</span>: <span class="s">"pad"</span>, <span class="k">"op"</span>: <span class="s">"extrude"</span>, <span class="k">"profile"</span>: <span class="s">"sk"</span>, <span class="k">"distance"</span>: <span class="s">"${thickness}"</span> <span class="o">}</span>,
+        <span class="o">{</span> <span class="k">"id"</span>: <span class="s">"holes"</span>, <span class="k">"op"</span>: <span class="s">"hole"</span>, <span class="k">"on"</span>: <span class="o">{</span> <span class="k">"face"</span>: <span class="s">"pad.cap(+Z)"</span> <span class="o">}</span>,   <span class="c">// generative ref</span>
+          <span class="k">"diameter"</span>: <span class="s">"${hole_d}"</span>, <span class="k">"through"</span>: <span class="n">true</span>,
+          <span class="k">"pattern"</span>: <span class="o">{</span> <span class="k">"type"</span>: <span class="s">"grid"</span>, <span class="k">"nx"</span>: <span class="n">2</span>, <span class="k">"ny"</span>: <span class="n">2</span> <span class="o">}</span> <span class="o">}</span>,
+        <span class="o">{</span> <span class="k">"id"</span>: <span class="s">"soften"</span>, <span class="k">"op"</span>: <span class="s">"fillet"</span>, <span class="k">"radius"</span>: <span class="n">2</span>,
+          <span class="k">"edges"</span>: <span class="s">"select edges where parallel(Z) and convexity='convex'"</span> <span class="o">}</span>  <span class="c">// selector</span>
+      <span class="o">]</span>
+    <span class="o">}</span>
+  <span class="o">}</span>
+<span class="o">}</span></code></pre>
+    </section>
+    <div class="dim" id="d2"><span class="tick"></span><span class="seg"></span><span class="lbl"><b>02</b> &nbsp;The reference &amp; naming model &mdash; <b>the keystone</b></span><span class="seg"></span><span class="tick"></span></div>
+    <section>
+      <p>A feature, a direct edit, a joint, and a PMI callout all must <em>name</em> the geometry they touch. When an upstream edit regenerates topology, faces split/merge/renumber &mdash; the <strong>Topological Naming Problem (TNP)</strong>. It is intrinsic to history-based modeling and provably impossible to solve perfectly; the goal is "prefer references that can't break, and fail loudly at the right node when one does."</p>
+
+      <figure>
+        <svg class="dwg" viewBox="0 0 760 312" role="img" aria-label="The four reference kinds as a robustness ladder: semantic (always survives), generative (usually), selector (mostly), persistent name (best-effort fallback).">
+          <line class="frame-soft" x1="14" y1="14" x2="28" y2="14"/><line class="frame-soft" x1="14" y1="14" x2="14" y2="28"/>
+          <text class="ttl" x="20" y="13">REFERENCE ROBUSTNESS LADDER — D-02</text>
+          <!-- robustness axis -->
+          <line class="con" x1="44" y1="64" x2="44" y2="280"/>
+          <polygon class="arrowS" points="44,58 40,68 48,68"/>
+          <text class="tagS" x="30" y="170" transform="rotate(-90 30 170)" text-anchor="middle">MORE ROBUST</text>
+          <!-- tier 1 semantic -->
+          <rect class="fillteal" x="70" y="60" width="560" height="44" rx="3"/>
+          <text class="lab" x="84" y="80">SEMANTIC &mdash; datums.base &middot; parts.rib &middot; holes.instance(0).axis</text>
+          <text class="sub" x="84" y="95">name lookup &middot; no topology involved</text>
+          <text class="tagT" x="644" y="86">ALWAYS</text>
+          <!-- tier 2 generative -->
+          <rect class="frame" x="70" y="112" width="560" height="44" rx="3"/>
+          <text class="lab-i" x="84" y="132">GENERATIVE &mdash; pad.cap(+Z)</text>
+          <text class="sub" x="84" y="147">provenance map: which feature made which element &middot; re-tagged each rebuild</text>
+          <text class="tagT" x="636" y="138">USUALLY</text>
+          <!-- tier 3 selector -->
+          <rect class="frame" x="70" y="164" width="560" height="44" rx="3"/>
+          <text class="lab-i" x="84" y="184">SELECTOR &mdash; select edges where convexity='convex'</text>
+          <text class="sub" x="84" y="199">deterministic predicate over current topology &middot; breaks only if the edit changes what matches</text>
+          <text class="tagS" x="640" y="190">MOSTLY</text>
+          <!-- tier 4 persistent -->
+          <rect class="frame-soft" x="70" y="216" width="560" height="44" rx="3" stroke-dasharray="4 3"/>
+          <text class="lab" x="84" y="236">PERSISTENT NAME &mdash; #face/pad/27a3</text>
+          <text class="sub" x="84" y="251">generative element-mapping layer (TopoShape-style) &middot; the expensive fallback</text>
+          <text class="tagS" x="624" y="242">BEST-EFFORT</text>
+          <text class="sub" x="70" y="278">Default the DSL toward the top of the ladder. Persistent names are the fallback, never 100%, paired with id-attributed failure.</text>
+        </svg>
+        <figcaption>Fig. D-02 &mdash; the cheapest way to beat the naming problem is to not create it</figcaption>
+      </figure>
+
+      <p><strong>The provenance map.</strong> The executor maintains, per feature, a map from each output face/edge/vertex back to the input element(s) and operation that produced it. It powers generative references, backs the persistent-name fallback, and lets a validator say <em>"feature <code>soften</code> can no longer find its edges"</em> with an <code>id</code>, instead of emitting silent garbage.</p>
+
+      <h3>Selector grammar &mdash; a SQL-style predicate over a versioned attribute model <span style="color:var(--saffron);font-family:'IBM Plex Mono',monospace;font-size:.7rem;letter-spacing:.08em">Q4</span></h3>
+      <p>Selectors use a <strong>SQL-<code>WHERE</code>-style predicate sublanguage</strong> &mdash; honouring the "zero new system to learn" instinct &mdash; scoped to a filter predicate, not full SQL (no joins, no <code>FROM</code> gymnastics):</p>
+      <pre><code><span class="k">select</span> edges <span class="k">where</span> orientation = <span class="s">'vertical'</span> <span class="k">and</span> convexity = <span class="s">'convex'</span> <span class="k">and</span> length &gt; <span class="n">10</span>
+<span class="k">select</span> faces <span class="k">where</span> created_by = <span class="s">'pad'</span> <span class="k">and</span> type = <span class="s">'planar'</span> <span class="k">and</span> normal_z &gt; <span class="n">0</span></code></pre>
+      <p>The syntax is the easy part; the engineering is the <strong>element-attribute model</strong> &mdash; the documented, versioned set of queryable properties: <code>type</code>, <code>created_by</code>, <code>orientation</code>/<code>normal</code>, <code>convexity</code>, <code>length</code>/<code>area</code>/<code>radius</code>, <code>tangent_to</code>, adjacency, <code>on_datum</code>. That model is what we design carefully and version; the surface syntax sits on top.</p>
+      <blockquote>Parse the predicate with a small maintained grammar (<code>lark</code>, on the order of tens of lines) into an AST evaluated against each element. If needs outgrow a <code>WHERE</code> clause, adopt CEL (Google's Common Expression Language; <code>cel-python</code>). Selectors version <em>with</em> the attribute model, so old selectors keep their meaning.</blockquote>
+
+      <h3>Persistent names &mdash; yes, invest, but phased <span style="color:var(--saffron);font-family:'IBM Plex Mono',monospace;font-size:.7rem;letter-spacing:.08em">Q2</span></h3>
+      <p>We <strong>commit to a real generative element-mapping layer</strong> (each output element gets a stable name from its construction history &mdash; FreeCAD 1.0's <code>TopoShape</code> approach). The reason is concrete: <strong>direct modeling (&sect;3), robust dress-up on large parts, joints, and PMI all reference baked topology</strong>, and selectors alone are too fragile at that scale. It is never 100%, so it is always paired with loud, id-attributed failure (&sect;10). The investment is phased: semantic + generative + selector references carry the spine; the persistent-name layer lands as a defined milestone before direct modeling and surfacing depend on it.</p>
+    </section>
+
+    <div class="dim" id="d3"><span class="tick"></span><span class="seg"></span><span class="lbl"><b>03</b> &nbsp;The two modeling paradigms</span><span class="seg"></span><span class="tick"></span></div>
+    <section>
+      <p>The engine is <strong>dual</strong>, like Creo (Flexible Modeling), NX (Synchronous Technology), and Catia: a part can be built by replaying history, edited directly without history, or both.</p>
+
+      <figure>
+        <svg class="dwg" viewBox="0 0 760 300" role="img" aria-label="One model in the center; parametric history tree on the left replays sketch-pad-hole-fillet; direct face operations on the right transform the baked B-rep by persistent reference.">
+          <line class="frame-soft" x1="14" y1="14" x2="28" y2="14"/><line class="frame-soft" x1="14" y1="14" x2="14" y2="28"/>
+          <text class="ttl" x="20" y="13">DUAL PARADIGM OVER ONE MODEL — D-03</text>
+          <!-- center model -->
+          <rect class="fillpanel" x="305" y="108" width="150" height="84" rx="4" stroke="var(--indigo)" stroke-width="1.4"/>
+          <text class="lab-i" x="380" y="142" text-anchor="middle">ONE MODEL</text>
+          <text class="sub" x="380" y="158" text-anchor="middle">B-rep + mesh</text>
+          <text class="sub" x="380" y="170" text-anchor="middle">stable ids</text>
+          <!-- left parametric -->
+          <text class="tagS" x="40" y="70">PARAMETRIC / HISTORY  (default)</text>
+          <rect class="frame" x="40" y="86" width="230" height="128" rx="3"/>
+          <text class="sub" x="56" y="108">ordered feature tree</text>
+          <rect class="frame-soft" x="56" y="118" width="84" height="18"/><text class="sub" x="62" y="130">sketch</text>
+          <path class="con" d="M140 127 H150"/><rect class="frame-soft" x="150" y="118" width="60" height="18"/><text class="sub" x="156" y="130">pad</text>
+          <rect class="frame-soft" x="56" y="146" width="84" height="18"/><text class="sub" x="62" y="158">hole</text>
+          <path class="con" d="M140 155 H150"/><rect class="frame-soft" x="150" y="146" width="60" height="18"/><text class="sub" x="156" y="158">fillet</text>
+          <text class="sub" x="56" y="186">edit params &middot; reorder</text>
+          <text class="tagS" x="56" y="200">&rarr; replay</text>
+          <path class="flow" d="M270 150 H303"/><polygon class="arrowS" points="303,150 295,146 295,154"/>
+          <!-- right direct -->
+          <text class="tagT" x="490" y="70">DIRECT / SYNCHRONOUS  (history-free)</text>
+          <rect class="frame" x="490" y="86" width="230" height="128" rx="3"/>
+          <text class="sub" x="506" y="108">act on current B-rep</text>
+          <text class="sub" x="506" y="126">&middot; move / offset face</text>
+          <text class="sub" x="506" y="140">&middot; replace / delete face</text>
+          <text class="sub" x="506" y="154">&middot; resize fillet / chamfer</text>
+          <text class="sub" x="506" y="168">&middot; make coaxial / parallel</text>
+          <text class="tagT" x="506" y="200">by persistent reference (&sect;2)</text>
+          <path class="flow" d="M490 150 H457"/><polygon class="arrowT" points="457,150 465,146 465,154"/>
+          <!-- coexist note -->
+          <text class="sub" x="380" y="234" text-anchor="middle">Imported (dumb) geometry &rarr; direct mode. History features may be followed by appended direct edits (Creo-style).</text>
+          <text class="sub" x="380" y="252" text-anchor="middle">OCCT has no turnkey sync engine &mdash; v1 = core face ops on well-behaved topology (BRepFeat / Defeaturing / offset / heal).</text>
+        </svg>
+        <figcaption>Fig. D-03 &mdash; both paradigms are operations in one document; direct editing is why the element-map layer (&sect;2) is a prerequisite</figcaption>
+      </figure>
+
+      <p><strong>Honesty about the kernel.</strong> OCCT has no turnkey synchronous-modeling engine. It <em>does</em> give the pieces &mdash; local operations (<code>BRepFeat</code>), defeaturing (<code>BRepAlgoAPI_Defeaturing</code>), face offset (<code>BRepOffsetAPI</code>), and healing (<code>ShapeFix</code>/<code>ShapeUpgrade</code>) &mdash; so v1 of direct modeling is the core face ops on well-behaved topology. Full synchronous-tech robustness (auto-<em>maintaining</em> relationships as a face moves across a complex body) is a hard, multi-year capability, flagged in &sect;19.</p>
+    </section>
+    <div class="dim" id="d4"><span class="tick"></span><span class="seg"></span><span class="lbl"><b>04</b> &nbsp;The executor &amp; the geometry kernel</span><span class="seg"></span><span class="tick"></span></div>
+    <section>
+      <p><code>build(document) &rarr; model</code> is a <strong>pure function</strong>. The kernel sits behind a thin interface so it is swappable and most code never imports it directly.</p>
+      <p><strong>v1 kernel: build123d (OpenCASCADE / OCP under the hood)</strong> &mdash; a clean, Pythonic, Apache-2.0 layer over OCCT (the only mature open B-rep kernel), interchangeable with CadQuery down to the <code>.wrapped</code> shape, with a <strong>raw-OCP escape hatch</strong> for operations not wrapped first-class (draft, sections, HLR drawings, XCAF assemblies/PMI). Writing a kernel is a non-goal (&sect;17).</p>
+      <p><strong>Op dispatch is a registry.</strong> <code>feature_ops[op]</code> dispatches to a per-op builder &mdash; the v1 <code>roof_builders[roof.kind]</code> pattern, generalized. Each op has a uniform pure signature, so provenance, per-feature validation, caching, retry, and reordering all thread through uniformly:</p>
+      <pre><code><span class="k">op</span>(shape_in, resolved_params, provenance_in) <span class="o">-&gt;</span> (shape_out, provenance_out, issues)</code></pre>
+      <p><strong>The rebuild graph.</strong> Features within a part are mostly linear; parameter expressions, cross-part references, the assembly, and motion create a DAG. The executor resolves dependencies into a topological order, then replays. <strong>Content-addressed caching</strong> hashes each feature's <code>(inputs + resolved params)</code> subtree; on a CRUD edit only the dirty suffix and its dependents re-execute. Incremental rebuild is load-bearing &mdash; OCP is single-threaded, and large parts/assemblies make recompute the dominant cost.</p>
+      <p><strong>Failure is a first-class outcome.</strong> OCCT booleans/fillets/lofts/sweeps fail on real inputs (self-intersection, over-large radii, thin walls, tangency). The executor validates after every feature (&sect;10) and attributes failure to the offending <code>id</code> rather than corrupting downstream geometry; ops stay re-orderable and the tree inspectable.</p>
+
+      <p class="codecap">operation &rarr; OCCT family (the long tail is already in the kernel)</p>
+      <div class="tw"><table>
+        <thead><tr><th>Feature op</th><th>OCCT family (via build123d / OCP)</th></tr></thead>
+        <tbody>
+          <tr><td><b>sketch</b> entities</td><td><span class="mono">Geom2d</span>, <span class="mono">BRepBuilderAPI_MakeEdge/Wire</span>; 2D fillet <span class="mono">BRepFilletAPI_MakeFillet2d</span></td></tr>
+          <tr><td><b>extrude / pocket</b></td><td><span class="mono">BRepPrimAPI_MakePrism</span>, <span class="mono">BRepFeat_MakePrism</span> (up-to-face / through)</td></tr>
+          <tr><td><b>revolve</b></td><td><span class="mono">BRepPrimAPI_MakeRevol</span>, <span class="mono">BRepFeat_MakeRevol</span></td></tr>
+          <tr><td><b>sweep</b></td><td><span class="mono">BRepOffsetAPI_MakePipe / MakePipeShell</span></td></tr>
+          <tr><td><b>loft</b></td><td><span class="mono">BRepOffsetAPI_ThruSections</span> (fallback when sweep fails)</td></tr>
+          <tr><td><b>fillet / chamfer</b></td><td><span class="mono">BRepFilletAPI_MakeFillet / MakeChamfer</span></td></tr>
+          <tr><td><b>shell</b></td><td><span class="mono">BRepOffsetAPI_MakeThickSolid</span></td></tr>
+          <tr><td><b>draft</b></td><td><span class="mono">BRepOffsetAPI_DraftAngle</span> (raw OCP)</td></tr>
+          <tr><td><b>hole</b> family</td><td>composite cut + <span class="mono">BRepFeat</span></td></tr>
+          <tr><td><b>pattern / mirror</b></td><td><span class="mono">gp_Trsf</span> + <span class="mono">BRepBuilderAPI_Transform</span>, fuse</td></tr>
+          <tr><td><b>boolean</b></td><td><span class="mono">BRepAlgoAPI_Fuse / Cut / Common</span></td></tr>
+          <tr><td><b>section / split</b></td><td><span class="mono">BRepAlgoAPI_Section</span>, <span class="mono">BRepFeat_SplitShape</span></td></tr>
+          <tr><td>mass / volume / CoG</td><td><span class="mono">BRepGProp</span> (&sect;9)</td></tr>
+          <tr><td>tessellate</td><td><span class="mono">BRepMesh_IncrementalMesh</span> (&sect;13)</td></tr>
+        </tbody>
+      </table></div>
+
+      <h3>Convergent modeling (mesh + B-rep)</h3>
+      <p>Facet (mesh) bodies are first-class alongside B-rep. The kernel interface admits both, and a pragmatic subset of NX-style <strong>convergent</strong> operations &mdash; boolean between B-rep and mesh, offset/thicken on facet bodies, and conversion both ways &mdash; is built on <strong>Manifold</strong> (<code>manifold3d</code>, Apache-2.0, already a dependency) plus OCCT poly. Full mesh&rarr;B-rep reconstruction is hard and stays a later/plugin concern; faceted-as-body and primitive-fit cover the common cases first.</p>
+    </section>
+
+    <div class="dim" id="d5"><span class="tick"></span><span class="seg"></span><span class="lbl"><b>05</b> &nbsp;Sketches &amp; 2D constraints</span><span class="seg"></span><span class="tick"></span></div>
+    <section>
+      <p>A <code>sketch</code> feature holds 2D entities (lines, arcs, circles, ellipses, conics, splines &mdash; "Blender-like expressivity, but exact") and constraints (geometric + dimensional). At resolve time the entity + constraint list goes to a <strong>geometric constraint solver</strong>, which returns solved positions; the executor builds wires/faces and feeds them to the sketched features. We <strong>reuse a solver, never write a GCS</strong> &mdash; the candidates and the full sketch catalogue are in the Plan (Phase 1); the solver choice is settled in &sect;8/&sect;14 (any license is acceptable). Conflict/redundancy/DoF status is surfaced as tagged issues (&sect;10); a fully-constrained sketch is the robust foundation a parametric part wants.</p>
+    </section>
+    <div class="dim" id="d6"><span class="tick"></span><span class="seg"></span><span class="lbl"><b>06</b> &nbsp;Parts as profiles</span><span class="seg"></span><span class="tick"></span></div>
+    <section>
+      <p>A <strong>profile</strong> is a part <em>kind</em>: a feature vocabulary (a set of <code>op</code>s) + validators + optional specialized representations, all sharing the substrate (kernel, references, executor, sketches, assembly, BOM). The substrate knows nothing domain-specific; each profile registers its ops and rules like a plugin. A part declares <code>"profile": "&lt;kind&gt;"</code>; mixing is allowed where it makes sense.</p>
+
+      <figure>
+        <svg class="dwg" viewBox="0 0 800 290" role="img" aria-label="Five part profiles (solid, surface, sheet metal, mold, building) stacked on one shared substrate of kernel, references, executor, sketches, assembly and BOM.">
+          <line class="frame-soft" x1="14" y1="14" x2="28" y2="14"/><line class="frame-soft" x1="14" y1="14" x2="14" y2="28"/>
+          <text class="ttl" x="20" y="13">PARTS AS PROFILES OVER ONE SUBSTRATE — D-06</text>
+          <!-- profile blocks -->
+          <rect class="fillsaf" x="40" y="52" width="140" height="84" rx="3"/>
+          <text class="lab" x="50" y="72" font-size="10">SOLID</text><text class="sub" x="50" y="72" dy="0"></text>
+          <text class="sub" x="50" y="88">default feature set</text>
+          <text class="sub" x="50" y="100">extrude&middot;revolve&middot;sweep</text>
+          <text class="sub" x="50" y="112">fillet&middot;shell&middot;pattern</text>
+          <text class="sub" x="50" y="124">boolean&middot;multibody</text>
+
+          <rect class="frame" x="190" y="52" width="140" height="84" rx="3"/>
+          <text class="lab-i" x="200" y="72" font-size="10">SURFACE</text>
+          <text class="sub" x="200" y="88">surfaces &amp; curves</text>
+          <text class="sub" x="200" y="100">boundary&middot;fill&middot;knit</text>
+          <text class="sub" x="200" y="112">trim&middot;extend&middot;thicken</text>
+          <text class="tagS" x="200" y="126">Class A (A)</text>
+
+          <rect class="frame" x="340" y="52" width="140" height="84" rx="3"/>
+          <text class="lab-i" x="350" y="72" font-size="10">SHEET METAL</text>
+          <text class="sub" x="350" y="88">const-thickness subset</text>
+          <text class="sub" x="350" y="100">flange&middot;bend&middot;hem&middot;jog</text>
+          <text class="sub" x="350" y="112">unfold &rarr; flat pattern</text>
+          <text class="sub" x="350" y="124">K-factor / bend tables</text>
+
+          <rect class="frame" x="490" y="52" width="140" height="84" rx="3"/>
+          <text class="lab-i" x="500" y="72" font-size="10">MOLD / TOOLING</text>
+          <text class="sub" x="500" y="88">on surface + boolean</text>
+          <text class="sub" x="500" y="100">parting line/surface</text>
+          <text class="sub" x="500" y="112">core / cavity split</text>
+          <text class="sub" x="500" y="124">shrinkage&middot;draft</text>
+
+          <rect class="frame" x="640" y="52" width="140" height="84" rx="3"/>
+          <text class="lab-i" x="650" y="72" font-size="10">BUILDING</text>
+          <text class="sub" x="650" y="88">higher-level profile</text>
+          <text class="sub" x="650" y="100">storeys&middot;walls</text>
+          <text class="sub" x="650" y="112">openings&middot;roof</text>
+          <text class="sub" x="650" y="124">lowers &rarr; ops &middot; IFC</text>
+
+          <!-- connectors down -->
+          <path class="con" d="M110 136 V168"/><path class="con" d="M260 136 V168"/><path class="con" d="M410 136 V168"/><path class="con" d="M560 136 V168"/><path class="con" d="M710 136 V168"/>
+          <!-- substrate slab (hatched) -->
+          <defs><pattern id="hatch" width="7" height="7" patternTransform="rotate(45)" patternUnits="userSpaceOnUse"><line x1="0" y1="0" x2="0" y2="7" stroke="var(--line)" stroke-width="1"/></pattern></defs>
+          <rect x="40" y="170" width="740" height="74" rx="4" fill="url(#hatch)" stroke="var(--indigo)" stroke-width="1.4"/>
+          <rect x="40" y="170" width="740" height="22" fill="var(--panel-2)" stroke="var(--indigo)" stroke-width="1.4"/>
+          <text class="lab-i" x="52" y="185">SHARED SUBSTRATE</text>
+          <text class="sub" x="52" y="212">kernel (build123d / OCP)  &middot;  references + provenance  &middot;  executor + cache</text>
+          <text class="sub" x="52" y="228">sketches + solver  &middot;  assembly + joints  &middot;  BOM + mass properties  &middot;  validators</text>
+          <text class="ttl" x="40" y="262">each profile = ops + validators (+ reps) registered on the substrate — it knows nothing domain-specific</text>
+        </svg>
+        <figcaption>Fig. D-06 &mdash; the building profile is "sheet-metal-like, but more high-level" (Q1): it lowers to substrate ops while keeping IFC + the room generator</figcaption>
+      </figure>
+
+      <p>The catalogue of features within each profile is enumerated and phased in the <strong>Plan</strong> (Phases 9&ndash;11).</p>
+    </section>
+
+    <div class="dim" id="d7"><span class="tick"></span><span class="seg"></span><span class="lbl"><b>07</b> &nbsp;Assemblies &mdash; constraints, joints, large assemblies</span><span class="seg"></span><span class="tick"></span></div>
+    <section>
+      <p>An assembly is <strong>instances of parts</strong> plus relationships. Two complementary, declarative families:</p>
+      <ul class="bul">
+        <li><strong>Assembly constraints</strong> (mating-condition style): <code>mate</code>/coincident, <code>align</code>, <code>flush</code>, <code>offset</code>, angle, tangent, parallel, perpendicular, concentric, symmetric, distance, width, lock.</li>
+        <li><strong>Joints</strong> (mechanism style, DoF-bearing): <code>fixed</code>/rigid, <code>revolute</code>/pin, <code>slider</code>/prismatic, cylindrical, planar, <code>ball</code>/spherical, universal, screw, gear, rack-pinion, cam, belt, point-on-line/slot.</li>
+      </ul>
+      <p>Both reduce to one primitive: <strong>named coordinate frames (ports / mate connectors)</strong> declared on parts, aligned frame-to-frame with offsets and a DoF signature. This is build123d's Joint model, PartCAD's interfaces/ports, and Onshape's mate-connectors. The joint family is what motion (&sect;8) drives. We also support <strong>top-down / in-context</strong> design: a skeleton / master model publishes geometry that parts reference, so changing the skeleton propagates. <strong>Interference / clearance</strong> detection (static here; motion-time in &sect;8) uses OCCT distance (<code>BRepExtrema_DistShapeShape</code>) or fast mesh intersection (Manifold). BOM and mass properties fold up across instances; assemblies export through XCAF/XDE so STEP carries structure, colours, names, and PMI.</p>
+
+      <h3>Large assemblies</h3>
+      <p>Real assemblies are too big to re-execute or fully load every time. The design accommodates scale through:</p>
+      <ul class="bul">
+        <li><strong>Lightweight representations</strong> &mdash; tessellation + bounding box + metadata without loading full B-rep.</li>
+        <li><strong>Lazy / on-demand load</strong> and <strong>display states</strong> &mdash; load definitions and geometry only when shown or edited.</li>
+        <li><strong>Simplified representations / LOD</strong> &mdash; substitute an envelope box or decimated mesh for distant/out-of-scope parts.</li>
+        <li><strong>Spatial index</strong> (BVH / octree) &mdash; for selection, view culling, and interference at scale.</li>
+        <li><strong>Out-of-context build + cache</strong> &mdash; parts build independently and cache; the assembly composes cached results rather than rebuilding the world.</li>
+      </ul>
+    </section>
+    <div class="dim" id="d8"><span class="tick"></span><span class="seg"></span><span class="lbl"><b>08</b> &nbsp;Motion &amp; kinematics <b>&mdash; first-class</b></span><span class="seg"></span><span class="tick"></span></div>
+    <section>
+      <p>Motion is a <strong>first-class output</strong>, not a deferred add-on. The assembly's joint graph (&sect;7) defines degrees of freedom; the motion subsystem drives and solves them.</p>
+
+      <figure>
+        <svg class="dwg" viewBox="0 0 880 268" role="img" aria-label="Motion pipeline: joint graph feeds DoF analysis; drivers (forward kinematics) and inverse kinematics feed the stepping mechanism solver; outputs are traces, envelopes, measures and collisions; multibody dynamics is a later force-driven branch.">
+          <line class="frame-soft" x1="14" y1="14" x2="28" y2="14"/><line class="frame-soft" x1="14" y1="14" x2="14" y2="28"/>
+          <text class="ttl" x="20" y="13">MOTION / KINEMATICS SOLVE — D-08</text>
+          <!-- joint graph -->
+          <rect class="frame" x="34" y="92" width="128" height="60" rx="3"/>
+          <text class="lab-i" x="46" y="114">JOINT GRAPH</text>
+          <text class="sub" x="46" y="130">revolute &middot; slider</text>
+          <text class="sub" x="46" y="142">ball &middot; gear &middot; cam</text>
+          <path class="flow" d="M162 122 H198"/><polygon class="arrowS" points="198,122 190,118 190,126"/>
+          <!-- DoF -->
+          <rect class="frame" x="202" y="92" width="118" height="60" rx="3"/>
+          <text class="lab-i" x="214" y="114">DoF ANALYSIS</text>
+          <text class="sub" x="214" y="130">free DoF count</text>
+          <text class="sub" x="214" y="142">over/under status</text>
+          <!-- drivers + IK -->
+          <rect class="fillsaf" x="346" y="60" width="150" height="40" rx="3"/>
+          <text class="lab" x="358" y="78" font-size="10">DRIVERS &mdash; FK</text>
+          <text class="sub" x="358" y="92">const&middot;ramp&middot;f(t)&middot;coupler</text>
+          <rect class="fillteal" x="346" y="148" width="150" height="40" rx="3"/>
+          <text class="lab" x="358" y="166" font-size="10">INVERSE KINEMATICS</text>
+          <text class="sub" x="358" y="180">drive output frame</text>
+          <path class="con" d="M320 122 H346 M346 80 H336 V122 M346 168 H336 V122"/>
+          <!-- solver -->
+          <path class="flow" d="M496 80 H540 V118"/><path class="flow" d="M496 168 H540 V126"/>
+          <rect class="frame" x="540" y="92" width="130" height="60" rx="3" stroke="var(--saffron)" stroke-width="1.4"/>
+          <text class="lab" x="552" y="114" font-size="10">MECHANISM SOLVER</text>
+          <text class="sub" x="552" y="130">step time &middot; fix driven</text>
+          <text class="sub" x="552" y="142">solve net (py-slvs/Ondsel)</text>
+          <path class="flow" d="M670 122 H706"/><polygon class="arrowS" points="706,122 698,118 698,126"/>
+          <!-- outputs -->
+          <rect class="frame" x="710" y="80" width="150" height="84" rx="3"/>
+          <text class="lab-i" x="722" y="100">OUTPUTS</text>
+          <text class="sub" x="722" y="116">trace curves</text>
+          <text class="sub" x="722" y="128">motion envelopes</text>
+          <text class="sub" x="722" y="140">measures over time</text>
+          <text class="sub" x="722" y="152">collision events</text>
+          <!-- MBD later branch -->
+          <rect class="aux" x="540" y="196" width="320" height="44" rx="3"/>
+          <text class="tagT" x="552" y="214">MULTIBODY DYNAMICS — later (force-driven)</text>
+          <text class="sub" x="552" y="230">mass/inertia (BRepGProp) + gravity/forces/springs + contacts &rarr; reactions</text>
+          <path class="aux" d="M605 196 V152"/>
+          <text class="ttl" x="34" y="186">kinematics (geometry-driven) ships first; dynamics (force-driven) later</text>
+        </svg>
+        <figcaption>Fig. D-08 &mdash; the mechanism solver is the same constraint machinery as assembly mating, stepped over time</figcaption>
+      </figure>
+
+      <ul class="bul">
+        <li><strong>DoF analysis</strong> &mdash; free degrees of freedom from the joint graph (solver Jacobian rank); over-/under-/exactly-constrained status, a 3D analogue of sketch DoF.</li>
+        <li><strong>Drivers &amp; forward kinematics</strong> &mdash; assign a driver to a joint DoF: constant, linear ramp, function of time, or function of another DoF (couplers/gears/cams). Sweeping drivers solves the configuration each step.</li>
+        <li><strong>Inverse kinematics</strong> &mdash; drive an output frame, solve for joint values that reach it.</li>
+        <li><strong>Mechanism solver</strong> &mdash; at each step, fix driven DoF and solve the joint/constraint network for the rest.</li>
+        <li><strong>Interference during motion</strong> &mdash; per-step distance/intersection checks; collision events on the timeline.</li>
+        <li><strong>Outputs</strong> &mdash; trace curves (point paths), motion envelopes (swept volumes), and measures over time (distance/angle/velocity/accel).</li>
+        <li><strong>Multibody dynamics (later)</strong> &mdash; force-driven motion: mass/inertia (from <code>BRepGProp</code>) + gravity, forces/torques, springs/dampers, contacts &rarr; reaction forces and accelerations. Kinematics ships first, dynamics later.</li>
+      </ul>
+
+      <div class="card dec">
+        <p style="margin:0"><strong>Solver <span style="color:var(--saffron);font-family:'IBM Plex Mono',monospace;font-size:.72rem">Q5</span> &mdash; any/all licenses acceptable, the engine is open.</strong> Use <strong>SolveSpace's solver</strong> (<code>py-slvs</code>, GPL-3) for 2D/3D constraints + DoF, and <strong>OndselSolver</strong> (the multibody solver from FreeCAD 1.0's Assembly) for mechanism/MBD. <code>planegcs</code> remains an option for 2D. Adopting GPL means the engine itself is effectively GPL-licensed; given the open intent this is acceptable (noted in &sect;14, &sect;19). The motion model is solver-agnostic behind a thin interface.</p>
+      </div>
+    </section>
+    <div class="dim" id="d9"><span class="tick"></span><span class="seg"></span><span class="lbl"><b>09</b> &nbsp;Bill of materials &amp; mass properties</span><span class="seg"></span><span class="tick"></span></div>
+    <section>
+      <p>The BOM is a <strong>traversal of the model</strong>, never a measurement of the mesh &mdash; v1's principle, generalized from walls/openings to parts / instances / features. Each op contributes its quantities (a <code>pattern</code> knows its count; a <code>hole</code> its diameter and depth); these fold up the part tree, then the assembly tree. <strong>Mass, volume, centre of gravity, and inertia</strong> come straight from <code>BRepGProp</code> on the exact solid, feeding both material take-offs and the mass properties motion dynamics needs (&sect;8). A BOM that cannot be computed is itself a validation signal.</p>
+    </section>
+
+    <div class="dim" id="d10"><span class="tick"></span><span class="seg"></span><span class="lbl"><b>10</b> &nbsp;Validators &mdash; cheap, deterministic, text-returning</span><span class="seg"></span><span class="tick"></span></div>
+    <section>
+      <p>Validators stay as v1 conceived them &mdash; <strong>cheap, deterministic, text-returning, each issue tagged with the offending <code>id</code></strong> &mdash; generalized from "broken building" to "broken feature / topology / constraint."</p>
+      <ul class="bul">
+        <li><strong>Pre-build (schema + semantic):</strong> document validates against its schema; refs resolve; expressions evaluate; the rebuild graph is acyclic; sketch/assembly DoF status is sane.</li>
+        <li><strong>Post-build (geometry):</strong> after each feature, kernel validity checks (<code>is_valid</code>, BOP checks, <code>ShapeAnalysis</code>) confirm a sound result; a failure stops the chain and names the node that broke it.</li>
+      </ul>
+      <p>Validators return text, not exceptions, so one surface serves a human at a CLI, an agent reading a result, and a golden test reading a snapshot.</p>
+    </section>
+
+    <div class="dim" id="d11"><span class="tick"></span><span class="seg"></span><span class="lbl"><b>11</b> &nbsp;Drafting, documentation &amp; PMI</span><span class="seg"></span><span class="tick"></span></div>
+    <section>
+      <p><strong>Drafting (2D drawings).</strong> A drawing is a <strong>derived, associative</strong> document: sheets and title blocks; <strong>views</strong> (base / projected-ortho / isometric / auxiliary / <strong>section</strong> [full / half / offset / aligned / broken-out] / detail / broken / crop); <strong>dimensions</strong> (driven, ordinate, baseline, chain); <strong>annotations</strong> (notes, balloons, centerlines, hatching, weld / surface-finish / datum / GD&amp;T symbols); and <strong>tables</strong> (BOM, hole, revision). Views are projections and sections of the model &mdash; OCCT's <strong>HLR</strong> (Hidden-Line Removal, <code>HLRBRep_Algo</code>) produces the visible/hidden 2D edges. Output is DXF / SVG / PDF; <em>associative</em> means the drawing regenerates when the model changes.</p>
+      <p><strong>PMI / GD&amp;T (3D annotation).</strong> A <strong>semantic annotation model</strong> attached to model elements via persistent references (&sect;2): datums and datum targets; geometric tolerances (form / orientation / location / runout); dimensional tolerances; surface finish; weld symbols; notes &mdash; in two forms, <strong>semantic</strong> (machine-readable, drives manufacturing) and <strong>presentation</strong> (graphic placement in saved 3D views). PMI is carried through <strong>STEP AP242</strong> via OCCT's XCAF/XDE. PMI is <em>the</em> reason persistent naming must be solid: an annotation that loses its face is worse than useless.</p>
+    </section>
+
+    <div class="dim" id="d12"><span class="tick"></span><span class="seg"></span><span class="lbl"><b>12</b> &nbsp;The server &amp; API &mdash; CRUD over the document</span><span class="seg"></span><span class="tick"></span></div>
+    <section>
+      <p>The engine runs as a server holding <strong>sessions</strong>; a session owns a document. The only way to change a document is a <strong>validated dict-patch</strong> against the schema &mdash; so the agent layer (designed-for here, built separately) and a human client share one constrained, safe mutation surface. CRUD maps onto the document tree:</p>
+      <pre><code><span class="k">POST</span> /docs                            <span class="o">-&gt;</span> { doc_id, document }          <span class="c"># create</span>
+<span class="k">GET</span>  /docs/{id}                       <span class="o">-&gt;</span> document                       <span class="c"># read</span>
+<span class="k">GET</span>  /docs/{id}/parts/{p}/features    <span class="o">-&gt;</span> [ feature, ... ]               <span class="c"># read tree</span>
+<span class="k">POST</span> /docs/{id}/edit  {patches:[]}    <span class="o">-&gt;</span> { document, model, issues }    <span class="c"># C/U/D nodes</span>
+<span class="k">GET</span>  /docs/{id}/bom                   <span class="o">-&gt;</span> { quantities, mass_properties }
+<span class="k">GET</span>  /docs/{id}/mesh?part=..          <span class="o">-&gt;</span> glTF + element-map
+<span class="k">POST</span> /docs/{id}/motion/solve {study}  <span class="o">-&gt;</span> { frames, traces, collisions } <span class="c"># §8</span>
+<span class="k">GET</span>  /docs/{id}/drawing/{d}           <span class="o">-&gt;</span> DXF | SVG | PDF                 <span class="c"># §11</span>
+<span class="k">POST</span> /docs/{id}/export {format}       <span class="o">-&gt;</span> STEP(AP242) | IGES | glTF | 3MF | DXF
+<span class="k">POST</span> /docs/{id}/import {plugin,data}  <span class="o">-&gt;</span> document                        <span class="c"># §14 plugins</span>
+<span class="k">POST</span> /docs/{id}/migrate               <span class="o">-&gt;</span> { document, from, to }          <span class="c"># §14 migration</span></code></pre>
+      <p>Every document carries <code>schema_version</code>; an <code>edit</code> triggers the incremental rebuild (&sect;4) and returns model <strong>and</strong> issues together, so <em>patch &rarr; rebuild &rarr; see result + breakage</em> is a single round-trip. The natural-language agent orchestration is out of scope here &mdash; a wrapper over the API, not part of the engine.</p>
+    </section>
+
+    <div class="dim" id="d13"><span class="tick"></span><span class="seg"></span><span class="lbl"><b>13</b> &nbsp;Visualization &mdash; a viewer, not an editor</span><span class="seg"></span><span class="tick"></span></div>
+    <section>
+      <p>The engine ships a strong viewer and <strong>no authoring GUI</strong> (&sect;17). The primary path reuses v1's stack: the server tessellates OCCT geometry (<code>BRepMesh_IncrementalMesh</code>) to <strong>glTF/GLB</strong>, and the browser renders with <strong>three.js</strong> (the existing <code>nv</code> viewer). An <strong>element-map sidecar</strong> (triangle &rarr; face/edge <code>id</code>) turns a passive render into an inspectable model: <strong>picking, selection, hover-highlight by id, and measurement</strong> &mdash; without an editing UI. The viewer also <strong>plays back motion</strong> (&sect;8) by streaming per-frame instance transforms, and displays PMI/saved views.</p>
+      <p><strong>Deferred</strong>, behind the same boundary: OCCT-in-WebAssembly (OpenCascade.js / <code>occt-wasm</code>) for client-side sectioning/measurement; a desktop viewer (Mayo, or PySide6 over pythonocc's AIS/V3d); and a Blender beauty-render backend consuming exported glTF (never the document).</p>
+    </section>
+
+    <div class="dim" id="d14"><span class="tick"></span><span class="seg"></span><span class="lbl"><b>14</b> &nbsp;Interchange, plugins &amp; migration</span><span class="seg"></span><span class="tick"></span></div>
+    <section>
+      <p>All exchange reads/writes the document or model; none is a second source of truth. <strong>STEP</strong> is the backbone &mdash; <strong>AP242</strong> for assemblies + PMI via XCAF/XDE, AP203/214 otherwise; plus IGES, <strong>glTF</strong>, <strong>STL / 3MF / OBJ</strong>, and <strong>DXF / SVG / PDF</strong>. FreeCAD is a first-class STEP round-trip peer.</p>
+
+      <h3>The plugin / converter architecture <span style="color:var(--saffron);font-family:'IBM Plex Mono',monospace;font-size:.7rem;letter-spacing:.08em">Q7</span></h3>
+      <p>Importers, exporters, and profiles are <strong>plugins</strong> registered against a stable contract: <em>(external format) &harr; (ncad document or sub-model)</em>. <strong>PartCAD compatibility ships as a plugin converter</strong> &mdash; isolated, maintainable, and not a core burden; other ecosystems follow the same contract. The core stays lean; breadth grows at the edges.</p>
+      <pre><code>plugins/
+  partcad/      <span class="c"># PartCAD YAML  &lt;-&gt; ncad document   (Q7)</span>
+  openscad/     <span class="c"># .scad         -&gt; ncad (import)</span>
+  step_ap242/   <span class="c"># STEP+PMI      &lt;-&gt; ncad (core-adjacent)</span>
+  &lt;others&gt;/     <span class="c"># same contract: convert to/from the document model</span></code></pre>
+
+      <h3>Versioning &amp; migration <span style="color:var(--saffron);font-family:'IBM Plex Mono',monospace;font-size:.7rem;letter-spacing:.08em">Q6</span></h3>
+      <p>Every document (part / assembly / motion / drawing) carries a domain <code>schema_version</code>. On load, ncad validates the version; if it predates the current release, the user is offered an <strong>upgrade</strong> that runs registered <strong>migration converters</strong> (chained vN&rarr;vN+1) &mdash; transforming the <em>definition</em> (data), not the geometry, exactly as commercial tools prompt "convert to current version?" on opening old files. Cache keys include the kernel version (&sect;4); a kernel bump invalidates cached <em>geometry</em> wholesale (re-execute), while <em>definitions</em> migrate via converters. The migration registry is small, ordered, and tested.</p>
+    </section>
+    <div class="dim" id="d15"><span class="tick"></span><span class="seg"></span><span class="lbl"><b>15</b> &nbsp;Environment &amp; dependencies</span><span class="seg"></span><span class="tick"></span></div>
+    <section>
+      <ul class="bul">
+        <li><strong>Python 3.13</strong>, <code>.venv</code> pinned via <code>uv</code>, as v1.</li>
+        <li><strong>Geometry:</strong> <code>build123d</code> + <code>cadquery-ocp</code> (OCCT). <strong>Pin both</strong> &mdash; geometry equality and cache keys need a fixed kernel.</li>
+        <li><strong>Solvers:</strong> <code>py-slvs</code> (SolveSpace, 2D/3D + DoF) and/or <code>OndselSolver</code> (multibody); <code>planegcs</code> optional. <strong>License unconstrained</strong> (Q5): GPL acceptable &mdash; with the consequence that the engine itself is then GPL.</li>
+        <li><strong>Mesh / convergent:</strong> <code>manifold3d</code> (Apache-2.0); <code>trimesh</code> + a glTF writer.</li>
+        <li><strong>Selectors:</strong> <code>lark</code> (predicate grammar) &mdash; or <code>cel-python</code> if escalated.</li>
+        <li><strong>IO / persistence:</strong> <code>leaf-common</code> + <code>jsonschema</code> (draft 2020-12), shared with the agent ecosystem.</li>
+        <li><strong>Deferred:</strong> OpenCascade.js (WASM viewer); Blender (render); <code>ifcopenshell</code> (building profile); plugin deps live with their plugins.</li>
+      </ul>
+    </section>
+
+    <div class="dim" id="d16"><span class="tick"></span><span class="seg"></span><span class="lbl"><b>16</b> &nbsp;Component boundaries</span><span class="seg"></span><span class="tick"></span></div>
+    <section>
+      <figure>
+        <svg class="dwg" viewBox="0 0 820 360" role="img" aria-label="Layered module architecture: document layer and geometry layer feed the pure build hub; model services and delivery layers sit below; dependencies point inward to build.">
+          <line class="frame-soft" x1="14" y1="14" x2="28" y2="14"/><line class="frame-soft" x1="14" y1="14" x2="14" y2="28"/>
+          <text class="ttl" x="20" y="13">MODULE ARCHITECTURE (LAYERED) — D-16</text>
+          <!-- band A document -->
+          <rect class="frame" x="40" y="40" width="740" height="50" rx="3"/>
+          <text class="tagS" x="52" y="56">DOCUMENT</text>
+          <g font-family="IBM Plex Mono" font-size="9.5"><rect class="frame-soft" x="150" y="48" width="100" height="32"/><text x="200" y="68" text-anchor="middle" class="sub">schema</text>
+          <rect class="frame-soft" x="270" y="48" width="100" height="32"/><text x="320" y="68" text-anchor="middle" class="sub">spec</text>
+          <rect class="frame-soft" x="390" y="48" width="100" height="32"/><text x="440" y="68" text-anchor="middle" class="sub">params</text>
+          <rect class="frame-soft" x="510" y="48" width="120" height="32"/><text x="570" y="68" text-anchor="middle" class="sub">refs + provenance</text></g>
+          <path class="con" d="M410 90 V104"/><polygon class="arrowS" points="410,104 406,96 414,96"/>
+          <!-- band B geometry -->
+          <rect class="frame" x="40" y="106" width="740" height="50" rx="3"/>
+          <text class="tagS" x="52" y="122">GEOMETRY</text>
+          <g><rect class="frame-soft" x="150" y="114" width="120" height="32"/><text x="210" y="134" text-anchor="middle" class="sub">kernel (OCP)</text>
+          <rect class="frame-soft" x="290" y="114" width="90" height="32"/><text x="335" y="134" text-anchor="middle" class="sub">ops</text>
+          <rect class="frame-soft" x="400" y="114" width="100" height="32"/><text x="450" y="134" text-anchor="middle" class="sub">sketch</text>
+          <rect class="frame-soft" x="520" y="114" width="110" height="32"/><text x="575" y="134" text-anchor="middle" class="sub">direct</text></g>
+          <path class="con" d="M410 156 V170"/><polygon class="arrowS" points="410,170 406,162 414,162"/>
+          <!-- band C BUILD hub -->
+          <rect class="fillsaf" x="40" y="172" width="740" height="44" rx="3" stroke="var(--saffron)" stroke-width="1.6"/>
+          <text class="lab" x="52" y="190" font-size="11">BUILD — pure executor</text>
+          <text class="sub" x="52" y="206">rebuild DAG &middot; topological order &middot; content-addressed cache &middot; per-feature validation gate</text>
+          <path class="flow" d="M410 216 V230"/><polygon class="arrowS" points="410,230 406,222 414,222"/>
+          <!-- band D services -->
+          <rect class="frame" x="40" y="232" width="740" height="50" rx="3"/>
+          <text class="tagT" x="52" y="248">MODEL SERVICES</text>
+          <g><rect class="fillteal" x="150" y="240" width="92" height="32"/><text x="196" y="260" text-anchor="middle" class="sub">assembly</text>
+          <rect class="fillteal" x="252" y="240" width="84" height="32"/><text x="294" y="260" text-anchor="middle" class="sub">motion</text>
+          <rect class="frame-soft" x="346" y="240" width="84" height="32"/><text x="388" y="260" text-anchor="middle" class="sub">validate</text>
+          <rect class="frame-soft" x="440" y="240" width="70" height="32"/><text x="475" y="260" text-anchor="middle" class="sub">bom</text>
+          <rect class="frame-soft" x="520" y="240" width="70" height="32"/><text x="555" y="260" text-anchor="middle" class="sub">draft</text>
+          <rect class="frame-soft" x="600" y="240" width="60" height="32"/><text x="630" y="260" text-anchor="middle" class="sub">pmi</text></g>
+          <!-- band E delivery -->
+          <rect class="frame" x="40" y="298" width="740" height="50" rx="3"/>
+          <text class="tagS" x="52" y="314">DELIVERY</text>
+          <g><rect class="frame-soft" x="150" y="306" width="80" height="32"/><text x="190" y="326" text-anchor="middle" class="sub">export</text>
+          <rect class="frame-soft" x="240" y="306" width="80" height="32"/><text x="280" y="326" text-anchor="middle" class="sub">viewer</text>
+          <rect class="fillsaf" x="330" y="306" width="70" height="32"/><text x="365" y="326" text-anchor="middle" class="sub">api</text>
+          <rect class="frame-soft" x="410" y="306" width="90" height="32"/><text x="455" y="326" text-anchor="middle" class="sub">plugins</text>
+          <rect class="frame-soft" x="510" y="306" width="90" height="32"/><text x="555" y="326" text-anchor="middle" class="sub">migrate</text></g>
+        </svg>
+        <figcaption>Fig. D-16 &mdash; dependency arrows point inward toward <code>build</code>; nothing downstream reaches back</figcaption>
+      </figure>
+      <div class="tw"><table>
+        <thead><tr><th>Unit</th><th>Purpose</th><th>Depends on</th></tr></thead>
+        <tbody>
+          <tr><td><b>schema</b></td><td>feature-tree / assembly / motion / drawing / PMI schemas (HOCON)</td><td>&mdash;</td></tr>
+          <tr><td><b>spec</b></td><td>load/validate the document (dict)</td><td>leaf-common, jsonschema, schema</td></tr>
+          <tr><td><b>params</b></td><td>resolve the expression layer (refs + registered functions)</td><td>spec</td></tr>
+          <tr><td><b>refs</b></td><td>reference resolver + provenance map + persistent-name layer</td><td>kernel</td></tr>
+          <tr><td><b>kernel</b></td><td>swappable geometry backend (B-rep + mesh) + build123d impl</td><td>build123d, manifold3d</td></tr>
+          <tr><td><b>ops</b></td><td>per-feature builders, by profile (registry)</td><td>kernel, refs</td></tr>
+          <tr><td><b>sketch</b></td><td>2D entities + constraint solving</td><td>py-slvs/planegcs, kernel</td></tr>
+          <tr><td><b>direct</b></td><td>history-free face / relational edits</td><td>kernel, refs</td></tr>
+          <tr><td><b>build</b></td><td>pure <code>build(document) &rarr; model</code>; rebuild graph + cache</td><td>spec, params, ops, refs</td></tr>
+          <tr><td><b>assembly</b></td><td>instances, constraints, joints, large-assembly reps</td><td>build, kernel</td></tr>
+          <tr><td><b>motion</b></td><td>DoF, drivers, FK/IK, mechanism/MBD solve, traces</td><td>assembly, py-slvs/Ondsel</td></tr>
+          <tr><td><b>validate</b></td><td>pre-/post-build checks, id-tagged</td><td>spec, build</td></tr>
+          <tr><td><b>bom</b></td><td>traversal BOM + mass properties</td><td>build</td></tr>
+          <tr><td><b>draft</b></td><td>2D drawings via HLR; views/dims/annotations/tables</td><td>build</td></tr>
+          <tr><td><b>pmi</b></td><td>semantic GD&amp;T annotation model</td><td>build, refs</td></tr>
+          <tr><td><b>export</b></td><td>STEP AP242 / IGES / glTF / mesh / DXF writers</td><td>build, pmi</td></tr>
+          <tr><td><b>viewer</b></td><td>tessellation + element-map + motion playback + three.js</td><td>export</td></tr>
+          <tr><td><b>plugins</b></td><td>importer/exporter/profile converters (PartCAD, …)</td><td>spec, build</td></tr>
+          <tr><td><b>migrate</b></td><td>per-domain schema migration converters</td><td>spec</td></tr>
+          <tr><td><b>api</b></td><td>sessions + dict-patch mutations + endpoints</td><td>build, validate, bom, export, motion</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <div class="dim" id="d17"><span class="tick"></span><span class="seg"></span><span class="lbl"><b>17</b> &nbsp;Non-goals</span><span class="seg"></span><span class="tick"></span></div>
+    <section>
+      <ul class="bul">
+        <li><strong>No authoring GUI.</strong> The document is authored as text/data; the GUI is a viewer only.</li>
+        <li><strong>No new geometry kernel.</strong> OCCT via build123d is the floor.</li>
+        <li><strong>No Catia/Creo/NX feature-parity deadline.</strong> The full feature set is the Plan, built demand-first over many passes; the differentiator is the delivery model, not a parity date.</li>
+        <li><strong>No simulation solver of our own (FEA/CFD).</strong> Mechanism kinematics and basic multibody dynamics are in scope (&sect;8); structural/thermal/fluid is an export/integration concern.</li>
+        <li><strong>No full synchronous-technology robustness in v1.</strong> Core direct-edit face ops first; auto-maintained relational inference is later/aspirational.</li>
+        <li><strong>Class A surfacing is aspirational, not v1.</strong></li>
+        <li><strong>No FreeCAD/Blender plugin core.</strong> FreeCAD is a parts-bin (solver) and a STEP peer; Blender is a render backend.</li>
+      </ul>
+    </section>
+
+    <div class="dim" id="d18"><span class="tick"></span><span class="seg"></span><span class="lbl"><b>18</b> &nbsp;First milestone &amp; build order</span><span class="seg"></span><span class="tick"></span></div>
+    <section>
+      <p>Mirror v1's discipline &mdash; make the <em>boring bracket</em> work end-to-end before breadth:</p>
+      <blockquote><code>sketch</code> (rectangle/circle/polygon) &rarr; <code>extrude</code>/<code>pocket</code> &rarr; <code>hole</code> &rarr; <code>fillet</code>, built through the <code>refs</code> resolver with a live provenance map, exported to glTF, shown in the viewer.</blockquote>
+      <p><strong>Met when</strong> editing a parameter <em>or deleting a feature</em> yields a correct <strong>incremental</strong> rebuild, and any reference that can no longer resolve is reported against its <code>id</code>. That single loop exercises every load-bearing idea: document as SOT, pure executor, reference model (&sect;2), cache (&sect;4), id-tagged validation (&sect;10). Everything after is phased in the <strong>Plan</strong>.</p>
+    </section>
+
+    <div class="dim" id="d19"><span class="tick"></span><span class="seg"></span><span class="lbl"><b>19</b> &nbsp;Open questions</span><span class="seg"></span><span class="tick"></span></div>
+    <section>
+      <div class="card dec">
+        <p style="margin:0 0 .5rem"><strong>Resolved by this revision</strong> (recorded in the Plan's decisions log):</p>
+        <div class="qrow"><div class="qk">Q1</div><div class="qv">buildings = a high-level profile that lowers to substrate ops</div></div>
+        <div class="qrow"><div class="qk">Q2</div><div class="qv">invest in a generative persistent-name layer, phased</div></div>
+        <div class="qrow"><div class="qk">Q3</div><div class="qv">HOCON carries refs + registered-function calls, logic stays in code</div></div>
+        <div class="qrow"><div class="qk">Q4</div><div class="qv">SQL-<code>WHERE</code>-style selectors over a versioned attribute model (<code>lark</code>, CEL if escalated)</div></div>
+        <div class="qrow"><div class="qk">Q5</div><div class="qv">any solver license is fine (engine is open &rarr; effectively GPL)</div></div>
+        <div class="qrow"><div class="qk">Q6</div><div class="qv">per-domain <code>schema_version</code> + migration converters + an upgrade prompt</div></div>
+        <div class="qrow"><div class="qk">Q7</div><div class="qv">PartCAD and friends as plugin converters, not core</div></div>
+      </div>
+      <h4>Genuinely still open</h4>
+      <ul class="bul">
+        <li><strong>Direct-modeling robustness on OCCT.</strong> How far can synchronous-style face editing go (defeaturing + offset + healing) before it needs a dedicated approach? The biggest geometry-risk item.</li>
+        <li><strong>Class A feasibility.</strong> Can OCCT's NURBS surfacing + curvature analysis reach genuine Class A (G2&ndash;G3), or is that a specialist library / out of scope?</li>
+        <li><strong>Kinematics vs full MBD depth.</strong> How much force-driven dynamics before it stops being a CAD engine and becomes a physics engine?</li>
+        <li><strong>GPL consequence.</strong> Adopting SolveSpace/Ondsel makes the engine GPL. If a permissive core is ever wanted, the solvers need a permissive replacement.</li>
+        <li><strong>Provenance-map cost at scale.</strong> The element-map must stay cheap on large parts/assemblies; what is its memory/time budget?</li>
+        <li><strong>How high-level the building profile should sit.</strong> A thin lowering, or its own sub-substrate with IFC/spaces/systems?</li>
+      </ul>
+    </section>
+
+    <footer>ncad &middot; target engine &middot; design document &middot; rev B &middot; June 2026 &mdash; architecture &amp; decisions. The feature catalogue &amp; phased build order live in the <strong>Plan</strong> tab.</footer>
+  </div>
+</div>
+
+<!-- =================== PLAN PANE =================== -->
+<div class="pane" id="pane-plan" role="tabpanel" aria-labelledby="tab-plan">
+  <div class="indexbar">
+    <div class="indexbar-in" id="idx-plan">
+      <a class="chip" href="#pmap">Roadmap</a><a class="chip" href="#p0">P0</a><a class="chip" href="#p1">P1</a><a class="chip" href="#p2">P2</a><a class="chip" href="#p3">P3</a><a class="chip" href="#p4">P4</a><a class="chip" href="#p5">P5</a><a class="chip" href="#p6">P6</a><a class="chip" href="#p7">P7</a><a class="chip" href="#p8">P8</a><a class="chip" href="#p9">P9</a><a class="chip" href="#p10">P10</a><a class="chip" href="#p11">P11</a><a class="chip" href="#p12">P12</a><a class="chip" href="#p13">P13</a><a class="chip" href="#p14">P14</a><a class="chip" href="#pcross">Tracks</a><a class="chip" href="#pdec">Decisions</a>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <section style="padding-top:1.6rem">
+      <p class="lede">Phased build order for the target engine &mdash; <em>what to build, in what order, and what's done</em>, plus the feature/operations catalogue distilled from Catia / Creo / NX. We will <strong>not</strong> build it all in one pass; phases are coherent capability slices, each with a gate.</p>
+      <div class="legend">
+        <span><b>&#9633;</b> not started</span><span><b style="color:var(--saffron)">~</b> in progress</span><span><b style="color:var(--teal)">&#10003;</b> done</span><span><b>(P)</b> parallel</span><span><b style="color:var(--no)">(A)</b> aspirational</span>
+      </div>
+      <p><strong>Guiding rule:</strong> prove the <strong>general spine end-to-end first</strong> (Phase 0), then add breadth. Each phase leaves <code>author &rarr; build &rarr; validate &rarr; view</code> working. Phases are roughly ordered but several run in parallel; hard dependencies are noted per phase.</p>
+
+      <h3>Where we are</h3>
+      <p>v1 proved the <em>pattern</em> &mdash; <code>spec &rarr; build &rarr; BOM &rarr; view</code>, determinism, build123d/OCCT, HOCON+jsonschema, traversal BOM, the Three.js viewer &mdash; on the <strong>building profile</strong> (footprint &rarr; rooms &rarr; walls &rarr; openings &rarr; roof). That work is the substrate proof and feeds Phase 0. The target engine generalizes the building-specific schema into a <strong>feature tree</strong> and adds dual modeling, assemblies, motion, drafting, PMI, surfacing, convergent modeling, the domain profiles, and a plugin layer.</p>
+      <blockquote>The building roadmap (old Phases 6&ndash;13: roofs, multi-storey, IFC, agents, render tiers) continues as the <strong>building-profile track</strong> (Phase 11) on top of the general substrate &mdash; not discarded, recast.</blockquote>
+    </section>
+
+    <figure class="anim">
+      <svg class="dwg" viewBox="0 0 940 400" role="img" aria-label="Phase dependency roadmap: phases 0 through 14 arranged as a directed graph, colored by track (core, solid, assembly, motion, docs, surface, profiles, interop), showing the critical path from the general spine through to advanced capabilities.">
+        <defs><marker id="ah" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="var(--ink-faint)"/></marker></defs>
+        <line class="frame-soft" x1="14" y1="14" x2="28" y2="14"/><line class="frame-soft" x1="14" y1="14" x2="14" y2="28"/>
+        <text class="ttl" x="20" y="13">PHASE DEPENDENCY ROADMAP — P-MAP — COLOURED BY TRACK</text>
+        <!-- edges (under nodes) -->
+        <g stroke="var(--ink-faint)" stroke-width="1" fill="none" marker-end="url(#ah)">
+          <path d="M114,188 H150"/><path d="M228,188 H264"/>
+          <path d="M342,188 L380,100"/><path d="M342,188 H380"/><path d="M342,188 L380,272"/>
+          <path d="M456,96 H494"/><path d="M570,96 H608"/><path d="M684,96 H722"/>
+          <path d="M534,116 L606,184"/><path d="M420,116 L494,256"/>
+          <path d="M648,116 L722,184"/><path d="M648,116 L722,256"/><path d="M648,208 L722,272"/>
+          <path d="M456,280 H608"/><path d="M798,116 L842,184"/><path d="M798,188 H842"/>
+        </g>
+        <!-- nodes -->
+        <g font-family="IBM Plex Mono">
+          <!-- mid row -->
+          <rect x="42" y="168" width="72" height="40" rx="4" fill="var(--panel)" stroke="var(--indigo)" stroke-width="1.6"/><text x="78" y="190" text-anchor="middle" class="bignum" fill="var(--indigo)" font-size="13">0</text><text x="78" y="201" text-anchor="middle" class="sub">spine</text>
+          <rect x="156" y="168" width="72" height="40" rx="4" fill="var(--panel)" stroke="var(--indigo)" stroke-width="1.6"/><text x="192" y="190" text-anchor="middle" class="bignum" fill="var(--indigo)" font-size="13">1</text><text x="192" y="201" text-anchor="middle" class="sub">sketch</text>
+          <rect x="270" y="168" width="72" height="40" rx="4" fill="var(--panel)" stroke="var(--saffron)" stroke-width="1.6"/><text x="306" y="190" text-anchor="middle" class="bignum" font-size="13">2</text><text x="306" y="201" text-anchor="middle" class="sub">solid</text>
+          <rect x="384" y="168" width="72" height="40" rx="4" fill="var(--panel)" stroke="#3b7a8c" stroke-width="1.6"/><text x="420" y="190" text-anchor="middle" class="bignum" fill="#3b7a8c" font-size="13">7</text><text x="420" y="201" text-anchor="middle" class="sub">draft</text>
+          <rect x="612" y="168" width="72" height="40" rx="4" fill="var(--panel)" stroke="#3b7a8c" stroke-width="1.6"/><text x="648" y="190" text-anchor="middle" class="bignum" fill="#3b7a8c" font-size="13">8</text><text x="648" y="201" text-anchor="middle" class="sub">PMI</text>
+          <rect x="726" y="168" width="72" height="40" rx="4" fill="var(--panel)" stroke="var(--teal)" stroke-width="1.6"/><text x="762" y="190" text-anchor="middle" class="bignum" fill="var(--teal)" font-size="13">12</text><text x="762" y="201" text-anchor="middle" class="sub">large-assy</text>
+          <rect x="846" y="168" width="72" height="40" rx="4" fill="var(--panel)" stroke="#9a5bb8" stroke-width="1.6"/><text x="882" y="190" text-anchor="middle" class="bignum" fill="#9a5bb8" font-size="13">14</text><text x="882" y="201" text-anchor="middle" class="sub">advanced</text>
+          <!-- top row -->
+          <rect x="384" y="76" width="72" height="40" rx="4" fill="var(--panel)" stroke="var(--saffron)" stroke-width="1.6"/><text x="420" y="98" text-anchor="middle" class="bignum" font-size="13">3</text><text x="420" y="109" text-anchor="middle" class="sub">pattern</text>
+          <rect x="498" y="76" width="72" height="40" rx="4" fill="var(--panel)" stroke="var(--indigo)" stroke-width="1.6"/><text x="534" y="98" text-anchor="middle" class="bignum" fill="var(--indigo)" font-size="13">4</text><text x="534" y="109" text-anchor="middle" class="sub">direct</text>
+          <rect x="612" y="76" width="72" height="40" rx="4" fill="var(--panel)" stroke="var(--teal)" stroke-width="1.6"/><text x="648" y="98" text-anchor="middle" class="bignum" fill="var(--teal)" font-size="13">5</text><text x="648" y="109" text-anchor="middle" class="sub">assembly</text>
+          <rect x="726" y="76" width="72" height="40" rx="4" fill="var(--panel)" stroke="#9a5bb8" stroke-width="1.6"/><text x="762" y="98" text-anchor="middle" class="bignum" fill="#9a5bb8" font-size="13">6</text><text x="762" y="109" text-anchor="middle" class="sub">motion</text>
+          <!-- bottom row -->
+          <rect x="384" y="260" width="72" height="40" rx="4" fill="var(--panel)" stroke="#a0682a" stroke-width="1.6"/><text x="420" y="282" text-anchor="middle" class="bignum" fill="#a0682a" font-size="13">9</text><text x="420" y="293" text-anchor="middle" class="sub">surface</text>
+          <rect x="498" y="260" width="72" height="40" rx="4" fill="var(--panel)" stroke="var(--indigo)" stroke-width="1.6"/><text x="534" y="282" text-anchor="middle" class="bignum" fill="var(--indigo)" font-size="13">10</text><text x="534" y="293" text-anchor="middle" class="sub">convergent</text>
+          <rect x="612" y="260" width="72" height="40" rx="4" fill="var(--panel)" stroke="#5a8a3a" stroke-width="1.6"/><text x="648" y="282" text-anchor="middle" class="bignum" fill="#5a8a3a" font-size="13">11</text><text x="648" y="293" text-anchor="middle" class="sub">profiles</text>
+          <rect x="726" y="260" width="72" height="40" rx="4" fill="var(--panel)" stroke="#8a6a2a" stroke-width="1.6"/><text x="762" y="282" text-anchor="middle" class="bignum" fill="#8a6a2a" font-size="13">13</text><text x="762" y="293" text-anchor="middle" class="sub">interop</text>
+        </g>
+        <!-- legend -->
+        <g font-family="IBM Plex Mono" font-size="9">
+          <rect x="50" y="342" width="11" height="11" fill="var(--indigo)"/><text x="67" y="351" class="sub">core</text>
+          <rect x="190" y="342" width="11" height="11" fill="var(--saffron)"/><text x="207" y="351" class="sub">solid</text>
+          <rect x="330" y="342" width="11" height="11" fill="var(--teal)"/><text x="347" y="351" class="sub">assembly</text>
+          <rect x="490" y="342" width="11" height="11" fill="#9a5bb8"/><text x="507" y="351" class="sub">motion</text>
+          <rect x="50" y="366" width="11" height="11" fill="#3b7a8c"/><text x="67" y="375" class="sub">docs</text>
+          <rect x="190" y="366" width="11" height="11" fill="#a0682a"/><text x="207" y="375" class="sub">surface</text>
+          <rect x="330" y="366" width="11" height="11" fill="#5a8a3a"/><text x="347" y="375" class="sub">profiles</text>
+          <rect x="490" y="366" width="11" height="11" fill="#8a6a2a"/><text x="507" y="375" class="sub">interop</text>
+        </g>
+      </svg>
+      <figcaption>Fig. P-MAP &mdash; the critical path runs 0&rarr;1&rarr;2&rarr;3&rarr;4&rarr;5&rarr;6; drafting, surfacing, convergent, and the domain profiles fork off; everything converges on Phase 14</figcaption>
+    </figure>
+
+    <div class="dim" id="pmap"><span class="tick"></span><span class="seg"></span><span class="lbl"><b>&#8212;</b> &nbsp;Roadmap at a glance</span><span class="seg"></span><span class="tick"></span></div>
+    <div class="tw"><table>
+      <thead><tr><th>Phase</th><th>Theme</th><th>Track</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td><b>0</b></td><td>The general spine (sketch&rarr;extrude&rarr;hole&rarr;fillet, refs+provenance)</td><td><span class="trk core">core</span></td><td>&#9633;</td></tr>
+        <tr><td><b>1</b></td><td>2D sketching &amp; the constraint solver</td><td><span class="trk core">core</span></td><td>&#9633;</td></tr>
+        <tr><td><b>2</b></td><td>Core solid features (sketched + dress-up)</td><td><span class="trk solid">solid</span></td><td>&#9633;</td></tr>
+        <tr><td><b>3</b></td><td>Patterns, transforms, booleans, multibody</td><td><span class="trk solid">solid</span></td><td>&#9633;</td></tr>
+        <tr><td><b>4</b></td><td>Persistent-name layer + direct/synchronous modeling</td><td><span class="trk core">core</span></td><td>&#9633;</td></tr>
+        <tr><td><b>5</b></td><td>Assemblies: constraints, joints, in-context</td><td><span class="trk assembly">assembly</span></td><td>&#9633;</td></tr>
+        <tr><td><b>6</b></td><td>Motion &amp; kinematics</td><td><span class="trk motion">motion</span></td><td>&#9633;</td></tr>
+        <tr><td><b>7</b></td><td>Drafting &amp; documentation (2D drawings)</td><td><span class="trk docs">docs</span></td><td>&#9633;</td></tr>
+        <tr><td><b>8</b></td><td>PMI / GD&amp;T</td><td><span class="trk docs">docs</span></td><td>&#9633;</td></tr>
+        <tr><td><b>9</b></td><td>Surfacing &amp; freeform <span class="trk aspir">Class A (A)</span></td><td><span class="trk surface">surface</span></td><td>&#9633;</td></tr>
+        <tr><td><b>10</b></td><td>Convergent modeling (mesh + B-rep)</td><td><span class="trk core">core</span></td><td>&#9633;</td></tr>
+        <tr><td><b>11</b></td><td>Domain profiles: sheet metal &middot; mold &middot; building</td><td><span class="trk profiles">profiles</span></td><td>&#9633;</td></tr>
+        <tr><td><b>12</b></td><td>Large-assembly performance</td><td><span class="trk assembly">assembly</span></td><td>&#9633;</td></tr>
+        <tr><td><b>13</b></td><td>Interchange &amp; plugins (STEP AP242, mesh, DXF, PartCAD)</td><td><span class="trk interop">interop</span></td><td>&#9633;</td></tr>
+        <tr><td><b>14</b></td><td>Multibody dynamics &middot; advanced surfacing &middot; hardening</td><td><span class="trk motion">motion</span>/<span class="trk surface">surf</span></td><td>&#9633;</td></tr>
+        <tr><td><b>P</b></td><td>References/provenance &middot; caching &middot; viewer &middot; testing &middot; migration</td><td><span class="trk core">cross-cutting</span></td><td>&#9633;</td></tr>
+      </tbody>
+    </table></div>
+
+    <div class="dim" id="p0"><span class="tick"></span><span class="seg"></span><span class="lbl"><b>Phase 0</b> &nbsp;The general spine</span><span class="seg"></span><span class="tick"></span></div>
+    <div class="phase">
+      <div class="phase-h"><span class="phase-no">0</span><span class="phase-t">The general spine</span><span class="trk core">core</span></div>
+      <div class="phase-body">
+        <p class="goal"><b>Goal:</b> one boring bracket, end-to-end, exercising every load-bearing idea. Builds directly on the v1 substrate (spec/build/kernel/viewer).</p>
+        <ul class="ck">
+          <li><strong>Feature-tree schema</strong> (<code>schema/part_schema.hocon</code>): <code>parameters</code>, <code>datums</code>, <code>parts[features]</code>; stable <code>id</code> on every node; <code>schema_version</code>; <code>profile</code> field (default <code>solid</code>)</li>
+          <li><strong>Expression layer</strong> (<code>params</code>): <code>${ref}</code> + arithmetic + registered-function calls; restricted-AST safe evaluator; units-aware</li>
+          <li><strong>Reference resolver v0</strong> (<code>refs</code>): semantic + generative + selector refs; the <strong>provenance map</strong></li>
+          <li><strong>Op registry</strong> (<code>ops</code>): <code>feature_ops[op]</code> dispatch; uniform pure op signature</li>
+          <li><strong>Minimal ops:</strong> <code>sketch</code> (rectangle/circle/polygon), <code>extrude</code>, <code>pocket</code>, <code>hole</code>, <code>fillet</code>, <code>chamfer</code>, <code>boolean</code></li>
+          <li><strong>Executor</strong> (<code>build</code>): rebuild DAG, topological order, content-addressed cache, per-feature validation gate</li>
+          <li><strong>glTF export + element-map sidecar</strong>; <strong>viewer</strong> picks/selects by <code>id</code></li>
+          <li>Golden tests: same document &rarr; identical geometry; edit-a-param and delete-a-feature &rarr; correct <strong>incremental</strong> rebuild; broken ref reported by <code>id</code></li>
+        </ul>
+        <div class="gate"><span class="gk">Gate</span>edit a parameter <em>or delete a feature</em> &rarr; correct incremental rebuild; any unresolvable reference is attributed to its <code>id</code>.</div>
+      </div>
+    </div>
+
+    <div class="dim" id="p1"><span class="tick"></span><span class="seg"></span><span class="lbl"><b>Phase 1</b> &nbsp;2D sketching &amp; the constraint solver</span><span class="seg"></span><span class="tick"></span></div>
+    <div class="phase">
+      <div class="phase-h"><span class="phase-no">1</span><span class="phase-t">2D sketching &amp; the constraint solver</span><span class="trk core">core</span></div>
+      <div class="phase-body">
+        <p class="goal"><b>Goal:</b> "Blender-like expressivity, but exact." Reuse a solver; never write a GCS. <b>Depends on</b> Phase 0.</p>
+        <ul class="ck">
+          <li><strong>Solver integration</strong> (<code>py-slvs</code> / SolveSpace; <code>planegcs</code> fallback): solve entity+constraint set &rarr; positions; expose DoF status, conflict &amp; redundancy as id-tagged issues</li>
+          <li><strong>Geometry entities:</strong> point, line, polyline, rectangle, circle, arc (center / 3-point / tangent), ellipse + elliptical arc, conic (parabola/hyperbola), <strong>spline</strong> (interpolated, control-point/B-spline, fit), slot, regular polygon, text &rarr; wires, construction/reference geometry</li>
+          <li><strong>Reference-into-sketch:</strong> project / convert 3D edges &amp; vertices onto the sketch plane; intersection curves</li>
+          <li><strong>Sketch modify:</strong> trim, extend, split, corner fillet, corner chamfer, offset, mirror, scale, move/rotate, sketch pattern (linear/circular)</li>
+          <li><strong>Geometric constraints:</strong> coincident, collinear, concentric, parallel, perpendicular, horizontal, vertical, tangent, equal, symmetric, midpoint, point-on-entity, fix/ground, smooth (G2 spline)</li>
+          <li><strong>Dimensional constraints:</strong> distance, horizontal/vertical distance, radius, diameter, angle, arc-length; <strong>driven vs driving</strong> dimensions</li>
+          <li>Sketch status surfaced in viewer (under/fully/over-constrained)</li>
+        </ul>
+        <div class="gate"><span class="gk">Gate</span>an over/under-constrained sketch solves or reports cleanly; a fully-constrained profile drives a downstream feature.</div>
+      </div>
+    </div>
+
+    <div class="dim" id="p2"><span class="tick"></span><span class="seg"></span><span class="lbl"><b>Phase 2</b> &nbsp;Core solid features</span><span class="seg"></span><span class="tick"></span></div>
+    <div class="phase">
+      <div class="phase-h"><span class="phase-no">2</span><span class="phase-t">Core solid features (sketched + dress-up)</span><span class="trk solid">solid</span></div>
+      <div class="phase-body">
+        <p class="goal"><b>Goal:</b> the everyday mechanical-part vocabulary. <b>Depends on</b> Phase 1.</p>
+        <h4>Sketched (additive / subtractive) features</h4>
+        <ul class="ck">
+          <li><strong>Extrude / Pad</strong> &mdash; blind, symmetric, two-side, through-all, to-next, to-face, to-surface; with <strong>draft</strong>; <strong>thin</strong> (wall) option</li>
+          <li><strong>Pocket / Cut</strong> &mdash; same end-condition + draft + thin options</li>
+          <li><strong>Revolve / Groove</strong> &mdash; angle, to-reference, symmetric, thin</li>
+          <li><strong>Sweep</strong> &mdash; single path; with <strong>guide curves</strong>; variable-section sweep; normal-to-path / keep-orientation (<code>BRepOffsetAPI_MakePipeShell</code>)</li>
+          <li><strong>Helical sweep / coil</strong> &mdash; constant &amp; variable pitch</li>
+          <li><strong>Loft / Blend</strong> &mdash; multi-section; guide curves; centerline; ruled; closed; start/end <strong>tangency &amp; curvature</strong> conditions</li>
+          <li><strong>Rib / web / stiffener</strong></li>
+        </ul>
+        <h4>Dress-up (applied) features</h4>
+        <ul class="ck">
+          <li><strong>Fillet / Round</strong> &mdash; constant; <strong>variable-radius</strong>; multi-edge; <strong>face fillet</strong>; full-round; setback; conic/G2 rounds; by-rule</li>
+          <li><strong>Chamfer / Bevel</strong> &mdash; distance; distance-angle; two-distance; vertex</li>
+          <li><strong>Shell / Hollow</strong> &mdash; uniform, multi-thickness, faces-to-remove</li>
+          <li><strong>Draft</strong> &mdash; neutral plane; parting-line; step; variable (<code>BRepOffsetAPI_DraftAngle</code>)</li>
+          <li><strong>Hole</strong> &mdash; simple / counterbore / countersink / clearance / <strong>tapped</strong>; standards-aware (ISO/ANSI) "hole wizard"; <strong>thread</strong> (cosmetic vs modeled)</li>
+          <li><strong>Wrap</strong> &mdash; emboss/engrave sketch or text onto a face</li>
+          <li>Thickness / offset; replace-face / delete-face (preview of Phase 4 direct ops)</li>
+        </ul>
+        <div class="gate"><span class="gk">Gate</span>a non-trivial part (bracket + holes + revolved boss + swept rib + variable fillet) builds deterministically and exports clean STEP.</div>
+      </div>
+    </div>
+
+    <div class="dim" id="p3"><span class="tick"></span><span class="seg"></span><span class="lbl"><b>Phase 3</b> &nbsp;Patterns, transforms, booleans, multibody</span><span class="seg"></span><span class="tick"></span></div>
+    <div class="phase">
+      <div class="phase-h"><span class="phase-no">3</span><span class="phase-t">Patterns, transforms, booleans, multibody</span><span class="trk solid">solid</span></div>
+      <div class="phase-body">
+        <p class="goal"><b>Goal:</b> replication and body algebra. <b>Depends on</b> Phase 2.</p>
+        <ul class="ck">
+          <li><strong>Patterns:</strong> linear, circular/polar, <strong>curve-driven</strong>, sketch-driven, table-driven, fill, geometry-pattern, pattern-of-pattern (<code>GridLocations</code>/<code>PolarLocations</code> + fuse)</li>
+          <li><strong>Mirror:</strong> feature, body, face</li>
+          <li><strong>Transforms:</strong> move/copy body, rotate, scale (uniform &amp; non-uniform via <code>gp_GTrsf</code>)</li>
+          <li><strong>Booleans:</strong> union/add, subtract/cut, intersect/common, split body, combine; <strong>multibody</strong> management (merge scope, local operations)</li>
+          <li>Body list / show-hide / per-body material (feeds BOM &amp; mass props)</li>
+        </ul>
+        <div class="gate"><span class="gk">Gate</span>a multibody part with a circular pattern of cut features and a mirror rebuilds correctly and reports per-body mass properties.</div>
+      </div>
+    </div>
+    <div class="dim" id="p4"><span class="tick"></span><span class="seg"></span><span class="lbl"><b>Phase 4</b> &nbsp;Persistent-name layer + direct modeling</span><span class="seg"></span><span class="tick"></span></div>
+    <div class="phase">
+      <div class="phase-h"><span class="phase-no">4</span><span class="phase-t">Persistent-name layer + direct / synchronous modeling</span><span class="trk core">core</span></div>
+      <div class="phase-body">
+        <p class="goal"><b>Goal:</b> the generative element-map (design &sect;2, Q2) and history-free editing (design &sect;3). <b>Prerequisite for</b> robust PMI (8), joints (5), surfacing (9).</p>
+        <ul class="ck">
+          <li><strong>Persistent-name layer:</strong> stable element names from construction history (TopoShape-style); round-trip through edits; expose as <code>#face/...</code> refs</li>
+          <li><strong>Direct face ops:</strong> <code>move_face</code>, <code>offset_face</code>, <code>replace_face</code>, <code>delete_face</code> / <strong>defeature</strong> (<code>BRepAlgoAPI_Defeaturing</code>)</li>
+          <li><strong>Direct dress-up edits:</strong> resize baked <code>fillet</code>/<code>chamfer</code>; reposition baked <code>hole</code></li>
+          <li><strong>Relational direct edits:</strong> make faces parallel / coaxial / perpendicular / tangent / symmetric / coplanar (on history-free geometry)</li>
+          <li><strong>Imported-geometry mode:</strong> STEP/IGES import &rarr; editable direct body (no history to replay)</li>
+          <li>Mixed mode: direct-edit features appended after a history tree (Creo-style)</li>
+        </ul>
+        <div class="gate"><span class="gk">Gate</span>import a dumb STEP solid, move a face and resize a fillet directly, and re-export &mdash; references survive; failures attributed by element name.</div>
+        <p class="note-inline"><strong>Note (risk):</strong> full synchronous-tech robustness (auto-<em>maintaining</em> relations as a face moves on complex topology) is <span class="trk aspir">(A)</span> long-horizon (design &sect;19). v1 targets the core ops on well-behaved topology.</p>
+      </div>
+    </div>
+
+    <div class="dim" id="p5"><span class="tick"></span><span class="seg"></span><span class="lbl"><b>Phase 5</b> &nbsp;Assemblies: constraints, joints, in-context</span><span class="seg"></span><span class="tick"></span></div>
+    <div class="phase">
+      <div class="phase-h"><span class="phase-no">5</span><span class="phase-t">Assemblies: constraints, joints, in-context</span><span class="trk assembly">assembly</span></div>
+      <div class="phase-body">
+        <p class="goal"><b>Goal:</b> instances + relationships; the joint graph motion (Phase 6) drives. <b>Depends on</b> Phase 4 (persistent refs to mating faces/axes).</p>
+        <ul class="ck">
+          <li><strong>Instances &amp; structure:</strong> components, sub-assemblies, flexible sub-assemblies, replace/pattern/mirror component</li>
+          <li><strong>Mate connectors / ports:</strong> named coordinate frames on parts (the shared primitive for both families below)</li>
+          <li><strong>Assembly constraints:</strong> mate/coincident, <strong>align</strong>, <strong>flush</strong>, <strong>offset</strong>, angle, <strong>tangent</strong>, parallel, perpendicular, concentric, symmetric, distance, width, lock</li>
+          <li><strong>Joints (DoF-bearing):</strong> <strong>fixed/rigid</strong>, <strong>revolute/pin</strong>, <strong>slider/prismatic</strong>, cylindrical, planar, <strong>ball/spherical</strong>, universal, screw, gear, rack-pinion, cam, belt, point-on-line/slot</li>
+          <li><strong>Top-down / in-context:</strong> skeleton / master model; publish geometry; change propagation</li>
+          <li><strong>Interference / clearance</strong> (static): exact (<code>BRepExtrema_DistShapeShape</code>) or fast mesh (Manifold)</li>
+          <li><strong>Assembly BOM</strong> across instances + roll-up mass properties; balloons later (Phase 7)</li>
+          <li><strong>Exploded views</strong> (definition; rendered in viewer)</li>
+        </ul>
+        <div class="gate"><span class="gk">Gate</span>a two-part mated assembly with one revolute joint exports as structured STEP (AP242) and opens in FreeCAD; interference check is correct.</div>
+      </div>
+    </div>
+
+    <div class="dim" id="p6"><span class="tick"></span><span class="seg"></span><span class="lbl"><b>Phase 6</b> &nbsp;Motion &amp; kinematics</span><span class="seg"></span><span class="tick"></span></div>
+    <div class="phase">
+      <div class="phase-h"><span class="phase-no">6</span><span class="phase-t">Motion &amp; kinematics</span><span class="trk motion">motion</span></div>
+      <div class="phase-body">
+        <p class="goal"><b>Goal:</b> drive and solve the mechanism (design &sect;8). <b>Depends on</b> Phase 5.</p>
+        <ul class="ck">
+          <li><strong>DoF analysis:</strong> free degrees of freedom from the joint graph; over/under/exactly-constrained status (solver Jacobian rank)</li>
+          <li><strong>Drivers / forward kinematics:</strong> per-joint driver &mdash; constant, linear ramp, function-of-time, function-of-another-DoF (couplers/gears/cams); sweep &rarr; configuration per step</li>
+          <li><strong>Inverse kinematics:</strong> drive an output frame, solve joint values</li>
+          <li><strong>Mechanism solver:</strong> step time, fix driven DoF, solve constraint network (<code>py-slvs</code> / Ondsel)</li>
+          <li><strong>Interference during motion:</strong> per-step collision/clearance; collision events on the timeline</li>
+          <li><strong>Outputs:</strong> <strong>trace curves</strong> (point path), <strong>motion envelopes</strong> (swept volume), <strong>measures over time</strong> (distance/angle/velocity/accel)</li>
+          <li><strong>Viewer playback:</strong> stream per-frame instance transforms; scrub timeline</li>
+          <li>Motion study definitions persisted in the <code>motion</code> block</li>
+        </ul>
+        <div class="gate"><span class="gk">Gate</span>a four-bar linkage animates from a single angular driver; a trace curve and a collision-free report are produced and exported.</div>
+      </div>
+    </div>
+
+    <div class="dim" id="p7"><span class="tick"></span><span class="seg"></span><span class="lbl"><b>Phase 7</b> &nbsp;Drafting &amp; documentation</span><span class="seg"></span><span class="tick"></span></div>
+    <div class="phase">
+      <div class="phase-h"><span class="phase-no">7</span><span class="phase-t">Drafting &amp; documentation (2D drawings)</span><span class="trk docs">docs</span></div>
+      <div class="phase-body">
+        <p class="goal"><b>Goal:</b> associative engineering drawings (design &sect;11). <b>Depends on</b> Phase 2; <b>uses</b> OCCT <strong>HLR</strong> (<code>HLRBRep_Algo</code>).</p>
+        <ul class="ck">
+          <li><strong>Sheets &amp; formats:</strong> sizes, title blocks, borders, zones</li>
+          <li><strong>Views:</strong> base/front, projected ortho, isometric, <strong>auxiliary</strong>, <strong>section</strong> (full / half / <strong>offset</strong> / <strong>aligned</strong> / broken-out), <strong>detail</strong>, broken, crop</li>
+          <li><strong>Dimensions:</strong> driven (model-linked), ordinate, baseline, chain; tolerance display</li>
+          <li><strong>Annotations:</strong> notes, <strong>balloons</strong>, centerlines/center-marks, hatching, leader lines</li>
+          <li><strong>Symbols:</strong> surface-finish, weld, datum, GD&amp;T frames (presentation; PMI source in Phase 8)</li>
+          <li><strong>Tables:</strong> <strong>BOM table</strong>, hole table, revision table</li>
+          <li><strong>Associativity:</strong> drawing regenerates on model change; output DXF / SVG / PDF</li>
+        </ul>
+        <div class="gate"><span class="gk">Gate</span>a part drawing with a section view, auto-BOM table, and balloons regenerates after a model edit and exports to PDF/DXF.</div>
+      </div>
+    </div>
+
+    <div class="dim" id="p8"><span class="tick"></span><span class="seg"></span><span class="lbl"><b>Phase 8</b> &nbsp;PMI / GD&amp;T</span><span class="seg"></span><span class="tick"></span></div>
+    <div class="phase">
+      <div class="phase-h"><span class="phase-no">8</span><span class="phase-t">PMI / GD&amp;T</span><span class="trk docs">docs</span></div>
+      <div class="phase-body">
+        <p class="goal"><b>Goal:</b> semantic 3D annotation (design &sect;11). <b>Depends on</b> Phase 4 (persistent refs); <b>carried by</b> STEP AP242 (Phase 13).</p>
+        <ul class="ck">
+          <li><strong>Annotation model:</strong> attach to faces/edges/features by persistent name</li>
+          <li><strong>Datums &amp; datum targets</strong></li>
+          <li><strong>Geometric tolerances:</strong> form (flatness/straightness/circularity/cylindricity), orientation (parallelism/perpendicularity/angularity), location (position/concentricity/symmetry), runout</li>
+          <li><strong>Dimensional tolerances</strong>, <strong>surface finish</strong>, <strong>weld symbols</strong>, notes</li>
+          <li><strong>Two forms:</strong> semantic (machine-readable) + presentation (graphic in saved views)</li>
+          <li><strong>Saved 3D views</strong>; PMI shown in the viewer</li>
+          <li>Validation: every annotation resolves to a live element (else id-tagged failure)</li>
+        </ul>
+        <div class="gate"><span class="gk">Gate</span>a part with datums + a position tolerance + surface finish round-trips through STEP AP242 with PMI intact.</div>
+      </div>
+    </div>
+
+    <div class="dim" id="p9"><span class="tick"></span><span class="seg"></span><span class="lbl"><b>Phase 9</b> &nbsp;Surfacing &amp; freeform</span><span class="seg"></span><span class="tick"></span></div>
+    <div class="phase">
+      <div class="phase-h"><span class="phase-no">9</span><span class="phase-t">Surfacing &amp; freeform</span><span class="trk surface">surface</span><span class="trk aspir">Class A (A)</span></div>
+      <div class="phase-body">
+        <p class="goal"><b>Goal:</b> surfaces and curves as primary geometry; the hard geometry domain (design &sect;6). <b>Depends on</b> Phase 1&ndash;2.</p>
+        <h4>Curves</h4>
+        <ul class="ck">
+          <li>3D spline (interpolated / control-point / fit), helix, projected curve, intersection curve, curve-on-surface, isocline, bridge/blend curve, composite/combine curve, curve from equation</li>
+        </ul>
+        <h4>Surfaces</h4>
+        <ul class="ck">
+          <li>Extruded / revolved / swept / lofted surface</li>
+          <li><strong>Boundary blend</strong> (surface from boundary curves, Creo/Catia)</li>
+          <li><strong>Fill</strong> (n-sided patch), ruled surface, offset surface, <strong>mid-surface</strong></li>
+          <li>Trim / untrim, extend, <strong>knit/sew</strong>, thicken</li>
+          <li>Sweep / loft with <strong>tangency &amp; curvature</strong> conditions</li>
+        </ul>
+        <h4>Class A / freeform <span class="trk aspir">(A)</span></h4>
+        <ul class="ck">
+          <li>Control-point surface editing</li>
+          <li>Edge <strong>match</strong> with G0 / G1 / <strong>G2</strong> / G3 continuity; blend with continuity</li>
+          <li><strong>Analysis:</strong> curvature comb, <strong>zebra / reflection</strong> lines, draft analysis, Gaussian curvature, deviation/gap, continuity check</li>
+          <li>Reflection-quality surfacing &mdash; long-horizon; may need a specialist library (design &sect;19)</li>
+        </ul>
+        <div class="gate"><span class="gk">Gate (v1 of phase)</span>a lofted surface with G1 boundary conditions, thickened to a solid, with a curvature-comb analysis view.</div>
+      </div>
+    </div>
+    <div class="dim" id="p10"><span class="tick"></span><span class="seg"></span><span class="lbl"><b>Phase 10</b> &nbsp;Convergent modeling</span><span class="seg"></span><span class="tick"></span></div>
+    <div class="phase">
+      <div class="phase-h"><span class="phase-no">10</span><span class="phase-t">Convergent modeling (mesh + B-rep)</span><span class="trk core">core</span></div>
+      <div class="phase-body">
+        <p class="goal"><b>Goal:</b> mesh and B-rep in one model (design &sect;4). <b>Depends on</b> Phase 3; <b>uses</b> Manifold (<code>manifold3d</code>).</p>
+        <ul class="ck">
+          <li><strong>Facet bodies</strong> as first-class (import STL / 3MF / OBJ)</li>
+          <li><strong>Boolean</strong> B-rep &oplus; mesh</li>
+          <li><strong>Mesh features:</strong> offset, thicken, fillet-on-facet (pragmatic)</li>
+          <li><strong>Conversion:</strong> B-rep &rarr; mesh (tessellate); mesh &rarr; B-rep (faceted-as-body + primitive fit; full reverse-engineering is <span class="trk aspir">(A)</span> / plugin)</li>
+          <li>Remesh / decimate / smooth; mesh repair</li>
+        </ul>
+        <div class="gate"><span class="gk">Gate</span>a B-rep bracket booleaned with an imported scanned mesh exports as a single watertight body.</div>
+      </div>
+    </div>
+
+    <div class="dim" id="p11"><span class="tick"></span><span class="seg"></span><span class="lbl"><b>Phase 11</b> &nbsp;Domain profiles</span><span class="seg"></span><span class="tick"></span></div>
+    <div class="phase">
+      <div class="phase-h"><span class="phase-no">11</span><span class="phase-t">Domain profiles: sheet metal &middot; mold &middot; building</span><span class="trk profiles">profiles</span></div>
+      <div class="phase-body">
+        <p class="goal"><b>Goal:</b> specialized part kinds as profiles over the substrate (design &sect;6). <b>Depends on</b> Phase 2 (sheet metal, building), Phase 9 (mold).</p>
+        <h4>Sheet metal</h4>
+        <ul class="ck">
+          <li>Base flange/tab, <strong>edge flange</strong>, miter flange, <strong>hem</strong>, <strong>jog</strong>, bend, sketched bend, lofted bend, gusset</li>
+          <li><strong>Unfold / fold</strong>, <strong>flat-pattern</strong> export (DXF), normal cut</li>
+          <li><strong>Relief:</strong> bend relief, corner relief, closed corner; corner treatments</li>
+          <li><strong>K-factor / bend tables / bend allowance</strong>; forming tools; cross-break; tab/slot</li>
+        </ul>
+        <h4>Mold / tooling</h4>
+        <ul class="ck">
+          <li>Shrinkage scale, draft analysis</li>
+          <li><strong>Parting line</strong>, <strong>parting surface</strong>, shutoff surfaces</li>
+          <li><strong>Core / cavity split</strong>; slider/lifter; runner/gate/ejector layout (basic)</li>
+        </ul>
+        <h4>Building / architecture <span class="sub" style="font-family:'Newsreader',serif;font-style:italic;color:var(--ink-faint);text-transform:none;letter-spacing:0">(the v1 profile, recast; Q1)</span></h4>
+        <ul class="ck">
+          <li>High-level schema (storeys/walls/openings/roof) <strong>lowering</strong> to substrate ops (sweep + boolean)</li>
+          <li>Keep the <strong>room-graph generator</strong> and <strong>IFC</strong> exchange (<code>ifcopenshell</code>)</li>
+          <li>Migrate v1 building examples onto the lowered representation</li>
+          <li>(building-profile track: roofs, multi-storey, L/T/U footprints, curved corners &mdash; carried from the old roadmap)</li>
+        </ul>
+        <div class="gate"><span class="gk">Gate</span>a sheet-metal part flattens to a correct flat pattern; a simple two-plate mold splits core/cavity; a v1 building re-builds via the lowered profile.</div>
+      </div>
+    </div>
+
+    <div class="dim" id="p12"><span class="tick"></span><span class="seg"></span><span class="lbl"><b>Phase 12</b> &nbsp;Large-assembly performance</span><span class="seg"></span><span class="tick"></span></div>
+    <div class="phase">
+      <div class="phase-h"><span class="phase-no">12</span><span class="phase-t">Large-assembly performance</span><span class="trk assembly">assembly</span></div>
+      <div class="phase-body">
+        <p class="goal"><b>Goal:</b> scale to real assemblies (design &sect;7). <b>Depends on</b> Phase 5; <b>cross-cuts</b> caching.</p>
+        <ul class="ck">
+          <li><strong>Lightweight representations</strong> (tessellation + bbox + metadata, no full B-rep load)</li>
+          <li><strong>Lazy / on-demand</strong> part load; <strong>display states</strong></li>
+          <li><strong>Simplified reps / LOD</strong>: envelope-box or decimated-mesh substitution</li>
+          <li><strong>Spatial index</strong> (BVH/octree) for selection, culling, interference</li>
+          <li><strong>Out-of-context build + cache</strong>: compose cached parts, don't rebuild the world</li>
+          <li>Sectioning across large assemblies</li>
+        </ul>
+        <div class="gate"><span class="gk">Gate</span>an assembly of hundreds of instances opens and navigates responsively with lightweight reps; interference query stays interactive.</div>
+      </div>
+    </div>
+
+    <div class="dim" id="p13"><span class="tick"></span><span class="seg"></span><span class="lbl"><b>Phase 13</b> &nbsp;Interchange &amp; plugins</span><span class="seg"></span><span class="tick"></span></div>
+    <div class="phase">
+      <div class="phase-h"><span class="phase-no">13</span><span class="phase-t">Interchange &amp; plugins</span><span class="trk interop">interop</span></div>
+      <div class="phase-body">
+        <p class="goal"><b>Goal:</b> exchange + the plugin/converter ecosystem (design &sect;14, Q7). <b>Cross-cuts</b> most phases (exporters land as their features mature).</p>
+        <ul class="ck">
+          <li><strong>STEP</strong> AP203/214; <strong>AP242</strong> with <strong>PMI + assembly</strong> via XCAF/XDE (<code>STEPCAFControl</code>); FreeCAD round-trip</li>
+          <li><strong>IGES</strong>; <strong>glTF</strong> (viewer/render); <strong>STL / 3MF / OBJ</strong> (mesh); <strong>DXF / SVG / PDF</strong> (drawings, flat patterns)</li>
+          <li><strong>Plugin contract:</strong> <em>(external format) &harr; (ncad document / sub-model)</em>; registry under <code>plugins/</code></li>
+          <li><strong>PartCAD plugin</strong> &mdash; PartCAD YAML &harr; ncad document (target compatibility, isolated, maintainable)</li>
+          <li><strong>Other plugins</strong> (same contract): OpenSCAD import; vendor/format converters</li>
+          <li>(later) JT / 3D-PDF lightweight exchange</li>
+        </ul>
+        <div class="gate"><span class="gk">Gate</span>a PartCAD assembly imports as an ncad document and re-exports as STEP AP242 without loss of structure.</div>
+      </div>
+    </div>
+
+    <div class="dim" id="p14"><span class="tick"></span><span class="seg"></span><span class="lbl"><b>Phase 14</b> &nbsp;MBD &middot; advanced surfacing &middot; hardening</span><span class="seg"></span><span class="tick"></span></div>
+    <div class="phase">
+      <div class="phase-h"><span class="phase-no">14</span><span class="phase-t">Multibody dynamics &middot; advanced surfacing &middot; hardening</span><span class="trk motion">motion</span><span class="trk surface">surface</span><span class="trk aspir">(A)</span></div>
+      <div class="phase-body">
+        <p class="goal"><b>Goal:</b> the high-end + production polish <span class="trk aspir">(A)</span>. <b>Depends on</b> Phase 6, 9, 12.</p>
+        <ul class="ck">
+          <li><strong>Multibody dynamics (MBD):</strong> mass/inertia (from <code>BRepGProp</code>) + gravity, forces/torques, springs/dampers, <strong>contacts</strong> &rarr; reaction forces &amp; accelerations (Ondsel MbD solver)</li>
+          <li><strong>Advanced surfacing:</strong> reflection-quality Class A; specialist library evaluation (design &sect;19)</li>
+          <li><strong>Robust synchronous tech:</strong> auto-maintained relations on complex topology</li>
+          <li><strong>Performance hardening:</strong> cache tuning, parallelism around OCP's single-thread limit, provenance-map memory budget</li>
+          <li><strong>Optional WASM client</strong> (OpenCascade.js) for client-side sectioning/measure</li>
+          <li><strong>Optional desktop viewer</strong> (Mayo / pythonocc); <strong>Blender</strong> beauty render</li>
+        </ul>
+        <div class="gate"><span class="gk">Gate</span>a pendulum swings under gravity with correct period; the engine handles a representative large assembly within a defined performance budget.</div>
+      </div>
+    </div>
+
+    <div class="dim" id="pcross"><span class="tick"></span><span class="seg"></span><span class="lbl"><b>(P)</b> &nbsp;Cross-cutting tracks</span><span class="seg"></span><span class="tick"></span></div>
+    <section>
+      <p>Run alongside the phases, not after them:</p>
+      <div class="card">
+        <ul class="ck" style="margin-bottom:0">
+          <li><strong>References &amp; provenance maturity</strong> &mdash; from selector-heavy (Phase 0) to a robust persistent-name layer (Phase 4); the single most important track</li>
+          <li><strong>Performance &amp; caching</strong> &mdash; content-addressed cache (Phase 0) &rarr; incremental everywhere &rarr; large-assembly budget (Phase 12)</li>
+          <li><strong>Viewer capabilities</strong> &mdash; pick/select (0) &rarr; measure &rarr; motion playback (6) &rarr; PMI/saved views (8) &rarr; sectioning (12)</li>
+          <li><strong>Testing &amp; golden</strong> &mdash; determinism + incremental-rebuild goldens from Phase 0; per-feature failure goldens; STEP round-trip goldens</li>
+          <li><strong>Versioning &amp; migration</strong> &mdash; <code>schema_version</code> per domain + migration converters + "upgrade this design?" prompt (design &sect;14, Q6); keep the registry small and tested</li>
+          <li><strong>Docs</strong> &mdash; keep <code>design.md</code> (architecture) and the plan (catalogue) in sync; author-facing HOCON reference per profile</li>
+        </ul>
+      </div>
+    </section>
+
+    <div class="dim" id="pdec"><span class="tick"></span><span class="seg"></span><span class="lbl"><b>&#167;</b> &nbsp;Decisions log</span><span class="seg"></span><span class="tick"></span></div>
+    <section>
+      <div class="card dec">
+        <p style="margin:0 0 .5rem"><strong>Resolved this revision</strong> (rationale in the Design tab):</p>
+        <div class="qrow"><div class="qk">A</div><div class="qv"><strong>Motion/kinematics is first-class</strong> (not deferred): joints &rarr; DoF &rarr; drivers/FK/IK &rarr; mechanism solve &rarr; traces/envelopes; MBD dynamics later (&sect;8, Phase 6/14).</div></div>
+        <div class="qrow"><div class="qk">B</div><div class="qv"><strong>Dual modeling paradigm:</strong> parametric/history <strong>and</strong> direct/synchronous over one model (&sect;3, Phase 4).</div></div>
+        <div class="qrow"><div class="qk">B</div><div class="qv"><strong>Parts are profiles:</strong> solid / surface / sheet-metal / mold / building share one substrate (&sect;6, Phase 11).</div></div>
+        <div class="qrow"><div class="qk">Q1</div><div class="qv"><strong>Buildings = a high-level profile</strong> that lowers to substrate ops; keeps IFC + room-graph generator (&sect;6, Phase 11).</div></div>
+        <div class="qrow"><div class="qk">Q2</div><div class="qv"><strong>Invest in a generative persistent-name layer</strong>, phased; required for direct modeling, joints, PMI (&sect;2, Phase 4).</div></div>
+        <div class="qrow"><div class="qk">Q3</div><div class="qv"><strong>Expression model:</strong> HOCON carries refs + arithmetic + <strong>registered-function calls</strong>; all logic stays in code (&sect;1, Phase 0).</div></div>
+        <div class="qrow"><div class="qk">Q4</div><div class="qv"><strong>Selector grammar:</strong> SQL-<code>WHERE</code>-style predicate over a <strong>versioned element-attribute model</strong>; <code>lark</code> parser, escalate to CEL only if needed (&sect;2).</div></div>
+        <div class="qrow"><div class="qk">Q5</div><div class="qv"><strong>Solver licensing:</strong> any/all acceptable (engine is open) &rarr; SolveSpace/<code>py-slvs</code> + Ondsel; engine becomes effectively GPL (&sect;8, &sect;15).</div></div>
+        <div class="qrow"><div class="qk">Q6</div><div class="qv"><strong>Versioning:</strong> per-domain <code>schema_version</code> + migration converters + upgrade prompt; kernel bump invalidates cached geometry, definitions migrate (&sect;14).</div></div>
+        <div class="qrow"><div class="qk">Q7</div><div class="qv"><strong>PartCAD &amp; friends as plugin converters</strong>, not core (&sect;14, Phase 13).</div></div>
+      </div>
+      <h4>Still open <span class="sub" style="font-family:'Newsreader',serif;text-transform:none;letter-spacing:0;color:var(--ink-faint)">(tracked in design &sect;19)</span></h4>
+      <ul class="ck">
+        <li>Direct-modeling robustness ceiling on OCCT (biggest geometry risk)</li>
+        <li>Class A feasibility on OCCT vs specialist library vs out-of-scope</li>
+        <li>How deep to go on force-driven MBD before it stops being a CAD engine</li>
+        <li>GPL consequence &mdash; accept now; revisit if a permissive core is ever wanted</li>
+        <li>Provenance-map memory/time budget at large-assembly scale</li>
+        <li>How high-level the building profile should ultimately sit</li>
+      </ul>
+    </section>
+
+    <footer>ncad &middot; target engine &middot; implementation plan &amp; tracker &middot; rev B &middot; June 2026 &mdash; feature catalogue distilled from Catia / Creo / NX. Architecture &amp; rationale live in the <strong>Design</strong> tab.</footer>
+  </div>
+</div>
+
+<button class="totop" id="toTop" aria-label="Back to top">&uarr; Top</button>
+
+<noscript><style>.anim{opacity:1!important;transform:none!important}.pane{display:block!important}.totop{display:none!important}</style></noscript>
+<script>
+(function(){
+  var root = document.documentElement;
+
+  /* ---- theme ---- */
+  var themeBtn = document.getElementById('themeBtn');
+  var themeLbl = document.getElementById('themeLbl');
+  function applyTheme(t){
+    root.setAttribute('data-theme', t);
+    themeLbl.textContent = (t === 'dark') ? 'Light' : 'Dark';
+  }
+  var saved = null;
+  try { saved = localStorage.getItem('ncad-theme'); } catch(e){}
+  if(!saved){ saved = (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light'; }
+  applyTheme(saved);
+  themeBtn.addEventListener('click', function(){
+    var next = (root.getAttribute('data-theme') === 'dark') ? 'light' : 'dark';
+    applyTheme(next);
+    try { localStorage.setItem('ncad-theme', next); } catch(e){}
+  });
+
+  /* ---- tabs: Design / Plan, each a full-width pane ---- */
+  var tabD = document.getElementById('tab-design'),
+      tabP = document.getElementById('tab-plan'),
+      paneD = document.getElementById('pane-design'),
+      paneP = document.getElementById('pane-plan');
+  function reveal(pane){
+    pane.querySelectorAll('.anim').forEach(function(a){ a.classList.add('in'); });
+  }
+  function selectTab(which, focusIt){
+    var d = (which === 'design');
+    tabD.setAttribute('aria-selected', d ? 'true' : 'false');
+    tabP.setAttribute('aria-selected', d ? 'false' : 'true');
+    paneD.classList.toggle('show', d);
+    paneP.classList.toggle('show', !d);
+    reveal(d ? paneD : paneP);
+    if(focusIt){ (d ? tabD : tabP).focus(); }
+  }
+  tabD.addEventListener('click', function(){ selectTab('design'); });
+  tabP.addEventListener('click', function(){ selectTab('plan'); });
+  [tabD, tabP].forEach(function(t){
+    t.addEventListener('keydown', function(e){
+      if(e.key === 'ArrowRight' || e.key === 'ArrowLeft'){
+        e.preventDefault();
+        selectTab(t === tabD ? 'plan' : 'design', true);
+      }
+    });
+  });
+
+  /* ---- cross-tab anchor links (if any href points into the other pane) ---- */
+  document.addEventListener('click', function(e){
+    var a = e.target.closest && e.target.closest('a[href^="#"]');
+    if(!a) return;
+    var id = a.getAttribute('href').slice(1);
+    var target = document.getElementById(id);
+    if(!target) return;
+    var inPlan = paneP.contains(target), inDesign = paneD.contains(target);
+    var planActive = paneP.classList.contains('show');
+    if((inPlan && !planActive) || (inDesign && planActive)){
+      selectTab(inPlan ? 'plan' : 'design');
+      e.preventDefault();
+      setTimeout(function(){ target.scrollIntoView({behavior:'auto', block:'start'}); }, 30);
+    }
+  });
+
+  /* ---- back to top ---- */
+  var toTop = document.getElementById('toTop');
+  var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  window.addEventListener('scroll', function(){
+    if(window.scrollY > 640){ toTop.classList.add('show'); } else { toTop.classList.remove('show'); }
+  }, {passive:true});
+  toTop.addEventListener('click', function(){
+    window.scrollTo({ top:0, behavior: reduce ? 'auto' : 'smooth' });
+  });
+
+  /* ---- scroll-spy: highlight the active section chip in each pane ---- */
+  function spy(barId){
+    var bar = document.getElementById(barId);
+    if(!bar) return;
+    var chips = [].slice.call(bar.querySelectorAll('.chip'));
+    var map = {};
+    chips.forEach(function(c){
+      var el = document.getElementById(c.getAttribute('href').slice(1));
+      if(el) map[el.id] = c;
+    });
+    var obs = new IntersectionObserver(function(entries){
+      entries.forEach(function(en){
+        if(en.isIntersecting && map[en.target.id]){
+          chips.forEach(function(c){ c.classList.remove('active'); });
+          map[en.target.id].classList.add('active');
+        }
+      });
+    }, { rootMargin: '-28% 0px -66% 0px', threshold: 0 });
+    Object.keys(map).forEach(function(id){ obs.observe(document.getElementById(id)); });
+  }
+  spy('idx-design'); spy('idx-plan');
+
+  /* ---- section reveal ---- */
+  var anims = [].slice.call(document.querySelectorAll('.anim'));
+  if(reduce){
+    anims.forEach(function(a){ a.classList.add('in'); });
+  } else {
+    var ro = new IntersectionObserver(function(entries){
+      entries.forEach(function(en){
+        if(en.isIntersecting){ en.target.classList.add('in'); ro.unobserve(en.target); }
+      });
+    }, { rootMargin: '0px 0px -8% 0px', threshold: .04 });
+    anims.forEach(function(a){ ro.observe(a); });
+  }
+})();
+</script>
+</body>
+</html>
