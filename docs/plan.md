@@ -235,24 +235,45 @@ mirror rebuilds correctly and reports per-body mass properties.
 **Goal:** the generative element-map (design §2, Q2) and history-free editing
 (design §3). **Prerequisite for** robust PMI (8), joints (5), surfacing (9).
 
+> **Research-scoped envelope** (design §3, §19; `docs/research/direct-modeling-occt-ceiling.md`).
+> OCCT's direct-edit robustness is narrow. v1 targets **well-behaved topology only**
+> and refuses rather than risks corruption; every op is gated by
+> `BRepCheck_Analyzer` **plus** an independent volume/area/closedness check.
+
+**Bucket 4.0 — De-risking spike (do first)**
+- [ ] On a representative dirty STEP import, run **defeature + planar move_face +
+      heal**; measure validity-gate pass rate, tangent-face failure rate,
+      hang/timeout incidence. This sets the achievable envelope before building on it.
+- **Gate:** a measured success-rate report exists; the envelope is written down.
+
+**Bucket 4.1 — Persistent-name layer**
 - [ ] **Persistent-name layer:** stable element names from construction history
       (TopoShape-style); round-trip through edits; expose as `#face/...` refs
-- [ ] **Direct face ops:** `move_face`, `offset_face`, `replace_face`,
-      `delete_face` / **defeature** (OCCT `BRepAlgoAPI_Defeaturing`)
-- [ ] **Direct dress-up edits:** resize baked `fillet`/`chamfer`; reposition baked
-      `hole`
-- [ ] **Relational direct edits:** make faces parallel / coaxial / perpendicular /
-      tangent / symmetric / coplanar (on history-free geometry)
-- [ ] **Imported-geometry mode:** STEP/IGES import → editable direct body (no
-      history to replay)
+      (hardens the bucket-0.5 spike)
+
+**Bucket 4.2 — Direct face ops (well-behaved only)**
+- [ ] `delete_face`/**defeature** (`BRepAlgoAPI_Defeaturing`) — **non-tangent**
+      adjacent faces only; detect tangency and **refuse**
+- [ ] `offset_face`/thicken — planar/analytic faces, single offset < smallest local
+      concave radius; reject C0 BSpline surfaces
+- [ ] `move_face`/`replace_face` — planar faces on well-behaved topology
+      (rebuild + boolean + `UnifySameDomain` + `ShapeFix`)
+- [ ] **Direct dress-up edits:** resize baked `fillet`/`chamfer`; reposition baked `hole`
+
+**Bucket 4.3 — Imported & mixed mode**
+- [ ] **Imported-geometry mode:** STEP/IGES import → editable direct body
+- [ ] **Relational direct edits:** parallel / coaxial / perpendicular / tangent /
+      symmetric / coplanar (on history-free geometry)
 - [ ] Mixed mode: direct-edit features appended after a history tree (Creo-style)
 
-**Gate:** import a dumb STEP solid, move a face and resize a fillet directly, and
-re-export — references survive; failures attributed by element name.
+**Gate (Phase 4):** import a dumb STEP solid, defeature + move a planar face + resize
+a fillet directly within the measured envelope, and re-export — references survive;
+out-of-envelope inputs are **refused with an id-tagged reason**, never silently
+corrupted.
 
-> **Note (risk):** full synchronous-tech robustness (auto-*maintaining* relations
-> as a face moves on complex topology) is `(A)` long-horizon — see design §19. v1
-> targets the core ops on well-behaved topology.
+> **Excluded from v1** (`(A)`, design §19): auto-*maintained* relational inference
+> ("Live Rules" = commercial kernel + D-Cubed solver, multi-year), moving faces in
+> fillet/blend/tangent chains, per-face variable offset, self-intersecting offsets.
 
 ---
 
@@ -370,16 +391,24 @@ through STEP AP242 with PMI intact.
 - [ ] Trim / untrim, extend, **knit/sew**, thicken
 - [ ] Sweep / loft with **tangency & curvature** conditions
 
-**Class A / freeform `(A)`**
-- [ ] Control-point surface editing
-- [ ] Edge **match** with G0 / G1 / **G2** / G3 continuity; blend with continuity
-- [ ] **Analysis:** curvature comb, **zebra / reflection** lines, draft analysis,
-      Gaussian curvature, deviation/gap, continuity check
-- [ ] Reflection-quality surfacing — long-horizon; may need a specialist
-      library (design §19)
+**G2 engineering surfacing + analysis (shippable; design §6, §19;
+`docs/research/class-a-surfacing-feasibility.md`)**
+- [ ] Edge **match / blend** to **G0 / G1 / G2** — G2 is OCCT's ceiling
+      (`MakeFilling` accepts only C0/G1/G2; **no G3**); validator asserts achieved
+      continuity via `BRepLProp::Continuity` at seams
+- [ ] **Analysis (we build on `GeomLProp_SLProps` + `BRepExtrema_DistShapeShape`):**
+      curvature comb, Gaussian/mean curvature, deviation/gap report,
+      **zebra / isophote overlay** (read-only quality check, not a fairing optimizer)
 
-**Gate (v1 of phase):** a lofted surface with G1 boundary conditions, thickened to
-a solid, with a curvature-comb analysis view.
+**Class A / true freeform `(A)` — out of scope on OCCT, revisit only via specialist**
+- [ ] G3 continuity, control-point sculpting, curvature *fairing*, reflection-fairness
+      — a *workflow* (Alias/ICEM/CATIA), effectively commercial; OCCT cannot reach it.
+      Revisit only if a licensable module (e.g. C3D FairCurveModeler) lifts G3 without
+      a kernel swap (design §19).
+
+**Gate (v1 of phase):** a lofted surface with **G2** boundary conditions, thickened
+to a solid, with a curvature-comb + zebra analysis view and a seam-continuity
+assertion. (Documented non-goals: no G3, no control-point sculpting, no fairing.)
 
 ---
 
@@ -475,14 +504,19 @@ AP242 without loss of structure.
 
 **Goal:** the high-end + production polish `(A)`. **Depends on** Phase 6, 9, 12.
 
-- [ ] **Multibody dynamics (MBD):** mass/inertia (from `BRepGProp`) + gravity,
-      forces/torques, springs/dampers, **contacts** → reaction forces &
-      accelerations (Ondsel MbD solver)
-- [ ] **Advanced surfacing:** reflection-quality Class A; specialist library
-      evaluation (design §19)
-- [ ] **Robust synchronous tech:** auto-maintained relations on complex topology
+- [ ] **Multibody dynamics (MBD) — rigid bodies only:** mass/inertia (from
+      `BRepGProp`) + gravity, forces/torques, springs/dampers, **simple contact** →
+      reaction forces & accelerations (Ondsel MbD solver). **Line drawn here**
+      (design §19): *no* flexible/FEM-coupled bodies, friction-rich or continuous
+      contact — that is physics-engine / FEA territory and an export concern (§17).
+- [ ] **Advanced surfacing:** true Class A stays **out of scope** unless a licensable
+      specialist module (e.g. C3D FairCurveModeler) is adopted (design §19); this
+      bucket is that evaluation, not a build commitment.
+- [ ] **Robust synchronous tech:** auto-maintained relations on complex topology —
+      remains `(A)` (commercial kernel + constraint-solver class of system, design §19)
 - [ ] **Performance hardening:** cache tuning, parallelism around OCP's
-      single-thread limit, provenance-map memory budget
+      single-thread limit, **provenance-map memory budget** — enforce the
+      O(part-topology) target, lazy maps for imports (design §19)
 - [ ] **Optional WASM client** (OpenCascade.js) for client-side sectioning/measure
 - [ ] **Optional desktop viewer** (Mayo / pythonocc); **Blender** beauty render
 
@@ -506,8 +540,10 @@ for collision). Built late; the seam is designed from Phase 0.
       the viewer. **Gate:** the block round-trips through spec + validation.
 
 **Bucket 15.2 — First toolpaths (2.5D + drilling)**
-- [ ] Strategies `face_mill`, `pocket_2d` (selector-driven), `drill` (cycles);
-      toolpath model (moves, feeds/speeds) via solid **offset/section** ops
+- [ ] Strategies `face_mill`, `pocket_2d` (selector-driven), `contour`, `drill`
+      (G81/G83 cycles); toolpath model (moves, feeds/speeds) built on **OCCT
+      sections + Clipper2 (`pyclipr`, BSL-1.0)** offsets — own the strategy logic
+      (contour = single tool-radius offset; pocket = concentric inward offsets)
 - [ ] Material-removed **BOM/mass delta** (§9) via boolean stock simulation
 - [ ] **Collision** (tool/holder/fixture vs stock) reusing motion interference (§8)
 - **Demo:** a facing + pocket + drill job on the bracket previews toolpaths in `nv`.
@@ -515,12 +551,15 @@ for collision). Built late; the seam is designed from Phase 0.
 
 **Bucket 15.3 — Post-processor → G-code**
 - [ ] **Post-processor registry** (strategy-neutral toolpath → machine G-code);
-      one generic post
+      one **in-house generic 3-axis post** (RS274/NGC vocabulary), pluggable dialects
 - **Demo:** the pocket job exports runnable G-code for a generic 3-axis post.
 - **Gate:** G-code exports and back-plots to the intended toolpath.
 
-> `(A)` 3+2 and full 3-/5-axis surfacing, and a dedicated toolpath kernel vs
-> `opencamlib`-style library vs plugin, are long-horizon (design §19).
+> **Boundary (design §19; `docs/research/cam-toolpath-kernel.md`):** 3D
+> drop-cutter/waterline finishing = **`opencamlib` (LGPL-2.1) as an optional plugin**
+> behind the op-registry seam. **5-axis has no credible OSS kernel → out of scope**,
+> reserved for a future external-kernel plugin. Do **not** depend on FreeCAD Path
+> (runtime-coupled) or libarea (unmaintained).
 
 ---
 
@@ -530,26 +569,37 @@ for collision). Built late; the seam is designed from Phase 0.
 electrical, whose *shape* lowers to solids. **Depends on** Phase 2 (solids for
 lowering), Phase 13 (interchange). Built late; the seam is designed from Phase 0.
 
-**Bucket 16.1 — Board data model & DRC**
-- [ ] `pcb` block (peer of `parts`): **nets**, **layer stackup**, **footprints**,
-      placements, routing (traces/vias/pours); validates against schema
-- [ ] **DRC** validator family (§10): clearance, trace width, annular ring,
-      net-connectivity — id-tagged issues
+**Bucket 16.1 — Board data model & geometric DRC**
+- [ ] `pcb` block (peer of `parts`): **numbered net table**, **layer stackup**,
+      **footprints/pads**, placements, tracks/vias/zones, drills; validates against
+      schema. Treat zone *fills* as authored input or pin one deterministic fill
+      (the main determinism hazard).
+- [ ] **Geometric DRC** validator family (§10): clearance, trace width, annular
+      ring, net-connectivity — id-tagged issues; voltage/current/stackup as *inputs*
 - **Demo:** a small board loads and DRCs; violations report by element `id`.
 - **Gate:** a board with a rule violation reports it cleanly.
 
 **Bucket 16.2 — Lower to solids + MCAD exchange**
-- [ ] **Lowering step:** board outline + cutouts + copper (thin solids) + component
-      bodies → the solid substrate; view in `nv`
-- [ ] **Board-to-STEP** (with components) for the mechanical side; enclosure
-      clearance check via assembly interference (§7)
+- [ ] **Lowering step** (OCCT/build123d): board outline + cutouts + copper (thin
+      solids) + component bodies (placed via XCAF sub-assembly) → the solid substrate
+- [ ] **Board-to-STEP AP214** (with components) for the mechanical side (AP242's
+      electrical scope is wire-harness, *not* PCB); enclosure clearance via assembly
+      interference (§7)
 - **Demo:** the board renders as a 3D solid and exports STEP into an enclosure
       assembly; clearance is checked.
-- **Gate:** a board lowers to a correct 3D solid and exports STEP for MCAD use.
+- **Gate:** a board lowers to a correct 3D solid and exports STEP AP214 for MCAD use.
 
-> `(A)` Gerber/ODB++/IPC-2581 fab output and `kicad`-style netlist/footprint import
-> are **plugin converters** (design §14); routing/auto-placement ownership is an
-> open boundary (design §19).
+**Bucket 16.3 — KiCad round-trip (the delegation seam)**
+- [ ] **`.kicad_pcb` read + write** so KiCad owns schematic/routing/placement/fab
+      output (Gerber/drill) and physics DRC; `pcbnew` read-only ingest, `kicad-cli`
+      at arm's length
+- **Demo:** a board round-trips ncad ⇄ `.kicad_pcb`, survives KiCad re-open + DRC.
+- **Gate:** the written board is KiCad-valid and re-openable without loss.
+
+> **Ownership line (design §19; `docs/research/pcb-ecad-ownership.md`):** ncad owns
+> the data model + geometric DRC + 3D lowering; **delegates** routing, autoplacement,
+> fab output, and physics DRC to **KiCad**. Gerber/ODB++/IPC-2581 are **plugin
+> converters** (design §14).
 
 ---
 
@@ -608,12 +658,30 @@ Run alongside the phases, not after them:
 - **v1 reuse framed honestly:** spec/IO + viewer + patterns carry over; the general
       kernel/refs/ops/executor are greenfield (see "Where we are").
 
-**Still open** (tracked in design §19):
+**Resolved by research this revision** (findings in [`research/`](./research/),
+decisions in design §19):
 
-- [ ] Direct-modeling robustness ceiling on OCCT (biggest geometry risk)
-- [ ] Class A feasibility on OCCT vs specialist library vs out-of-scope
-- [ ] How deep to go on force-driven MBD before it stops being a CAD engine
-- [ ] Provenance-map memory/time budget at large-assembly scale
-- [ ] How high-level the building profile should ultimately sit
-- [ ] CAM strategy depth & toolpath-kernel boundary (§6a, Phase 15)
-- [ ] PCB engine ownership line — what ncad owns vs delegates to imported ECAD (§6b)
+- **Direct-modeling ceiling** — v1 = well-behaved-topology face ops only, refuse
+      out-of-envelope, dual validity gate; auto-maintained relations excluded `(A)`
+      (Phase 4 + spike bucket 4.0).
+- **Class A** — ship the **G2** engineering subset + self-built curvature/zebra
+      analysis; true Class A out of scope (Phase 9).
+- **MBD depth** — rigid bodies + gravity + springs/dampers + simple contact;
+      flexible/friction-rich/continuous contact excluded (Phase 14).
+- **CAM kernel** — build 2.5D+drilling on **OCCT sections + Clipper2/`pyclipr`**,
+      generic post in-house; **opencamlib** = optional 3D plugin; 5-axis out (Phase 15).
+- **PCB ownership** — own data model + geometric DRC + 3D lowering; delegate
+      routing/fab to **KiCad** via `.kicad_pcb` round-trip; export **STEP AP214**
+      (Phase 16).
+- **Building altitude** — stays a thin lowering to substrate ops; no sub-substrate.
+- **Provenance-map budget** — O(part-topology), lazy for imports, enforced Phase 12/14.
+
+**Still open (empirical / spike-gated)** — direction decided, magnitude unknown:
+
+- [ ] Direct-modeling **success rate** on real dirty imports (Phase 4 spike; biggest
+      geometry risk)
+- [ ] G2 fill/blend **robustness** on non-trivial surfaces (surfacing spike)
+- [ ] Provenance-map budget at large-assembly scale (Phase 12 measures)
+- [ ] `.kicad_pcb` **write** round-trip fidelity (likeliest PCB integration risk)
+- [ ] MBD contact fidelity useful before it becomes a physics engine (revisit vs real
+      mechanisms)
