@@ -1,4 +1,4 @@
-# Research — OCCT direct/synchronous-modeling robustness ceiling
+# Research: OCCT direct/synchronous-modeling robustness ceiling
 
 *Question:* how far can history-free face editing go on OCCT before it needs a
 dedicated approach? *Decision recorded in* `design.md` §3, §19.
@@ -28,19 +28,19 @@ History-free face editing on OCCT is **feasible but narrow**:
   adjacent faces** and when extended faces don't cover the feature.
 - Offset/shell fails `BRep_API: command not done` on thin walls / intricate
   contours, **direction-sensitive** (−0.5 works, +0.5 fails; maintainer-tagged
-  "OCC kernel issue") — CadQuery #1494/#1515/#1476/#1768. Fails on C0 BSplines,
+  "OCC kernel issue"), CadQuery #1494/#1515/#1476/#1768. Fails on C0 BSplines,
   >3 edges at a vertex, offset > smallest concave radius.
 - Fillets/blends fail order-dependently, can produce malformed-but-"valid" solids
   (build123d #1224, FreeCAD #29480, pythonocc #1281).
 - Booleans under-fuse rotated copies (OCCT #1041); `UnifySameDomain` injects
   self-intersections (#1193); **`BRepCheck_Analyzer` sometimes reports invalid
-  geometry as valid (#1315)** — a validity gate is necessary but not fully trusted.
+  geometry as valid (#1315)**: a validity gate is necessary but not fully trusted.
 
 ## The real gap: move a face vs. maintain relationships
 
 Moving a face on well-behaved topology is doable. Auto-inferring and **maintaining**
 relationships (Siemens Synchronous Technology / "Live Rules") is a different class:
-an application layer on **Parasolid + D-Cubed DCM** with a decision engine — a
+an application layer on **Parasolid + D-Cubed DCM** with a decision engine: a
 commercial kernel plus a separate constraint solver. The underpinnings (geometric
 constraint solving + persistent naming) are open research; FreeCAD's
 topological-naming problem is the standing proof. OCCT ships neither a constraint
@@ -53,11 +53,11 @@ Parasolid; CATIA: CGM). No OCCT-based project implements true ST-style maintenan
 ## Recommendation (adopted)
 
 **v1 direct-modeling scope on OCCT:**
-1. `delete_face`/defeature on solids, **non-tangent adjacent faces only** — detect
+1. `delete_face`/defeature on solids, **non-tangent adjacent faces only**: detect
    tangency and refuse.
-2. `offset_face`/thicken — planar/analytic faces, single offset, < smallest local
+2. `offset_face`/thicken: planar/analytic faces, single offset, < smallest local
    concave radius; reject C0 BSpline surfaces.
-3. `move_face`/`replace_face` — planar faces on well-behaved topology via
+3. `move_face`/`replace_face`: planar faces on well-behaved topology via
    rebuild + boolean + `UnifySameDomain` + `ShapeFix`.
 
 Gate every op with `BRepCheck_Analyzer` **plus** an independent volume/area/
@@ -73,4 +73,4 @@ tangent-failure rate, hang/timeout incidence. This defines the achievable envelo
 
 **Confidence:** high on APIs/limits/market pattern (OCCT docs + ~20 reproducible
 tracker/GitHub issues). **Biggest unknown:** empirical success rate of the
-well-behaved subset on ncad's own real geometry — the spike closes it.
+well-behaved subset on ncad's own real geometry. The spike closes it.
