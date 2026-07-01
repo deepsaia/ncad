@@ -1,8 +1,8 @@
 # ncad — Coding Guidelines & Best Practices
 
 These are project-wide instructions for working in this repository. They take
-precedence over default behavior. See [`design.md`](./design.md) for the system
-design and [`plan.md`](./plan.md) for the phased build order.
+precedence over default behavior. See [`docs/design.md`](./docs/design.md) for the
+system design and [`docs/plan.md`](./docs/plan.md) for the phased build order.
 
 ---
 
@@ -50,7 +50,7 @@ affects output):
 
 The class gives us the single-responsibility module and a clean injection point for
 dependencies (e.g. the swappable `Kernel`); purity of the core method preserves the
-determinism the design depends on (see `design.md` §0, §3). Do not let a class
+determinism the design depends on (see `docs/design.md` §0, §3). Do not let a class
 accumulate unrelated responsibilities just because it exists — if it grows a second
 reason to change, split it into another module.
 
@@ -93,7 +93,7 @@ hand-rolling it. It is mature, and it is the same ecosystem as our agent framewo
 - HOCON: `leaf_common.persistence.easy.easy_hocon_persistence.EasyHoconPersistence`
 - JSON: `leaf_common.persistence.easy.easy_json_persistence.EasyJsonPersistence`
 - Both expose a simple `persist(obj, ...)` / `restore() -> dict` and return **plain
-  dicts**, which matches our dict-spec design (`design.md` §1) directly.
+  dicts**, which matches our dict-spec design (`docs/design.md` §1) directly.
 
 This means the `spec` unit's load/serialize functions wrap `leaf-common` rather than
 calling `pyhocon`/`json` directly. The **JSON Schema validation** (`jsonschema`) still
