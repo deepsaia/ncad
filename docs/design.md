@@ -334,14 +334,28 @@ imported parts default to direct mode. Direct edits reference geometry by
 persistent name rather than by sketch, which is precisely why §2's element-map
 layer is a prerequisite for this section.
 
-> **Honesty about the kernel.** OCCT has no turnkey synchronous-modeling engine.
-> It *does* give us the pieces — local operations (`BRepFeat`), defeaturing
-> (`BRepAlgoAPI_Defeaturing`), face offset (`BRepOffsetAPI`), and healing
-> (`ShapeFix`/`ShapeUpgrade`) — so v1 of direct modeling is the **core face ops on
-> well-behaved topology**, built from these. Full synchronous-tech robustness
-> (auto-inferring and *maintaining* relationships as a face moves across a complex
-> body) is a hard, multi-year capability, scoped accordingly in
-> [`plan.md`](./plan.md) and flagged in §19.
+> **Honesty about the kernel (research-scoped).** OCCT has no turnkey
+> synchronous-modeling engine, and its direct-edit pieces have a *narrow* robust
+> envelope (investigated, §19):
+> - **`delete_face` / defeature** (`BRepAlgoAPI_Defeaturing`) — the most useful
+>   native op, but it **fails or hangs on tangent adjacent faces** and can silently
+>   corrupt topology. v1 detects tangency and **refuses** rather than risk it.
+> - **`offset_face` / thicken** (`BRepOffsetAPI_MakeOffsetShape`) — *whole-shape,
+>   Skin-mode only*; fails on C0 splines and past the smallest concave radius. v1
+>   restricts to planar/analytic faces within that limit.
+> - **`move_face` / `replace_face`** — *no native API*; synthesized from rebuild +
+>   boolean + heal, and v1 limits it to **planar faces on well-behaved topology**.
+> - Every op is gated by `BRepCheck_Analyzer` **plus an independent
+>   volume/area/closedness check** — the analyzer alone can pass invalid results.
+>
+> So v1 of direct modeling is exactly these **core face ops on well-behaved
+> topology**. Full synchronous-tech robustness — auto-inferring and *maintaining*
+> relationships as a face moves (Siemens "Live Rules") — is a commercial
+> kernel + constraint-solver system (Parasolid + D-Cubed), multi-year and
+> PhD-grade; **no OCCT project ships it**. It stays out of v1, `(A)` in
+> [`plan.md`](./plan.md), flagged in §19. The remaining unknown is empirical — the
+> *success rate* of the well-behaved subset on real imports — which the Phase 4
+> spike measures.
 
 ---
 
@@ -787,10 +801,11 @@ ordered, and tested.
 - **IO / persistence:** `leaf-common` (HOCON/JSON → dicts) + `jsonschema`
   (draft 2020-12), shared with the agent ecosystem.
 - **Deferred:** OpenCascade.js (WASM viewer); Blender (render); `ifcopenshell`
-  (building profile); a CAM toolpath library (e.g. `opencamlib`-style) and a
-  post-processor set (§6a); ECAD tooling (`kicad`-style netlist/footprint import,
-  Gerber/ODB++/IPC-2581 writers, §6b) — all late/plugin. Plugin dependencies live
-  with their plugins (§14).
+  (building profile); **CAM** — `pyclipr` (Clipper2, BSL-1.0) for 2.5D offsets +
+  an in-house generic 3-axis post, with `opencamlib` (LGPL-2.1) as the optional 3D
+  plugin (§6a); **PCB** — `.kicad_pcb` round-trip + `kicad-cli`/`pcbnew` at arm's
+  length, STEP AP214 lowering via build123d (§6b) — all late/plugin. Plugin
+  dependencies live with their plugins (§14).
 
 ---
 
@@ -892,28 +907,105 @@ topology-signature + toleranced-measures equality of §4a (not a BREP-byte hash)
 **v1-reuse** framed honestly (spec/IO + viewer + patterns carry over; the general
 kernel/refs/ops are greenfield).
 
-Genuinely still open:
+### Resolved by research (this revision)
 
-- **Direct-modeling robustness on OCCT.** How far can synchronous-style face
-  editing go on OCCT (defeaturing + offset + healing) before it needs a dedicated
-  approach? This bounds the §3 roadmap and is the biggest geometry-risk item.
-- **Class A feasibility.** Can OCCT's NURBS surfacing + curvature analysis reach
-  genuine Class A (G2–G3, reflection-quality), or is that a specialist
-  kernel/library (or out of scope)?
-- **Kinematics vs full MBD depth.** How much force-driven dynamics (contacts,
-  friction, flexible bodies) is worth pulling in via Ondsel before it stops being
-  a CAD engine and starts being a physics engine?
-- **Provenance-map cost at scale.** The element-map (§2) must stay cheap on large
-  parts/assemblies; what is its memory/time budget, and where does it degrade?
-- **How high-level should the building profile sit?** Does it stay a thin lowering
-  to substrate ops, or accrue enough architecture semantics (IFC round-trip,
-  spaces, systems) to warrant its own sub-substrate?
-- **CAM strategy depth & kernel.** Is a `opencamlib`-style library enough behind
-  the §6a seam for 2.5D + drilling, and where does 3-/5-axis force a dedicated
-  toolpath kernel or a plugin boundary?
-- **PCB engine boundary.** How much of the electrical model (routing, DRC,
-  auto-placement) does ncad own vs. delegate to an imported ECAD tool via the §6b
-  seam? The seam is fixed; the ownership line is not.
+Each of these was an open question; a sourced investigation now gives a decision.
+The full findings live in [`docs/research/`](./research/); the decisions are here.
 
-*(Settled since the last revision: the GPL/licensing question — copyleft is
-accepted, §8/§15/§19 above.)*
+- **Direct-modeling ceiling on OCCT — bounded, narrow, and spike-gated.** OCCT
+  gives real pieces but a *narrow* robust envelope. `delete_face`/defeature
+  (`BRepAlgoAPI_Defeaturing`) is the most useful native op but **fails or hangs on
+  tangent adjacent faces** and can silently corrupt topology (tracker-verified);
+  `offset_face`/thicken (`BRepOffsetAPI_MakeOffsetShape`) is *whole-shape,
+  Skin-mode only*, fails on C0 splines and offsets past the smallest concave
+  radius; **there is no native `move_face`/`replace_face`** — it is synthesized
+  from rebuild + boolean + heal. **Decision:** v1 direct modeling (§3, Phase 4) is
+  scoped to (a) defeature on **non-tangent** faces (detect tangency and *refuse*
+  rather than risk corruption), (b) single offset/thicken on planar/analytic faces
+  within the concave-radius limit, (c) move/replace on **planar faces of
+  well-behaved topology**. Every op is gated by `BRepCheck_Analyzer` **plus an
+  independent volume/area/closedness sanity check**, because the analyzer alone can
+  pass invalid results (OCCT #1315). **Excluded from v1:** auto-maintained
+  relational inference (Siemens Synchronous "Live Rules" is a commercial
+  kernel+D-Cubed-solver system, multi-year/PhD-grade — no OCCT project ships it),
+  moving faces in fillet/blend/tangent chains, per-face variable offset. Remaining
+  unknown → the **spike** (Phase 4, and previewed in bucket 0.5): the empirical
+  *success rate* of the well-behaved subset on real dirty imports.
+- **Class A surfacing — G2 engineering surfacing is shippable; true Class A is
+  out of scope.** OCCT's continuity ceiling is **G2** (`MakeFilling` accepts only
+  C0/G1/G2 — *no G3 constraint exists*); curvature *math* is native
+  (`GeomLProp_SLProps`), but **zebra/isophote and surface fairing are not** (0 code
+  hits; must be built on the curvature primitives). Class A is a *workflow*
+  (single-span low-degree patches, interactive control-point sculpting,
+  reflection-fairness) that is effectively commercial (Alias/ICEM/CATIA); even
+  Rhino is judged below it. **Decision:** ship the **G2 engineering-surfacing
+  subset** (Phase 9) — G0/G1/G2 fills and lofts, plus curvature-comb, deviation,
+  and a *read-only* zebra/isophote analysis overlay we compute ourselves. True
+  Class A (G3, fairing, reflection optimization) is documented **out of scope /
+  aspirational `(A)`**, revisited only if a licensable module (e.g. C3D
+  FairCurveModeler) can lift G3 without a kernel swap.
+- **Kinematics vs MBD depth — rigid-body dynamics yes, deformable/high-fidelity
+  contact no.** ncad is a CAD engine, not a physics engine (§17). Kinematics
+  (geometry-driven) is core (§8, Phase 6). Force-driven MBD via Ondsel is worth
+  exactly what reuses the mass properties we already compute from `BRepGProp`:
+  **rigid bodies + gravity + forces/torques + springs/dampers + simple contact**
+  (Phase 14). The line is drawn **before** flexible/FEM-coupled bodies and
+  friction-rich or continuous contact — those are FEA/physics-engine territory and
+  an *export* concern, not ours.
+- **Provenance-map cost — budget it O(part topology), lazy for imports.** The
+  element-map (§2) is held only for parts **under active edit** and cached beside
+  geometry (§4a); **lightweight/simplified reps (§7) carry no map**. For
+  direct-mode *imported* bodies (potentially huge face counts, no history) the map
+  is **built lazily / on demand** — name an element only when it is referenced.
+  Target budget: map memory ≤ a small constant multiple of the body's own B-rep
+  topology size; the large-assembly hardening (Phase 12/14) measures and enforces it.
+- **Building-profile altitude — stays a thin lowering; no sub-substrate.** The
+  point of profiles is *one* substrate. Buildings remain a high-level profile that
+  lowers to substrate ops (§6, Phase 11) and keeps IFC + the room-graph generator;
+  spaces/systems semantics live **authoring-side** (the generator) and as
+  **annotations**, not as a second geometry engine. Revisit only if IFC
+  round-trip fidelity provably demands it.
+- **CAM kernel — build 2.5D+drilling in-house on Clipper2; opencamlib is the 3D
+  plugin; 5-axis is out.** The realistic first slice (§6a, Phase 15) is built on
+  **OCCT sections + Clipper2 (`pyclipr`, BSL-1.0)** for the offset/pocket math —
+  *not* libarea (unmaintained) and *not* FreeCAD's Path (runtime-coupled). Own the
+  strategy logic (contour/pocket/face/drill) and a small generic 3-axis post.
+  **`opencamlib` (LGPL-2.1)** sits behind the op-registry seam as an **optional
+  plugin** for 3D drop-cutter/waterline finishing. **5-axis has no credible OSS
+  kernel → explicitly out of scope**, reserved for a future external-kernel plugin.
+- **PCB ownership line — own the data model + geometric DRC + 3D lowering;
+  delegate routing/fab to KiCad.** ncad owns (§6b, Phase 16): the **board data
+  model** (numbered net table, layer stackup, footprints/pads, tracks/vias/zones,
+  drills), **geometric DRC** (clearance, width, annular ring, connectivity — with
+  voltage/current/stackup as *inputs*), and **PCB→3D solid lowering** (the
+  OCCT/build123d extrude-drill-place-STEP pipeline — squarely our home turf).
+  **Delegate** schematic capture, autorouting/placement, physics DRC, and fab
+  output (Gerber/drill) to **KiCad** via a **`.kicad_pcb` round-trip**; export
+  **STEP AP214** for MCAD (AP242's electrical scope is wire-harness, *not* PCB —
+  don't rely on it). Treat zone *fills* as authored input or pin one deterministic
+  fill algorithm (the main determinism hazard). First slice proves: text spec →
+  board model → geometric DRC → lowered board+component STEP + a `.kicad_pcb`
+  round-trip.
+
+### Genuinely still open (empirical / spike-gated)
+
+The decisions above close the *direction*; these remain unknown until measured:
+
+- **Direct-modeling success rate on real geometry.** How often do real dirty
+  imports fall inside the narrow robust envelope above? The Phase 4 spike (validity
+  pass rate, tangent-failure rate, hang/timeout incidence on representative bodies)
+  is designed to close exactly this — the biggest geometry risk.
+- **G2 fill/blend robustness on non-trivial surfaces.** OCCT's accumulating
+  tolerances and `IsDone()`-failure reports suggest brittleness; only a surfacing
+  spike on representative footprints settles how robust the shippable subset is.
+- **Provenance-map budget at large-assembly scale.** The O(part-topology) target is
+  a hypothesis until Phase 12 measures where it degrades.
+- **`.kicad_pcb` *write* round-trip fidelity.** Reading is well-documented; writing
+  a KiCad-valid board that survives re-open + DRC + its own STEP export (net
+  ordinals, layer tokens, zone fills, 3D-model refs) is the likeliest PCB
+  integration risk.
+- **MBD contact depth before it stops being CAD.** Rigid + simple contact is in;
+  exactly how much contact fidelity is useful before it becomes a physics engine is
+  a judgement to revisit against real mechanisms.
+
+*(Settled earlier: the GPL/licensing question — copyleft accepted, §8/§15/§19.)*
