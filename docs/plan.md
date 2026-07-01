@@ -1,19 +1,19 @@
-# ncad — Implementation Plan & Tracker
+# ncad: Implementation Plan & Tracker
 
 Phased build order with progress tracking for the **target engine**. The design
 rationale lives in [`design.md`](./design.md); this file is *what to build, in
-what order, and what's done* — and the **feature/operations catalogue** distilled
+what order, and what's done*, and the **feature/operations catalogue** distilled
 from Catia / Creo / NX. We will **not** build it all in one pass; phases are
 coherent capability slices, each decomposed into **agile buckets**.
 
 **Legend:** `[ ]` not started · `[~]` in progress · `[x]` done · `[!]` blocked ·
 `(P)` parallel/cross-cutting · `(A)` aspirational/long-horizon
 
-**Guiding rule — thin vertical slices.** Prove the **general spine end-to-end
+**Guiding rule, thin vertical slices.** Prove the **general spine end-to-end
 first** (Phase 0), then add breadth. Work is organized into **buckets**: each
 bucket is a *thin vertical slice* that ends in something you can **author → build →
 view/export** and *see*, with a concrete **demo** and a **gate**. A bucket is
-sized so it can be implemented, tested, and demoed on its own — you never wait for
+sized so it can be implemented, tested, and demoed on its own; you never wait for
 a whole phase to see a specific capability working. Buckets within a phase are
 ordered by dependency; phases and cross-cutting tracks run partly in parallel.
 
@@ -26,17 +26,17 @@ is layered on. Demo-ability leads; breadth follows.
 
 ## Where we are
 
-v1 proved the *pattern* — `spec → build → BOM → view`, determinism, build123d/OCCT,
-HOCON+jsonschema, traversal BOM, the Three.js viewer — on the **building profile**
+v1 proved the *pattern*: `spec → build → BOM → view`, determinism, build123d/OCCT,
+HOCON+jsonschema, traversal BOM, the Three.js viewer, on the **building profile**
 (footprint → rooms → walls → openings → roof).
 
 **What actually carries into Phase 0 (be honest about it):**
 
-- **Reused directly** — the `spec`/IO layer (HOCON + `jsonschema` + `leaf-common` →
+- **Reused directly:** the `spec`/IO layer (HOCON + `jsonschema` + `leaf-common` →
   plain dicts), the `viewer` stack (glTF tessellation + three.js `nv`), and the
   *patterns*: op-dispatch registry (v1 `roof_builders[kind]` → `feature_ops[op]`),
   traversal-BOM discipline, id-tagged validators, determinism-by-construction.
-- **Effectively greenfield** — v1's `Kernel` is building-shaped (`box`, `prism`,
+- **Effectively greenfield:** v1's `Kernel` is building-shaped (`box`, `prism`,
   `arc_wall`, `sphere`, `barrel`); the *general* kernel interface (sketch / extrude
   / fillet / boolean + a provenance map), the feature-tree schema, the reference
   resolver, and the pure feature executor are **new code**. Phase 0 reuses v1's
@@ -48,7 +48,7 @@ modeling, the domain profiles, CAM/PCB seams, and a plugin layer.
 
 > The building roadmap (old Phases 6–13: roofs, multi-storey, IFC, agents, render
 > tiers) continues as the **building-profile track** (Phase 11) on top of the
-> general substrate — not discarded, recast.
+> general substrate, not discarded, recast.
 
 ---
 
@@ -76,24 +76,24 @@ modeling, the domain profiles, CAM/PCB seams, and a plugin layer.
 | P | References/provenance · caching · viewer · testing · migration | cross-cutting | `[ ]` |
 
 > **Buckets, not just phases.** Each phase below is decomposed into numbered
-> buckets (e.g. `0.1`, `0.2`) — thin vertical slices, each with its own demo +
+> buckets (e.g. `0.1`, `0.2`), thin vertical slices, each with its own demo +
 > gate. The phase gate is met when its buckets are. Only Phase 0 is fully
 > bucketed inline here as the exemplar; later phases list buckets as their
 > checkboxes and split their gate per slice.
 
 ---
 
-## Phase 0 — The general spine
+## Phase 0: The general spine
 
 **Goal:** one boring bracket, end-to-end, exercising every load-bearing idea.
 Reuses v1's *patterns* + spec/IO + viewer; the general kernel/refs/ops/executor are
-new code (see "Where we are"). **This is the exemplar of bucketed slicing** — each
+new code (see "Where we are"). **This is the exemplar of bucketed slicing**: each
 bucket below ends in a viewable/inspectable result.
 
-**Bucket 0.1 — First shape on screen** *(demo-first)*
+**Bucket 0.1: First shape on screen** *(demo-first)*
 - [ ] Minimal **feature-tree schema** (`schema/part_schema.hocon`): `parameters`,
       `datums`, `parts[features]`, stable `id`, `schema_version`, `profile`
-      (default `solid`) — only enough for a sketch + extrude
+      (default `solid`), only enough for a sketch + extrude
 - [ ] **Op registry** (`ops`): `feature_ops[op]` dispatch; uniform pure signature
       `(shape_in, params, prov_in) → (shape_out, prov_out, issues)`
 - [ ] Ops `sketch` (rectangle) + `extrude`; general **kernel** interface v0 over
@@ -102,7 +102,7 @@ bucket below ends in a viewable/inspectable result.
 - **Demo:** author a rectangle+extrude HOCON → `ncad build` → block appears in `nv`.
 - **Gate:** a hand-authored document renders in the viewer.
 
-**Bucket 0.2 — The everyday ops + expressions**
+**Bucket 0.2: The everyday ops + expressions**
 - [ ] Ops `pocket`, `hole`, `fillet`, `chamfer`, `boolean`; sketch `circle`/`polygon`
 - [ ] **Expression layer** (`params`): `${ref}` + arithmetic + registered-function
       calls; restricted-AST safe evaluator; units-aware (design §1, Q3)
@@ -110,7 +110,7 @@ bucket below ends in a viewable/inspectable result.
       expression → edge fillet) builds and renders.
 - **Gate:** the boring bracket builds from a parametric document.
 
-**Bucket 0.3 — References, provenance & selection**
+**Bucket 0.3: References, provenance & selection**
 - [ ] **Reference resolver v0** (`refs`): semantic + generative + selector refs
 - [ ] The **provenance map** (output element → producing feature/op), threaded
       through every op's signature
@@ -119,12 +119,12 @@ bucket below ends in a viewable/inspectable result.
       `hole on pad.cap(+Z)` resolves via provenance.
 - **Gate:** generative + selector references resolve; picking reports semantic ids.
 
-**Bucket 0.4 — Incremental rebuild & determinism**
+**Bucket 0.4: Incremental rebuild & determinism**
 - [ ] **Executor** (`build`): rebuild DAG, topological order, per-feature
       validation gate
 - [ ] **Content-addressed cache** keyed on `hash(subtree+params)` + pinned kernel
       version (design §4a); dirty-suffix re-execution
-- [ ] **Equality harness** (design §4a): topology signature + toleranced measures —
+- [ ] **Equality harness** (design §4a): topology signature + toleranced measures,
       the golden comparator (not BREP bytes)
 - [ ] Golden tests: same document → equal geometry; **edit-a-param** →
       correct incremental rebuild
@@ -132,12 +132,12 @@ bucket below ends in a viewable/inspectable result.
 - **Gate:** editing a parameter yields a correct incremental rebuild against the
       §4a equality definition.
 
-**Bucket 0.5 — Delete-a-feature, broken refs, and the TNP spike**
+**Bucket 0.5: Delete-a-feature, broken refs, and the TNP spike**
 - [ ] **Delete/insert/reorder** features → correct incremental rebuild
 - [ ] **Broken-reference reporting:** an unresolvable ref is attributed to its `id`
       (id-tagged issue), never silent garbage
 - [ ] **TNP spike** (design §2): a *minimal generative element-map* proven on the
-      bracket — a fillet's edge reference survives a parameter edit and an upstream
+      bracket: a fillet's edge reference survives a parameter edit and an upstream
       feature delete, or fails loudly by `id`. Proves the persistent-name approach
       before Phase 4 hardens it.
 - **Demo:** delete the extrude feature → the dependent fillet reports "cannot find
@@ -149,7 +149,7 @@ bucket below ends in a viewable/inspectable result.
 
 ---
 
-## Phase 1 — 2D sketching & the constraint solver
+## Phase 1: 2D sketching & the constraint solver
 
 **Goal:** "Blender-like expressivity, but exact." Reuse a solver; never write a
 GCS. **Depends on** Phase 0.
@@ -178,32 +178,32 @@ fully-constrained profile drives a downstream feature.
 
 ---
 
-## Phase 2 — Core solid features (sketched + dress-up)
+## Phase 2: Core solid features (sketched + dress-up)
 
 **Goal:** the everyday mechanical-part vocabulary. **Depends on** Phase 1.
 
 **Sketched (additive/subtractive) features**
-- [ ] **Extrude / Pad** — blind, symmetric, two-side, through-all, to-next,
+- [ ] **Extrude / Pad**: blind, symmetric, two-side, through-all, to-next,
       to-face, to-surface; with **draft**; **thin** (wall) option
-- [ ] **Pocket / Cut** — same end-condition + draft + thin options
-- [ ] **Revolve / Groove** — angle, to-reference, symmetric, thin
-- [ ] **Sweep** — single path; with **guide curves**; variable-section sweep;
+- [ ] **Pocket / Cut**: same end-condition + draft + thin options
+- [ ] **Revolve / Groove**: angle, to-reference, symmetric, thin
+- [ ] **Sweep**: single path; with **guide curves**; variable-section sweep;
       normal-to-path / keep-orientation; (OCCT `BRepOffsetAPI_MakePipeShell`)
-- [ ] **Helical sweep / coil** — constant & variable pitch
-- [ ] **Loft / Blend** — multi-section; guide curves; centerline; ruled; closed;
+- [ ] **Helical sweep / coil**: constant & variable pitch
+- [ ] **Loft / Blend**: multi-section; guide curves; centerline; ruled; closed;
       start/end **tangency & curvature** conditions (OCCT `ThruSections`)
 - [ ] **Rib / web / stiffener**
 
 **Dress-up (applied) features**
-- [ ] **Fillet / Round** — constant; **variable-radius**; multi-edge; **face
+- [ ] **Fillet / Round**: constant; **variable-radius**; multi-edge; **face
       fillet**; full-round; setback; conic/G2 rounds; by-rule
-- [ ] **Chamfer / Bevel** — distance; distance-angle; two-distance; vertex
-- [ ] **Shell / Hollow** — uniform, multi-thickness, faces-to-remove
-- [ ] **Draft** — neutral plane; parting-line; step; variable (OCCT
+- [ ] **Chamfer / Bevel**: distance; distance-angle; two-distance; vertex
+- [ ] **Shell / Hollow**: uniform, multi-thickness, faces-to-remove
+- [ ] **Draft**: neutral plane; parting-line; step; variable (OCCT
       `BRepOffsetAPI_DraftAngle`, raw OCP)
-- [ ] **Hole** — simple / counterbore / countersink / clearance / **tapped**;
+- [ ] **Hole**: simple / counterbore / countersink / clearance / **tapped**;
       standards-aware (ISO/ANSI) "hole wizard"; **thread** (cosmetic vs modeled)
-- [ ] **Wrap** — emboss/engrave sketch or text onto a face
+- [ ] **Wrap**: emboss/engrave sketch or text onto a face
 - [ ] Thickness / offset; replace-face / delete-face (preview of Phase 4 direct ops)
 
 **Gate:** a non-trivial part (bracket + holes + revolved boss + swept rib +
@@ -211,7 +211,7 @@ variable fillet) builds deterministically and exports clean STEP.
 
 ---
 
-## Phase 3 — Patterns, transforms, booleans, multibody
+## Phase 3: Patterns, transforms, booleans, multibody
 
 **Goal:** replication and body algebra. **Depends on** Phase 2.
 
@@ -230,7 +230,7 @@ mirror rebuilds correctly and reports per-body mass properties.
 
 ---
 
-## Phase 4 — Persistent-name layer + direct/synchronous modeling
+## Phase 4: Persistent-name layer + direct/synchronous modeling
 
 **Goal:** the generative element-map (design §2, Q2) and history-free editing
 (design §3). **Prerequisite for** robust PMI (8), joints (5), surfacing (9).
@@ -240,34 +240,34 @@ mirror rebuilds correctly and reports per-body mass properties.
 > and refuses rather than risks corruption; every op is gated by
 > `BRepCheck_Analyzer` **plus** an independent volume/area/closedness check.
 
-**Bucket 4.0 — De-risking spike (do first)**
+**Bucket 4.0: De-risking spike (do first)**
 - [ ] On a representative dirty STEP import, run **defeature + planar move_face +
       heal**; measure validity-gate pass rate, tangent-face failure rate,
       hang/timeout incidence. This sets the achievable envelope before building on it.
 - **Gate:** a measured success-rate report exists; the envelope is written down.
 
-**Bucket 4.1 — Persistent-name layer**
+**Bucket 4.1: Persistent-name layer**
 - [ ] **Persistent-name layer:** stable element names from construction history
       (TopoShape-style); round-trip through edits; expose as `#face/...` refs
       (hardens the bucket-0.5 spike)
 
-**Bucket 4.2 — Direct face ops (well-behaved only)**
-- [ ] `delete_face`/**defeature** (`BRepAlgoAPI_Defeaturing`) — **non-tangent**
+**Bucket 4.2: Direct face ops (well-behaved only)**
+- [ ] `delete_face`/**defeature** (`BRepAlgoAPI_Defeaturing`): **non-tangent**
       adjacent faces only; detect tangency and **refuse**
-- [ ] `offset_face`/thicken — planar/analytic faces, single offset < smallest local
+- [ ] `offset_face`/thicken: planar/analytic faces, single offset < smallest local
       concave radius; reject C0 BSpline surfaces
-- [ ] `move_face`/`replace_face` — planar faces on well-behaved topology
+- [ ] `move_face`/`replace_face`: planar faces on well-behaved topology
       (rebuild + boolean + `UnifySameDomain` + `ShapeFix`)
 - [ ] **Direct dress-up edits:** resize baked `fillet`/`chamfer`; reposition baked `hole`
 
-**Bucket 4.3 — Imported & mixed mode**
+**Bucket 4.3: Imported & mixed mode**
 - [ ] **Imported-geometry mode:** STEP/IGES import → editable direct body
 - [ ] **Relational direct edits:** parallel / coaxial / perpendicular / tangent /
       symmetric / coplanar (on history-free geometry)
 - [ ] Mixed mode: direct-edit features appended after a history tree (Creo-style)
 
 **Gate (Phase 4):** import a dumb STEP solid, defeature + move a planar face + resize
-a fillet directly within the measured envelope, and re-export — references survive;
+a fillet directly within the measured envelope, and re-export, references survive;
 out-of-envelope inputs are **refused with an id-tagged reason**, never silently
 corrupted.
 
@@ -277,7 +277,7 @@ corrupted.
 
 ---
 
-## Phase 5 — Assemblies: constraints, joints, in-context
+## Phase 5: Assemblies: constraints, joints, in-context
 
 **Goal:** instances + relationships; the joint graph motion (Phase 6) drives.
 **Depends on** Phase 4 (persistent refs to mating faces/axes).
@@ -305,13 +305,13 @@ STEP (AP242) and opens in FreeCAD; interference check is correct.
 
 ---
 
-## Phase 6 — Motion & kinematics
+## Phase 6: Motion & kinematics
 
 **Goal:** drive and solve the mechanism (design §8). **Depends on** Phase 5.
 
 - [ ] **DoF analysis:** free degrees of freedom from the joint graph; over/under/
       exactly-constrained status (solver Jacobian rank)
-- [ ] **Drivers / forward kinematics:** per-joint driver — constant, linear ramp,
+- [ ] **Drivers / forward kinematics:** per-joint driver: constant, linear ramp,
       function-of-time, function-of-another-DoF (couplers/gears/cams); sweep →
       configuration per step
 - [ ] **Inverse kinematics:** drive an output frame, solve joint values
@@ -329,7 +329,7 @@ and a collision-free report are produced and exported.
 
 ---
 
-## Phase 7 — Drafting & documentation (2D drawings)
+## Phase 7: Drafting & documentation (2D drawings)
 
 **Goal:** associative engineering drawings (design §11). **Depends on** Phase 2;
 **uses** OCCT **HLR** (`HLRBRep_Algo`).
@@ -352,7 +352,7 @@ regenerates after a model edit and exports to PDF/DXF.
 
 ---
 
-## Phase 8 — PMI / GD&T
+## Phase 8: PMI / GD&T
 
 **Goal:** semantic 3D annotation (design §11). **Depends on** Phase 4 (persistent
 refs); **carried by** STEP AP242 (Phase 13).
@@ -374,7 +374,7 @@ through STEP AP242 with PMI intact.
 
 ---
 
-## Phase 9 — Surfacing & freeform
+## Phase 9: Surfacing & freeform
 
 **Goal:** surfaces and curves as primary geometry; the hard geometry domain
 (design §6). **Depends on** Phase 1–2.
@@ -393,16 +393,16 @@ through STEP AP242 with PMI intact.
 
 **G2 engineering surfacing + analysis (shippable; design §6, §19;
 `docs/research/class-a-surfacing-feasibility.md`)**
-- [ ] Edge **match / blend** to **G0 / G1 / G2** — G2 is OCCT's ceiling
+- [ ] Edge **match / blend** to **G0 / G1 / G2**: G2 is OCCT's ceiling
       (`MakeFilling` accepts only C0/G1/G2; **no G3**); validator asserts achieved
       continuity via `BRepLProp::Continuity` at seams
 - [ ] **Analysis (we build on `GeomLProp_SLProps` + `BRepExtrema_DistShapeShape`):**
       curvature comb, Gaussian/mean curvature, deviation/gap report,
       **zebra / isophote overlay** (read-only quality check, not a fairing optimizer)
 
-**Class A / true freeform `(A)` — out of scope on OCCT, revisit only via specialist**
-- [ ] G3 continuity, control-point sculpting, curvature *fairing*, reflection-fairness
-      — a *workflow* (Alias/ICEM/CATIA), effectively commercial; OCCT cannot reach it.
+**Class A / true freeform `(A)`: out of scope on OCCT, revisit only via specialist**
+- [ ] G3 continuity, control-point sculpting, curvature *fairing*, reflection-fairness,
+      a *workflow* (Alias/ICEM/CATIA), effectively commercial; OCCT cannot reach it.
       Revisit only if a licensable module (e.g. C3D FairCurveModeler) lifts G3 without
       a kernel swap (design §19).
 
@@ -412,7 +412,7 @@ assertion. (Documented non-goals: no G3, no control-point sculpting, no fairing.
 
 ---
 
-## Phase 10 — Convergent modeling (mesh + B-rep)
+## Phase 10: Convergent modeling (mesh + B-rep)
 
 **Goal:** mesh and B-rep in one model (design §4). **Depends on** Phase 3;
 **uses** Manifold (`manifold3d`).
@@ -429,7 +429,7 @@ single watertight body.
 
 ---
 
-## Phase 11 — Domain profiles: sheet metal · mold · building
+## Phase 11: Domain profiles: sheet metal · mold · building
 
 **Goal:** specialized part kinds as profiles over the substrate (design §6).
 **Depends on** Phase 2 (sheet metal, building), Phase 9 (mold).
@@ -453,14 +453,14 @@ single watertight body.
 - [ ] Keep the **room-graph generator** and **IFC** exchange (`ifcopenshell`)
 - [ ] Migrate v1 building examples onto the lowered representation
 - [ ] (building-profile track: roofs, multi-storey, L/T/U footprints, curved
-      corners — carried from the old roadmap)
+      corners, carried from the old roadmap)
 
 **Gate:** a sheet-metal part flattens to a correct flat pattern; a simple two-plate
 mold splits core/cavity; a v1 building re-builds via the lowered profile.
 
 ---
 
-## Phase 12 — Large-assembly performance
+## Phase 12: Large-assembly performance
 
 **Goal:** scale to real assemblies (design §7). **Depends on** Phase 5;
 **cross-cuts** caching.
@@ -479,7 +479,7 @@ with lightweight reps; interference query stays interactive.
 
 ---
 
-## Phase 13 — Interchange & plugins
+## Phase 13: Interchange & plugins
 
 **Goal:** exchange + the plugin/converter ecosystem (design §14, Q7).
 **Cross-cuts** most phases (exporters land as their features mature).
@@ -490,7 +490,7 @@ with lightweight reps; interference query stays interactive.
       PDF** (drawings, flat patterns)
 - [ ] **Plugin contract:** *(external format) ⇄ (ncad document / sub-model)*;
       registry under `plugins/`
-- [ ] **PartCAD plugin** — PartCAD YAML ⇄ ncad document (target compatibility,
+- [ ] **PartCAD plugin**: PartCAD YAML ⇄ ncad document (target compatibility,
       isolated, maintainable)
 - [ ] **Other plugins** (same contract): OpenSCAD import; vendor/format converters
 - [ ] (later) JT / 3D-PDF lightweight exchange
@@ -500,22 +500,22 @@ AP242 without loss of structure.
 
 ---
 
-## Phase 14 — Multibody dynamics · advanced surfacing · hardening
+## Phase 14: Multibody dynamics · advanced surfacing · hardening
 
 **Goal:** the high-end + production polish `(A)`. **Depends on** Phase 6, 9, 12.
 
-- [ ] **Multibody dynamics (MBD) — rigid bodies only:** mass/inertia (from
+- [ ] **Multibody dynamics (MBD), rigid bodies only:** mass/inertia (from
       `BRepGProp`) + gravity, forces/torques, springs/dampers, **simple contact** →
       reaction forces & accelerations (Ondsel MbD solver). **Line drawn here**
       (design §19): *no* flexible/FEM-coupled bodies, friction-rich or continuous
-      contact — that is physics-engine / FEA territory and an export concern (§17).
+      contact. That is physics-engine / FEA territory and an export concern (§17).
 - [ ] **Advanced surfacing:** true Class A stays **out of scope** unless a licensable
       specialist module (e.g. C3D FairCurveModeler) is adopted (design §19); this
       bucket is that evaluation, not a build commitment.
-- [ ] **Robust synchronous tech:** auto-maintained relations on complex topology —
+- [ ] **Robust synchronous tech:** auto-maintained relations on complex topology,
       remains `(A)` (commercial kernel + constraint-solver class of system, design §19)
 - [ ] **Performance hardening:** cache tuning, parallelism around OCP's
-      single-thread limit, **provenance-map memory budget** — enforce the
+      single-thread limit, **provenance-map memory budget**: enforce the
       O(part-topology) target, lazy maps for imports (design §19)
 - [ ] **Optional WASM client** (OpenCascade.js) for client-side sectioning/measure
 - [ ] **Optional desktop viewer** (Mayo / pythonocc); **Blender** beauty render
@@ -525,31 +525,31 @@ representative large assembly within a defined performance budget.
 
 ---
 
-## Phase 15 — CAM: the process profile `(A)`
+## Phase 15: CAM: the process profile `(A)`
 
-**Goal:** prove the CAM **seam** (design §6a) with a first real toolpath — a
+**Goal:** prove the CAM **seam** (design §6a) with a first real toolpath, a
 process layer over a built solid, not a new geometry profile. **Depends on**
 Phase 2 (solids), Phase 3 (booleans, for stock simulation), Phase 6 (interference,
 for collision). Built late; the seam is designed from Phase 0.
 
-**Bucket 15.1 — Seam & stock**
+**Bucket 15.1: Seam & stock**
 - [ ] `cam` document block: `target` solid, `stock` (from bbox / body), `fixtures`,
       `setups[operations]`; validates against schema; no toolpaths yet
 - [ ] **Tool library** (diameter/flutes/type) as a registered resource
 - **Demo:** a `cam` block loads, resolves its target solid, and shows stock+part in
       the viewer. **Gate:** the block round-trips through spec + validation.
 
-**Bucket 15.2 — First toolpaths (2.5D + drilling)**
+**Bucket 15.2: First toolpaths (2.5D + drilling)**
 - [ ] Strategies `face_mill`, `pocket_2d` (selector-driven), `contour`, `drill`
       (G81/G83 cycles); toolpath model (moves, feeds/speeds) built on **OCCT
-      sections + Clipper2 (`pyclipr`, BSL-1.0)** offsets — own the strategy logic
+      sections + Clipper2 (`pyclipr`, BSL-1.0)** offsets: own the strategy logic
       (contour = single tool-radius offset; pocket = concentric inward offsets)
 - [ ] Material-removed **BOM/mass delta** (§9) via boolean stock simulation
 - [ ] **Collision** (tool/holder/fixture vs stock) reusing motion interference (§8)
 - **Demo:** a facing + pocket + drill job on the bracket previews toolpaths in `nv`.
 - **Gate:** toolpaths generate for a 2.5D part and show a correct stock-removal preview.
 
-**Bucket 15.3 — Post-processor → G-code**
+**Bucket 15.3: Post-processor → G-code**
 - [ ] **Post-processor registry** (strategy-neutral toolpath → machine G-code);
       one **in-house generic 3-axis post** (RS274/NGC vocabulary), pluggable dialects
 - **Demo:** the pocket job exports runnable G-code for a generic 3-axis post.
@@ -563,23 +563,23 @@ for collision). Built late; the seam is designed from Phase 0.
 
 ---
 
-## Phase 16 — PCB / ECAD: the board data-model profile `(A)`
+## Phase 16: PCB / ECAD: the board data-model profile `(A)`
 
-**Goal:** prove the PCB **seam** (design §6b) — a board whose *primary* model is
+**Goal:** prove the PCB **seam** (design §6b), a board whose *primary* model is
 electrical, whose *shape* lowers to solids. **Depends on** Phase 2 (solids for
 lowering), Phase 13 (interchange). Built late; the seam is designed from Phase 0.
 
-**Bucket 16.1 — Board data model & geometric DRC**
+**Bucket 16.1: Board data model & geometric DRC**
 - [ ] `pcb` block (peer of `parts`): **numbered net table**, **layer stackup**,
       **footprints/pads**, placements, tracks/vias/zones, drills; validates against
       schema. Treat zone *fills* as authored input or pin one deterministic fill
       (the main determinism hazard).
 - [ ] **Geometric DRC** validator family (§10): clearance, trace width, annular
-      ring, net-connectivity — id-tagged issues; voltage/current/stackup as *inputs*
+      ring, net-connectivity, id-tagged issues; voltage/current/stackup as *inputs*
 - **Demo:** a small board loads and DRCs; violations report by element `id`.
 - **Gate:** a board with a rule violation reports it cleanly.
 
-**Bucket 16.2 — Lower to solids + MCAD exchange**
+**Bucket 16.2: Lower to solids + MCAD exchange**
 - [ ] **Lowering step** (OCCT/build123d): board outline + cutouts + copper (thin
       solids) + component bodies (placed via XCAF sub-assembly) → the solid substrate
 - [ ] **Board-to-STEP AP214** (with components) for the mechanical side (AP242's
@@ -589,7 +589,7 @@ lowering), Phase 13 (interchange). Built late; the seam is designed from Phase 0
       assembly; clearance is checked.
 - **Gate:** a board lowers to a correct 3D solid and exports STEP AP214 for MCAD use.
 
-**Bucket 16.3 — KiCad round-trip (the delegation seam)**
+**Bucket 16.3: KiCad round-trip (the delegation seam)**
 - [ ] **`.kicad_pcb` read + write** so KiCad owns schematic/routing/placement/fab
       output (Gerber/drill) and physics DRC; `pcbnew` read-only ingest, `kicad-cli`
       at arm's length
@@ -607,21 +607,21 @@ lowering), Phase 13 (interchange). Built late; the seam is designed from Phase 0
 
 Run alongside the phases, not after them:
 
-- [ ] **References & provenance maturity** — from selector + a generative
+- [ ] **References & provenance maturity**: from selector + a generative
       element-map **spike** (bucket 0.5) to a robust persistent-name layer
       (Phase 4); the single most important track
-- [ ] **Performance & caching** — content-addressed cache keyed on subtree +
+- [ ] **Performance & caching**: content-addressed cache keyed on subtree +
       pinned kernel (bucket 0.4, design §4a) → incremental everywhere →
       large-assembly budget (Phase 12)
-- [ ] **Viewer capabilities** — pick/select (0) → measure → motion playback (6) →
+- [ ] **Viewer capabilities**: pick/select (0) → measure → motion playback (6) →
       PMI/saved views (8) → sectioning (12) → CAM toolpath preview (15)
-- [ ] **Testing & golden** — the §4a **equality harness** (topology signature +
+- [ ] **Testing & golden**: the §4a **equality harness** (topology signature +
       toleranced measures, *not* BREP bytes) from bucket 0.4; incremental-rebuild
       goldens; per-feature failure goldens; STEP round-trip goldens
-- [ ] **Versioning & migration** — `schema_version` per domain + migration
+- [ ] **Versioning & migration**: `schema_version` per domain + migration
       converters + "upgrade this design?" prompt (design §14, Q6); keep the
       registry small and tested
-- [ ] **Docs** — keep `design.md` (architecture) and this file (catalogue) in sync;
+- [ ] **Docs**: keep `design.md` (architecture) and this file (catalogue) in sync;
       author-facing HOCON reference per profile
 
 ---
@@ -630,30 +630,30 @@ Run alongside the phases, not after them:
 
 **Resolved this revision** (rationale in [`design.md`](./design.md)):
 
-- **A — Motion/kinematics is first-class** (not deferred): joints → DoF → drivers/
+- **A: Motion/kinematics is first-class** (not deferred): joints → DoF → drivers/
       FK/IK → mechanism solve → traces/envelopes; MBD dynamics later (§8, Phase 6/14).
-- **B — Dual modeling paradigm:** parametric/history **and** direct/synchronous
+- **B: Dual modeling paradigm:** parametric/history **and** direct/synchronous
       over one model (§3, Phase 4).
-- **B — Parts are profiles:** solid / surface / sheet-metal / mold / building share
+- **B: Parts are profiles:** solid / surface / sheet-metal / mold / building share
       one substrate (§6, Phase 11).
-- **Q1 — Buildings = a high-level profile** that lowers to substrate ops; keeps IFC
+- **Q1: Buildings = a high-level profile** that lowers to substrate ops; keeps IFC
       + room-graph generator (§6, Phase 11).
-- **Q2 — Invest in a generative persistent-name layer**, phased, **with a spike in
+- **Q2: Invest in a generative persistent-name layer**, phased, **with a spike in
       the spine** (bucket 0.5) before Phase 4 hardens it (§2).
-- **Q3 — Expression model:** HOCON carries refs + arithmetic + **registered-function
+- **Q3: Expression model:** HOCON carries refs + arithmetic + **registered-function
       calls**; all logic stays in code (§1, Phase 0).
-- **Q4 — Selector grammar:** SQL-`WHERE`-style predicate over a **versioned
+- **Q4: Selector grammar:** SQL-`WHERE`-style predicate over a **versioned
       element-attribute model**; `lark` parser, escalate to CEL only if needed (§2).
-- **Q5 — Solver licensing: copyleft accepted** (settled, no longer open) → use
+- **Q5: Solver licensing: copyleft accepted** (settled, no longer open) → use
       SolveSpace/`py-slvs` + Ondsel; the engine is **GPL** (§8, §15).
-- **Q6 — Versioning:** per-domain `schema_version` + migration converters + upgrade
+- **Q6: Versioning:** per-domain `schema_version` + migration converters + upgrade
       prompt; kernel bump invalidates cached geometry, definitions migrate (§14).
-- **Q7 — PartCAD & friends as plugin converters**, not core (§14, Phase 13).
-- **Scope — CAD + kinematics proven first; CAM & PCB seamed now, built late**
+- **Q7: PartCAD & friends as plugin converters**, not core (§14, Phase 13).
+- **Scope: CAD + kinematics proven first; CAM & PCB seamed now, built late**
       (design §0/§6a/§6b, Phases 15–16); FEA/CFD stays out (§17).
-- **Determinism — equality = topology signature + toleranced measures** (not BREP
+- **Determinism: equality = topology signature + toleranced measures** (not BREP
       bytes); cache key = subtree hash + pinned kernel version (design §4a, bucket 0.4).
-- **Plan shape — thin vertical slices (buckets)**: every bucket ends at
+- **Plan shape: thin vertical slices (buckets)**: every bucket ends at
       author→build→view/export with a demo + gate.
 - **v1 reuse framed honestly:** spec/IO + viewer + patterns carry over; the general
       kernel/refs/ops/executor are greenfield (see "Where we are").
@@ -661,22 +661,22 @@ Run alongside the phases, not after them:
 **Resolved by research this revision** (findings in [`research/`](./research/),
 decisions in design §19):
 
-- **Direct-modeling ceiling** — v1 = well-behaved-topology face ops only, refuse
+- **Direct-modeling ceiling:** v1 = well-behaved-topology face ops only, refuse
       out-of-envelope, dual validity gate; auto-maintained relations excluded `(A)`
       (Phase 4 + spike bucket 4.0).
-- **Class A** — ship the **G2** engineering subset + self-built curvature/zebra
+- **Class A:** ship the **G2** engineering subset + self-built curvature/zebra
       analysis; true Class A out of scope (Phase 9).
-- **MBD depth** — rigid bodies + gravity + springs/dampers + simple contact;
+- **MBD depth:** rigid bodies + gravity + springs/dampers + simple contact;
       flexible/friction-rich/continuous contact excluded (Phase 14).
-- **CAM kernel** — build 2.5D+drilling on **OCCT sections + Clipper2/`pyclipr`**,
+- **CAM kernel:** build 2.5D+drilling on **OCCT sections + Clipper2/`pyclipr`**,
       generic post in-house; **opencamlib** = optional 3D plugin; 5-axis out (Phase 15).
-- **PCB ownership** — own data model + geometric DRC + 3D lowering; delegate
+- **PCB ownership:** own data model + geometric DRC + 3D lowering; delegate
       routing/fab to **KiCad** via `.kicad_pcb` round-trip; export **STEP AP214**
       (Phase 16).
-- **Building altitude** — stays a thin lowering to substrate ops; no sub-substrate.
-- **Provenance-map budget** — O(part-topology), lazy for imports, enforced Phase 12/14.
+- **Building altitude:** stays a thin lowering to substrate ops; no sub-substrate.
+- **Provenance-map budget:** O(part-topology), lazy for imports, enforced Phase 12/14.
 
-**Still open (empirical / spike-gated)** — direction decided, magnitude unknown:
+**Still open (empirical / spike-gated)**, direction decided, magnitude unknown:
 
 - [ ] Direct-modeling **success rate** on real dirty imports (Phase 4 spike; biggest
       geometry risk)
