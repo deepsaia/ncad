@@ -163,8 +163,8 @@ class _ViewerRequestHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def log_message(self, fmt: str, *args) -> None:
-        logger.debug("viewer %s - %s", self.address_string(), fmt % args)
+    def log_message(self, format: str, *args) -> None:  # noqa: A002 (name fixed by base class)
+        logger.debug("viewer %s - %s", self.address_string(), format % args)
 
 
 class BuildServiceFactory:

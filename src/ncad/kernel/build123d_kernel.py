@@ -37,7 +37,13 @@ class Build123dKernel(Kernel):
         basis = _PLANES[plane]
         world = [basis.from_local_coords(Vector(x, y, 0)) for x, y in points]
         closed = world + [world[0]]
-        edges = [Edge.make_line(closed[i], closed[i + 1]) for i in range(len(world))]
+        # build123d's from_local_coords is stubbed as a wide union; at runtime these are
+        # Vectors, which make_line accepts. This is the untyped-OCP boundary (see the
+        # [tool.pyrefly] note in pyproject); ignore rather than contort the code.
+        edges = [
+            Edge.make_line(closed[i], closed[i + 1])  # pyrefly: ignore[bad-argument-type]
+            for i in range(len(world))
+        ]
         return Face(Wire(edges))
 
     def extrude(self, face: Any, distance: float) -> Any:
