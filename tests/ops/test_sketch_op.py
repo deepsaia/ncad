@@ -1,4 +1,4 @@
-from ncad.ops.sketch_op import build_sketch
+from ncad.ops.sketch_op import SketchOp
 from tests.kernel.fake_kernel import FakeKernel
 
 
@@ -14,7 +14,7 @@ def _rect_feature() -> dict:
 def test_sketch_builds_a_face_with_expected_area() -> None:
     kernel = FakeKernel()
 
-    result = build_sketch(None, _rect_feature(), {}, kernel)
+    result = SketchOp().build(None, _rect_feature(), {}, kernel)
 
     assert result.issues == []
     # A rectangle face extruded by 1 gives volume == area.
@@ -25,7 +25,7 @@ def test_sketch_builds_a_face_with_expected_area() -> None:
 def test_sketch_records_provenance_for_the_feature() -> None:
     kernel = FakeKernel()
 
-    result = build_sketch(None, _rect_feature(), {}, kernel)
+    result = SketchOp().build(None, _rect_feature(), {}, kernel)
 
     assert result.provenance.get("sk") == "sketch"
 
@@ -35,7 +35,7 @@ def test_sketch_with_unknown_element_reports_issue_by_id() -> None:
     feature = _rect_feature()
     feature["elements"][0]["type"] = "trapezoid"
 
-    result = build_sketch(None, feature, {}, kernel)
+    result = SketchOp().build(None, feature, {}, kernel)
 
     assert result.shape is None
     assert len(result.issues) == 1

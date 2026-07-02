@@ -1,5 +1,5 @@
 from ncad.build.builder import Builder
-from ncad.ops.op_registry import default_registry
+from ncad.ops.op_registry import OpRegistry
 from tests.kernel.fake_kernel import FakeKernel
 
 
@@ -19,7 +19,7 @@ def _block_part() -> dict:
 
 
 def test_builder_produces_solid_with_expected_volume() -> None:
-    builder = Builder(FakeKernel(), default_registry())
+    builder = Builder(FakeKernel(), OpRegistry.with_defaults())
 
     result = builder.build_part(_block_part())
 
@@ -28,7 +28,7 @@ def test_builder_produces_solid_with_expected_volume() -> None:
 
 
 def test_builder_merges_provenance_across_features() -> None:
-    builder = Builder(FakeKernel(), default_registry())
+    builder = Builder(FakeKernel(), OpRegistry.with_defaults())
 
     result = builder.build_part(_block_part())
 
@@ -41,7 +41,7 @@ def test_builder_extrude_consumes_named_profile_not_previous_feature() -> None:
     # NOT the immediately-preceding 40x40 face. This proves named-profile resolution
     # rather than blind previous-shape threading.
     kernel = FakeKernel()
-    builder = Builder(kernel, default_registry())
+    builder = Builder(kernel, OpRegistry.with_defaults())
     part = {
         "profile": "solid",
         "features": [
@@ -68,7 +68,7 @@ def test_builder_extrude_consumes_named_profile_not_previous_feature() -> None:
 
 
 def test_builder_reports_issue_when_referenced_profile_missing() -> None:
-    builder = Builder(FakeKernel(), default_registry())
+    builder = Builder(FakeKernel(), OpRegistry.with_defaults())
     part = _block_part()
     part["features"][1]["profile"] = "does_not_exist"
 

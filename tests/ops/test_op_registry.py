@@ -1,6 +1,6 @@
 import pytest
 
-from ncad.ops.op_registry import OpRegistry, default_registry
+from ncad.ops.op_registry import OpRegistry
 
 
 def test_register_and_get_roundtrip() -> None:
@@ -16,8 +16,8 @@ def test_unknown_op_raises_keyerror() -> None:
         OpRegistry().get("nope")
 
 
-def test_default_registry_has_sketch_and_extrude() -> None:
-    registry = default_registry()
+def test_with_defaults_has_sketch_and_extrude() -> None:
+    registry = OpRegistry.with_defaults()
 
     assert registry.get("sketch") is not None
     assert registry.get("extrude") is not None

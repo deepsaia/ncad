@@ -1,5 +1,5 @@
-from ncad.ops.extrude_op import build_extrude
-from ncad.ops.sketch_op import build_sketch
+from ncad.ops.extrude_op import ExtrudeOp
+from ncad.ops.sketch_op import SketchOp
 from tests.kernel.fake_kernel import FakeKernel
 
 
@@ -14,9 +14,9 @@ def _rect_feature() -> dict:
 
 def test_extrude_produces_solid_with_expected_volume() -> None:
     kernel = FakeKernel()
-    face = build_sketch(None, _rect_feature(), {}, kernel).shape
+    face = SketchOp().build(None, _rect_feature(), {}, kernel).shape
 
-    result = build_extrude(face, {"id": "pad", "op": "extrude", "distance": 8.0}, {}, kernel)
+    result = ExtrudeOp().build(face, {"id": "pad", "op": "extrude", "distance": 8.0}, {}, kernel)
 
     assert result.issues == []
     assert kernel.volume(result.shape) == 80.0 * 60.0 * 8.0
@@ -26,7 +26,7 @@ def test_extrude_produces_solid_with_expected_volume() -> None:
 def test_extrude_without_input_shape_reports_issue_by_id() -> None:
     kernel = FakeKernel()
 
-    result = build_extrude(None, {"id": "pad", "op": "extrude", "distance": 8.0}, {}, kernel)
+    result = ExtrudeOp().build(None, {"id": "pad", "op": "extrude", "distance": 8.0}, {}, kernel)
 
     assert result.shape is None
     assert len(result.issues) == 1
