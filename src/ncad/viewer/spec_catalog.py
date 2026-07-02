@@ -18,12 +18,15 @@ class SpecCatalog:
     """Lists and safely resolves spec documents within an examples directory."""
 
     def __init__(self, examples_dir: str) -> None:
-        """:param examples_dir: Directory of example spec documents to scan."""
-        self._root = os.path.abspath(examples_dir)
+        """:param examples_dir: Directory of example spec documents to scan. An empty
+        string means "no examples directory" (the tree is empty, nothing is resolved),
+        never the current working directory.
+        """
+        self._root = os.path.abspath(examples_dir) if examples_dir else ""
 
     def tree(self) -> list[dict]:
-        """Nested tree of the examples directory; empty if it does not exist."""
-        if not os.path.isdir(self._root):
+        """Nested tree of the examples directory; empty if unset or nonexistent."""
+        if not self._root or not os.path.isdir(self._root):
             return []
         return self._scan(self._root)
 
@@ -32,6 +35,8 @@ class SpecCatalog:
 
         :return: The absolute path, or None if unsafe, absent, or not a spec file.
         """
+        if not self._root:
+            return None
         candidate = os.path.abspath(os.path.join(self._root, rel_path))
         if os.path.commonpath([candidate, self._root]) != self._root:
             return None

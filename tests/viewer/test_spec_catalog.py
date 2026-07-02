@@ -42,6 +42,13 @@ def test_tree_of_missing_dir_is_empty(tmp_path) -> None:
     assert SpecCatalog(str(tmp_path / "nope")).tree() == []
 
 
+def test_empty_dir_string_does_not_scan_cwd() -> None:
+    catalog = SpecCatalog("")
+
+    assert catalog.tree() == []
+    assert catalog.resolve("anything.hocon") is None
+
+
 def test_resolve_accepts_known_spec(tmp_path) -> None:
     catalog = SpecCatalog(str(_make_examples(tmp_path)))
 
