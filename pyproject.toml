@@ -35,6 +35,7 @@ agents = [
 
 [dependency-groups]
 dev = [
+    "pyrefly>=1.1.1",
     "pytest",
     "ruff",
 ]
@@ -54,12 +55,14 @@ target-version = "py313"
 # pycodestyle (E), pyflakes (F), isort (I), pyupgrade (UP), naming (N)
 select = ["E", "F", "I", "UP", "N"]
 
-[tool.ruff.lint.per-file-ignores]
-# viewer_page.py is an embedded HTML/JS document; long markup lines are expected.
-"src/ncad/viewer/viewer_page.py" = ["E501"]
-
 [tool.ruff.lint.isort]
 known-first-party = ["ncad"]
+
+# Static type checking (advisory, not a commit gate yet). Run: `uv run pyrefly check`.
+# The geometry backend (build123d / OCP) ships incomplete stubs, so kernel handles are
+# intentionally typed `Any` at that boundary; the rest of the code is fully hinted.
+[tool.pyrefly]
+project-includes = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
