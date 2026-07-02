@@ -94,7 +94,7 @@ def _root(
     ctx: typer.Context,
     host: str = typer.Option("127.0.0.1", help="bind address"),
     port: int = typer.Option(8000, help="bind port (0 = ephemeral)"),
-    dev: bool = typer.Option(False, help="hot-reload the viewer HTML on each request"),
+    dev: bool = typer.Option(True, help="hot-reload the viewer HTML on each request"),
 ) -> None:
     """ncad: build and view parametric CAD models. Bare ``ncad`` launches the viewer."""
     if ctx.invoked_subcommand is None:
@@ -106,7 +106,7 @@ def view(
     models_dir: str = typer.Argument(None, help="directory of glTF/GLB models (default: out/)"),
     host: str = typer.Option("127.0.0.1", help="bind address"),
     port: int = typer.Option(8000, help="bind port (0 = ephemeral)"),
-    dev: bool = typer.Option(False, help="hot-reload the viewer HTML on each request"),
+    dev: bool = typer.Option(True, help="hot-reload the viewer HTML on each request"),
 ) -> None:
     """Launch the browser 3D viewer over a directory of models."""
     cli.launch_viewer(models_dir, host, port, dev)

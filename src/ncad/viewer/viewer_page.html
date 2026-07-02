@@ -17,9 +17,14 @@
   #app { display: flex; height: 100%; }
 
   /* Sidebar */
-  #sidebar { width: 286px; background: linear-gradient(180deg, var(--panel), var(--bg-2));
+  #sidebar { width: 286px; flex: none; background: linear-gradient(180deg, var(--panel), var(--bg-2));
     border-right: 1px solid var(--border); display: flex; flex-direction: column;
     padding: 20px; gap: 22px; overflow-y: auto; }
+  /* Draggable separator to resize the sidebar; width persists in localStorage. */
+  #sidebar-resizer { flex: none; width: 6px; cursor: col-resize; background: transparent;
+    border-right: 1px solid var(--border); transition: background .15s; }
+  #sidebar-resizer:hover, #sidebar-resizer.dragging { background: var(--accent); }
+  body.resizing-sidebar { cursor: col-resize; user-select: none; }
   .brand { display: flex; align-items: baseline; gap: 2px; }
   .brand h1 { font-size: 18px; margin: 0; font-weight: 700; letter-spacing: 0.3px; }
   .brand .dot { color: var(--accent-2); font-size: 22px; line-height: 0; }
@@ -196,6 +201,8 @@
       <div><b>Meshes</b> <span id="i-meshes">-</span></div>
     </div>
   </aside>
+
+  <div id="sidebar-resizer" title="Drag to resize" aria-label="Resize sidebar" role="separator"></div>
 
   <main id="stage">
     <div id="spinner">loading…</div>
@@ -632,9 +639,49 @@ refreshModels().then(models => {
   selectModel(initial);
 });
 
-window.addEventListener("resize", () => {
+function fitRendererToStage() {
   camera.aspect = stage.clientWidth / stage.clientHeight; camera.updateProjectionMatrix();
   renderer.setSize(stage.clientWidth, stage.clientHeight);
+}
+
+window.addEventListener("resize", fitRendererToStage);
+
+// ---- Resizable sidebar (width persisted in localStorage) ----
+const SIDEBAR_WIDTH_KEY = "ncad.sidebar.width";
+const SIDEBAR_MIN = 220, SIDEBAR_MAX = 560;
+const sidebarEl = document.getElementById("sidebar");
+const resizerEl = document.getElementById("sidebar-resizer");
+
+function applySidebarWidth(px) {
+  const clamped = Math.max(SIDEBAR_MIN, Math.min(SIDEBAR_MAX, px));
+  sidebarEl.style.width = clamped + "px";
+  return clamped;
+}
+
+const storedWidth = parseInt(localStorage.getItem(SIDEBAR_WIDTH_KEY), 10);
+if (!Number.isNaN(storedWidth)) applySidebarWidth(storedWidth);
+
+resizerEl.addEventListener("mousedown", ev => {
+  ev.preventDefault();
+  resizerEl.classList.add("dragging");
+  document.body.classList.add("resizing-sidebar");
+  const onMove = e => { applySidebarWidth(e.clientX - sidebarEl.getBoundingClientRect().left); fitRendererToStage(); };
+  const onUp = () => {
+    resizerEl.classList.remove("dragging");
+    document.body.classList.remove("resizing-sidebar");
+    localStorage.setItem(SIDEBAR_WIDTH_KEY, parseInt(sidebarEl.style.width, 10));
+    window.removeEventListener("mousemove", onMove);
+    window.removeEventListener("mouseup", onUp);
+  };
+  window.addEventListener("mousemove", onMove);
+  window.addEventListener("mouseup", onUp);
+});
+
+// Double-click the separator to reset to the default width.
+resizerEl.addEventListener("dblclick", () => {
+  sidebarEl.style.width = "";
+  localStorage.removeItem(SIDEBAR_WIDTH_KEY);
+  fitRendererToStage();
 });
 
 (function animate() {
