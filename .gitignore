@@ -18,8 +18,7 @@ __pycache__/
 .coverage
 htmlcov/
 
-# Generated artifacts (models, renders, exports) — out/ is built locally from examples/
-# via `ncad-examples`; the briefs in examples/ are the committed source of truth.
+# Generated artifacts (models, renders, exports); out/ is built locally by `ncad-build`.
 out/
 *.gltf
 *.glb
