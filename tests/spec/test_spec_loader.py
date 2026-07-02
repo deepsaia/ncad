@@ -28,7 +28,7 @@ def test_loads_hocon_file_to_dict(tmp_path) -> None:
 
 
 def test_hocon_resolves_substitutions(tmp_path) -> None:
-    """HOCON ${...} substitutions resolve at load time — useful for shared defaults."""
+    """HOCON ${...} substitutions resolve at load time, useful for shared defaults."""
     path = tmp_path / "spec.hocon"
     path.write_text("thickness = 0.2\nwall_thickness = ${thickness}\n")
 

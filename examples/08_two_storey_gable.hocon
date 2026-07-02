@@ -1,7 +1,0 @@
-# A two-storey house with a gable roof on top (intermediate floor is flat-topped).
-footprint = [[0, 0], [12, 0], [12, 9], [0, 9]]
-rounded_corners = {}
-num_rooms = 4
-num_storeys = 2
-storey_height = 3.0
-roof = "gable"

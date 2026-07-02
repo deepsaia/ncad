@@ -1,7 +1,0 @@
-# Softened look: a rectangle with two diagonally-opposite corners rounded.
-# Corner indices refer to footprint positions: 1 = (12,0), 3 = (0,9).
-footprint = [[0, 0], [12, 0], [12, 9], [0, 9]]
-rounded_corners = { "1" = 1.5, "3" = 1.5 }
-num_rooms = 4
-storey_height = 3.0
-roof = "flat"

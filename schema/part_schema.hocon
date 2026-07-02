@@ -1,0 +1,78 @@
+# ncad feature-tree part schema (HOCON): JSON-Schema draft 2020-12 vocabulary.
+#
+# Authored in HOCON: comments, and DRY via ${...} substitution rather than $ref.
+# Avoid every $-prefixed key ($schema/$id/$ref); HOCON's `$` is its substitution
+# sigil. The validator loads this to a dict (via leaf-common) and hands it to
+# jsonschema, which never reads the file itself.
+#
+# Units are declared per-document (mm | m | in); canonical internal unit is mm.
+# Intentionally PERMISSIVE while young: no additionalProperties=false, so unknown
+# fields pass and the schema grows without rejecting future documents. Only settled
+# structural fields are constrained. Bump schema_version on incompatible changes.
+
+definitions {
+  # A 2D point (x, y).
+  vec2 {
+    type = array
+    items { type = number }
+    minItems = 2
+    maxItems = 2
+  }
+
+  # A sketch element. Bucket 0.1 supports the rectangle only; the enum grows later.
+  sketch_element {
+    type = object
+    required = ["id", "type"]
+    properties {
+      id { type = string }
+      type { enum = ["rectangle"] }
+      w { type = number, exclusiveMinimum = 0 }
+      h { type = number, exclusiveMinimum = 0 }
+    }
+  }
+
+  # One feature in a part's ordered feature tree. `op` selects the builder; the
+  # remaining fields are op-specific and validated permissively here.
+  feature {
+    type = object
+    required = ["id", "op"]
+    properties {
+      id { type = string }
+      op { type = string }
+      plane { enum = ["XY", "XZ", "YZ"] }
+      elements {
+        type = array
+        items = ${definitions.sketch_element}
+      }
+      profile { type = string }
+      distance { type = number, exclusiveMinimum = 0 }
+    }
+  }
+
+  # A part: a profile kind plus an ordered list of features.
+  part {
+    type = object
+    required = ["profile", "features"]
+    properties {
+      profile { type = string }
+      features {
+        type = array
+        items = ${definitions.feature}
+      }
+    }
+  }
+}
+
+type = object
+required = ["schema_version", "units", "parts"]
+properties {
+  schema_version { type = integer, minimum = 1 }
+  units { enum = ["mm", "m", "in"] }
+  parameters { type = object }
+  datums { type = object }
+  parts {
+    type = object
+    minProperties = 1
+    additionalProperties = ${definitions.part}
+  }
+}

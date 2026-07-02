@@ -1,6 +1,0 @@
-# L-shaped footprint (two wings), flat roof. Round numbers tracing the L outline.
-footprint = [[0, 0], [14, 0], [14, 5], [6, 5], [6, 11], [0, 11]]
-rounded_corners = {}
-num_rooms = 5
-storey_height = 3.0
-roof = "flat"

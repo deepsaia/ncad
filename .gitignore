@@ -10,7 +10,7 @@ __pycache__/
 .venv/
 
 # uv
-# (uv.lock IS committed — do not ignore it)
+# (uv.lock IS committed; do not ignore it)
 
 # Test / tooling caches
 .pytest_cache/
@@ -18,8 +18,7 @@ __pycache__/
 .coverage
 htmlcov/
 
-# Generated artifacts (models, renders, exports) — out/ is built locally from examples/
-# via `ncad-examples`; the briefs in examples/ are the committed source of truth.
+# Generated artifacts (models, renders, exports); out/ is built locally by `ncad-build`.
 out/
 *.gltf
 *.glb
