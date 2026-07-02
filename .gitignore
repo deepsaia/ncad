@@ -10,7 +10,7 @@ __pycache__/
 .venv/
 
 # uv
-# (uv.lock IS committed — do not ignore it)
+# (uv.lock IS committed; do not ignore it)
 
 # Test / tooling caches
 .pytest_cache/

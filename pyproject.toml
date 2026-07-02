@@ -24,7 +24,7 @@ nv = "ncad.viewer.__main__:main"
 ncad-build = "ncad.build.__main__:main"
 
 [project.optional-dependencies]
-# CAD interchange — DXF/IFC floor plans (plan.md Phase 7 / 11)
+# CAD interchange: DXF/IFC floor plans (plan.md Phase 7 / 11)
 interchange = [
     "ezdxf",
     "ifcopenshell",

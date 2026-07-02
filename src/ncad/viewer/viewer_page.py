@@ -2,7 +2,7 @@
 
 Kept as one module whose single function returns the page, so the server module stays
 focused on HTTP. Three.js is loaded from a CDN via an import map, so there is no Node/npm
-build step — the viewer runs on any machine with a browser.
+build step; the viewer runs on any machine with a browser.
 """
 
 _PAGE = r"""<!DOCTYPE html>
@@ -10,7 +10,7 @@ _PAGE = r"""<!DOCTYPE html>
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>ncad — 3D viewer</title>
+<title>ncad 3D viewer</title>
 <style>
   :root {
     --bg: #0d1117; --bg-2: #11161f; --panel: #161d29; --panel-2: #1e2735;
@@ -70,7 +70,7 @@ _PAGE = r"""<!DOCTYPE html>
     padding: 7px 16px; border-radius: 22px; border: 1px solid var(--border);
     backdrop-filter: blur(6px); }
 
-  /* Floating panels container — top-right; stacked, each section collapsible */
+  /* Floating panels container, top-right; stacked, each section collapsible */
   #panels { position: absolute; top: 16px; right: 16px; width: 300px;
     display: flex; flex-direction: column; gap: 12px; }
   .panel { background: rgba(22,29,41,.92); border: 1px solid var(--border);
@@ -148,9 +148,9 @@ _PAGE = r"""<!DOCTYPE html>
     <button class="btn" id="reset-view">Reset view</button>
     <div class="spacer"></div>
     <div id="info">
-      <div><b>Size</b> <span id="i-size">—</span></div>
-      <div><b>Triangles</b> <span id="i-tris">—</span></div>
-      <div><b>Meshes</b> <span id="i-meshes">—</span></div>
+      <div><b>Size</b> <span id="i-size">-</span></div>
+      <div><b>Triangles</b> <span id="i-tris">-</span></div>
+      <div><b>Meshes</b> <span id="i-meshes">-</span></div>
     </div>
   </aside>
 

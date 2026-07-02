@@ -2,7 +2,7 @@
 
 A face is modeled as its 2D point ring plus plane; a solid as (face, distance). Volume
 and bounds are computed analytically for the axis-aligned extrusion cases Bucket 0.1
-uses. Not for production geometry — enough to assert Builder behaviour without OCP.
+uses. Not for production geometry; enough to assert Builder behaviour without OCP.
 """
 
 from typing import Any

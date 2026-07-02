@@ -1,7 +1,7 @@
 """Concrete geometry kernel backed by build123d (OpenCASCADE / OCP).
 
 Implements the Kernel contract with precise B-rep solids and exports to glTF / STEP /
-STL. Importing this module pulls in OCP, which is slow on first load — keep it out of
+STL. Importing this module pulls in OCP, which is slow on first load; keep it out of
 the fast test path.
 """
 

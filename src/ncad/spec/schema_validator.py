@@ -1,9 +1,8 @@
 """Validate a spec dict against the part (feature-tree) schema, returning structured issues.
 
 Issues are returned as data (a list of SchemaIssue); an empty list means valid. This is
-the *schema* layer of validation (shape and field constraints). Semantic/topological
-validation (openings fit their walls, rooms reachable, etc.) lives in the separate
-`validate` unit — see design.md §5.
+the *schema* layer of validation (shape and field constraints). Post-build geometry and
+reference validation lives in the build/validate layers; see design.md §10.
 """
 
 import logging

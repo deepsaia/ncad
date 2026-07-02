@@ -1,7 +1,7 @@
 """Integration tests for the viewer HTTP server.
 
 Starts the server on an ephemeral port in a background thread and exercises its routes.
-No browser needed — these check the HTTP contract the frontend depends on.
+No browser needed; these check the HTTP contract the frontend depends on.
 """
 
 import json

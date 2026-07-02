@@ -1,6 +1,6 @@
 """A tiny HTTP server that serves the browser 3D viewer and its glTF models.
 
-Uses only the standard library, so it runs anywhere Python does — no extra installs,
+Uses only the standard library, so it runs anywhere Python does, no extra installs,
 which is the point (viewing models on machines without CAD/GL software). Routes:
 
 - ``GET /``            -> the viewer single-page app (HTML)

@@ -1,7 +1,7 @@
-# ncad feature-tree part schema (HOCON) — JSON-Schema draft 2020-12 vocabulary.
+# ncad feature-tree part schema (HOCON): JSON-Schema draft 2020-12 vocabulary.
 #
 # Authored in HOCON: comments, and DRY via ${...} substitution rather than $ref.
-# Avoid every $-prefixed key ($schema/$id/$ref) — HOCON's `$` is its substitution
+# Avoid every $-prefixed key ($schema/$id/$ref); HOCON's `$` is its substitution
 # sigil. The validator loads this to a dict (via leaf-common) and hands it to
 # jsonschema, which never reads the file itself.
 #

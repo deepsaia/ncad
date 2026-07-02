@@ -1,7 +1,7 @@
 """Phase 0 smoke tests: verify the core dependency wheels actually import.
 
 Dry-run resolution proves a compatible wheel exists; this proves it loads in the
-target interpreter (Python 3.13). These are intentionally minimal — they guard the
+target interpreter (Python 3.13). These are intentionally minimal; they guard the
 environment, not behavior.
 """
 
