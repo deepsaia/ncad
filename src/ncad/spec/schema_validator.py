@@ -1,4 +1,4 @@
-"""Validate a spec dict against the building schema, returning structured issues.
+"""Validate a spec dict against the part (feature-tree) schema, returning structured issues.
 
 Issues are returned as data (a list of SchemaIssue); an empty list means valid. This is
 the *schema* layer of validation (shape and field constraints). Semantic/topological
@@ -16,23 +16,23 @@ from ncad.spec.spec_loader import SpecLoader
 
 logger = logging.getLogger(__name__)
 
-_SCHEMA_PATH = Path(__file__).resolve().parents[3] / "schema" / "building_schema.hocon"
+_SCHEMA_PATH = Path(__file__).resolve().parents[3] / "schema" / "part_schema.hocon"
 _ROOT_LOCATION = "<root>"
 
 
 class SchemaValidator:
-    """Validates spec dicts against the building schema (JSON-Schema draft 2020-12)."""
+    """Validates spec dicts against the part (feature-tree) schema (JSON-Schema draft 2020-12)."""
 
     def __init__(self, schema_path: Path = _SCHEMA_PATH) -> None:
         """Load and compile the schema once.
 
         :param schema_path: Path to the HOCON schema file. Defaults to the bundled
-            ``schema/building_schema.hocon``.
+            ``schema/part_schema.hocon``.
         """
         schema = SpecLoader().load(str(schema_path))
         Draft202012Validator.check_schema(schema)
         self._validator = Draft202012Validator(schema)
-        logger.debug("loaded building schema from %s", schema_path)
+        logger.debug("loaded part schema from %s", schema_path)
 
     def validate(self, spec: dict) -> list[SchemaIssue]:
         """Validate ``spec`` against the schema.
