@@ -1,324 +1,59 @@
-"""A lightweight, dependency-free Kernel for fast Builder tests.
+"""A lightweight, dependency-free Kernel for fast tests.
 
-A solid is modeled as a constructive list of (box, is_additive) terms. Volume and bounds
-are computed by deterministic point sampling over the combined bounding region — exact
-enough to assert builder behavior (counts, relative volumes, openings reducing volume)
-without importing the OCP backend. Not for production geometry.
+A face is modeled as its 2D point ring plus plane; a solid as (face, distance). Volume
+and bounds are computed analytically for the axis-aligned extrusion cases Bucket 0.1
+uses. Not for production geometry — enough to assert Builder behaviour without OCP.
 """
 
-import math
 from typing import Any
 
-from ncad.kernel.kernel import Bounds, Kernel, Point2, Point3
-
-_SAMPLES_PER_AXIS = 40
+from ncad.kernel.kernel import Bounds, Kernel, Point2
 
 
-class _Box:
-    """An axis-aligned box, min/max corners in meters."""
+class _FakeFace:
+    """A planar polygon: its 2D point ring and the plane it lives on."""
 
-    def __init__(self, center: Point3, size: Point3) -> None:
-        cx, cy, cz = center
-        sx, sy, sz = size
-        self.min = (cx - sx / 2, cy - sy / 2, cz - sz / 2)
-        self.max = (cx + sx / 2, cy + sy / 2, cz + sz / 2)
-
-    def contains(self, x: float, y: float, z: float) -> bool:
-        return (
-            self.min[0] <= x <= self.max[0]
-            and self.min[1] <= y <= self.max[1]
-            and self.min[2] <= z <= self.max[2]
-        )
+    def __init__(self, points: list[Point2], plane: str) -> None:
+        self.points = points
+        self.plane = plane
 
 
-class _Prism:
-    """A vertical 2D profile (cross, z) extruded along a horizontal axis."""
+class _FakeSolid:
+    """A face extruded by a distance along the plane normal."""
 
-    def __init__(self, profile: list[Point2], axis: str, start: float, end: float) -> None:
-        self._profile = profile
-        self._axis = axis
-        self._lo, self._hi = (start, end) if start <= end else (end, start)
-        crosses = [p[0] for p in profile]
-        zs = [p[1] for p in profile]
-        cmin, cmax, zmin, zmax = min(crosses), max(crosses), min(zs), max(zs)
-        if axis == "x":  # extrude along x; cross-section spans y/z
-            self.min = (self._lo, cmin, zmin)
-            self.max = (self._hi, cmax, zmax)
-        else:  # axis == "y"; cross-section spans x/z
-            self.min = (cmin, self._lo, zmin)
-            self.max = (cmax, self._hi, zmax)
-
-    def contains(self, x: float, y: float, z: float) -> bool:
-        if self._axis == "x":
-            if not self._lo <= x <= self._hi:
-                return False
-            return _point_in_polygon(y, z, self._profile)
-        if not self._lo <= y <= self._hi:
-            return False
-        return _point_in_polygon(x, z, self._profile)
-
-
-class _PolygonPrism:
-    """A horizontal 2D polygon extruded vertically from base_z to base_z + height."""
-
-    def __init__(self, polygon: list[Point2], base_z: float, height: float) -> None:
-        self._polygon = polygon
-        self._base_z = base_z
-        self._top_z = base_z + height
-        xs = [p[0] for p in polygon]
-        ys = [p[1] for p in polygon]
-        self.min = (min(xs), min(ys), base_z)
-        self.max = (max(xs), max(ys), self._top_z)
-
-    def contains(self, x: float, y: float, z: float) -> bool:
-        if not self._base_z <= z <= self._top_z:
-            return False
-        return _point_in_polygon(x, y, self._polygon)
-
-
-class _Sphere:
-    """A solid sphere."""
-
-    def __init__(self, center: Point3, radius: float) -> None:
-        self._c = center
-        self._r = radius
-        self.min = (center[0] - radius, center[1] - radius, center[2] - radius)
-        self.max = (center[0] + radius, center[1] + radius, center[2] + radius)
-
-    def contains(self, x: float, y: float, z: float) -> bool:
-        cx, cy, cz = self._c
-        return (x - cx) ** 2 + (y - cy) ** 2 + (z - cz) ** 2 <= self._r * self._r
-
-
-class _Barrel:
-    """Top half of a horizontal cylinder whose axis runs along a segment at base_z."""
-
-    def __init__(self, start: Point2, end: Point2, radius: float, base_z: float) -> None:
-        self._a = start
-        self._b = end
-        self._r = radius
-        self._base_z = base_z
-        xs = [start[0], end[0]]
-        ys = [start[1], end[1]]
-        self.min = (min(xs) - radius, min(ys) - radius, base_z)
-        self.max = (max(xs) + radius, max(ys) + radius, base_z + radius)
-
-    def contains(self, x: float, y: float, z: float) -> bool:
-        if z < self._base_z:
-            return False
-        # Perpendicular distance from (x,y,z) to the axis line (which lies in z=base_z).
-        ax, ay = self._a
-        bx, by = self._b
-        dx, dy = bx - ax, by - ay
-        seg_len_sq = dx * dx + dy * dy or 1.0
-        t = ((x - ax) * dx + (y - ay) * dy) / seg_len_sq
-        if t < 0.0 or t > 1.0:  # beyond the segment ends (no spherical caps here)
-            return False
-        px, py = ax + t * dx, ay + t * dy
-        radial_sq = (x - px) ** 2 + (y - py) ** 2 + (z - self._base_z) ** 2
-        return radial_sq <= self._r * self._r
-
-
-class _Solid:
-    """A CSG expression: additive shapes minus subtractive ones, optionally intersected
-    with one or more clip groups (a point must lie inside every clip group)."""
-
-    def __init__(self, additive, subtractive, clips=None) -> None:
-        self.additive = additive
-        self.subtractive = subtractive
-        self.clips = clips or []  # list of lists of shapes; AND across groups
+    def __init__(self, face: _FakeFace, distance: float) -> None:
+        self.face = face
+        self.distance = distance
 
 
 class FakeKernel(Kernel):
-    """In-memory Kernel that approximates volume/bounds by sampling."""
+    """In-memory kernel: analytic volume/bounds for axis-aligned extrusions."""
 
-    def box(self, center: Point3, size: Point3) -> Any:
-        return _Solid(additive=[_Box(center, size)], subtractive=[])
+    def polygon_face(self, points: list[Point2], plane: str) -> Any:
+        return _FakeFace(points, plane)
 
-    def prism(self, profile: list[Point2], axis: str, start: float, end: float) -> Any:
-        return _Solid(additive=[_Prism(profile, axis, start, end)], subtractive=[])
-
-    def extrude_polygon(self, polygon: list[Point2], base_z: float, height: float) -> Any:
-        return _Solid(additive=[_PolygonPrism(polygon, base_z, height)], subtractive=[])
-
-    def extrude_rounded_polygon(
-        self, polygon: list[Point2], corner_radii: dict[int, float], base_z: float, height: float
-    ) -> Any:
-        rounded = _round_corners(polygon, corner_radii)
-        return _Solid(additive=[_PolygonPrism(rounded, base_z, height)], subtractive=[])
-
-    def arc_wall(
-        self, center, radius, start_angle, end_angle, base_z, height, thickness
-    ) -> Any:
-        band = _annular_band(center, radius, start_angle, end_angle, thickness)
-        return _Solid(additive=[_PolygonPrism(band, base_z, height)], subtractive=[])
-
-    def sphere(self, center: Point3, radius: float) -> Any:
-        return _Solid(additive=[_Sphere(center, radius)], subtractive=[])
-
-    def barrel(self, start: Point2, end: Point2, radius: float, base_z: float) -> Any:
-        return _Solid(additive=[_Barrel(start, end, radius, base_z)], subtractive=[])
-
-    def intersect(self, solids: list[Any]) -> Any:
-        # Bounds = the first solid's additive shapes; membership requires being inside
-        # every operand. Model each operand as a clip group on a carrier solid.
-        carrier = solids[0]
-        clips = list(carrier.clips)
-        for other in solids[1:]:
-            clips.append(other.additive)
-            clips.extend(other.clips)
-        return _Solid(carrier.additive, carrier.subtractive, clips)
-
-    def union(self, solids: list[Any]) -> Any:
-        additive = []
-        subtractive = []
-        clips = []
-        for solid in solids:
-            additive.extend(solid.additive)
-            subtractive.extend(solid.subtractive)
-            clips.extend(solid.clips)
-        return _Solid(additive, subtractive, clips)
-
-    def subtract(self, solid: Any, tools: list[Any]) -> Any:
-        tool_shapes = []
-        for tool in tools:
-            tool_shapes.extend(tool.additive)
-        return _Solid(solid.additive, solid.subtractive + tool_shapes, solid.clips)
+    def extrude(self, face: Any, distance: float) -> Any:
+        return _FakeSolid(face, distance)
 
     def volume(self, solid: Any) -> float:
-        (minx, miny, minz), (maxx, maxy, maxz) = self.bounding_box(solid)
-        if minx >= maxx or miny >= maxy or minz >= maxz:
-            return 0.0
-        # Exact for axis-aligned, non-overlapping boxes (our wall/opening case): sum of
-        # additive box volumes minus subtractive overlap, computed by sampling.
-        n = _SAMPLES_PER_AXIS
-        dx, dy, dz = (maxx - minx) / n, (maxy - miny) / n, (maxz - minz) / n
-        cell = dx * dy * dz
-        inside = 0
-        for i in range(n):
-            x = minx + (i + 0.5) * dx
-            for j in range(n):
-                y = miny + (j + 0.5) * dy
-                for k in range(n):
-                    z = minz + (k + 0.5) * dz
-                    if self._point_inside(solid, x, y, z):
-                        inside += 1
-        return inside * cell
+        return _polygon_area(solid.face.points) * solid.distance
 
     def bounding_box(self, solid: Any) -> Bounds:
-        lo, hi = _bounds_of(solid.additive)
-        # Each clip group narrows the bounds to the overlap (boolean intersection).
-        for group in solid.clips:
-            glo, ghi = _bounds_of(group)
-            lo = (max(lo[0], glo[0]), max(lo[1], glo[1]), max(lo[2], glo[2]))
-            hi = (min(hi[0], ghi[0]), min(hi[1], ghi[1]), min(hi[2], ghi[2]))
-        return (lo, hi)
+        xs = [x for x, _ in solid.face.points]
+        ys = [y for _, y in solid.face.points]
+        # Bucket 0.1 uses the XY plane; extrude along +Z by distance.
+        return ((min(xs), min(ys), 0.0), (max(xs), max(ys), solid.distance))
 
     def export(self, solid: Any, path: str) -> None:
-        with open(path, "w", encoding="utf-8") as handle:
-            handle.write(f"fake solid: vol={self.volume(solid):.4f}\n")
-
-    def _point_inside(self, solid: _Solid, x: float, y: float, z: float) -> bool:
-        in_additive = any(shape.contains(x, y, z) for shape in solid.additive)
-        if not in_additive:
-            return False
-        if any(shape.contains(x, y, z) for shape in solid.subtractive):
-            return False
-        # Must lie inside every clip group (boolean intersection).
-        return all(
-            any(shape.contains(x, y, z) for shape in group) for group in solid.clips
-        )
+        raise NotImplementedError("FakeKernel does not export geometry")
 
 
-_FILLET_SEGMENTS = 8  # chord segments approximating each rounded corner
-
-
-def _round_corners(polygon: list[Point2], corner_radii: dict[int, float]) -> list[Point2]:
-    """Replace each radius'd corner with chord segments along an inscribed fillet arc.
-
-    Mirrors a CAD fillet: the arc is tangent to both edges at distance ``r / tan(half)``
-    from the corner. Sharp corners (no radius) are passed through unchanged.
-    """
-    n = len(polygon)
-    out: list[Point2] = []
+def _polygon_area(points: list[Point2]) -> float:
+    """Shoelace area of a closed ring given as non-repeating vertices."""
+    n = len(points)
+    total = 0.0
     for i in range(n):
-        radius = corner_radii.get(i, 0.0)
-        if radius <= 0:
-            out.append(polygon[i])
-            continue
-        prev_pt, corner, next_pt = polygon[(i - 1) % n], polygon[i], polygon[(i + 1) % n]
-        out.extend(_fillet_points(prev_pt, corner, next_pt, radius))
-    return out
-
-
-def _fillet_points(prev_pt, corner, next_pt, radius) -> list[Point2]:
-    cx, cy = corner
-    v_in = (prev_pt[0] - cx, prev_pt[1] - cy)
-    v_out = (next_pt[0] - cx, next_pt[1] - cy)
-    in_len = math.hypot(*v_in) or 1.0
-    out_len = math.hypot(*v_out) or 1.0
-    u_in = (v_in[0] / in_len, v_in[1] / in_len)
-    u_out = (v_out[0] / out_len, v_out[1] / out_len)
-    half = math.acos(max(-1.0, min(1.0, u_in[0] * u_out[0] + u_in[1] * u_out[1]))) / 2.0
-    if half <= 1e-6:
-        return [corner]
-    setback = radius / math.tan(half)
-    tan_in = (cx + u_in[0] * setback, cy + u_in[1] * setback)
-    tan_out = (cx + u_out[0] * setback, cy + u_out[1] * setback)
-    # Sample the straight chord between the two tangent points (a coarse arc approximation
-    # that is provably inside the true fillet, so the fake stays conservative).
-    points = []
-    for s in range(_FILLET_SEGMENTS + 1):
-        t = s / _FILLET_SEGMENTS
-        points.append((tan_in[0] + (tan_out[0] - tan_in[0]) * t,
-                       tan_in[1] + (tan_out[1] - tan_in[1]) * t))
-    return points
-
-
-_ARC_BAND_SEGMENTS = 16  # segments approximating an arc wall's annular band
-
-
-def _annular_band(center, radius, start_angle, end_angle, thickness) -> list[Point2]:
-    """Closed polygon for an annular sector along the MINOR arc between the two angles."""
-    cx, cy = center
-    a0 = math.radians(start_angle)
-    a1 = math.radians(end_angle)
-    while a1 - a0 > math.pi:
-        a1 -= 2 * math.pi
-    while a1 - a0 < -math.pi:
-        a1 += 2 * math.pi
-    r_out, r_in = radius + thickness / 2, radius - thickness / 2
-    outer = []
-    inner = []
-    for s in range(_ARC_BAND_SEGMENTS + 1):
-        t = s / _ARC_BAND_SEGMENTS
-        ang = a0 + (a1 - a0) * t
-        outer.append((cx + r_out * math.cos(ang), cy + r_out * math.sin(ang)))
-        inner.append((cx + r_in * math.cos(ang), cy + r_in * math.sin(ang)))
-    return outer + list(reversed(inner))
-
-
-def _bounds_of(shapes: list) -> tuple:
-    """Axis-aligned bounds enclosing a list of shapes (each exposes .min/.max)."""
-    mins = [s.min for s in shapes]
-    maxs = [s.max for s in shapes]
-    return (
-        (min(m[0] for m in mins), min(m[1] for m in mins), min(m[2] for m in mins)),
-        (max(m[0] for m in maxs), max(m[1] for m in maxs), max(m[2] for m in maxs)),
-    )
-
-
-def _point_in_polygon(u: float, v: float, polygon: list[Point2]) -> bool:
-    """Ray-casting point-in-polygon test for a 2D (u, v) point."""
-    inside = False
-    count = len(polygon)
-    j = count - 1
-    for i in range(count):
-        ui, vi = polygon[i]
-        uj, vj = polygon[j]
-        if (vi > v) != (vj > v):
-            slope_u = ui + (v - vi) / (vj - vi) * (uj - ui)
-            if u < slope_u:
-                inside = not inside
-        j = i
-    return inside
+        x0, y0 = points[i]
+        x1, y1 = points[(i + 1) % n]
+        total += x0 * y1 - x1 * y0
+    return abs(total) / 2.0
