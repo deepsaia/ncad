@@ -46,11 +46,20 @@ class ViewerCli:
         candidate = root / _EXAMPLES_SUBDIR
         return candidate if candidate.is_dir() else None
 
-    def launch_viewer(self, models_dir: str | None, host: str, port: int) -> None:
-        """Resolve the models directory and run the viewer server in the foreground."""
+    def launch_viewer(
+        self, models_dir: str | None, host: str, port: int, dev: bool = False
+    ) -> None:
+        """Resolve the models and examples directories and run the viewer server."""
         logging.basicConfig(level=logging.INFO, format="%(message)s")
         resolved = self.resolve_models_dir(models_dir)
-        server = ViewerServer(models_dir=str(resolved), host=host, port=port)
+        examples = self.resolve_examples_dir()
+        server = ViewerServer(
+            models_dir=str(resolved),
+            host=host,
+            port=port,
+            examples_dir=str(examples) if examples else None,
+            dev=dev,
+        )
         print(f"ncad viewer >> {server.base_url}  (serving '{resolved}', Ctrl+C to stop)")
         try:
             server.serve_forever()
@@ -85,10 +94,11 @@ def _root(
     ctx: typer.Context,
     host: str = typer.Option("127.0.0.1", help="bind address"),
     port: int = typer.Option(8000, help="bind port (0 = ephemeral)"),
+    dev: bool = typer.Option(False, help="hot-reload the viewer HTML on each request"),
 ) -> None:
     """ncad: build and view parametric CAD models. Bare ``ncad`` launches the viewer."""
     if ctx.invoked_subcommand is None:
-        cli.launch_viewer(None, host, port)
+        cli.launch_viewer(None, host, port, dev)
 
 
 @app.command()
@@ -96,9 +106,10 @@ def view(
     models_dir: str = typer.Argument(None, help="directory of glTF/GLB models (default: out/)"),
     host: str = typer.Option("127.0.0.1", help="bind address"),
     port: int = typer.Option(8000, help="bind port (0 = ephemeral)"),
+    dev: bool = typer.Option(False, help="hot-reload the viewer HTML on each request"),
 ) -> None:
     """Launch the browser 3D viewer over a directory of models."""
-    cli.launch_viewer(models_dir, host, port)
+    cli.launch_viewer(models_dir, host, port, dev)
 
 
 @app.command()

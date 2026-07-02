@@ -52,11 +52,18 @@ class _ViewerRequestHandler(BaseHTTPRequestHandler):
     """Handles viewer routes. Constructed per request with an injected catalog."""
 
     def __init__(
-        self, *args, catalog: ModelCatalog, spec_catalog: SpecCatalog, build_service, **kwargs
+        self,
+        *args,
+        catalog: ModelCatalog,
+        spec_catalog: SpecCatalog,
+        build_service,
+        page: ViewerPage,
+        **kwargs,
     ) -> None:
         self._catalog = catalog
         self._spec_catalog = spec_catalog
         self._build_service = build_service
+        self._page = page
         super().__init__(*args, **kwargs)
 
     def do_GET(self) -> None:  # noqa: N802 (name fixed by BaseHTTPRequestHandler)
@@ -81,7 +88,7 @@ class _ViewerRequestHandler(BaseHTTPRequestHandler):
             self.send_error(404, "not found")
 
     def _send_index(self) -> None:
-        self._send_bytes(200, "text/html; charset=utf-8", ViewerPage().render().encode("utf-8"))
+        self._send_bytes(200, "text/html; charset=utf-8", self._page.render().encode("utf-8"))
 
     def do_POST(self) -> None:  # noqa: N802 (name fixed by BaseHTTPRequestHandler)
         path = self.path.split("?", 1)[0]
@@ -217,12 +224,14 @@ class ViewerServer:
         *,
         examples_dir: str | None = None,
         build_service=None,
+        dev: bool = False,
     ) -> None:
         """:param models_dir: Directory of glTF/GLB models to serve.
         :param host: Bind address.
         :param port: Bind port; 0 picks an ephemeral free port.
         :param examples_dir: Directory of example specs (spec panel empty if None).
         :param build_service: Injected BuildService; a default is built if None.
+        :param dev: When True, re-read the viewer HTML per request (hot reload).
         """
         catalog = ModelCatalog(models_dir)
         spec_catalog = SpecCatalog(examples_dir or "")
@@ -233,6 +242,7 @@ class ViewerServer:
             catalog=catalog,
             spec_catalog=spec_catalog,
             build_service=build_service,
+            page=ViewerPage(dev=dev),
         )
         self._httpd = ThreadingHTTPServer((host, port), handler)
         self._thread: threading.Thread | None = None

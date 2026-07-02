@@ -10,7 +10,9 @@ runner = CliRunner()
 def _patch_launch(monkeypatch):
     calls = []
     monkeypatch.setattr(
-        viewer_cli.cli, "launch_viewer", lambda models_dir, host, port: calls.append((host, port))
+        viewer_cli.cli,
+        "launch_viewer",
+        lambda models_dir, host, port, dev=False: calls.append((host, port)),
     )
     return calls
 
