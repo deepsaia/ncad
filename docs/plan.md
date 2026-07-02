@@ -11,7 +11,7 @@ coherent capability slices, each decomposed into **agile buckets**.
 
 **Guiding rule, thin vertical slices.** Prove the **general spine end-to-end
 first** (Phase 0), then add breadth. Work is organized into **buckets**: each
-bucket is a *thin vertical slice* that ends in something you can **author → build →
+bucket is a *thin vertical slice* that ends in something you can **author >> build >>
 view/export** and *see*, with a concrete **demo** and a **gate**. A bucket is
 sized so it can be implemented, tested, and demoed on its own; you never wait for
 a whole phase to see a specific capability working. Buckets within a phase are
@@ -26,15 +26,15 @@ is layered on. Demo-ability leads; breadth follows.
 
 ## Where we are
 
-v1 proved the *pattern*: `spec → build → BOM → view`, determinism, build123d/OCCT,
+v1 proved the *pattern*: `spec >> build >> BOM >> view`, determinism, build123d/OCCT,
 HOCON+jsonschema, traversal BOM, the Three.js viewer, on the **building profile**
-(footprint → rooms → walls → openings → roof).
+(footprint >> rooms >> walls >> openings >> roof).
 
 **What actually carries into Phase 0 (be honest about it):**
 
-- **Reused directly:** the `spec`/IO layer (HOCON + `jsonschema` + `leaf-common` →
+- **Reused directly:** the `spec`/IO layer (HOCON + `jsonschema` + `leaf-common` >>
   plain dicts), the `viewer` stack (glTF tessellation + three.js `nv`), and the
-  *patterns*: op-dispatch registry (v1 `roof_builders[kind]` → `feature_ops[op]`),
+  *patterns*: op-dispatch registry (v1 `roof_builders[kind]` >> `feature_ops[op]`),
   traversal-BOM discipline, id-tagged validators, determinism-by-construction.
 - **Effectively greenfield:** v1's `Kernel` is building-shaped (`box`, `prism`,
   `arc_wall`, `sphere`, `barrel`); the *general* kernel interface (sketch / extrude
@@ -56,7 +56,7 @@ modeling, the domain profiles, CAM/PCB seams, and a plugin layer.
 
 | Phase | Theme | Track | Status |
 |-------|-------|-------|--------|
-| 0 | The general spine (sketch→extrude→hole→fillet, refs+provenance) | core | `[ ]` |
+| 0 | The general spine (sketch>>extrude>>hole>>fillet, refs+provenance) | core | `[ ]` |
 | 1 | 2D sketching & the constraint solver | core | `[ ]` |
 | 2 | Core solid features (sketched + dress-up) | solid | `[ ]` |
 | 3 | Patterns, transforms, booleans, multibody | solid | `[ ]` |
@@ -95,27 +95,27 @@ bucket below ends in a viewable/inspectable result.
       `datums`, `parts[features]`, stable `id`, `schema_version`, `profile`
       (default `solid`), only enough for a sketch + extrude
 - [ ] **Op registry** (`ops`): `feature_ops[op]` dispatch; uniform pure signature
-      `(shape_in, params, prov_in) → (shape_out, prov_out, issues)`
+      `(shape_in, params, prov_in) >> (shape_out, prov_out, issues)`
 - [ ] Ops `sketch` (rectangle) + `extrude`; general **kernel** interface v0 over
       build123d
 - [ ] **glTF export**; the `nv` viewer shows the extruded block
-- **Demo:** author a rectangle+extrude HOCON → `ncad build` → block appears in `nv`.
+- **Demo:** author a rectangle+extrude HOCON >> `ncad build` >> block appears in `nv`.
 - **Gate:** a hand-authored document renders in the viewer.
 
 **Bucket 0.2: The everyday ops + expressions**
 - [ ] Ops `pocket`, `hole`, `fillet`, `chamfer`, `boolean`; sketch `circle`/`polygon`
 - [ ] **Expression layer** (`params`): `${ref}` + arithmetic + registered-function
       calls; restricted-AST safe evaluator; units-aware (design §1, Q3)
-- **Demo:** the bracket (rect → extrude → 4 holes via a `margin = ${hole_d}*1.5`
-      expression → edge fillet) builds and renders.
+- **Demo:** the bracket (rect >> extrude >> 4 holes via a `margin = ${hole_d}*1.5`
+      expression >> edge fillet) builds and renders.
 - **Gate:** the boring bracket builds from a parametric document.
 
 **Bucket 0.3: References, provenance & selection**
 - [ ] **Reference resolver v0** (`refs`): semantic + generative + selector refs
-- [ ] The **provenance map** (output element → producing feature/op), threaded
+- [ ] The **provenance map** (output element >> producing feature/op), threaded
       through every op's signature
 - [ ] **Element-map sidecar** on glTF; viewer **picks/selects by `id`**
-- **Demo:** click a face in `nv` → it reports the feature `id` that made it;
+- **Demo:** click a face in `nv` >> it reports the feature `id` that made it;
       `hole on pad.cap(+Z)` resolves via provenance.
 - **Gate:** generative + selector references resolve; picking reports semantic ids.
 
@@ -126,24 +126,24 @@ bucket below ends in a viewable/inspectable result.
       version (design §4a); dirty-suffix re-execution
 - [ ] **Equality harness** (design §4a): topology signature + toleranced measures,
       the golden comparator (not BREP bytes)
-- [ ] Golden tests: same document → equal geometry; **edit-a-param** →
+- [ ] Golden tests: same document >> equal geometry; **edit-a-param** >>
       correct incremental rebuild
 - **Demo:** change `thickness`, only the dirty suffix rebuilds; golden equality holds.
 - **Gate:** editing a parameter yields a correct incremental rebuild against the
       §4a equality definition.
 
 **Bucket 0.5: Delete-a-feature, broken refs, and the TNP spike**
-- [ ] **Delete/insert/reorder** features → correct incremental rebuild
+- [ ] **Delete/insert/reorder** features >> correct incremental rebuild
 - [ ] **Broken-reference reporting:** an unresolvable ref is attributed to its `id`
       (id-tagged issue), never silent garbage
 - [ ] **TNP spike** (design §2): a *minimal generative element-map* proven on the
       bracket: a fillet's edge reference survives a parameter edit and an upstream
       feature delete, or fails loudly by `id`. Proves the persistent-name approach
       before Phase 4 hardens it.
-- **Demo:** delete the extrude feature → the dependent fillet reports "cannot find
-      its edges" against its `id`; edit an upstream param → the fillet's edge ref
+- **Demo:** delete the extrude feature >> the dependent fillet reports "cannot find
+      its edges" against its `id`; edit an upstream param >> the fillet's edge ref
       still resolves.
-- **Gate (Phase 0):** edit a parameter *or delete a feature* → correct incremental
+- **Gate (Phase 0):** edit a parameter *or delete a feature* >> correct incremental
       rebuild; any unresolvable reference is attributed to its `id`; the element-map
       spike survives an edit (design §18).
 
@@ -155,12 +155,12 @@ bucket below ends in a viewable/inspectable result.
 GCS. **Depends on** Phase 0.
 
 - [ ] **Solver integration** (`py-slvs` / SolveSpace; `planegcs` fallback):
-      solve entity+constraint set → positions; expose DoF status, conflict &
+      solve entity+constraint set >> positions; expose DoF status, conflict &
       redundancy as id-tagged issues
 - [ ] **Geometry entities:** point, line, polyline, rectangle, circle, arc
       (center / 3-point / tangent), ellipse + elliptical arc, conic
       (parabola/hyperbola), **spline** (interpolated, control-point/B-spline, fit),
-      slot, regular polygon, text → wires, construction/reference geometry
+      slot, regular polygon, text >> wires, construction/reference geometry
 - [ ] **Reference-into-sketch:** project / convert 3D edges & vertices onto the
       sketch plane; intersection curves
 - [ ] **Sketch modify:** trim, extend, split, corner fillet, corner chamfer,
@@ -261,7 +261,7 @@ mirror rebuilds correctly and reports per-body mass properties.
 - [ ] **Direct dress-up edits:** resize baked `fillet`/`chamfer`; reposition baked `hole`
 
 **Bucket 4.3: Imported & mixed mode**
-- [ ] **Imported-geometry mode:** STEP/IGES import → editable direct body
+- [ ] **Imported-geometry mode:** STEP/IGES import >> editable direct body
 - [ ] **Relational direct edits:** parallel / coaxial / perpendicular / tangent /
       symmetric / coplanar (on history-free geometry)
 - [ ] Mixed mode: direct-edit features appended after a history tree (Creo-style)
@@ -312,7 +312,7 @@ STEP (AP242) and opens in FreeCAD; interference check is correct.
 - [ ] **DoF analysis:** free degrees of freedom from the joint graph; over/under/
       exactly-constrained status (solver Jacobian rank)
 - [ ] **Drivers / forward kinematics:** per-joint driver: constant, linear ramp,
-      function-of-time, function-of-another-DoF (couplers/gears/cams); sweep →
+      function-of-time, function-of-another-DoF (couplers/gears/cams); sweep >>
       configuration per step
 - [ ] **Inverse kinematics:** drive an output frame, solve joint values
 - [ ] **Mechanism solver:** step time, fix driven DoF, solve constraint network
@@ -420,7 +420,7 @@ assertion. (Documented non-goals: no G3, no control-point sculpting, no fairing.
 - [ ] **Facet bodies** as first-class (import STL / 3MF / OBJ)
 - [ ] **Boolean** B-rep ⊕ mesh
 - [ ] **Mesh features:** offset, thicken, fillet-on-facet (pragmatic)
-- [ ] **Conversion:** B-rep → mesh (tessellate); mesh → B-rep (faceted-as-body +
+- [ ] **Conversion:** B-rep >> mesh (tessellate); mesh >> B-rep (faceted-as-body +
       primitive fit; full reverse-engineering is `(A)` / plugin)
 - [ ] Remesh / decimate / smooth; mesh repair
 
@@ -505,7 +505,7 @@ AP242 without loss of structure.
 **Goal:** the high-end + production polish `(A)`. **Depends on** Phase 6, 9, 12.
 
 - [ ] **Multibody dynamics (MBD), rigid bodies only:** mass/inertia (from
-      `BRepGProp`) + gravity, forces/torques, springs/dampers, **simple contact** →
+      `BRepGProp`) + gravity, forces/torques, springs/dampers, **simple contact** >>
       reaction forces & accelerations (Ondsel MbD solver). **Line drawn here**
       (design §19): *no* flexible/FEM-coupled bodies, friction-rich or continuous
       contact. That is physics-engine / FEA territory and an export concern (§17).
@@ -549,15 +549,15 @@ for collision). Built late; the seam is designed from Phase 0.
 - **Demo:** a facing + pocket + drill job on the bracket previews toolpaths in `nv`.
 - **Gate:** toolpaths generate for a 2.5D part and show a correct stock-removal preview.
 
-**Bucket 15.3: Post-processor → G-code**
-- [ ] **Post-processor registry** (strategy-neutral toolpath → machine G-code);
+**Bucket 15.3: Post-processor >> G-code**
+- [ ] **Post-processor registry** (strategy-neutral toolpath >> machine G-code);
       one **in-house generic 3-axis post** (RS274/NGC vocabulary), pluggable dialects
 - **Demo:** the pocket job exports runnable G-code for a generic 3-axis post.
 - **Gate:** G-code exports and back-plots to the intended toolpath.
 
 > **Boundary (design §19; `docs/research/cam-toolpath-kernel.md`):** 3D
 > drop-cutter/waterline finishing = **`opencamlib` (LGPL-2.1) as an optional plugin**
-> behind the op-registry seam. **5-axis has no credible OSS kernel → out of scope**,
+> behind the op-registry seam. **5-axis has no credible OSS kernel >> out of scope**,
 > reserved for a future external-kernel plugin. Do **not** depend on FreeCAD Path
 > (runtime-coupled) or libarea (unmaintained).
 
@@ -581,7 +581,7 @@ lowering), Phase 13 (interchange). Built late; the seam is designed from Phase 0
 
 **Bucket 16.2: Lower to solids + MCAD exchange**
 - [ ] **Lowering step** (OCCT/build123d): board outline + cutouts + copper (thin
-      solids) + component bodies (placed via XCAF sub-assembly) → the solid substrate
+      solids) + component bodies (placed via XCAF sub-assembly) >> the solid substrate
 - [ ] **Board-to-STEP AP214** (with components) for the mechanical side (AP242's
       electrical scope is wire-harness, *not* PCB); enclosure clearance via assembly
       interference (§7)
@@ -611,10 +611,10 @@ Run alongside the phases, not after them:
       element-map **spike** (bucket 0.5) to a robust persistent-name layer
       (Phase 4); the single most important track
 - [ ] **Performance & caching**: content-addressed cache keyed on subtree +
-      pinned kernel (bucket 0.4, design §4a) → incremental everywhere →
+      pinned kernel (bucket 0.4, design §4a) >> incremental everywhere >>
       large-assembly budget (Phase 12)
-- [ ] **Viewer capabilities**: pick/select (0) → measure → motion playback (6) →
-      PMI/saved views (8) → sectioning (12) → CAM toolpath preview (15)
+- [ ] **Viewer capabilities**: pick/select (0) >> measure >> motion playback (6) >>
+      PMI/saved views (8) >> sectioning (12) >> CAM toolpath preview (15)
 - [ ] **Testing & golden**: the §4a **equality harness** (topology signature +
       toleranced measures, *not* BREP bytes) from bucket 0.4; incremental-rebuild
       goldens; per-feature failure goldens; STEP round-trip goldens
@@ -630,8 +630,8 @@ Run alongside the phases, not after them:
 
 **Resolved this revision** (rationale in [`design.md`](./design.md)):
 
-- **A: Motion/kinematics is first-class** (not deferred): joints → DoF → drivers/
-      FK/IK → mechanism solve → traces/envelopes; MBD dynamics later (§8, Phase 6/14).
+- **A: Motion/kinematics is first-class** (not deferred): joints >> DoF >> drivers/
+      FK/IK >> mechanism solve >> traces/envelopes; MBD dynamics later (§8, Phase 6/14).
 - **B: Dual modeling paradigm:** parametric/history **and** direct/synchronous
       over one model (§3, Phase 4).
 - **B: Parts are profiles:** solid / surface / sheet-metal / mold / building share
@@ -644,7 +644,7 @@ Run alongside the phases, not after them:
       calls**; all logic stays in code (§1, Phase 0).
 - **Q4: Selector grammar:** SQL-`WHERE`-style predicate over a **versioned
       element-attribute model**; `lark` parser, escalate to CEL only if needed (§2).
-- **Q5: Solver licensing: copyleft accepted** (settled, no longer open) → use
+- **Q5: Solver licensing: copyleft accepted** (settled, no longer open) >> use
       SolveSpace/`py-slvs` + Ondsel; the engine is **GPL** (§8, §15).
 - **Q6: Versioning:** per-domain `schema_version` + migration converters + upgrade
       prompt; kernel bump invalidates cached geometry, definitions migrate (§14).
@@ -654,7 +654,7 @@ Run alongside the phases, not after them:
 - **Determinism: equality = topology signature + toleranced measures** (not BREP
       bytes); cache key = subtree hash + pinned kernel version (design §4a, bucket 0.4).
 - **Plan shape: thin vertical slices (buckets)**: every bucket ends at
-      author→build→view/export with a demo + gate.
+      author>>build>>view/export with a demo + gate.
 - **v1 reuse framed honestly:** spec/IO + viewer + patterns carry over; the general
       kernel/refs/ops/executor are greenfield (see "Where we are").
 
