@@ -7,17 +7,17 @@ dedicated approach? *Decision recorded in* `design.md` §3, §19.
 
 History-free face editing on OCCT is **feasible but narrow**:
 
-- **delete_face / defeature** → `BRepAlgoAPI_Defeaturing` (wraps
+- **delete_face / defeature** >> `BRepAlgoAPI_Defeaturing` (wraps
   `BOPAlgo_RemoveFeatures`); solids only; fills the gap by extending adjacent faces
   and re-intersecting. The most useful native "direct" op.
-- **offset_face / thicken** → `BRepOffsetAPI_MakeOffsetShape` / `MakeThickSolid`;
+- **offset_face / thicken** >> `BRepOffsetAPI_MakeOffsetShape` / `MakeThickSolid`;
   whole-shape single offset (not per-face); only `Skin` mode implemented;
   `Intersection` mode and self-intersection elimination **not implemented**.
-- **local features** → `BRepFeat_MakePrism/DPrism/Revol/Gluer` *add/remove* matter
+- **local features** >> `BRepFeat_MakePrism/DPrism/Revol/Gluer` *add/remove* matter
   tied to a face; they do **not** move/replace a face.
-- **move_face / replace_face** → *no dedicated API*; synthesize via rebuild +
+- **move_face / replace_face** >> *no dedicated API*; synthesize via rebuild +
   `BRepAlgoAPI_Cut`/`Fuse` + heal. Boolean History tracks faces/edges, not vertices.
-- **healing** → `ShapeFix_Shape`, `ShapeUpgrade_UnifySameDomain`; capped by
+- **healing** >> `ShapeFix_Shape`, `ShapeUpgrade_UnifySameDomain`; capped by
   `MaxTolerance`; does not resolve self-intersections.
 
 ## Where it breaks (tracker-verified)

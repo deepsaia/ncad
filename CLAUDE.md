@@ -37,14 +37,14 @@ system design and [`docs/plan.md`](./docs/plan.md) for the phased build order.
 ### Object-oriented modules + the pure-function design
 
 The design's data-flow spine is conceptually functional:
-`generate(seed, params) → spec`, the pure `build(spec) → geometry`, `quantities(spec)`,
+`generate(seed, params) >> spec`, the pure `build(spec) >> geometry`, `quantities(spec)`,
 the validators. Reconcile this with the single-class-per-module rule by wrapping each
 responsibility in **one class** whose primary method carries the behavior, while keeping
 that method **internally pure** (no hidden randomness, no global/instance mutation that
 affects output):
 
 - `Generator(params).generate(seed) -> dict`: all randomness confined here.
-- `Builder(kernel).build(spec) -> Geometry`: pure, same spec → identical geometry.
+- `Builder(kernel).build(spec) -> Geometry`: pure, same spec >> identical geometry.
 - `BomCalculator().quantities(spec) -> Bom`
 - `SpecValidator().validate(spec) -> list[Issue]`
 
@@ -73,8 +73,8 @@ reason to change, split it into another module.
 - Write tests for new functionality whenever possible.
 - Cover **normal behavior, edge cases, and failure scenarios.**
 - Tests must be **deterministic and easy to run** (`pytest` from the repo root).
-- Lean on the design's testability: **golden specs** (same `seed+params` → identical
-  spec), **geometry hashes** (same spec → identical geometry), **golden BOM**, and
+- Lean on the design's testability: **golden specs** (same `seed+params` >> identical
+  spec), **geometry hashes** (same spec >> identical geometry), **golden BOM**, and
   **golden plan images**. These are regression nets, not afterthoughts.
 - A bug fix starts with a failing test that reproduces it.
 
