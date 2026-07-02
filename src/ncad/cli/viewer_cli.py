@@ -1,9 +1,9 @@
 """The ``ncad`` command-line app (typer).
 
-Runnable from any subdirectory of the project. ``ncad view [dir]`` launches the
-browser 3D viewer over a directory of glTF/GLB models; the directory defaults to
-``<project-root>/out`` and any relative path is resolved against the project root, so
-the command behaves the same wherever it is run.
+Runnable from any subdirectory of the project. Bare ``ncad`` and ``ncad view [dir]``
+both launch the browser 3D viewer over a directory of glTF/GLB models; the directory
+defaults to ``<project-root>/out`` and any relative path is resolved against the
+project root, so the command behaves the same wherever it is run.
 """
 
 import logging
@@ -18,9 +18,10 @@ logger = logging.getLogger(__name__)
 
 app = typer.Typer(
     help="ncad: build and view parametric CAD models.",
-    no_args_is_help=True,
-    # Keep `view` an explicit subcommand even while it is the only one, so future
-    # commands (e.g. `ncad build`) slot in without changing the `ncad view` interface.
+    # Bare `ncad` runs the callback (which launches the viewer) instead of printing
+    # help; `ncad view` is the explicit form, and future commands (e.g. `ncad build`)
+    # slot in as siblings without changing this default.
+    invoke_without_command=True,
     add_completion=False,
 )
 
@@ -43,18 +44,8 @@ def resolve_models_dir(models_dir: str | None, start: Path | None = None) -> Pat
     return candidate if candidate.is_absolute() else root / candidate
 
 
-@app.callback()
-def _root() -> None:
-    """ncad: build and view parametric CAD models."""
-
-
-@app.command()
-def view(
-    models_dir: str = typer.Argument(None, help="directory of glTF/GLB models (default: out/)"),
-    host: str = typer.Option("127.0.0.1", help="bind address"),
-    port: int = typer.Option(8000, help="bind port (0 = ephemeral)"),
-) -> None:
-    """Launch the browser 3D viewer over a directory of models."""
+def launch_viewer(models_dir: str | None, host: str, port: int) -> None:
+    """Resolve the models directory and run the viewer server in the foreground."""
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     resolved = resolve_models_dir(models_dir)
     server = ViewerServer(models_dir=str(resolved), host=host, port=port)
@@ -64,6 +55,27 @@ def view(
     except KeyboardInterrupt:
         print("\nstopping...")
         server.stop()
+
+
+@app.callback()
+def _root(
+    ctx: typer.Context,
+    host: str = typer.Option("127.0.0.1", help="bind address"),
+    port: int = typer.Option(8000, help="bind port (0 = ephemeral)"),
+) -> None:
+    """ncad: build and view parametric CAD models. Bare ``ncad`` launches the viewer."""
+    if ctx.invoked_subcommand is None:
+        launch_viewer(None, host, port)
+
+
+@app.command()
+def view(
+    models_dir: str = typer.Argument(None, help="directory of glTF/GLB models (default: out/)"),
+    host: str = typer.Option("127.0.0.1", help="bind address"),
+    port: int = typer.Option(8000, help="bind port (0 = ephemeral)"),
+) -> None:
+    """Launch the browser 3D viewer over a directory of models."""
+    launch_viewer(models_dir, host, port)
 
 
 def main() -> None:
