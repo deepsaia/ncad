@@ -4,19 +4,52 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>ncad 3D viewer</title>
+<script>
+  // Apply the saved theme before first paint to avoid a flash of the wrong theme.
+  (function () {
+    var choice = localStorage.getItem("ncad.theme") || "system";
+    var dark = choice === "dark" || (choice === "system" &&
+      window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
+    document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
+  })();
+</script>
 <style>
-  :root {
+  /* ============================================================================
+     ncad viewer styles
+     Sections: Design tokens (theme) · Base · Sidebar · Spec + Models · Toast +
+     swatches + toggles · Stage · Floating controls · Floating panels · Info
+     Colors come from CSS variables (see tokens); [data-theme] swaps the palette.
+     ============================================================================ */
+
+  /* --- Design tokens (dark = default, light theme overrides below) --- */
+  :root, :root[data-theme="dark"] {
     --bg: #0d1117; --bg-2: #11161f; --panel: #161d29; --panel-2: #1e2735;
     --text: #e8eef5; --muted: #8a97a8; --accent: #5aa0ff; --accent-2: #2bd4a8;
     --border: #283546; --shadow: 0 8px 30px rgba(0,0,0,.45);
+    /* Themed tokens (dark): text on accent fills, translucent panels, hint, 3D scene. */
+    --on-accent: #04101f; --panel-translucent: rgba(22,29,41,.82);
+    --panel-strong: rgba(22,29,41,.92); --hint-bg: rgba(13,17,23,.72);
+    --scene-bg: #0d1117; --grid-major: #33455c; --grid-minor: #1b2533; --edge: #0d1117;
+    --accent-tint: rgba(90,160,255,.14);
   }
+  :root[data-theme="light"] {
+    --bg: #eef1f5; --bg-2: #e4e9f0; --panel: #ffffff; --panel-2: #eef2f7;
+    --text: #1a2230; --muted: #5c6675; --accent: #2f74d0; --accent-2: #12a67f;
+    --border: #d0d8e2; --shadow: 0 8px 30px rgba(30,50,80,.14);
+    --on-accent: #ffffff; --panel-translucent: rgba(255,255,255,.86);
+    --panel-strong: rgba(255,255,255,.94); --hint-bg: rgba(238,241,245,.8);
+    --scene-bg: #dfe5ec; --grid-major: #b9c4d2; --grid-minor: #cfd7e2; --edge: #6b7686;
+    --accent-tint: rgba(47,116,208,.13);
+  }
+  /* --- Base --- */
   * { box-sizing: border-box; }
   html, body { margin: 0; width: 100%; height: 100%; overflow: hidden;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif;
-    background: var(--bg); color: var(--text); -webkit-font-smoothing: antialiased; }
+    background: var(--bg); color: var(--text); -webkit-font-smoothing: antialiased;
+    transition: background .2s ease, color .2s ease; }
   #app { display: flex; width: 100%; height: 100%; overflow: hidden; }
 
-  /* Sidebar */
+  /* --- Sidebar --- */
   #sidebar { width: 286px; flex: none; background: linear-gradient(180deg, var(--panel), var(--bg-2));
     border-right: 1px solid var(--border); display: flex; flex-direction: column;
     padding: 20px; gap: 22px; overflow-y: auto; }
@@ -26,6 +59,18 @@
   #sidebar-resizer:hover, #sidebar-resizer.dragging { background: #7cc4ff;
     box-shadow: 0 0 8px 1px rgba(124, 196, 255, .6); }
   body.resizing-sidebar { cursor: col-resize; user-select: none; }
+  /* Top bar: brand + theme toggle, pinned to the top of the sidebar. */
+  #topbar { position: sticky; top: -20px; z-index: 3; margin: -20px -20px 0; padding: 14px 20px;
+    display: flex; align-items: center; gap: 10px;
+    background: var(--panel); border-bottom: 1px solid var(--border); }
+  #topbar .brand { flex: 1; }
+  /* Single toggle that cycles light -> system -> dark, showing the current mode's icon. */
+  .theme-toggle { display: inline-flex; align-items: center; justify-content: center;
+    width: 30px; height: 28px; color: var(--muted); background: var(--panel-2);
+    border: 1px solid var(--border); border-radius: 8px; cursor: pointer;
+    transition: color .15s, border-color .15s; }
+  .theme-toggle:hover { color: var(--accent); border-color: var(--accent); }
+  .theme-toggle span { display: inline-flex; }
   .brand { display: flex; align-items: baseline; gap: 2px; }
   .brand h1 { font-size: 18px; margin: 0; font-weight: 700; letter-spacing: 0.3px; }
   .brand .dot { color: var(--accent-2); font-size: 22px; line-height: 0; }
@@ -54,6 +99,7 @@
     width: 36px; background: var(--panel-2); border: 1px solid var(--border);
     border-radius: 9px; color: var(--text); cursor: pointer; }
   .icon-btn:hover { border-color: var(--accent); color: var(--accent); }
+  /* --- Models list --- */
   .model-list { display: flex; flex-direction: column; gap: 4px; max-height: 30vh; overflow: auto; }
   .model-row { display: flex; align-items: center; gap: 6px; min-height: 40px;
     padding: 4px 9px; background: var(--panel-2); border: 1px solid transparent;
@@ -75,6 +121,7 @@
     transition: opacity .25s; pointer-events: none; z-index: 50; max-width: 70%; }
   #toast.show { opacity: 1; }
   #toast.error { border-color: var(--no, #d9534f); }
+  /* --- Material swatches + scene toggles (shared) --- */
   .swatches { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; }
   .swatch { aspect-ratio: 1; border-radius: 6px; border: 1.5px solid var(--border);
     cursor: pointer; transition: transform .12s, border-color .12s; }
@@ -90,23 +137,23 @@
   .slider:before { content: ""; position: absolute; height: 16px; width: 16px; left: 2px;
     top: 2px; background: var(--muted); border-radius: 50%; transition: .2s; }
   input:checked + .slider { background: var(--accent); border-color: var(--accent); }
-  input:checked + .slider:before { transform: translateX(18px); background: #04101f; }
+  input:checked + .slider:before { transform: translateX(18px); background: var(--on-accent); }
   .spacer { margin-top: auto; }
 
-  /* Stage */
+  /* --- Stage (3D viewport) --- */
   #stage { flex: 1 1 0; min-width: 0; position: relative; overflow: hidden; }
   canvas { display: block; }
   #spinner { position: absolute; inset: 0; display: flex; align-items: center;
     justify-content: center; color: var(--muted); font-size: 14px; pointer-events: none; }
   #hint { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
-    font-size: 12px; color: var(--muted); background: rgba(13,17,23,.72);
+    font-size: 12px; color: var(--muted); background: var(--hint-bg);
     padding: 7px 16px; border-radius: 22px; border: 1px solid var(--border);
     backdrop-filter: blur(6px); }
 
   /* Floating viewport controls (translucent, movable/snapping, icon-first) */
   #viewport-controls { position: absolute; z-index: 40; display: flex;
     flex-direction: column; gap: 4px; padding: 5px; width: max-content;
-    background: rgba(22,29,41,.82); border: 1px solid var(--border);
+    background: var(--panel-translucent); border: 1px solid var(--border);
     border-radius: 10px; box-shadow: var(--shadow); backdrop-filter: blur(10px); }
   .vc-head { display: flex; align-items: center; gap: 6px; position: relative; }
   .vc-grip { display: inline-flex; align-items: center; justify-content: center;
@@ -144,13 +191,13 @@
     transition: max-width .2s ease, opacity .2s ease, margin-left .2s ease; }
   .vc-btn:hover { border-color: var(--accent); color: var(--accent); }
   .vc-btn.active { color: var(--accent); border-color: var(--accent);
-    background: rgba(90,160,255,.14); }
+    background: var(--accent-tint); }
   /* Distinct hover glow colors for scene toggles + reset */
   #vc-light:hover { color: #ffd166; border-color: #ffd166; }
   .vc-toggle[data-toggle="rotate"]:hover { color: #7cc4ff; border-color: #7cc4ff; }
   #vc-reset:hover { color: #ff8f6b; border-color: #ff8f6b; }
   .vc-panel-toggle.active { color: var(--accent); border-color: var(--accent);
-    background: rgba(90,160,255,.14); }
+    background: var(--accent-tint); }
   /* Lighting: cycle button + caret dropdown of icon options */
   .vc-light-wrap { position: relative; display: flex; }
   .vc-light-wrap #vc-light { border-top-right-radius: 0; border-bottom-right-radius: 0; }
@@ -186,10 +233,10 @@
   #viewport-controls.vc-animate { transition: left .28s ease, right .28s ease,
     top .28s ease, bottom .28s ease; }
 
-  /* Floating panels container, top-right; stacked, each section collapsible */
+  /* --- Floating content panels (BOM, Plan): top-right, collapsible --- */
   #panels { position: absolute; top: 16px; right: 16px; width: 300px;
     display: flex; flex-direction: column; gap: 12px; }
-  .panel { background: rgba(22,29,41,.92); border: 1px solid var(--border);
+  .panel { background: var(--panel-strong); border: 1px solid var(--border);
     border-radius: 12px; box-shadow: var(--shadow); backdrop-filter: blur(10px);
     overflow: hidden; }
   .panel-head { display: flex; align-items: center; gap: 8px; padding: 12px 14px;
@@ -211,6 +258,7 @@
   #plan-body { padding: 12px; background: #ffffff; border-radius: 0 0 11px 11px; }
   #plan-body svg { width: 100%; height: auto; display: block; }
 
+  /* --- Info readout (sidebar footer) --- */
   #info { font-size: 12px; color: var(--muted); line-height: 1.8;
     border-top: 1px solid var(--border); padding-top: 14px; }
   #info b { color: var(--text); font-weight: 600; }
@@ -219,7 +267,12 @@
 <body>
 <div id="app">
   <aside id="sidebar">
-    <div class="brand"><h1>ncad<span class="dot">.</span></h1><span class="sub">viewer</span></div>
+    <div id="topbar">
+      <div class="brand"><h1>ncad<span class="dot">.</span></h1><span class="sub">viewer</span></div>
+      <button id="theme-toggle" class="theme-toggle" title="Theme" aria-label="Toggle color theme">
+        <span id="theme-icon"></span>
+      </button>
+    </div>
     <div>
       <div class="label">Spec</div>
       <div class="spec-row">
@@ -378,9 +431,13 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 const stage = document.getElementById("stage");
 const spinner = document.getElementById("spinner");
 
+// Read a resolved CSS variable (so the 3D scene shares the same palette as the DOM).
+function cssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+function cssColor(name) { return new THREE.Color(cssVar(name)); }
+
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x0d1117);
-scene.fog = new THREE.Fog(0x0d1117, 40, 120);
+scene.background = cssColor("--scene-bg");
+scene.fog = new THREE.Fog(cssColor("--scene-bg"), 40, 120);
 
 const camera = new THREE.PerspectiveCamera(45, stage.clientWidth / stage.clientHeight, 0.01, 1000);
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -468,8 +525,20 @@ const ground = new THREE.Mesh(
 );
 ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
 
-let grid = new THREE.GridHelper(80, 80, 0x33455c, 0x1b2533);
+let grid = new THREE.GridHelper(80, 80, cssColor("--grid-major"), cssColor("--grid-minor"));
 scene.add(grid);
+
+// Recolor the 3D scene from the current theme's CSS variables. Called on theme change.
+function applySceneTheme() {
+  const bg = cssColor("--scene-bg");
+  scene.background = bg;
+  if (scene.fog) scene.fog.color = bg;
+  const major = cssColor("--grid-major"), minor = cssColor("--grid-minor");
+  const gm = grid.material;
+  (Array.isArray(gm) ? gm : [gm]).forEach((m, i) => { m.color = i === 0 ? major : minor; });
+  const edgeColor = cssColor("--edge");
+  edges.forEach(e => { e.material.color = edgeColor; });
+}
 
 // Material presets for "Material" mode.
 const MATERIALS = [
@@ -550,7 +619,7 @@ function loadModel(name) {
         tris += (geo.index ? geo.index.count : geo.attributes.position.count) / 3;
         const line = new THREE.LineSegments(
           new THREE.EdgesGeometry(geo, 25),
-          new THREE.LineBasicMaterial({ color: 0x0d1117 }));
+          new THREE.LineBasicMaterial({ color: cssColor("--edge") }));
         o.updateWorldMatrix(true, false); line.applyMatrix4(o.matrixWorld);
         edges.push(line); scene.add(line);
       }
@@ -931,6 +1000,36 @@ document.getElementById("spec-search").addEventListener("input", ev => renderSpe
 document.getElementById("spec-search").addEventListener("focus", ev => renderSpecTree(ev.target.value));
 document.getElementById("spec-search").addEventListener("blur", () => setTimeout(() => { document.getElementById("spec-tree").hidden = true; }, 150));
 document.getElementById("spec-build").addEventListener("click", () => build(selectedSpec));
+
+// ---- Color theme: one toggle cycling light -> system -> dark (persisted) ----
+const THEME_ORDER = ["light", "system", "dark"];
+const THEME_ICONS = {
+  light: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2M12 19.5v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M2.5 12h2M19.5 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/></svg>',
+  system: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="1.5"/><path d="M8 20h8M12 16v4"/></svg>',
+  dark: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 0 1 9.5 4 7 7 0 1 0 20 14.5Z"/></svg>',
+};
+const themeBtn = document.getElementById("theme-toggle");
+const themeIcon = document.getElementById("theme-icon");
+const darkMedia = window.matchMedia("(prefers-color-scheme: dark)");
+let themeChoice = localStorage.getItem("ncad.theme") || "system";
+
+function resolvedTheme() {
+  return themeChoice === "system" ? (darkMedia.matches ? "dark" : "light") : themeChoice;
+}
+function applyTheme() {
+  document.documentElement.setAttribute("data-theme", resolvedTheme());
+  themeIcon.innerHTML = THEME_ICONS[themeChoice];
+  themeBtn.title = "Theme: " + themeChoice[0].toUpperCase() + themeChoice.slice(1) + " (click to change)";
+  applySceneTheme();
+}
+themeBtn.addEventListener("click", () => {
+  themeChoice = THEME_ORDER[(THEME_ORDER.indexOf(themeChoice) + 1) % THEME_ORDER.length];
+  localStorage.setItem("ncad.theme", themeChoice);
+  applyTheme();
+});
+// When following the system and the OS theme flips, update live.
+darkMedia.addEventListener("change", () => { if (themeChoice === "system") applyTheme(); });
+applyTheme();
 
 loadSpecs();
 refreshModels().then(models => {

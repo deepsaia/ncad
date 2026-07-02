@@ -281,7 +281,10 @@ def test_index_contains_new_ui_elements(tmp_path) -> None:
     finally:
         srv.stop()
 
-    for token in ('id="spec-search"', 'id="spec-tree"', 'id="spec-build"', 'id="model-list"'):
+    for token in (
+        'id="spec-search"', 'id="spec-tree"', 'id="spec-build"', 'id="model-list"',
+        'id="viewport-controls"', 'id="theme-toggle"', 'data-theme="light"]',
+    ):
         assert token in html
 
 
