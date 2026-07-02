@@ -105,9 +105,9 @@
 
   /* Floating viewport controls (translucent, movable/snapping, icon-first) */
   #viewport-controls { position: absolute; z-index: 40; display: flex;
-    flex-direction: column; gap: 6px; padding: 8px; width: max-content;
+    flex-direction: column; gap: 4px; padding: 5px; width: max-content;
     background: rgba(22,29,41,.82); border: 1px solid var(--border);
-    border-radius: 12px; box-shadow: var(--shadow); backdrop-filter: blur(10px); }
+    border-radius: 10px; box-shadow: var(--shadow); backdrop-filter: blur(10px); }
   .vc-head { display: flex; align-items: center; gap: 6px; position: relative; }
   .vc-grip { display: inline-flex; align-items: center; justify-content: center;
     color: var(--muted); background: none; border: none; cursor: grab; padding: 2px; }
@@ -120,6 +120,7 @@
   .vc-corner-pop { position: absolute; top: calc(100% + 6px); right: 0; z-index: 5;
     display: grid; grid-template-columns: 1fr 1fr; gap: 5px; padding: 7px;
     background: var(--panel); border: 1px solid var(--border); border-radius: 9px; }
+  .vc-corner-pop[hidden] { display: none; }
   .vc-corner-pop button { width: 26px; height: 20px; border-radius: 5px;
     background: var(--panel-2); border: 1px solid var(--border); cursor: pointer;
     position: relative; }
@@ -130,13 +131,17 @@
   .vc-corner-pop button[data-corner="top-right"]::after { top: 3px; right: 3px; }
   .vc-corner-pop button[data-corner="bottom-left"]::after { bottom: 3px; left: 3px; }
   .vc-corner-pop button[data-corner="bottom-right"]::after { bottom: 3px; right: 3px; }
-  .vc-group { display: flex; gap: 4px; }
+  .vc-group { display: flex; gap: 3px; }
   .vc-sep { height: 1px; background: var(--border); margin: 1px 2px; }
-  .vc-btn { display: inline-flex; align-items: center; gap: 7px; justify-content: center;
-    min-width: 34px; height: 34px; padding: 0 8px; color: var(--text);
-    background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px;
+  .vc-btn { display: inline-flex; align-items: center; gap: 6px; justify-content: center;
+    min-width: 30px; height: 30px; padding: 0 6px; color: var(--text);
+    background: var(--panel-2); border: 1px solid var(--border); border-radius: 7px;
     cursor: pointer; transition: color .15s, border-color .15s, background .15s; }
-  .vc-btn .vc-label { display: none; font-size: 12px; white-space: nowrap; }
+  /* Label collapses to zero width (not display:none) so show/hide animates smoothly;
+     the icon stays anchored and the button grows/shrinks without a jump. */
+  .vc-btn .vc-label { font-size: 12px; white-space: nowrap; overflow: hidden;
+    max-width: 0; opacity: 0; margin-left: -6px;
+    transition: max-width .2s ease, opacity .2s ease, margin-left .2s ease; }
   .vc-btn:hover { border-color: var(--accent); color: var(--accent); }
   .vc-btn.active { color: var(--accent); border-color: var(--accent);
     background: rgba(90,160,255,.14); }
@@ -144,17 +149,42 @@
   #vc-light:hover { color: #ffd166; border-color: #ffd166; }
   .vc-toggle[data-toggle="rotate"]:hover { color: #7cc4ff; border-color: #7cc4ff; }
   #vc-reset:hover { color: #ff8f6b; border-color: #ff8f6b; }
+  .vc-panel-toggle.active { color: var(--accent); border-color: var(--accent);
+    background: rgba(90,160,255,.14); }
+  /* Lighting: cycle button + caret dropdown of icon options */
+  .vc-light-wrap { position: relative; display: flex; }
+  .vc-light-wrap #vc-light { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+  .vc-caret { display: inline-flex; align-items: center; justify-content: center; width: 16px;
+    height: 30px; color: var(--muted); background: var(--panel-2);
+    border: 1px solid var(--border); border-left: none; border-radius: 0 8px 8px 0; cursor: pointer; }
+  .vc-caret:hover { color: #ffd166; border-color: #ffd166; }
+  .vc-menu { position: absolute; top: calc(100% + 5px); left: 0; z-index: 6; min-width: 128px;
+    display: flex; flex-direction: column; gap: 1px; padding: 4px;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+    box-shadow: var(--shadow); }
+  .vc-menu[hidden] { display: none; }
+  .vc-menu button { display: flex; align-items: center; gap: 8px; padding: 5px 8px;
+    font-size: 12.5px; color: var(--text); background: none; border: 1px solid transparent;
+    border-radius: 6px; cursor: pointer; text-align: left; }
+  .vc-menu .vc-mi svg { width: 15px; height: 15px; }
+  .vc-menu button:hover, .vc-menu button.active { background: var(--panel-2); color: #ffd166;
+    border-color: var(--border); }
+  .vc-mi { display: inline-flex; color: currentColor; }
+  #vc-light-icon { display: inline-flex; }
   .vc-sub { display: flex; flex-direction: column; gap: 5px; padding: 2px; }
+  .vc-sub[hidden] { display: none; }
   .vc-sub-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 1px;
     color: var(--muted); }
   #vc-material .swatches { grid-template-columns: repeat(8, 14px); }
   #vc-material .swatch { width: 14px; }
   /* Show-text mode: reveal labels, stack groups vertically for readability */
-  #viewport-controls.show-text .vc-label { display: inline; }
+  #viewport-controls.show-text .vc-label { max-width: 140px; opacity: 1; margin-left: 0; }
   #viewport-controls.show-text .vc-group { flex-direction: column; }
   #viewport-controls.show-text .vc-btn { justify-content: flex-start; }
-  /* Vertical orientation (snapped to a side edge): stack everything in a column */
-  #viewport-controls.vertical .vc-group { flex-direction: column; }
+  /* Only the corner-anchor button animates position (adds .vc-animate briefly). Manual
+     drag and edge-snap stay instant/1:1 because they never carry this class. */
+  #viewport-controls.vc-animate { transition: left .28s ease, right .28s ease,
+    top .28s ease, bottom .28s ease; }
 
   /* Floating panels container, top-right; stacked, each section collapsible */
   #panels { position: absolute; top: 16px; right: 16px; width: 300px;
@@ -267,10 +297,22 @@
       <div class="vc-sep"></div>
 
       <div class="vc-group" id="vc-scene">
-        <button id="vc-light" class="vc-btn" title="Lighting: Sun">
-          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
-          <span class="vc-label" id="vc-light-label">Sun</span>
-        </button>
+        <div class="vc-light-wrap">
+          <button id="vc-light" class="vc-btn" title="Lighting: Sun (click to cycle)">
+            <span id="vc-light-icon"></span>
+            <span class="vc-label" id="vc-light-label">Sun</span>
+          </button>
+          <button id="vc-light-caret" class="vc-caret" title="Choose lighting" aria-label="Choose lighting">
+            <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <div id="vc-light-menu" class="vc-menu" hidden>
+            <button data-light="sun" title="Sun (directional)"><span class="vc-mi"></span><span>Sun</span></button>
+            <button data-light="natural" title="Natural (all-around)"><span class="vc-mi"></span><span>Natural</span></button>
+            <button data-light="studio" title="Studio (3-point)"><span class="vc-mi"></span><span>Studio</span></button>
+            <button data-light="spotlight" title="Spotlight"><span class="vc-mi"></span><span>Spotlight</span></button>
+            <button data-light="overcast" title="Overcast (soft)"><span class="vc-mi"></span><span>Overcast</span></button>
+          </div>
+        </div>
         <button class="vc-btn vc-toggle active" data-toggle="edges" title="Edges">
           <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M12 3 20 7.5v9L12 21 4 16.5v-9L12 3Z"/></svg>
           <span class="vc-label">Edges</span>
@@ -290,6 +332,19 @@
         <button id="vc-reset" class="vc-btn" title="Reset view">
           <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l4-4 4 4M7 5v9a4 4 0 0 0 4 4h6"/></svg>
           <span class="vc-label">Reset view</span>
+        </button>
+      </div>
+
+      <div class="vc-sep"></div>
+
+      <div class="vc-group" id="vc-panels">
+        <button class="vc-btn vc-panel-toggle" data-panel="bom" title="Bill of materials">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>
+          <span class="vc-label">Bill of materials</span>
+        </button>
+        <button class="vc-btn vc-panel-toggle" data-panel="plan" title="Plan view">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h18v16H3z"/><path d="M9 4v10h8M3 14h6M15 4v6"/></svg>
+          <span class="vc-label">Plan view</span>
         </button>
       </div>
     </div>
@@ -363,6 +418,21 @@ const LIGHT_PRESETS = {
     key.position.set(12, 20, 8);
     const fill = new THREE.DirectionalLight(0x9fc7ff, 0.45); fill.position.set(-10, 6, -8);
     return [key, fill];
+  },
+  natural() {
+    // Even, all-around illumination with no harsh single source. Directionals ring the
+    // model from four sides AND from below, plus a bright hemisphere and strong ambient,
+    // so the underside is lit too (a top-only rig leaves the bottom dark).
+    ambient.intensity = 0.85;
+    const hemi = new THREE.HemisphereLight(0xeaf4ff, 0xb8c2d0, 1.0);
+    hemi.position.set(0, 20, 0);
+    const top = makeShadowCaster(new THREE.DirectionalLight(0xffffff, 0.7));
+    top.position.set(8, 20, 10);
+    const left = new THREE.DirectionalLight(0xffffff, 0.4); left.position.set(-16, 6, 0);
+    const right = new THREE.DirectionalLight(0xffffff, 0.4); right.position.set(16, 6, 0);
+    const back = new THREE.DirectionalLight(0xffffff, 0.4); back.position.set(0, 6, -16);
+    const under = new THREE.DirectionalLight(0xffffff, 0.35); under.position.set(0, -14, 4);
+    return [hemi, top, left, right, back, under];
   },
   studio() {
     ambient.intensity = 0.5;
@@ -589,20 +659,59 @@ document.getElementById("vc-reset").addEventListener("click", () => { if (modelR
 // Restore the saved display mode (default solid). Buttons reflect it; applyMode on load.
 setMode(localStorage.getItem("ncad.mode") || "solid");
 
-// Lighting is a cycle button through the presets; the icon label shows the current one.
-const LIGHT_ORDER = ["sun", "studio", "spotlight", "overcast"];
-const LIGHT_NAMES = { sun: "Sun", studio: "Studio", spotlight: "Spotlight", overcast: "Overcast" };
+// Lighting: click the button to cycle presets, or use the caret dropdown to pick one.
+// Each preset has its own icon so they are distinct at a glance.
+const LIGHT_ORDER = ["sun", "natural", "studio", "spotlight", "overcast"];
+const LIGHT_NAMES = { sun: "Sun", natural: "Natural", studio: "Studio", spotlight: "Spotlight", overcast: "Overcast" };
+const LIGHT_ICONS = {
+  sun: '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>',
+  natural: '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.5"/><path d="M12 2.5v1.6M12 19.9v1.6M2.5 12h1.6M19.9 12h1.6M5.2 5.2l1.1 1.1M17.7 17.7l1.1 1.1M18.8 5.2l-1.1 1.1M6.3 17.7l-1.1 1.1"/></svg>',
+  studio: '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="7" r="2.3"/><circle cx="5" cy="16" r="2.3"/><circle cx="19" cy="16" r="2.3"/><path d="M12 9.3v3M9.8 13.8 6.9 15M14.2 13.8l2.9 1.2"/></svg>',
+  spotlight: '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6l3 6H6L9 3Z"/><path d="M8 9c0 4 1.5 7 4 12 2.5-5 4-8 4-12"/></svg>',
+  overcast: '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18h9a4 4 0 0 0 .4-8 5.5 5.5 0 0 0-10.6 1.3A3.5 3.5 0 0 0 7 18Z"/></svg>',
+};
 const lightBtn = document.getElementById("vc-light");
+const lightIconEl = document.getElementById("vc-light-icon");
 const lightLabel = document.getElementById("vc-light-label");
+const lightCaret = document.getElementById("vc-light-caret");
+const lightMenu = document.getElementById("vc-light-menu");
+lightMenu.querySelectorAll(".vc-mi").forEach(mi => { mi.innerHTML = LIGHT_ICONS[mi.parentElement.dataset.light]; });
 let lightIdx = Math.max(0, LIGHT_ORDER.indexOf(localStorage.getItem("ncad.light") || "sun"));
+
 function applyLight() {
   const name = LIGHT_ORDER[lightIdx];
   setLighting(name);
+  lightIconEl.innerHTML = LIGHT_ICONS[name];
   lightLabel.textContent = LIGHT_NAMES[name];
-  lightBtn.title = "Lighting: " + LIGHT_NAMES[name];
+  lightBtn.title = "Lighting: " + LIGHT_NAMES[name] + " (click to cycle)";
+  lightMenu.querySelectorAll("button").forEach(b => b.classList.toggle("active", b.dataset.light === name));
 }
 lightBtn.addEventListener("click", () => { lightIdx = (lightIdx + 1) % LIGHT_ORDER.length; applyLight(); });
+lightCaret.addEventListener("click", ev => { ev.stopPropagation(); lightMenu.hidden = !lightMenu.hidden; });
+lightMenu.querySelectorAll("button").forEach(b =>
+  b.addEventListener("click", () => { lightIdx = LIGHT_ORDER.indexOf(b.dataset.light); applyLight(); lightMenu.hidden = true; }));
+document.addEventListener("mousedown", ev => {
+  if (!lightMenu.hidden && !lightMenu.contains(ev.target) && ev.target !== lightCaret && !lightCaret.contains(ev.target)) {
+    lightMenu.hidden = true;
+  }
+});
+document.addEventListener("keydown", ev => { if (ev.key === "Escape") lightMenu.hidden = true; });
 applyLight();
+
+// ---- BOM + Plan panel toggles (persisted) ----
+function bindPanelToggle(name, key) {
+  const btn = document.querySelector('.vc-panel-toggle[data-panel="' + name + '"]');
+  const panel = document.getElementById(name);
+  function setShown(on) {
+    panel.style.display = on ? "" : "none";
+    btn.classList.toggle("active", on);
+    localStorage.setItem(key, on ? "1" : "0");
+  }
+  btn.addEventListener("click", () => setShown(panel.style.display === "none"));
+  setShown(localStorage.getItem(key) !== "0");  // shown by default
+}
+bindPanelToggle("bom", "ncad.vc.bom");
+bindPanelToggle("plan", "ncad.vc.plan");
 
 // Material swatches start hidden (solid is the default mode).
 syncMaterialBlock();
@@ -624,21 +733,34 @@ const cornerBtn = document.getElementById("vc-corner");
 const cornerPop = document.getElementById("vc-corner-pop");
 const MARGIN = 16;
 
-function anchorCorner(corner) {
-  controlsEl.classList.remove("vertical");
+// Anchor to a corner using pixel left/top (the same basis as drag/snap) so the move can
+// animate smoothly. `animate` is true only for user clicks, not the initial restore.
+function anchorCorner(corner, animate) {
   controlsEl.dataset.corner = corner;
   const [v, h] = corner.split("-");
-  controlsEl.style.top = v === "top" ? MARGIN + "px" : "";
-  controlsEl.style.bottom = v === "bottom" ? MARGIN + "px" : "";
-  controlsEl.style.left = h === "left" ? MARGIN + "px" : "";
-  controlsEl.style.right = h === "right" ? MARGIN + "px" : "";
+  const stageRect = stage.getBoundingClientRect();
+  const r = controlsEl.getBoundingClientRect();
+  const x = h === "left" ? MARGIN : stageRect.width - r.width - MARGIN;
+  const y = v === "top" ? MARGIN : stageRect.height - r.height - MARGIN;
+  if (animate) {
+    controlsEl.classList.add("vc-animate");
+    setTimeout(() => controlsEl.classList.remove("vc-animate"), 320);
+  }
+  placeFree(x, y);
   localStorage.setItem(CORNER_KEY, corner);
   localStorage.removeItem(POS_KEY);
 }
 
-cornerBtn.addEventListener("click", () => { cornerPop.hidden = !cornerPop.hidden; });
+cornerBtn.addEventListener("click", ev => { ev.stopPropagation(); cornerPop.hidden = !cornerPop.hidden; });
 cornerPop.querySelectorAll("button").forEach(b =>
-  b.addEventListener("click", () => { anchorCorner(b.dataset.corner); cornerPop.hidden = true; }));
+  b.addEventListener("click", () => { anchorCorner(b.dataset.corner, true); cornerPop.hidden = true; }));
+// Close the corner popup when clicking anywhere outside it or the button, or on Escape.
+document.addEventListener("mousedown", ev => {
+  if (!cornerPop.hidden && !cornerPop.contains(ev.target) && ev.target !== cornerBtn && !cornerBtn.contains(ev.target)) {
+    cornerPop.hidden = true;
+  }
+});
+document.addEventListener("keydown", ev => { if (ev.key === "Escape") cornerPop.hidden = true; });
 
 // Free-drag from the grip; on release, snap to the nearest viewport edge. A top/bottom
 // snap keeps the panel horizontal; a left/right snap flips it vertical.
@@ -652,7 +774,7 @@ function snapToEdge() {
   const cx = r.left - stageRect.left + r.width / 2, cy = r.top - stageRect.top + r.height / 2;
   const dl = cx, dr = stageRect.width - cx, dt = cy, db = stageRect.height - cy;
   const min = Math.min(dl, dr, dt, db);
-  controlsEl.classList.toggle("vertical", min === dl || min === dr);
+  // Snap to the nearest edge but keep the panel's shape (no vertical reorientation).
   let x = r.left - stageRect.left, y = r.top - stageRect.top;
   if (min === dl) x = MARGIN;
   else if (min === dr) x = stageRect.width - r.width - MARGIN;
@@ -661,7 +783,7 @@ function snapToEdge() {
   x = Math.max(MARGIN, Math.min(stageRect.width - r.width - MARGIN, x));
   y = Math.max(MARGIN, Math.min(stageRect.height - r.height - MARGIN, y));
   placeFree(x, y);
-  localStorage.setItem(POS_KEY, JSON.stringify({ x, y, vertical: controlsEl.classList.contains("vertical") }));
+  localStorage.setItem(POS_KEY, JSON.stringify({ x, y }));
   localStorage.removeItem(CORNER_KEY);
 }
 
@@ -683,7 +805,7 @@ document.querySelector(".vc-grip").addEventListener("mousedown", ev => {
 // Restore saved placement: a free/snapped position wins, else a corner, else default.
 const savedPos = localStorage.getItem(POS_KEY);
 if (savedPos) {
-  try { const p = JSON.parse(savedPos); controlsEl.classList.toggle("vertical", !!p.vertical); placeFree(p.x, p.y); }
+  try { const p = JSON.parse(savedPos); placeFree(p.x, p.y); }
   catch (e) { anchorCorner("top-left"); }
 } else {
   anchorCorner(localStorage.getItem(CORNER_KEY) || "top-left");
