@@ -3,7 +3,7 @@
 from dataclasses import dataclass, field
 from typing import Any
 
-from ncad.build.build_issue import BuildIssue
+from ncad.ops.build_issue import BuildIssue
 
 
 @dataclass(frozen=True)

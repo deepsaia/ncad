@@ -10,8 +10,8 @@ reported by id rather than crashing the build.
 import logging
 from typing import Any
 
-from ncad.build.build_issue import BuildIssue
 from ncad.kernel.kernel import Kernel
+from ncad.ops.build_issue import BuildIssue
 from ncad.ops.op_registry import OpRegistry
 from ncad.ops.op_result import OpResult
 

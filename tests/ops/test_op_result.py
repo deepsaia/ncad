@@ -1,4 +1,4 @@
-from ncad.build.build_issue import BuildIssue
+from ncad.ops.build_issue import BuildIssue
 from ncad.ops.op_result import OpResult
 
 

@@ -6,8 +6,8 @@ element vocabulary (circle, polygon, constraints) grows in Phase 1.
 
 from typing import Any
 
-from ncad.build.build_issue import BuildIssue
 from ncad.kernel.kernel import Kernel, Point2
+from ncad.ops.build_issue import BuildIssue
 from ncad.ops.op_result import OpResult
 
 
