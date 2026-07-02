@@ -8,7 +8,7 @@ Phase 15.
 
 **opencamlib (OCL)**, github.com/aewallin/opencamlib
 - Fundamentally a **3D surface cutter-location library**: drop-cutter (axial
-  projection onto a triangulated model), push-cutter → **waterline** constant-Z,
+  projection onto a triangulated model), push-cutter >> **waterline** constant-Z,
   cutter shapes cyl/ball/bull/cone/composite.
 - Does **NOT** do 2.5D pocketing, contour offsetting, drilling cycles,
   path-linking, feeds/speeds, or posts. Adaptive/rest-milling unimplemented;
@@ -16,7 +16,7 @@ Phase 15.
 - **LGPL-2.1**; Boost.Python bindings; `pip install opencamlib`; latest release
   2023.1.11 (Jan 2023), low cadence but usable. `libactp` unverifiable: treat dead.
 
-**FreeCAD Path/CAM workbench** (renamed Path→CAM, shipped 1.0, Nov 2024)
+**FreeCAD Path/CAM workbench** (renamed Path>>CAM, shipped 1.0, Nov 2024)
 - **2.5D area/pocket/contour** via bundled **libarea (Dan Heeks)**, which bundles
   **Clipper**. **3D surfacing/waterline** via **opencamlib**, imported optionally.
   Confirms the industry split: **Clipper for 2.5D, opencamlib for 3D.**
@@ -30,7 +30,7 @@ Phase 15.
 - Polygon boolean + **offsetting/inflation**: the core hard part of 2.5D. Python:
   **`pyclipr`** (pybind11, Clipper2, BSL-1.0) or `pyclipper` (Cython, Clipper1).
 
-**OCCT primitives:** `BRepAlgoAPI_Section` slices a solid at a plane (loose edges →
+**OCCT primitives:** `BRepAlgoAPI_Section` slices a solid at a plane (loose edges >>
 reassemble wires); `BRepOffsetAPI_MakeOffset` does 2D wire offset with **no
 robustness guarantees**. Practical split: **OCCT for slicing, Clipper for offsets.**
 
@@ -39,7 +39,7 @@ M3/M5, M7-9, M6, G20/21, G90/91, G81/G83; LinuxCNC RS274/NGC). No turnkey pip po
 framework (`mecode`/`pygcode` are thin).
 
 **The cliff:** 3-axis freeform surfacing needs a CL-point engine (opencamlib);
-**5-axis (3+2 and simultaneous)** has **no credible OSS kernel** → commercial/plugin.
+**5-axis (3+2 and simultaneous)** has **no credible OSS kernel** >> commercial/plugin.
 
 ## Recommendation (adopted)
 
