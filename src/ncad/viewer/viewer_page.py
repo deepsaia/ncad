@@ -38,6 +38,38 @@ _PAGE = r"""<!DOCTYPE html>
     background: var(--panel-2); border: 1px solid var(--border); border-radius: 9px;
     padding: 9px 11px; width: 100%; transition: border-color .15s, background .15s; }
   select:hover, .btn:hover { border-color: var(--accent); cursor: pointer; }
+  .spec-row { display: flex; gap: 8px; align-items: stretch; }
+  .combo { position: relative; flex: 1; }
+  #spec-search { width: 100%; font: inherit; font-size: 13px; color: var(--text);
+    background: var(--panel-2); border: 1px solid var(--border); border-radius: 9px;
+    padding: 8px 10px; }
+  #spec-search:focus { border-color: var(--accent); outline: none; }
+  .spec-tree { position: absolute; z-index: 20; left: 0; right: 0; top: calc(100% + 4px);
+    max-height: 40vh; overflow: auto; background: var(--panel); border: 1px solid var(--border);
+    border-radius: 9px; padding: 6px; }
+  .spec-tree .dir { font-size: 11px; text-transform: uppercase; letter-spacing: .04em;
+    color: var(--muted); padding: 6px 6px 2px; }
+  .spec-tree .spec { padding: 6px 8px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+  .spec-tree .spec:hover, .spec-tree .spec.active { background: var(--panel-2); color: var(--accent); }
+  .icon-btn { display: inline-flex; align-items: center; justify-content: center;
+    width: 36px; background: var(--panel-2); border: 1px solid var(--border);
+    border-radius: 9px; color: var(--text); cursor: pointer; }
+  .icon-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .model-list { display: flex; flex-direction: column; gap: 4px; max-height: 30vh; overflow: auto; }
+  .model-row { display: flex; align-items: center; gap: 6px; padding: 7px 9px;
+    background: var(--panel-2); border: 1px solid transparent; border-radius: 8px; cursor: pointer; }
+  .model-row:hover { border-color: var(--border); }
+  .model-row.active { border-color: var(--accent); }
+  .model-row .name { flex: 1; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .model-row .row-actions { display: none; gap: 4px; }
+  .model-row:hover .row-actions { display: flex; }
+  .row-actions .icon-btn { width: 26px; height: 26px; }
+  #toast { position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%);
+    background: var(--panel); border: 1px solid var(--border); border-radius: 9px;
+    padding: 10px 16px; font-size: 13px; color: var(--text); opacity: 0;
+    transition: opacity .25s; pointer-events: none; z-index: 50; max-width: 70%; }
+  #toast.show { opacity: 1; }
+  #toast.error { border-color: var(--no, #d9534f); }
   .modes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .modes .btn.active { background: var(--accent); border-color: var(--accent);
     color: #04101f; font-weight: 700; box-shadow: 0 2px 12px rgba(90,160,255,.35); }
@@ -105,8 +137,20 @@ _PAGE = r"""<!DOCTYPE html>
   <aside id="sidebar">
     <div class="brand"><h1>ncad<span class="dot">.</span></h1><span class="sub">viewer</span></div>
     <div>
-      <div class="label">Model</div>
-      <select id="model-select"></select>
+      <div class="label">Spec</div>
+      <div class="spec-row">
+        <div class="combo">
+          <input id="spec-search" type="text" placeholder="search examples..." autocomplete="off" />
+          <div id="spec-tree" class="spec-tree" hidden></div>
+        </div>
+        <button id="spec-build" class="icon-btn" title="Build" aria-label="Build">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v18M5 8l7-5 7 5M5 16l7 5 7-5"/></svg>
+        </button>
+      </div>
+    </div>
+    <div>
+      <div class="label">Models</div>
+      <div id="model-list" class="model-list"></div>
     </div>
     <div>
       <div class="label">Display mode</div>
@@ -167,6 +211,7 @@ _PAGE = r"""<!DOCTYPE html>
       </section>
     </div>
     <div id="hint">drag to orbit · scroll to zoom · right-drag to pan</div>
+    <div id="toast"></div>
   </main>
 </div>
 
@@ -458,24 +503,133 @@ lightSelect.addEventListener("change", () => setLighting(lightSelect.value));
 // Material swatches start hidden (solid is the default mode).
 syncMaterialBlock();
 
-const select = document.getElementById("model-select");
-// Selecting a model updates the URL path so it can be shared/deep-linked.
-select.addEventListener("change", () => {
-  loadModel(select.value);
-  history.replaceState(null, "", "/" + select.value);
-});
+// ---- Spec combobox + models list ----
+let specTree = [], selectedSpec = null, activeModel = null;
+const REGEN_SVG = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>';
+const DELETE_SVG = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>';
 
-fetch("/api/models").then(r => r.json()).then(data => {
-  if (!data.models.length) { spinner.textContent = "no models in the models directory"; return; }
-  data.models.forEach(name => {
-    const opt = document.createElement("option"); opt.value = name; opt.textContent = name;
-    select.appendChild(opt);
-  });
-  // Deep link: /<model>.glb in the URL preselects that model; else the first one.
+function toast(message, isError) {
+  const el = document.getElementById("toast");
+  el.textContent = message;
+  el.classList.toggle("error", !!isError);
+  el.classList.add("show");
+  setTimeout(() => el.classList.remove("show"), 3200);
+}
+
+function flattenSpecs(nodes, out) {
+  for (const node of nodes) {
+    if (node.type === "dir") flattenSpecs(node.children, out);
+    else out.push({ name: node.name, path: node.path });
+  }
+  return out;
+}
+
+function renderSpecTree(filter) {
+  const box = document.getElementById("spec-tree");
+  const all = flattenSpecs(specTree, []);
+  const q = (filter || "").toLowerCase();
+  const matches = all.filter(s => s.path.toLowerCase().includes(q));
+  box.innerHTML = "";
+  let currentDir = null;
+  for (const s of matches) {
+    const dir = s.path.includes("/") ? s.path.slice(0, s.path.lastIndexOf("/")) : "";
+    if (dir !== currentDir) {
+      currentDir = dir;
+      if (dir) { const d = document.createElement("div"); d.className = "dir"; d.textContent = dir; box.appendChild(d); }
+    }
+    const row = document.createElement("div");
+    row.className = "spec" + (selectedSpec === s.path ? " active" : "");
+    row.textContent = s.name;
+    row.title = s.path;
+    row.addEventListener("mousedown", () => {
+      selectedSpec = s.path;
+      document.getElementById("spec-search").value = s.path;
+      box.hidden = true;
+    });
+    box.appendChild(row);
+  }
+  box.hidden = matches.length === 0;
+}
+
+function loadSpecs() {
+  fetch("/api/specs").then(r => r.json()).then(data => { specTree = data.tree || []; });
+}
+
+function iconButton(tip, svg) {
+  const b = document.createElement("button");
+  b.className = "icon-btn"; b.title = tip; b.setAttribute("aria-label", tip); b.innerHTML = svg;
+  return b;
+}
+
+function renderModelList(models) {
+  const list = document.getElementById("model-list");
+  list.innerHTML = "";
+  if (!models.length) { list.innerHTML = '<div class="panel-empty">no models in out/</div>'; return; }
+  for (const m of models) {
+    const row = document.createElement("div");
+    row.className = "model-row" + (activeModel === m.name ? " active" : "");
+    const name = document.createElement("div");
+    name.className = "name"; name.textContent = m.name; name.title = m.name;
+    row.appendChild(name);
+    const actions = document.createElement("div");
+    actions.className = "row-actions";
+    const regen = iconButton("Regenerate", REGEN_SVG);
+    regen.addEventListener("click", ev => { ev.stopPropagation(); regenerate(m); });
+    const del = iconButton("Delete", DELETE_SVG);
+    del.addEventListener("click", ev => { ev.stopPropagation(); removeModel(m.name); });
+    actions.appendChild(regen); actions.appendChild(del);
+    row.appendChild(actions);
+    row.addEventListener("click", () => selectModel(m.name));
+    list.appendChild(row);
+  }
+}
+
+function refreshModels() {
+  return fetch("/api/models").then(r => r.json()).then(data => { renderModelList(data.models); return data.models; });
+}
+
+function selectModel(name) {
+  activeModel = name;
+  loadModel(name);
+  history.replaceState(null, "", "/" + name);
+  refreshModels();
+}
+
+function build(spec) {
+  if (!spec) { toast("select a spec first", true); return; }
+  spinner.style.display = "block";
+  fetch("/api/build", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ spec }) })
+    .then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.error || "build failed"); return d; })
+    .then(d => { renderModelList(d.models); const first = (d.built || [])[0]; if (first) selectModel(first); toast("built " + (d.built || []).join(", ")); })
+    .catch(e => toast(e.message, true))
+    .finally(() => { spinner.style.display = "none"; });
+}
+
+function regenerate(model) {
+  if (!model.source) { toast("no source recorded for " + model.name, true); return; }
+  build(model.source);
+}
+
+function removeModel(name) {
+  if (!window.confirm("Delete " + name + "?")) return;
+  fetch("/api/models/" + encodeURIComponent(name) + "/delete", { method: "POST" })
+    .then(r => r.json())
+    .then(d => { if (activeModel === name) { activeModel = null; clearModel(); } renderModelList(d.models); toast("deleted " + name); })
+    .catch(() => toast("could not delete " + name, true));
+}
+
+document.getElementById("spec-search").addEventListener("input", ev => renderSpecTree(ev.target.value));
+document.getElementById("spec-search").addEventListener("focus", ev => renderSpecTree(ev.target.value));
+document.getElementById("spec-search").addEventListener("blur", () => setTimeout(() => { document.getElementById("spec-tree").hidden = true; }, 150));
+document.getElementById("spec-build").addEventListener("click", () => build(selectedSpec));
+
+loadSpecs();
+refreshModels().then(models => {
+  if (!models || !models.length) return;
   const requested = decodeURIComponent(location.pathname.replace(/^\//, ""));
-  const initial = data.models.includes(requested) ? requested : data.models[0];
-  select.value = initial;
-  loadModel(initial);
+  const names = models.map(m => m.name);
+  const initial = names.includes(requested) ? requested : names[0];
+  selectModel(initial);
 });
 
 window.addEventListener("resize", () => {

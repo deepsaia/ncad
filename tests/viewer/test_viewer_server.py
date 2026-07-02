@@ -268,3 +268,18 @@ def test_api_delete_removes_and_returns_list(tmp_path) -> None:
     assert status == 200
     assert json.loads(body)["models"] == []
     assert not (models / "block.glb").exists()
+
+
+def test_index_contains_new_ui_elements(tmp_path) -> None:
+    models = tmp_path / "out"
+    models.mkdir()
+    srv = ViewerServer(str(models), port=0, examples_dir=str(tmp_path))
+    srv.start()
+    try:
+        _, body, _ = _get(f"{srv.base_url}/")
+        html = body.decode()
+    finally:
+        srv.stop()
+
+    for token in ('id="spec-search"', 'id="spec-tree"', 'id="spec-build"', 'id="model-list"'):
+        assert token in html
