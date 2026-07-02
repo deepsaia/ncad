@@ -1,6 +1,0 @@
-# Irregular pentagon (a 'house' silhouette with a sloped front), one rounded corner.
-footprint = [[0, 0], [12, 0], [12, 8], [6, 12], [0, 8]]
-rounded_corners = { "2" = 2.0 }
-num_rooms = 3
-storey_height = 3.0
-roof = "flat"

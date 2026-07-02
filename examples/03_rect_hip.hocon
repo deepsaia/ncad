@@ -1,6 +1,0 @@
-# Rectangle with a hip (four-sided sloped) roof meeting at a central ridge.
-footprint = [[0, 0], [13, 0], [13, 10], [0, 10]]
-rounded_corners = {}
-num_rooms = 5
-storey_height = 3.0
-roof = "hip"

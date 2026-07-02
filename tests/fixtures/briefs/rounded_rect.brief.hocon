@@ -1,6 +1,0 @@
-# Brief fixture: rectangle with two rounded corners. Compiles to a valid spec.
-footprint = [[0, 0], [10, 0], [10, 8], [0, 8]]
-rounded_corners = { "1" = 1.5, "3" = 1.0 }
-num_rooms = 4
-storey_height = 3.0
-roof = "flat"
