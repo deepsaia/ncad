@@ -16,7 +16,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import unquote
 
 from ncad.viewer.model_catalog import ModelCatalog
-from ncad.viewer.viewer_page import render_viewer_page
+from ncad.viewer.viewer_page import ViewerPage
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +69,7 @@ class _ViewerRequestHandler(BaseHTTPRequestHandler):
             self.send_error(404, "not found")
 
     def _send_index(self) -> None:
-        self._send_bytes(200, "text/html; charset=utf-8", render_viewer_page().encode("utf-8"))
+        self._send_bytes(200, "text/html; charset=utf-8", ViewerPage().render().encode("utf-8"))
 
     def _send_model_list(self) -> None:
         payload = json.dumps({"models": self._catalog.model_names()}).encode("utf-8")

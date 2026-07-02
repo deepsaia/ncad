@@ -7,11 +7,16 @@ from ncad.cli import viewer_cli
 runner = CliRunner()
 
 
-def test_bare_ncad_launches_viewer(monkeypatch) -> None:
+def _patch_launch(monkeypatch):
     calls = []
     monkeypatch.setattr(
-        viewer_cli, "launch_viewer", lambda models_dir, host, port: calls.append((host, port))
+        viewer_cli.cli, "launch_viewer", lambda models_dir, host, port: calls.append((host, port))
     )
+    return calls
+
+
+def test_bare_ncad_launches_viewer(monkeypatch) -> None:
+    calls = _patch_launch(monkeypatch)
 
     result = runner.invoke(viewer_cli.app, [])
 
@@ -20,10 +25,7 @@ def test_bare_ncad_launches_viewer(monkeypatch) -> None:
 
 
 def test_ncad_view_launches_viewer(monkeypatch) -> None:
-    calls = []
-    monkeypatch.setattr(
-        viewer_cli, "launch_viewer", lambda models_dir, host, port: calls.append((host, port))
-    )
+    calls = _patch_launch(monkeypatch)
 
     result = runner.invoke(viewer_cli.app, ["view"])
 
@@ -32,10 +34,7 @@ def test_ncad_view_launches_viewer(monkeypatch) -> None:
 
 
 def test_bare_ncad_passes_port_option(monkeypatch) -> None:
-    calls = []
-    monkeypatch.setattr(
-        viewer_cli, "launch_viewer", lambda models_dir, host, port: calls.append((host, port))
-    )
+    calls = _patch_launch(monkeypatch)
 
     result = runner.invoke(viewer_cli.app, ["--port", "0"])
 

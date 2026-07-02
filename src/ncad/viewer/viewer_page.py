@@ -1,8 +1,8 @@
-"""The viewer single-page app (HTML + Three.js), returned as a string.
+"""The viewer single-page app (HTML + Three.js), rendered by :class:`ViewerPage`.
 
-Kept as one module whose single function returns the page, so the server module stays
-focused on HTTP. Three.js is loaded from a CDN via an import map, so there is no Node/npm
-build step; the viewer runs on any machine with a browser.
+Kept as one module whose class returns the page, so the server module stays focused on
+HTTP. Three.js is loaded from a CDN via an import map, so there is no Node/npm build
+step; the viewer runs on any machine with a browser.
 """
 
 _PAGE = r"""<!DOCTYPE html>
@@ -494,6 +494,9 @@ window.addEventListener("resize", () => {
 """
 
 
-def render_viewer_page() -> str:
-    """Return the viewer single-page app as an HTML string."""
-    return _PAGE
+class ViewerPage:
+    """Renders the viewer single-page app (HTML + Three.js) as a string."""
+
+    def render(self) -> str:
+        """Return the viewer single-page app as an HTML string."""
+        return _PAGE

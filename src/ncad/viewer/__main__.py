@@ -1,32 +1,35 @@
 """Launch the browser 3D viewer: ``python -m ncad.viewer [models_dir] [--port N]``.
 
-Serves the glTF/GLB models in ``models_dir`` (default ``out/``) at a local URL.
+Thin entrypoint that delegates to :class:`ncad.cli.viewer_cli.ViewerCli` so the module
+argument path and the ``ncad`` console script share one implementation.
 """
 
 import argparse
 import logging
 
-from ncad.viewer.viewer_server import ViewerServer
+from ncad.cli.viewer_cli import ViewerCli
 
 logger = logging.getLogger(__name__)
 
 
-def main() -> None:
-    """Parse args and run the viewer server in the foreground."""
-    parser = argparse.ArgumentParser(description="ncad browser 3D viewer")
-    parser.add_argument("models_dir", nargs="?", default="out", help="directory of glTF/GLB models")
-    parser.add_argument("--host", default="127.0.0.1", help="bind address")
-    parser.add_argument("--port", type=int, default=8000, help="bind port (0 = ephemeral)")
-    args = parser.parse_args()
+class ViewerMain:
+    """Parses ``python -m ncad.viewer`` arguments and launches the viewer."""
 
-    logging.basicConfig(level=logging.INFO, format="%(message)s")
-    server = ViewerServer(models_dir=args.models_dir, host=args.host, port=args.port)
-    print(f"ncad viewer → {server.base_url}  (serving '{args.models_dir}', Ctrl+C to stop)")
-    try:
-        server.serve_forever()
-    except KeyboardInterrupt:
-        print("\nstopping…")
-        server.stop()
+    def run(self) -> None:
+        """Parse args and run the viewer server in the foreground."""
+        parser = argparse.ArgumentParser(description="ncad browser 3D viewer")
+        parser.add_argument(
+            "models_dir", nargs="?", default=None, help="directory of glTF/GLB models"
+        )
+        parser.add_argument("--host", default="127.0.0.1", help="bind address")
+        parser.add_argument("--port", type=int, default=8000, help="bind port (0 = ephemeral)")
+        args = parser.parse_args()
+        ViewerCli().launch_viewer(args.models_dir, args.host, args.port)
+
+
+def main() -> None:
+    """Console-script / module entrypoint."""
+    ViewerMain().run()
 
 
 if __name__ == "__main__":
