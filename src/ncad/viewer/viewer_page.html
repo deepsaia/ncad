@@ -75,10 +75,6 @@
     transition: opacity .25s; pointer-events: none; z-index: 50; max-width: 70%; }
   #toast.show { opacity: 1; }
   #toast.error { border-color: var(--no, #d9534f); }
-  .modes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .modes .btn.active { background: var(--accent); border-color: var(--accent);
-    color: #04101f; font-weight: 700; box-shadow: 0 2px 12px rgba(90,160,255,.35); }
-
   .swatches { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; }
   .swatch { aspect-ratio: 1; border-radius: 6px; border: 1.5px solid var(--border);
     cursor: pointer; transition: transform .12s, border-color .12s; }
@@ -106,6 +102,59 @@
     font-size: 12px; color: var(--muted); background: rgba(13,17,23,.72);
     padding: 7px 16px; border-radius: 22px; border: 1px solid var(--border);
     backdrop-filter: blur(6px); }
+
+  /* Floating viewport controls (translucent, movable/snapping, icon-first) */
+  #viewport-controls { position: absolute; z-index: 40; display: flex;
+    flex-direction: column; gap: 6px; padding: 8px; width: max-content;
+    background: rgba(22,29,41,.82); border: 1px solid var(--border);
+    border-radius: 12px; box-shadow: var(--shadow); backdrop-filter: blur(10px); }
+  .vc-head { display: flex; align-items: center; gap: 6px; position: relative; }
+  .vc-grip { display: inline-flex; align-items: center; justify-content: center;
+    color: var(--muted); background: none; border: none; cursor: grab; padding: 2px; }
+  .vc-grip:active { cursor: grabbing; }
+  .vc-head-actions { display: flex; gap: 4px; margin-left: auto; }
+  .vc-cfg { display: inline-flex; align-items: center; justify-content: center;
+    width: 24px; height: 24px; color: var(--muted); background: none;
+    border: 1px solid transparent; border-radius: 7px; cursor: pointer; }
+  .vc-cfg:hover, .vc-cfg.active { color: var(--accent); border-color: var(--border); }
+  .vc-corner-pop { position: absolute; top: calc(100% + 6px); right: 0; z-index: 5;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 5px; padding: 7px;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 9px; }
+  .vc-corner-pop button { width: 26px; height: 20px; border-radius: 5px;
+    background: var(--panel-2); border: 1px solid var(--border); cursor: pointer;
+    position: relative; }
+  .vc-corner-pop button:hover { border-color: var(--accent); }
+  .vc-corner-pop button::after { content: ""; position: absolute; width: 8px; height: 6px;
+    border-radius: 2px; background: var(--accent); }
+  .vc-corner-pop button[data-corner="top-left"]::after { top: 3px; left: 3px; }
+  .vc-corner-pop button[data-corner="top-right"]::after { top: 3px; right: 3px; }
+  .vc-corner-pop button[data-corner="bottom-left"]::after { bottom: 3px; left: 3px; }
+  .vc-corner-pop button[data-corner="bottom-right"]::after { bottom: 3px; right: 3px; }
+  .vc-group { display: flex; gap: 4px; }
+  .vc-sep { height: 1px; background: var(--border); margin: 1px 2px; }
+  .vc-btn { display: inline-flex; align-items: center; gap: 7px; justify-content: center;
+    min-width: 34px; height: 34px; padding: 0 8px; color: var(--text);
+    background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px;
+    cursor: pointer; transition: color .15s, border-color .15s, background .15s; }
+  .vc-btn .vc-label { display: none; font-size: 12px; white-space: nowrap; }
+  .vc-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .vc-btn.active { color: var(--accent); border-color: var(--accent);
+    background: rgba(90,160,255,.14); }
+  /* Distinct hover glow colors for scene toggles + reset */
+  #vc-light:hover { color: #ffd166; border-color: #ffd166; }
+  .vc-toggle[data-toggle="rotate"]:hover { color: #7cc4ff; border-color: #7cc4ff; }
+  #vc-reset:hover { color: #ff8f6b; border-color: #ff8f6b; }
+  .vc-sub { display: flex; flex-direction: column; gap: 5px; padding: 2px; }
+  .vc-sub-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 1px;
+    color: var(--muted); }
+  #vc-material .swatches { grid-template-columns: repeat(8, 14px); }
+  #vc-material .swatch { width: 14px; }
+  /* Show-text mode: reveal labels, stack groups vertically for readability */
+  #viewport-controls.show-text .vc-label { display: inline; }
+  #viewport-controls.show-text .vc-group { flex-direction: column; }
+  #viewport-controls.show-text .vc-btn { justify-content: flex-start; }
+  /* Vertical orientation (snapped to a side edge): stack everything in a column */
+  #viewport-controls.vertical .vc-group { flex-direction: column; }
 
   /* Floating panels container, top-right; stacked, each section collapsible */
   #panels { position: absolute; top: 16px; right: 16px; width: 300px;
@@ -157,44 +206,6 @@
       <div class="label">Models</div>
       <div id="model-list" class="model-list"></div>
     </div>
-    <div>
-      <div class="label">Display mode</div>
-      <div class="modes" id="modes">
-        <button class="btn active" data-mode="solid">Solid</button>
-        <button class="btn" data-mode="material">Material</button>
-        <button class="btn" data-mode="wireframe">Wireframe</button>
-        <button class="btn" data-mode="xray">X-ray</button>
-      </div>
-    </div>
-    <div id="material-block">
-      <div class="label">Material</div>
-      <div class="swatches" id="swatches"></div>
-    </div>
-    <div>
-      <div class="label">Lighting</div>
-      <select id="light-select">
-        <option value="sun">Sun (directional)</option>
-        <option value="studio">Studio (3-point)</option>
-        <option value="spotlight">Spotlight</option>
-        <option value="overcast">Overcast (soft)</option>
-      </select>
-    </div>
-    <div>
-      <div class="label">Scene</div>
-      <label class="toggle-row">Edges
-        <span class="switch"><input type="checkbox" id="t-edges" checked><span class="slider"></span></span>
-      </label>
-      <label class="toggle-row">Grid
-        <span class="switch"><input type="checkbox" id="t-grid" checked><span class="slider"></span></span>
-      </label>
-      <label class="toggle-row">Shadows
-        <span class="switch"><input type="checkbox" id="t-shadow" checked><span class="slider"></span></span>
-      </label>
-      <label class="toggle-row">Auto-rotate
-        <span class="switch"><input type="checkbox" id="t-rotate"><span class="slider"></span></span>
-      </label>
-    </div>
-    <button class="btn" id="reset-view">Reset view</button>
     <div class="spacer"></div>
     <div id="info">
       <div><b>Size</b> <span id="i-size">-</span></div>
@@ -207,6 +218,81 @@
 
   <main id="stage">
     <div id="spinner">loading…</div>
+
+    <div id="viewport-controls" class="vc" data-corner="top-left">
+      <div class="vc-head">
+        <button class="vc-grip" title="Drag to move" aria-label="Drag to move">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><circle cx="9" cy="6" r="1.4"/><circle cx="15" cy="6" r="1.4"/><circle cx="9" cy="12" r="1.4"/><circle cx="15" cy="12" r="1.4"/><circle cx="9" cy="18" r="1.4"/><circle cx="15" cy="18" r="1.4"/></svg>
+        </button>
+        <div class="vc-head-actions">
+          <button id="vc-corner" class="vc-cfg" title="Anchor to a corner" aria-label="Anchor to a corner">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+          </button>
+          <button id="vc-text" class="vc-cfg" title="Show labels" aria-label="Show labels">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V5h16v2M9 5v14M7 19h4"/></svg>
+          </button>
+        </div>
+        <div id="vc-corner-pop" class="vc-corner-pop" hidden>
+          <button data-corner="top-left" title="Top left" aria-label="Top left"></button>
+          <button data-corner="top-right" title="Top right" aria-label="Top right"></button>
+          <button data-corner="bottom-left" title="Bottom left" aria-label="Bottom left"></button>
+          <button data-corner="bottom-right" title="Bottom right" aria-label="Bottom right"></button>
+        </div>
+      </div>
+
+      <div class="vc-group" id="vc-modes" aria-label="Display mode">
+        <button class="vc-btn active" data-mode="solid" title="Solid">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M12 3 20 7.5v9L12 21 4 16.5v-9L12 3Z" fill="currentColor" fill-opacity=".18"/><path d="M4 7.5 12 12l8-4.5M12 12v9"/></svg>
+          <span class="vc-label">Solid</span>
+        </button>
+        <button class="vc-btn" data-mode="material" title="Material">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="8"/><circle cx="9.5" cy="9.5" r="2.4" fill="currentColor" stroke="none"/></svg>
+          <span class="vc-label">Material</span>
+        </button>
+        <button class="vc-btn" data-mode="wireframe" title="Wireframe">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M12 3 20 7.5v9L12 21 4 16.5v-9L12 3Z"/><path d="M4 7.5 12 12l8-4.5M12 12v9"/></svg>
+          <span class="vc-label">Wireframe</span>
+        </button>
+        <button class="vc-btn" data-mode="xray" title="X-ray">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z"/></svg>
+          <span class="vc-label">X-ray</span>
+        </button>
+      </div>
+
+      <div class="vc-sub" id="vc-material" hidden>
+        <span class="vc-sub-label">Material</span>
+        <div class="swatches" id="swatches"></div>
+      </div>
+
+      <div class="vc-sep"></div>
+
+      <div class="vc-group" id="vc-scene">
+        <button id="vc-light" class="vc-btn" title="Lighting: Sun">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+          <span class="vc-label" id="vc-light-label">Sun</span>
+        </button>
+        <button class="vc-btn vc-toggle active" data-toggle="edges" title="Edges">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M12 3 20 7.5v9L12 21 4 16.5v-9L12 3Z"/></svg>
+          <span class="vc-label">Edges</span>
+        </button>
+        <button class="vc-btn vc-toggle active" data-toggle="grid" title="Grid">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 4h16v16H4zM4 9.3h16M4 14.6h16M9.3 4v16M14.6 4v16"/></svg>
+          <span class="vc-label">Grid</span>
+        </button>
+        <button class="vc-btn vc-toggle active" data-toggle="shadow" title="Shadows">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="10" cy="9" r="5"/><ellipse cx="13" cy="18.5" rx="7" ry="2" fill="currentColor" stroke="none" opacity=".5"/></svg>
+          <span class="vc-label">Shadows</span>
+        </button>
+        <button class="vc-btn vc-toggle" data-toggle="rotate" title="Auto-rotate">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>
+          <span class="vc-label">Auto-rotate</span>
+        </button>
+        <button id="vc-reset" class="vc-btn" title="Reset view">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l4-4 4 4M7 5v9a4 4 0 0 0 4 4h6"/></svg>
+          <span class="vc-label">Reset view</span>
+        </button>
+      </div>
+    </div>
     <div id="panels">
       <section class="panel" id="bom" data-store="ncad.panel.bom" aria-label="Bill of materials">
         <header class="panel-head"><span class="title">Bill of materials</span><span class="chev">▼</span></header>
@@ -361,7 +447,7 @@ function applyMode() {
 
 function syncMaterialBlock() {
   // Material swatches stay hidden until the user picks "Material" display mode.
-  document.getElementById("material-block").style.display = mode === "material" ? "" : "none";
+  document.getElementById("vc-material").hidden = mode !== "material";
 }
 
 function frameModel() {
@@ -468,47 +554,140 @@ MATERIALS.forEach((m, i) => {
   swatchWrap.appendChild(s);
 });
 
-// ---- mode + toggles (all persisted to localStorage) ----
+// ---- floating viewport controls: modes, toggles, lighting, reset (all persisted) ----
 function setMode(next) {
   mode = next;
   localStorage.setItem("ncad.mode", next);
-  document.querySelectorAll("#modes .btn").forEach(b =>
+  document.querySelectorAll("#vc-modes .vc-btn").forEach(b =>
     b.classList.toggle("active", b.dataset.mode === next));
   syncMaterialBlock();
   applyMode();
 }
-document.querySelectorAll("#modes .btn").forEach(btn =>
+document.querySelectorAll("#vc-modes .vc-btn").forEach(btn =>
   btn.addEventListener("click", () => setMode(btn.dataset.mode)));
 
-// A persisted boolean scene toggle: restores the saved state, applies it, and saves changes.
-function bindToggle(id, key, apply) {
-  const el = document.getElementById(id);
+// A persisted boolean scene toggle rendered as an icon button (active = on).
+function bindVcToggle(name, key, apply) {
+  const el = document.querySelector('.vc-toggle[data-toggle="' + name + '"]');
   const saved = localStorage.getItem(key);
-  if (saved !== null) el.checked = saved === "1";
-  apply(el.checked);
-  el.addEventListener("change", e => {
-    localStorage.setItem(key, e.target.checked ? "1" : "0");
-    apply(e.target.checked);
+  const on = saved !== null ? saved === "1" : el.classList.contains("active");
+  el.classList.toggle("active", on);
+  apply(on);
+  el.addEventListener("click", () => {
+    const now = !el.classList.contains("active");
+    el.classList.toggle("active", now);
+    localStorage.setItem(key, now ? "1" : "0");
+    apply(now);
   });
 }
-bindToggle("t-edges", "ncad.edges", v => { showEdges = v; applyMode(); });
-bindToggle("t-grid", "ncad.grid", v => { grid.visible = v; });
-bindToggle("t-shadow", "ncad.shadow", v => { castShadows = v; applyMode(); });
-bindToggle("t-rotate", "ncad.rotate", v => { controls.autoRotate = v; });
-document.getElementById("reset-view").addEventListener("click", () => { if (modelRoot) frameModel(); });
+bindVcToggle("edges", "ncad.edges", v => { showEdges = v; applyMode(); });
+bindVcToggle("grid", "ncad.grid", v => { grid.visible = v; });
+bindVcToggle("shadow", "ncad.shadow", v => { castShadows = v; applyMode(); });
+bindVcToggle("rotate", "ncad.rotate", v => { controls.autoRotate = v; });
+document.getElementById("vc-reset").addEventListener("click", () => { if (modelRoot) frameModel(); });
 
 // Restore the saved display mode (default solid). Buttons reflect it; applyMode on load.
 setMode(localStorage.getItem("ncad.mode") || "solid");
 
-// Lighting selector (persisted).
-const lightSelect = document.getElementById("light-select");
-const savedLight = localStorage.getItem("ncad.light") || "sun";
-lightSelect.value = savedLight;
-setLighting(savedLight);
-lightSelect.addEventListener("change", () => setLighting(lightSelect.value));
+// Lighting is a cycle button through the presets; the icon label shows the current one.
+const LIGHT_ORDER = ["sun", "studio", "spotlight", "overcast"];
+const LIGHT_NAMES = { sun: "Sun", studio: "Studio", spotlight: "Spotlight", overcast: "Overcast" };
+const lightBtn = document.getElementById("vc-light");
+const lightLabel = document.getElementById("vc-light-label");
+let lightIdx = Math.max(0, LIGHT_ORDER.indexOf(localStorage.getItem("ncad.light") || "sun"));
+function applyLight() {
+  const name = LIGHT_ORDER[lightIdx];
+  setLighting(name);
+  lightLabel.textContent = LIGHT_NAMES[name];
+  lightBtn.title = "Lighting: " + LIGHT_NAMES[name];
+}
+lightBtn.addEventListener("click", () => { lightIdx = (lightIdx + 1) % LIGHT_ORDER.length; applyLight(); });
+applyLight();
 
 // Material swatches start hidden (solid is the default mode).
 syncMaterialBlock();
+
+// ---- Show-text toggle: reveal each icon's label (persisted) ----
+const controlsEl = document.getElementById("viewport-controls");
+const textBtn = document.getElementById("vc-text");
+function applyShowText(on) {
+  controlsEl.classList.toggle("show-text", on);
+  textBtn.classList.toggle("active", on);
+  localStorage.setItem("ncad.vc.text", on ? "1" : "0");
+}
+textBtn.addEventListener("click", () => applyShowText(!controlsEl.classList.contains("show-text")));
+applyShowText(localStorage.getItem("ncad.vc.text") === "1");
+
+// ---- Panel placement: corner anchor picker + free drag with edge snapping ----
+const CORNER_KEY = "ncad.vc.corner", POS_KEY = "ncad.vc.pos";
+const cornerBtn = document.getElementById("vc-corner");
+const cornerPop = document.getElementById("vc-corner-pop");
+const MARGIN = 16;
+
+function anchorCorner(corner) {
+  controlsEl.classList.remove("vertical");
+  controlsEl.dataset.corner = corner;
+  const [v, h] = corner.split("-");
+  controlsEl.style.top = v === "top" ? MARGIN + "px" : "";
+  controlsEl.style.bottom = v === "bottom" ? MARGIN + "px" : "";
+  controlsEl.style.left = h === "left" ? MARGIN + "px" : "";
+  controlsEl.style.right = h === "right" ? MARGIN + "px" : "";
+  localStorage.setItem(CORNER_KEY, corner);
+  localStorage.removeItem(POS_KEY);
+}
+
+cornerBtn.addEventListener("click", () => { cornerPop.hidden = !cornerPop.hidden; });
+cornerPop.querySelectorAll("button").forEach(b =>
+  b.addEventListener("click", () => { anchorCorner(b.dataset.corner); cornerPop.hidden = true; }));
+
+// Free-drag from the grip; on release, snap to the nearest viewport edge. A top/bottom
+// snap keeps the panel horizontal; a left/right snap flips it vertical.
+function placeFree(x, y) {
+  controlsEl.style.left = x + "px"; controlsEl.style.top = y + "px";
+  controlsEl.style.right = ""; controlsEl.style.bottom = "";
+}
+function snapToEdge() {
+  const stageRect = stage.getBoundingClientRect();
+  const r = controlsEl.getBoundingClientRect();
+  const cx = r.left - stageRect.left + r.width / 2, cy = r.top - stageRect.top + r.height / 2;
+  const dl = cx, dr = stageRect.width - cx, dt = cy, db = stageRect.height - cy;
+  const min = Math.min(dl, dr, dt, db);
+  controlsEl.classList.toggle("vertical", min === dl || min === dr);
+  let x = r.left - stageRect.left, y = r.top - stageRect.top;
+  if (min === dl) x = MARGIN;
+  else if (min === dr) x = stageRect.width - r.width - MARGIN;
+  else if (min === dt) y = MARGIN;
+  else y = stageRect.height - r.height - MARGIN;
+  x = Math.max(MARGIN, Math.min(stageRect.width - r.width - MARGIN, x));
+  y = Math.max(MARGIN, Math.min(stageRect.height - r.height - MARGIN, y));
+  placeFree(x, y);
+  localStorage.setItem(POS_KEY, JSON.stringify({ x, y, vertical: controlsEl.classList.contains("vertical") }));
+  localStorage.removeItem(CORNER_KEY);
+}
+
+document.querySelector(".vc-grip").addEventListener("mousedown", ev => {
+  ev.preventDefault();
+  const stageRect = stage.getBoundingClientRect();
+  const r = controlsEl.getBoundingClientRect();
+  const offX = ev.clientX - r.left, offY = ev.clientY - r.top;
+  const onMove = e => placeFree(e.clientX - stageRect.left - offX, e.clientY - stageRect.top - offY);
+  const onUp = () => {
+    snapToEdge();
+    window.removeEventListener("mousemove", onMove);
+    window.removeEventListener("mouseup", onUp);
+  };
+  window.addEventListener("mousemove", onMove);
+  window.addEventListener("mouseup", onUp);
+});
+
+// Restore saved placement: a free/snapped position wins, else a corner, else default.
+const savedPos = localStorage.getItem(POS_KEY);
+if (savedPos) {
+  try { const p = JSON.parse(savedPos); controlsEl.classList.toggle("vertical", !!p.vertical); placeFree(p.x, p.y); }
+  catch (e) { anchorCorner("top-left"); }
+} else {
+  anchorCorner(localStorage.getItem(CORNER_KEY) || "top-left");
+}
 
 // ---- Spec combobox + models list ----
 let specTree = [], selectedSpec = null, activeModel = null;
