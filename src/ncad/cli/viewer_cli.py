@@ -78,6 +78,30 @@ def view(
     launch_viewer(models_dir, host, port)
 
 
+@app.command()
+def build(
+    document: str = typer.Argument(..., help="path to a .hocon/.json feature-tree document"),
+    out: str = typer.Option(None, help="output directory for .glb files (default: out/)"),
+) -> None:
+    """Build every part in a feature-tree document to glTF."""
+    # Imported here, not at module top, so `ncad`/`ncad view` never pay the OCP cost.
+    from ncad.build.document_builder import DocumentBuilder
+    from ncad.kernel.build123d_kernel import Build123dKernel
+
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    logging.getLogger("build123d").setLevel(logging.WARNING)
+    out_dir = resolve_models_dir(out)
+    artifacts = DocumentBuilder(Build123dKernel()).build_file(document, str(out_dir))
+
+    print(f"\nncad build: {document}")
+    for name, path in artifacts.items():
+        print(f"  part {name:12} {path}")
+    if artifacts:
+        print(f"\nview with:  ncad view {out_dir}\n")
+    else:
+        print("  no parts built\n")
+
+
 def main() -> None:
     """Console-script entrypoint for ``ncad``."""
     app()

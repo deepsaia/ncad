@@ -41,3 +41,16 @@ def test_bare_ncad_passes_port_option(monkeypatch) -> None:
 
     assert result.exit_code == 0
     assert calls == [("127.0.0.1", 0)]
+
+
+def test_build_requires_a_document_argument() -> None:
+    result = runner.invoke(viewer_cli.app, ["build"])
+
+    assert result.exit_code != 0
+
+
+def test_build_is_a_registered_command() -> None:
+    result = runner.invoke(viewer_cli.app, ["--help"])
+
+    assert result.exit_code == 0
+    assert "build" in result.output

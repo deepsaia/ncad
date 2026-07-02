@@ -5,7 +5,12 @@ import pytest
 from ncad.build.document_builder import DocumentBuilder
 from tests.kernel.fake_kernel import FakeKernel
 
-_FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "parts" / "block.hocon"
+_FIXTURE = (
+    Path(__file__).resolve().parents[2]
+    / "examples"
+    / "gate-0.1-first-shape"
+    / "block.hocon"
+)
 
 
 def _document() -> dict:
