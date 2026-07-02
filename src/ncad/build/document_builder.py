@@ -10,7 +10,7 @@ import os
 
 from ncad.build.builder import Builder
 from ncad.kernel.kernel import Kernel
-from ncad.ops.op_registry import default_registry
+from ncad.ops.op_registry import OpRegistry
 from ncad.ops.op_result import OpResult
 from ncad.spec.schema_validator import SchemaValidator
 from ncad.spec.spec_loader import SpecLoader
@@ -24,7 +24,7 @@ class DocumentBuilder:
     def __init__(self, kernel: Kernel) -> None:
         """:param kernel: Geometry backend used by the Builder and for export."""
         self._kernel = kernel
-        self._builder = Builder(kernel, default_registry())
+        self._builder = Builder(kernel, OpRegistry.with_defaults())
         self._validator = SchemaValidator()
         self._loader = SpecLoader()
 

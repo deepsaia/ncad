@@ -5,6 +5,7 @@ models exist and resolves a requested name to a safe absolute path (rejecting an
 outside the directory, so a crafted name can't escape via ``..``).
 """
 
+import json
 import logging
 import os
 
@@ -18,6 +19,9 @@ _SERVABLE_EXTENSIONS = (".gltf", ".glb", ".bin", ".png", ".jpg", ".jpeg")
 # A model's sidecars sit beside it as "<stem><suffix>".
 _BOM_SUFFIX = ".bom.json"
 _PLAN_SUFFIX = ".plan.svg"
+_META_SUFFIX = ".meta.json"
+# All sidecar suffixes removed alongside a model on delete.
+_SIDECAR_SUFFIXES = (_META_SUFFIX, _BOM_SUFFIX, _PLAN_SUFFIX)
 
 
 class ModelCatalog:
@@ -70,3 +74,42 @@ class ModelCatalog:
         if not os.path.isfile(candidate):
             return None
         return candidate
+
+    def resolve_meta(self, model_name: str) -> str | None:
+        """Resolve a model name to its metadata sidecar (``<stem>.meta.json``), or None."""
+        return self._resolve_sidecar(model_name, _META_SUFFIX)
+
+    def models_with_sources(self) -> list[dict]:
+        """List models with their recorded source spec (from meta), source None if absent."""
+        return [{"name": name, "source": self._read_source(name)} for name in self.model_names()]
+
+    def delete_model(self, model_name: str) -> list[str] | None:
+        """Delete the model file and its sidecars from this directory (path-safe).
+
+        :return: Absolute paths removed, or None if the model is unknown or unsafe.
+        """
+        target = self.resolve(model_name)
+        if target is None:
+            return None
+        removed = [target]
+        os.remove(target)
+        stem = os.path.splitext(model_name)[0]
+        for suffix in _SIDECAR_SUFFIXES:
+            sidecar = os.path.abspath(os.path.join(self._directory, stem + suffix))
+            if os.path.dirname(sidecar) == self._directory and os.path.isfile(sidecar):
+                os.remove(sidecar)
+                removed.append(sidecar)
+        logger.debug("deleted model %s and %d sidecar(s)", model_name, len(removed) - 1)
+        return removed
+
+    def _read_source(self, model_name: str) -> str | None:
+        """Read the ``source`` field from a model's meta sidecar, or None."""
+        meta_path = self.resolve_meta(model_name)
+        if meta_path is None:
+            return None
+        try:
+            with open(meta_path, encoding="utf-8") as handle:
+                return json.load(handle).get("source")
+        except (OSError, ValueError):
+            logger.warning("could not read meta for %s", model_name)
+            return None

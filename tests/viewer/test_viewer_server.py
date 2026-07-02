@@ -5,6 +5,7 @@ No browser needed; these check the HTTP contract the frontend depends on.
 """
 
 import json
+import urllib.error
 import urllib.request
 
 import pytest
@@ -67,7 +68,7 @@ def test_api_models_lists_models(server) -> None:
 
     assert status == 200
     assert "application/json" in headers["Content-Type"]
-    assert json.loads(body) == {"models": ["box.gltf"]}
+    assert json.loads(body) == {"models": [{"name": "box.gltf", "source": None}]}
 
 
 def test_model_bytes_are_served(server) -> None:
@@ -159,3 +160,150 @@ def test_glb_served_with_binary_content_type(tmp_path) -> None:
         assert "model/gltf-binary" in headers["Content-Type"]
     finally:
         srv.stop()
+
+
+# ---- New routes: /api/specs, /api/build, delete (Task 5) ----
+
+from ncad.viewer.build_service import BuildError  # noqa: E402
+
+
+class _StubBuildService:
+    """Stub build service so route tests stay fast (no OCP)."""
+
+    def __init__(self) -> None:
+        self.calls = []
+
+    def build(self, spec: str) -> dict:
+        self.calls.append(spec)
+        if spec == "bad.hocon":
+            raise BuildError("nope")
+        return {"built": ["block.glb"]}
+
+
+def test_api_specs_returns_tree(tmp_path) -> None:
+    examples = tmp_path / "examples"
+    (examples / "g").mkdir(parents=True)
+    (examples / "g" / "block.hocon").write_text("x")
+    models = tmp_path / "out"
+    models.mkdir()
+    srv = ViewerServer(str(models), port=0, examples_dir=str(examples))
+    srv.start()
+    try:
+        status, body, _ = _get(f"{srv.base_url}/api/specs")
+    finally:
+        srv.stop()
+
+    assert status == 200
+    assert json.loads(body)["tree"][0]["name"] == "g"
+
+
+def test_api_models_carries_source(tmp_path) -> None:
+    models = tmp_path / "out"
+    models.mkdir()
+    (models / "block.glb").write_bytes(b"x")
+    (models / "block.meta.json").write_text('{"source": "g/block.hocon"}')
+    srv = ViewerServer(str(models), port=0, examples_dir=str(tmp_path))
+    srv.start()
+    try:
+        status, body, _ = _get(f"{srv.base_url}/api/models")
+    finally:
+        srv.stop()
+
+    assert json.loads(body)["models"] == [{"name": "block.glb", "source": "g/block.hocon"}]
+
+
+def _post(url: str, payload: dict | None):
+    data = json.dumps(payload).encode() if payload is not None else None
+    headers = {"Content-Type": "application/json"} if payload is not None else {}
+    req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+    with urllib.request.urlopen(req, timeout=5) as response:
+        return response.status, response.read()
+
+
+def test_api_build_success(tmp_path) -> None:
+    models = tmp_path / "out"
+    models.mkdir()
+    stub = _StubBuildService()
+    srv = ViewerServer(str(models), port=0, examples_dir=str(tmp_path), build_service=stub)
+    srv.start()
+    try:
+        status, body = _post(f"{srv.base_url}/api/build", {"spec": "g/block.hocon"})
+    finally:
+        srv.stop()
+
+    assert status == 200
+    data = json.loads(body)
+    assert stub.calls == ["g/block.hocon"]
+    assert data["built"] == ["block.glb"]
+    assert "models" in data
+
+
+def test_api_build_error_returns_400(tmp_path) -> None:
+    models = tmp_path / "out"
+    models.mkdir()
+    srv = ViewerServer(
+        str(models), port=0, examples_dir=str(tmp_path), build_service=_StubBuildService()
+    )
+    srv.start()
+    try:
+        with pytest.raises(urllib.error.HTTPError) as exc:
+            _post(f"{srv.base_url}/api/build", {"spec": "bad.hocon"})
+        assert exc.value.code == 400
+        assert "error" in json.loads(exc.value.read())
+    finally:
+        srv.stop()
+
+
+def test_api_delete_removes_and_returns_list(tmp_path) -> None:
+    models = tmp_path / "out"
+    models.mkdir()
+    (models / "block.glb").write_bytes(b"x")
+    srv = ViewerServer(str(models), port=0, examples_dir=str(tmp_path))
+    srv.start()
+    try:
+        status, body = _post(f"{srv.base_url}/api/models/block.glb/delete", None)
+    finally:
+        srv.stop()
+
+    assert status == 200
+    assert json.loads(body)["models"] == []
+    assert not (models / "block.glb").exists()
+
+
+def test_index_contains_new_ui_elements(tmp_path) -> None:
+    models = tmp_path / "out"
+    models.mkdir()
+    srv = ViewerServer(str(models), port=0, examples_dir=str(tmp_path))
+    srv.start()
+    try:
+        _, body, _ = _get(f"{srv.base_url}/")
+        html = body.decode()
+    finally:
+        srv.stop()
+
+    for token in ('id="spec-search"', 'id="spec-tree"', 'id="spec-build"', 'id="model-list"'):
+        assert token in html
+
+
+@pytest.mark.slow
+def test_real_build_route_produces_model(tmp_path) -> None:
+    from pathlib import Path
+
+    repo = Path(__file__).resolve().parents[2]
+    examples = repo / "examples"
+    models = tmp_path / "out"
+    models.mkdir()
+    srv = ViewerServer(str(models), port=0, examples_dir=str(examples))
+    srv.start()
+    try:
+        status, body = _post(
+            f"{srv.base_url}/api/build", {"spec": "gate-0.1-first-shape/block.hocon"}
+        )
+    finally:
+        srv.stop()
+
+    assert status == 200
+    data = json.loads(body)
+    assert "block.glb" in data["built"]
+    assert (models / "block.glb").is_file()
+    assert (models / "block.meta.json").is_file()

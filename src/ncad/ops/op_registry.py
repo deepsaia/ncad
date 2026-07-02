@@ -1,17 +1,19 @@
-"""Op-dispatch registry: feature ``op`` name to builder function.
+"""Op-dispatch registry: feature ``op`` name to builder callable.
 
-Adding an operation is registering a function; this is the generalization of v1's
-``roof_builders[kind]`` pattern (design §4).
+Adding an operation is registering an op; this is the generalization of v1's
+``roof_builders[kind]`` pattern (design section 4). Each op is a class with a ``build``
+method matching the uniform op signature; the registry stores the bound ``build``
+methods so the executor can dispatch by op name.
 """
 
 from collections.abc import Callable
 
-from ncad.ops.extrude_op import build_extrude
-from ncad.ops.sketch_op import build_sketch
+from ncad.ops.extrude_op import ExtrudeOp
+from ncad.ops.sketch_op import SketchOp
 
 
 class OpRegistry:
-    """Maps feature op names to their builder functions."""
+    """Maps feature op names to their builder callables."""
 
     def __init__(self) -> None:
         self._ops: dict[str, Callable] = {}
@@ -28,10 +30,10 @@ class OpRegistry:
         """
         return self._ops[op]
 
-
-def default_registry() -> OpRegistry:
-    """A registry with Bucket 0.1's ops (``sketch``, ``extrude``) registered."""
-    registry = OpRegistry()
-    registry.register("sketch", build_sketch)
-    registry.register("extrude", build_extrude)
-    return registry
+    @classmethod
+    def with_defaults(cls) -> "OpRegistry":
+        """A registry with Bucket 0.1's ops (``sketch``, ``extrude``) registered."""
+        registry = cls()
+        registry.register("sketch", SketchOp().build)
+        registry.register("extrude", ExtrudeOp().build)
+        return registry
