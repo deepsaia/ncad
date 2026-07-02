@@ -33,7 +33,7 @@ The shift from v1 is one of *generality*, not of philosophy. What genuinely
 carries over from the building-only v1 is narrower than "the substrate": the
 **spec/IO layer** (HOCON + `jsonschema` + `leaf-common`, returning plain dicts),
 the **viewer stack** (glTF tessellation + three.js `nv`), and the *patterns*: the
-op-dispatch registry (`roof_builders[kind]` → `feature_ops[op]`), the
+op-dispatch registry (`roof_builders[kind]` >> `feature_ops[op]`), the
 traversal-BOM discipline, and determinism-by-construction. What is effectively
 **greenfield**: the general geometry kernel interface (v1's `Kernel` is
 building-shaped, `box`/`prism`/`arc_wall`), the feature-tree schema, the reference
@@ -65,7 +65,7 @@ The domains layer onto that spine in a deliberate order of proof:
 - **CAE = kinematics (proven early, ours):** DoF/FK/IK/mechanism solve and basic
   MBD (§8). Structural/thermal/fluid analysis is *not* ours (§17).
 - **CAM (seamed now, built late):** a **process profile** (§6a): takes a finished
-  solid + stock + fixtures and emits toolpaths → post → G-code. It reuses the solid
+  solid + stock + fixtures and emits toolpaths >> post >> G-code. It reuses the solid
   substrate (offsets, sections, booleans, mass props) and adds machining strategy +
   post-processors on top; it authors no new *geometry* profile.
 - **PCB/ECAD (seamed now, built late):** a **board data model** (§6b): nets,
@@ -86,8 +86,8 @@ of truth, and the executor is a pure function:
           │  author / edit │ ────────────► │  executor (pure)   │ ──────► │ validate · BOM · │
           │  the document  │               │  document → model  │         │ motion · draw ·  │
           └────────────────┘               └────────────────────┘         │ PMI · export ·   │
-                  ▲                                  ▲                      │ tessellate/view  │
-                  │                                  │                      └──────────────────┘
+                  ▲                                  ▲                    │ tessellate/view  │
+                  │                                  │                    └──────────────────┘
           all authoring &                    no global state;
           randomness here                    deterministic replay
 ```
@@ -95,10 +95,10 @@ of truth, and the executor is a pure function:
 - **Document:** structured, validatable data: a feature tree per part, an
   assembly tree, plus optional motion, drawing, and annotation blocks. The single
   source of truth.
-- **Executor:** a *pure* function `build(document) → model`. Same document →
+- **Executor:** a *pure* function `build(document) >> model`. Same document >>
   identical geometry, against a pinned kernel (§14).
 - **Authors:** anything that *produces or edits* the document: a person, the
-  agent layer, or a seeded generator `generate(seed, params) → document`. All
+  agent layer, or a seeded generator `generate(seed, params) >> document`. All
   randomness lives on the authoring side, never in the executor.
 
 **Two modeling paradigms over one model (new, and load-bearing).** The engine
@@ -307,6 +307,26 @@ touched on day one, not discovered at Phase 4. This is the generalization of v1'
 instinct ("stable `id` + *relative* parameter") into the engine's core: *the
 cheapest way to beat TNP is to not create it.*
 
+```
+REFERENCE ROBUSTNESS LADDER                            survives upstream edits
+═══════════════════════════════════════════════════════════════════════════
+ ▲   SEMANTIC      datums.base · parts.rib · holes.instance(0).axis
+ │                 name lookup · no topology involved                ALWAYS
+ │   GENERATIVE    pad.cap(+Z)
+ │                 provenance map: which feature made which          USUALLY
+ more robust       element · re-tagged each rebuild
+ │   SELECTOR      select edges where convexity = 'convex'
+ │                 deterministic predicate over current topology ·   MOSTLY
+ │                 breaks only if the edit changes what matches
+ │   PERSISTENT    #face/pad/27a3
+ ▼   NAME          generative element-mapping layer (TopoShape) · fallback  BEST-EFFORT
+═══════════════════════════════════════════════════════════════════════════
+Default references toward the top of the ladder. Persistent names are the
+fallback: never 100%, always paired with id-attributed failure (§10).
+```
+
+*Fig. D-02: the cheapest way to beat the naming problem is to not create it.*
+
 ---
 
 ## 3. The two modeling paradigms: parametric and direct
@@ -333,6 +353,28 @@ by direct-edit features appended to the tree (so they remain re-applicable);
 imported parts default to direct mode. Direct edits reference geometry by
 persistent name rather than by sketch, which is precisely why §2's element-map
 layer is a prerequisite for this section.
+
+```
+                ╔═══════════════════════════════════════════╗
+                ║ ONE MODEL  ·  B-rep + mesh  ·  stable ids ║
+                ╚═══════════════════════════════════════════╝
+                 ▲                                         ▲
+                 │                                         │
+┌────────────────────────────────┐      ┌────────────────────────────────────┐
+│ PARAMETRIC / HISTORY (default) │      │ DIRECT / SYNCHRONOUS (history-free)│
+│                                │      │ act on the current B-rep:          │
+│ sketch >> pad >> hole >> fillet│      │ · move / offset · replace / delete │
+│ (ordered feature tree)         │      │ · resize fillet · make coaxial     │
+│ edit params · reorder >> replay│      │ by persistent reference (§2)       │
+└────────────────────────────────┘      └────────────────────────────────────┘
+
+Imported (dumb) geometry >> direct mode. History features may be followed by
+appended direct edits (Creo-style). v1 direct = core face ops on well-behaved
+topology only (see the kernel note below).
+```
+
+*Fig. D-03: both paradigms are operations in one document; direct editing is why
+the element-map layer (§2) is a prerequisite.*
 
 > **Honesty about the kernel (research-scoped).** OCCT has no turnkey
 > synchronous-modeling engine, and its direct-edit pieces have a *narrow* robust
@@ -361,7 +403,7 @@ layer is a prerequisite for this section.
 
 ## 4. The executor and the geometry kernel
 
-`build(document) → model` is a **pure function**. The kernel sits behind a thin
+`build(document) >> model` is a **pure function**. The kernel sits behind a thin
 interface so it is swappable and most code never imports it directly.
 
 **v1 kernel: `build123d` (OpenCASCADE / OCP under the hood).** A clean, Pythonic,
@@ -369,6 +411,25 @@ Apache-2.0 layer over OCCT (the only mature open B-rep kernel), interchangeable
 with CadQuery down to the `.wrapped` shape, with a **raw-OCP escape hatch** for
 operations not wrapped first-class (draft, sections, HLR drawings, XCAF
 assemblies/PMI). Writing a kernel is a non-goal (§17).
+
+> **Kernel choice (validated 2026; `docs/research/kernel-choice-2026.md`).** The
+> choice is effectively forced by two of ncad's own constraints, and the current
+> landscape confirms it. **Open side:** OCCT is the *only* production-viable open
+> B-rep kernel for this scope (STEP AP242 + PMI, XCAF assemblies, HLR drafting,
+> glTF); every open alternative is dead, immature, or the wrong paradigm. Fornjot
+> (Rust) was shut down and archived in 2026; truck (Rust) has no fillets/PMI/
+> drawings and is pre-1.0; Manifold is mesh-only (we already use it for convergent
+> modeling, §4). **Commercial side:** Parasolid/ACIS/CGM/C3D are more robust but
+> **closed-binary, per-seat/royalty licensed**, unusable by an open/public/GPL
+> project (you cannot redistribute them, and no user could build from source). There
+> is zero precedent for an OSS CAD tool shipping one; adopting one *is* the move
+> that ends openness (Shapr3D's path). **Binding:** stay on **build123d**, and reach
+> through it into **OCP** (`import OCP.*`) for the advanced modules build123d does
+> not surface (XCAF/AP242, HLR, defeaturing, draft); no binding switch needed.
+> Keep the swappable `Kernel` seam (§16) as the hedge; do not cross it. *(Note: the
+> OCCT license is LGPL-2.1 + the "Open CASCADE exception"; the common belief that it
+> frees static linking into closed source exceeds the literal wording, irrelevant
+> to us since we are GPL, but not repeated as fact.)*
 
 **Op dispatch is a registry.** `feature_ops[feature.op]` dispatches to a per-op
 builder, the v1 `roof_builders[roof.kind]` pattern, generalized. Adding an
@@ -393,22 +454,48 @@ single-threaded, and large parts/assemblies (§7) make recompute the dominant co
 real inputs (self-intersection, over-large radii, thin walls, tangency). The
 executor validates after *every* feature (§10) and attributes failure to the
 offending `id` rather than corrupting downstream geometry; ops stay re-orderable
-and the tree inspectable, so a fix is a local edit. The operation→OCCT-family map
+and the tree inspectable, so a fix is a local edit. The operation>>OCCT-family map
 and the full feature catalogue live in [`plan.md`](./plan.md).
+
+**The robustness layer (how we solve OCCT's boolean/fillet fragility;
+`docs/research/occt-boolean-robustness.md`).** OCCT's BOP/fillet fragility is real
+but **solvable in a layer *we* own**, not by upstreaming: OCCT requires a
+wet-signature copyright-assigning CLA, core-algorithm merges are centralized and
+slow, and even a landed fix would trail the ~14-month release plus binding lag by
+about a year. Every serious OCCT-based product (FreeCAD, CadQuery) instead wraps the
+kernel, from documented OCCT APIs. ncad's kernel adapter does the same, invisibly to
+the document, as a four-step ladder inside each fragile op:
+
+1. **Normalize + gate the inputs:** `BRepCheck_Analyzer`, then
+   `ShapeFix_ShapeTolerance.LimitTolerance` (and optional `Sewing`) so operand
+   tolerances are sane before the op (tolerance mismatch is the mechanistic centre
+   of most BOP failures).
+2. **Fuzzy retry ladder:** run the boolean with `SetNonDestructive(true)` and an
+   escalating `SetFuzzyValue`, auto-tuned to the model scale (bbox-diagonal ×
+   `Precision::Confusion()`, FreeCAD's heuristic); stop at the first valid result.
+3. **Post-op cleanup:** `ShapeUpgrade_UnifySameDomain` to merge coplanar
+   faces/collinear edges (CadQuery runs this by default after every boolean).
+4. **Validate + heal-and-retry:** re-check with `BRepCheck_Analyzer`; on invalid,
+   `ShapeFix_Shape` and retry, else fail loudly by `id` (above).
+
+This fits the uniform pure op signature (retry/validation already thread through it)
+and the swappable-kernel seam. The one empirical unknown, whether a single auto-tuned
+fuzzy value generalizes across our geometry or needs per-op tuning, is settled by the
+golden-geometry regression suite over the example briefs (§19, cross-cutting tests).
 
 **Convergent modeling (mesh + B-rep).** Facet (mesh) bodies are first-class
 alongside B-rep. The kernel interface admits both, and a pragmatic subset of NX-style
 **convergent** operations (boolean between B-rep and mesh, offset/thicken on
 facet bodies, and conversion both ways) is built on **Manifold** (`manifold3d`,
 Apache-2.0, fast robust mesh booleans, already a dependency) plus OCCT poly.
-Full mesh→B-rep reconstruction (reverse engineering) is hard and stays a later/
+Full mesh>>B-rep reconstruction (reverse engineering) is hard and stays a later/
 plugin concern; faceted-as-body and primitive-fit cover the common cases first.
 
 ---
 
 ## 4a. Determinism, equality & the cache key
 
-The whole design rests on "same document → same model," but OCCT does **not**
+The whole design rests on "same document >> same model," but OCCT does **not**
 guarantee bit-identical B-reps across platforms, thread counts, or kernel versions.
 So we define equality and the cache in terms the kernel *can* honour:
 
@@ -420,13 +507,13 @@ So we define equality and the cache in terms the kernel *can* honour:
   point release.
 - **Cache key** (content-addressed, §4) = `hash(resolved feature subtree +
   resolved params + upstream element-map inputs)` **combined with the pinned kernel
-  version**. A kernel bump changes every key → cached *geometry* is invalidated
+  version**. A kernel bump changes every key >> cached *geometry* is invalidated
   wholesale (re-execute); document *definitions* are untouched (they migrate via
   §14 converters, not the geometry cache).
 - **What the cache stores:** the built shape *and* its provenance/element-map
   slice, so a resumed rebuild restores references, not just geometry.
 - **Golden artifacts:** per the testing discipline (`plan.md`): golden *specs*
-  (seed+params → document), golden *equality tuples* (topology signature + measures)
+  (seed+params >> document), golden *equality tuples* (topology signature + measures)
   rather than golden BREP bytes, golden *BOM*, and golden *plan/section images* at a
   pinned tessellation deflection.
 
@@ -486,6 +573,37 @@ solid part with surface features).
 The catalogue of features within each profile is enumerated and phased in
 [`plan.md`](./plan.md).
 
+```
+┌─────────────┬─────────────┬─────────────┬─────────────┬─────────────┐
+│ SOLID (def) │ SURFACE     │ SHEET METAL │ MOLD/TOOL   │ BUILDING    │
+│ extrude     │ boundary    │ flange·bend │ parting     │ storeys     │
+│ revolve     │ fill · knit │ hem · jog   │ line/surf   │ walls       │
+│ sweep       │ trim        │ unfold >>   │ core /      │ openings    │
+│ fillet      │ extend      │ flat pattern│ cavity split│ roof        │
+│ shell       │ thicken     │ K-factor /  │ shrinkage   │ lowers >>   │
+│ boolean     │ Class A (A) │ bend tables │ draft       │ ops · IFC   │
+│ multibody   │             │             │             │             │
+└─────────────┴─────────────┴─────────────┴─────────────┴─────────────┘
+╔═════════════════════════════════════════════════════════════════════╗
+║ SHARED SUBSTRATE                                                    ║
+║ kernel (build123d/OCP) · references+provenance · executor+cache     ║
+║ sketches+solver · assembly+joints · BOM+mass props · validators     ║
+╚═════════════════════════════════════════════════════════════════════╝
+
+   ▲  consumes a built solid          ▲  lowers its board shape
+┌────────────────────────┐        ┌────────────────────────┐
+│ CAM (process, §6a)     │        │ PCB/ECAD (data, §6b)   │
+│ stock · toolpaths      │        │ nets · layers · DRC    │
+│ post >> G-code         │        │ lower >> STEP          │
+└────────────────────────┘        └────────────────────────┘
+
+Each profile = ops + validators (+ reps) registered on the substrate, which knows
+nothing domain-specific. CAM and PCB extend the same substrate as seams, built late.
+```
+
+*Fig. D-06: the building profile is "sheet-metal-like, but more high-level" (Q1);
+CAM and PCB reuse the substrate rather than forking it.*
+
 ---
 
 ## 6a. CAM: machining as a process profile (seamed now, built late)
@@ -513,7 +631,7 @@ the way the BOM does, as a traversal, never a re-measure of a mesh:
   removal simulation, and **mass/volume** deltas (§9) for material-removed BOM.
 - **What CAM adds.** Machining **strategies** (facing, 2.5D pocket/contour, drilling
   cycles, later 3-axis surfacing), a **tool library**, feeds/speeds, and
-  **post-processors** (strategy-neutral toolpath → machine-specific **G-code**),
+  **post-processors** (strategy-neutral toolpath >> machine-specific **G-code**),
   registered like ops. Stock-vs-tool and fixture **collision** reuses the motion
   interference machinery (§8).
 - **Scope honesty.** 2.5D milling + drilling + a generic post is the realistic first
@@ -611,12 +729,12 @@ them.
 - **Drivers & forward kinematics (FK):** assign a **driver** to a joint DoF:
   constant value, linear ramp, a function of time, or a function of another DoF
   (couplers/gears/cams). Sweeping the drivers solves the assembly configuration at
-  each step → mechanism motion.
+  each step >> mechanism motion.
 - **Inverse kinematics (IK):** drive an *output* frame (an end-effector) and
   solve for the joint values that reach it (numerically, by adding the output as a
   constraint).
 - **Mechanism solver:** at each time step, fix the driven DoF and solve the
-  joint/constraint network for the rest → the assembly's pose. This is the same
+  joint/constraint network for the rest >> the assembly's pose. This is the same
   constraint machinery as assembly mating, stepped over time.
 - **Interference during motion:** per-step distance/intersection checks between
   moving parts (fast mesh via Manifold, or exact via OCCT), reporting collision
@@ -625,7 +743,7 @@ them.
   swept volume of a moving body), and **measures over time** (distance, angle,
   velocity, acceleration), all derived and exportable.
 - **Multibody dynamics (later):** force-driven motion: mass/inertia (from
-  `BRepGProp`) + gravity, forces/torques, springs/dampers, and contacts → reaction
+  `BRepGProp`) + gravity, forces/torques, springs/dampers, and contacts >> reaction
   forces and accelerations. This is true MBD and the high end of the subsystem;
   **kinematics (geometry-driven) ships first, dynamics (force-driven) later**
   ([`plan.md`](./plan.md)).
@@ -642,6 +760,28 @@ build proprietary tools on ncad) would require permissive solver replacements
 (`planegcs` is LGPL; an MBD replacement would need sourcing). The motion model is
 solver-agnostic behind a thin interface, so that swap stays possible without
 touching the document schema, but it is not a near-term goal (§15, §19).
+
+```
+┌──────────────────┐    ┌──────────────────┐    ┌──────────────────┐
+│ JOINT GRAPH      │    │ DoF ANALYSIS     │    │ DRIVERS (FK) / IK│
+│ revolute · slider│    │ free-DoF count   │    │ const·ramp·f(t)  │
+│ ball · gear · cam│    │ over/under status│    │ drive out-frame  │
+└──────────────────┘    └──────────────────┘    └──────────────────┘
+
+           these three inputs feed  >>
+
+┌─────────────────────┐      ┌─────────────────────┐
+│ MECHANISM SOLVER    │      │ OUTPUTS             │
+│ step · fix driven   │      │ traces · envelopes  │
+│ solve (slvs/Ondsel) │      │ measures · collide  │
+└─────────────────────┘      └─────────────────────┘
+
+MULTIBODY DYNAMICS (later, force-driven): mass/inertia (BRepGProp)
++ gravity / forces / springs + contacts >> reactions & accelerations
+```
+
+*Fig. D-08: the mechanism solver is the same constraint machinery as assembly
+mating, stepped over time. Kinematics ships first; dynamics later.*
 
 ---
 
@@ -723,7 +863,7 @@ POST /docs/{id}/migrate               -> { document, from, to }          # §14 
 ```
 
 Every document carries `schema_version`; an `edit` triggers the incremental
-rebuild (§4) and returns model **and** issues together, so *patch → rebuild → see
+rebuild (§4) and returns model **and** issues together, so *patch >> rebuild >> see
 result + breakage* is a single round-trip. (The natural-language agent
 orchestration that drives these endpoints is out of scope here, a wrapper over
 the API, not part of the engine.)
@@ -735,7 +875,7 @@ the API, not part of the engine.)
 The engine ships a strong viewer and **no authoring GUI** (§17). The primary path
 reuses v1's stack: the server tessellates OCCT geometry
 (`BRepMesh_IncrementalMesh`) to **glTF/GLB**, and the browser renders with
-**three.js** (the existing `nv` viewer). An **element-map sidecar** (triangle →
+**three.js** (the existing `nv` viewer). An **element-map sidecar** (triangle >>
 face/edge `id`) turns a passive render into an inspectable model: **picking,
 selection, hover-highlight by semantic id, and measurement**, without an editing
 UI and without the engine ceasing to be the source of truth. The viewer also
@@ -776,7 +916,7 @@ plugins/
 **Versioning & migration (Q6).** Every document (part / assembly / motion /
 drawing) carries a domain `schema_version`. On load, ncad validates the version;
 if it predates the current release, the user is offered an **upgrade** that runs
-registered **migration converters** (chained vN→vN+1), transforming the
+registered **migration converters** (chained vN>>vN+1), transforming the
 *definition* (data), not the geometry, exactly as commercial tools prompt
 "convert to current version?" on opening old files. Cache keys include the kernel
 version (§4); a kernel bump invalidates cached *geometry* wholesale (re-execute),
@@ -798,7 +938,7 @@ ordered, and tested.
 - **Mesh / convergent:** `manifold3d` (Apache-2.0) fast mesh booleans;
   `trimesh` + a glTF writer.
 - **Selectors:** `lark` (predicate grammar), or `cel-python` if escalated (§2).
-- **IO / persistence:** `leaf-common` (HOCON/JSON → dicts) + `jsonschema`
+- **IO / persistence:** `leaf-common` (HOCON/JSON >> dicts) + `jsonschema`
   (draft 2020-12), shared with the agent ecosystem.
 - **Deferred:** OpenCascade.js (WASM viewer); Blender (render); `ifcopenshell`
   (building profile); **CAM**: `pyclipr` (Clipper2, BSL-1.0) for 2.5D offsets +
@@ -821,7 +961,7 @@ ordered, and tested.
 | `ops` | per-feature builders, by profile (registry, §4/§6) | kernel, refs |
 | `sketch` | 2D entities + constraint solving | py-slvs/planegcs, kernel |
 | `direct` | history-free face/relational edits (§3) | kernel, refs |
-| `build` | pure `build(document) → model`; rebuild graph + cache | spec, params, ops, refs |
+| `build` | pure `build(document) >> model`; rebuild graph + cache | spec, params, ops, refs |
 | `assembly` | instances, constraints, joints, large-assembly reps (§7) | build, kernel |
 | `motion` | DoF, drivers, FK/IK, mechanism/MBD solve, traces (§8) | assembly, py-slvs/Ondsel |
 | `validate` | pre-/post-build checks, id-tagged | spec, build |
@@ -830,7 +970,7 @@ ordered, and tested.
 | `pmi` | semantic GD&T annotation model (§11) | build, refs |
 | `export` | STEP AP242 / IGES / glTF / mesh / DXF writers | build, pmi |
 | `viewer` | tessellation + element-map + motion playback + three.js | export |
-| `cam` *(late)* | machining setups → toolpaths → post-processors → G-code (§6a) | build, ops, motion |
+| `cam` *(late)* | machining setups >> toolpaths >> post-processors >> G-code (§6a) | build, ops, motion |
 | `ecad` *(late)* | board data model (nets/layers/stackup) + DRC + lowering to solids (§6b) | build, validate |
 | `plugins` | importer/exporter/profile converters (PartCAD, Gerber/ODB++, ECAD↔MCAD, …) (§14) | spec, build |
 | `migrate` | per-domain schema migration converters (§14) | spec |
@@ -839,6 +979,36 @@ ordered, and tested.
 Dependency arrows point inward toward `build`; nothing downstream reaches back.
 `cam` and `ecad` are the two units the design **seams now and builds late**: they
 consume `build`'s output and add a process/data layer, never reaching back into it.
+
+```
+┌──────────────────────────────┐      ┌──────────────────────────────┐
+│ DOCUMENT LAYER               │      │ GEOMETRY LAYER               │
+│ schema · spec · params       │      │ kernel (OCP) · ops           │
+│ refs + provenance            │      │ sketch · direct              │
+└──────────────────────────────┘      └──────────────────────────────┘
+                │                                     │
+                └──────────────────┬──────────────────┘
+                                   ▼
+╔════════════════════════════════════════════════════════════════════╗
+║ BUILD  ·  pure executor                                            ║
+║ rebuild DAG · topological order ·                                  ║
+║ content-addressed cache · per-feature gate                         ║
+╚════════════════════════════════════════════════════════════════════╝
+                                   │
+                ┌──────────────────┴──────────────────┐
+                ▼                                     ▼
+┌──────────────────────────────┐      ┌──────────────────────────────┐
+│ MODEL SERVICES               │      │ DELIVERY                     │
+│ assembly · motion · validate │      │ export · viewer · api        │
+│ bom · draft · pmi            │      │ plugins · migrate            │
+└──────────────────────────────┘      │ cam · ecad (both late)       │
+                                      └──────────────────────────────┘
+
+Dependencies point inward toward BUILD; nothing downstream reaches back.
+```
+
+*Fig. D-16: the document and geometry layers feed the pure build hub; model
+services and delivery sit below it.*
 
 ---
 
@@ -875,7 +1045,7 @@ Stated explicitly, because scope discipline is what makes the spine provable:
 
 Mirror v1's discipline, make the *boring bracket* work end-to-end before breadth:
 
-> `sketch` (rectangle/circle/polygon) → `extrude`/`pocket` → `hole` → `fillet`,
+> `sketch` (rectangle/circle/polygon) >> `extrude`/`pocket` >> `hole` >> `fillet`,
 > built through the `refs` resolver with a live provenance map, exported to glTF,
 > shown in the viewer.
 
@@ -929,7 +1099,7 @@ The full findings live in [`docs/research/`](./research/); the decisions are her
   relational inference (Siemens Synchronous "Live Rules" is a commercial
   kernel+D-Cubed-solver system, multi-year/PhD-grade, no OCCT project ships it),
   moving faces in fillet/blend/tangent chains, per-face variable offset. Remaining
-  unknown → the **spike** (Phase 4, and previewed in bucket 0.5): the empirical
+  unknown >> the **spike** (Phase 4, and previewed in bucket 0.5): the empirical
   *success rate* of the well-behaved subset on real dirty imports.
 - **Class A surfacing: G2 engineering surfacing is shippable; true Class A is
   out of scope.** OCCT's continuity ceiling is **G2** (`MakeFilling` accepts only
@@ -972,20 +1142,35 @@ The full findings live in [`docs/research/`](./research/); the decisions are her
   strategy logic (contour/pocket/face/drill) and a small generic 3-axis post.
   **`opencamlib` (LGPL-2.1)** sits behind the op-registry seam as an **optional
   plugin** for 3D drop-cutter/waterline finishing. **5-axis has no credible OSS
-  kernel → explicitly out of scope**, reserved for a future external-kernel plugin.
+  kernel >> explicitly out of scope**, reserved for a future external-kernel plugin.
 - **PCB ownership line: own the data model + geometric DRC + 3D lowering;
   delegate routing/fab to KiCad.** ncad owns (§6b, Phase 16): the **board data
   model** (numbered net table, layer stackup, footprints/pads, tracks/vias/zones,
   drills), **geometric DRC** (clearance, width, annular ring, connectivity, with
-  voltage/current/stackup as *inputs*), and **PCB→3D solid lowering** (the
+  voltage/current/stackup as *inputs*), and **PCB>>3D solid lowering** (the
   OCCT/build123d extrude-drill-place-STEP pipeline, squarely our home turf).
   **Delegate** schematic capture, autorouting/placement, physics DRC, and fab
   output (Gerber/drill) to **KiCad** via a **`.kicad_pcb` round-trip**; export
   **STEP AP214** for MCAD (AP242's electrical scope is wire-harness, *not* PCB,
   don't rely on it). Treat zone *fills* as authored input or pin one deterministic
-  fill algorithm (the main determinism hazard). First slice proves: text spec →
-  board model → geometric DRC → lowered board+component STEP + a `.kicad_pcb`
+  fill algorithm (the main determinism hazard). First slice proves: text spec >>
+  board model >> geometric DRC >> lowered board+component STEP + a `.kicad_pcb`
   round-trip.
+- **Kernel choice: OCCT via build123d, validated, not switching**
+  (§4; `docs/research/kernel-choice-2026.md`). Forced by the open/public/GPL
+  intent: OCCT is the only production-viable open B-rep kernel with STEP AP242/PMI,
+  assemblies, and HLR; every open alternative is dead (Fornjot), pre-1.0 (truck), or
+  wrong-paradigm (Manifold, mesh-only), and every commercial kernel is closed-binary
+  and unusable by an open project. Binding stays build123d + raw OCP for advanced
+  modules. The swappable `Kernel` seam (§16) is the hedge; we do not cross it.
+- **OCCT boolean/fillet fragility: fixed in a robustness layer we own, not
+  upstream** (§4; `docs/research/occt-boolean-robustness.md`). Upstreaming core BOP
+  fixes is impractical (copyright-assigning CLA, centralized/slow core merges,
+  ~1-year release+binding lag). The kernel adapter instead runs a documented ladder
+  per fragile op: normalize/gate inputs (`ShapeFix_ShapeTolerance`,
+  `BRepCheck_Analyzer`) >> **fuzzy retry ladder** (`SetNonDestructive` + escalating
+  `SetFuzzyValue`, auto-tuned to bbox scale) >> `UnifySameDomain` cleanup >> validate +
+  `ShapeFix_Shape` heal-and-retry. This is FreeCAD/CadQuery's battle-tested playbook.
 
 ### Genuinely still open (empirical / spike-gated)
 
@@ -1007,5 +1192,10 @@ The decisions above close the *direction*; these remain unknown until measured:
 - **MBD contact depth before it stops being CAD.** Rigid + simple contact is in;
   exactly how much contact fidelity is useful before it becomes a physics engine is
   a judgement to revisit against real mechanisms.
+- **Auto-tuned fuzzy value generalization.** Whether one bbox-scaled fuzzy value
+  serves the boolean robustness ladder (§4) across our geometry, or whether some ops
+  need per-operation tuning, is settled empirically by the golden-geometry regression
+  suite over the example briefs. Fuzzy has real downsides (it can *cause* failures a
+  plain boolean avoids), so the ladder tries a plain op first.
 
 *(Settled earlier: the GPL/licensing question, copyleft accepted, §8/§15/§19.)*
