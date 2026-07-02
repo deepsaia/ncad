@@ -391,23 +391,23 @@
       <div class="vc-sep"></div>
 
       <div class="vc-group" id="vc-panels">
-        <button class="vc-btn vc-panel-toggle" data-panel="bom" title="Bill of materials">
+        <button class="vc-btn vc-panel-toggle" data-panel="bom" title="BOM">
           <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>
-          <span class="vc-label">Bill of materials</span>
+          <span class="vc-label">BOM</span>
         </button>
-        <button class="vc-btn vc-panel-toggle" data-panel="plan" title="Plan view">
+        <button class="vc-btn vc-panel-toggle" data-panel="plan" title="Plan">
           <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h18v16H3z"/><path d="M9 4v10h8M3 14h6M15 4v6"/></svg>
-          <span class="vc-label">Plan view</span>
+          <span class="vc-label">Plan</span>
         </button>
       </div>
     </div>
     <div id="panels">
-      <section class="panel" id="bom" data-store="ncad.panel.bom" aria-label="Bill of materials">
-        <header class="panel-head"><span class="title">Bill of materials</span><span class="chev">▼</span></header>
+      <section class="panel" id="bom" data-store="ncad.panel.bom" aria-label="BOM">
+        <header class="panel-head"><span class="title">BOM</span><span class="chev">▼</span></header>
         <div class="panel-body" id="bom-body"><div class="panel-empty">select a model</div></div>
       </section>
-      <section class="panel" id="plan" data-store="ncad.panel.plan" aria-label="Plan view">
-        <header class="panel-head"><span class="title">Plan view</span><span class="chev">▼</span></header>
+      <section class="panel" id="plan" data-store="ncad.panel.plan" aria-label="Plan">
+        <header class="panel-head"><span class="title">Plan</span><span class="chev">▼</span></header>
         <div class="panel-body" id="plan-body"><div class="panel-empty">select a model</div></div>
       </section>
     </div>
@@ -791,6 +791,10 @@ const textBtn = document.getElementById("vc-text");
 function applyShowText(on) {
   controlsEl.classList.toggle("show-text", on);
   textBtn.classList.toggle("active", on);
+  // Tooltip describes the action, i.e. what a click will do next.
+  const tip = on ? "Show icons only" : "Show labels";
+  textBtn.title = tip;
+  textBtn.setAttribute("aria-label", tip);
   localStorage.setItem("ncad.vc.text", on ? "1" : "0");
 }
 textBtn.addEventListener("click", () => applyShowText(!controlsEl.classList.contains("show-text")));
