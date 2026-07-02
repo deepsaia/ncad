@@ -62,6 +62,11 @@ hover actions to regenerate (rebuild from its recorded source) or delete it. The
 sidebar is resizable (width persists). `ncad view` runs with hot-reload by default
 (`--no-dev` to serve the cached page).
 
+Viewer settings (display mode, material, lighting, scene toggles, reset, and the
+BOM/Plan panels) live in a translucent floating controls panel over the viewport. It
+uses icons by default (labels on hover, or toggle "show labels"), can be dragged and
+snapped to any edge or anchored to a corner, and all its state persists across reloads.
+
 ## Examples and gates
 
 Each roadmap gate has a self-contained example under `examples/gate-<id>-<name>/`. They
