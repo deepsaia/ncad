@@ -67,6 +67,10 @@ BOM/Plan panels) live in a translucent floating controls panel over the viewport
 uses icons by default (labels on hover, or toggle "show labels"), can be dragged and
 snapped to any edge or anchored to a corner, and all its state persists across reloads.
 
+A theme toggle in the sidebar top bar cycles light / system / dark; "system" follows
+the OS preference live. The 3D viewport recolors with the theme, and the choice
+persists across reloads.
+
 ## Examples and gates
 
 Each roadmap gate has a self-contained example under `examples/gate-<id>-<name>/`. They
