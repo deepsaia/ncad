@@ -56,6 +56,12 @@ The `ncad` command (a typer app) is the single entrypoint:
 - `ncad` or `ncad view [dir]`: launch the browser 3D viewer over a models directory.
 - `ncad build <document> [--out DIR]`: build every part in a document to `<part>.glb`.
 
+The viewer is also a local model-manager: pick an example spec from the searchable
+tree, click Build to run it, and the model appears in the models list; each model has
+hover actions to regenerate (rebuild from its recorded source) or delete it. The
+sidebar is resizable (width persists). `ncad view` runs with hot-reload by default
+(`--no-dev` to serve the cached page).
+
 ## Examples and gates
 
 Each roadmap gate has a self-contained example under `examples/gate-<id>-<name>/`. They
