@@ -1249,6 +1249,7 @@ source = { editable = "." }
 dependencies = [
     { name = "build123d" },
     { name = "jsonschema" },
+    { name = "lark" },
     { name = "leaf-common" },
     { name = "numpy" },
     { name = "pyrender" },
@@ -1278,6 +1279,7 @@ requires-dist = [
     { name = "ezdxf", marker = "extra == 'interchange'" },
     { name = "ifcopenshell", marker = "extra == 'interchange'" },
     { name = "jsonschema" },
+    { name = "lark", specifier = ">=1.3.1" },
     { name = "leaf-common" },
     { name = "neuro-san", marker = "extra == 'agents'" },
     { name = "numpy" },
