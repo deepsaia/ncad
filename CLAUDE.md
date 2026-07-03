@@ -22,10 +22,10 @@ system design and [`docs/plan.md`](./docs/plan.md) for the phased build order.
 - Organize imports into three groups: standard library, third-party, local modules.
 - Use **explicit type hints** for all functions and methods.
 - Avoid untyped interfaces unless absolutely necessary.
-- **Type checking:** `pyrefly` (`uv run pyrefly check`), **advisory** for now, not a
-  commit gate. Keep it at zero errors. The build123d/OCP boundary ships incomplete
-  stubs, so kernel handles are `Any` there and a rare `# pyrefly: ignore[...]` at that
-  boundary is acceptable; the rest of the code stays fully hinted and clean.
+- **Type checking:** `pyrefly` (`uv run pyrefly check`) is a **required gate** alongside
+  ruff: it must report **0 errors** before every commit. The build123d/OCP boundary ships
+  incomplete stubs, so kernel handles are `Any` there and a rare `# pyrefly: ignore[...]`
+  at that boundary is acceptable; the rest of the code stays fully hinted and clean.
 
 ## Module Design
 
