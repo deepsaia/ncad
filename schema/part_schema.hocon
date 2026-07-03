@@ -25,9 +25,13 @@ definitions {
     required = ["id", "type"]
     properties {
       id { type = string }
-      type { enum = ["rectangle"] }
+      type { enum = ["rectangle", "circle", "polygon"] }
       w { type = number, exclusiveMinimum = 0 }
       h { type = number, exclusiveMinimum = 0 }
+      d { type = number, exclusiveMinimum = 0 }
+      r { type = number, exclusiveMinimum = 0 }
+      sides { type = integer, minimum = 3 }
+      points { type = array, items = ${definitions.vec2} }
     }
   }
 
@@ -46,6 +50,15 @@ definitions {
       }
       profile { type = string }
       distance { type = number, exclusiveMinimum = 0 }
+      positions { type = array, items = ${definitions.vec2} }
+      diameter { type = number, exclusiveMinimum = 0 }
+      depth { type = number, exclusiveMinimum = 0 }
+      through { type = boolean }
+      radius { type = number, exclusiveMinimum = 0 }
+      edges { enum = ["all", "top", "bottom", "vertical", "horizontal"] }
+      operation { enum = ["cut", "union", "intersect"] }
+      target { type = string }
+      tool { type = string }
     }
   }
 

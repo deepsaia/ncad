@@ -75,3 +75,21 @@ def test_builder_reports_issue_when_referenced_profile_missing() -> None:
     result = builder.build_part(part)
 
     assert any(issue.node_id == "pad" for issue in result.issues)
+
+
+def test_builder_exposes_prior_shapes_to_ops() -> None:
+    seen = {}
+
+    def capture(shape_in, params, provenance_in, kernel):
+        from ncad.ops.op_result import OpResult
+        seen.update(params.get("__shapes__", {}))
+        return OpResult(shape="X", provenance=dict(provenance_in), issues=[])
+
+    reg = OpRegistry()
+    reg.register("sketch", capture)
+    reg.register("probe", capture)
+    Builder(FakeKernel(), reg).build_part({"profile": "solid", "features": [
+        {"id": "a", "op": "sketch"}, {"id": "b", "op": "probe"},
+    ]})
+
+    assert "a" in seen

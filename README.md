@@ -42,8 +42,8 @@ uv run pytest -m slow         # kernel + end-to-end (real build123d geometry)
 Build a feature-tree document to glTF, then view it in the browser:
 
 ```bash
-ncad build examples/gate-0.1-first-shape/block.hocon   # writes out/block.glb
-ncad                                                    # serve ./out at http://127.0.0.1:8000
+ncad build examples/gate-0.2/bracket.hocon   # writes out/bracket.glb
+ncad                                          # serve ./out at http://127.0.0.1:8000
 ```
 
 `ncad` runs from any subdirectory of the project; the models directory defaults to
@@ -79,9 +79,13 @@ checked by the test suite, so each gate stays a living, tested artifact.
 
 - `examples/gate-0.1-first-shape/block.hocon`: a rectangle sketched on XY, extruded
   into a block. Proves the spine: document >> build >> glTF >> view.
+- `examples/gate-0.2/`: the everyday ops + expressions (a parametric bracket, and a
+  concentric hex boss). Proves pocket/hole/fillet/chamfer/boolean + the expression layer.
 
 ## Status
 
-**Phase 0 bucket 0.1 complete:** the general spine (feature-tree schema, op registry,
-pure Builder, sketch + extrude ops, glTF export, viewer) builds a hand-authored
-document and renders it. See [`docs/plan.md`](./docs/plan.md) for the live tracker.
+**Phase 0 bucket 0.2 complete:** on top of the bucket 0.1 spine, the everyday op
+vocabulary (pocket, hole, fillet, chamfer, boolean; circle/polygon sketches) plus a
+parametric expression layer (`${ref}` + arithmetic + registered functions) build the
+boring bracket from a parametric document. See [`docs/plan.md`](./docs/plan.md) for the
+live tracker.

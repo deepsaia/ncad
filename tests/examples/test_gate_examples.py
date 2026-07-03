@@ -40,3 +40,27 @@ def test_gate_0_1_exports_glb(tmp_path) -> None:
 
     glb = Path(artifacts["block"])
     assert glb.is_file() and glb.stat().st_size > 0
+
+
+@pytest.mark.slow
+def test_gate_0_2_bracket_exports_glb(tmp_path) -> None:
+    from ncad.kernel.build123d_kernel import Build123dKernel
+
+    doc = _EXAMPLES_DIR / "gate-0.2" / "bracket.hocon"
+
+    artifacts = DocumentBuilder(Build123dKernel()).build_file(str(doc), str(tmp_path))
+
+    glb = Path(artifacts["bracket"])
+    assert glb.is_file() and glb.stat().st_size > 0
+
+
+@pytest.mark.slow
+def test_gate_0_2_hex_boss_exports_glb(tmp_path) -> None:
+    from ncad.kernel.build123d_kernel import Build123dKernel
+
+    doc = _EXAMPLES_DIR / "gate-0.2" / "hex_boss.hocon"
+
+    artifacts = DocumentBuilder(Build123dKernel()).build_file(str(doc), str(tmp_path))
+
+    glb = Path(artifacts["hex_boss"])
+    assert glb.is_file() and glb.stat().st_size > 0

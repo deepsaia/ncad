@@ -12,6 +12,8 @@ from ncad.build.builder import Builder
 from ncad.kernel.kernel import Kernel
 from ncad.ops.op_registry import OpRegistry
 from ncad.ops.op_result import OpResult
+from ncad.params.function_registry import FunctionRegistry
+from ncad.params.param_resolver import ParamResolver
 from ncad.spec.schema_validator import SchemaValidator
 from ncad.spec.spec_loader import SpecLoader
 
@@ -27,20 +29,23 @@ class DocumentBuilder:
         self._builder = Builder(kernel, OpRegistry.with_defaults())
         self._validator = SchemaValidator()
         self._loader = SpecLoader()
+        self._resolver = ParamResolver(FunctionRegistry.with_defaults())
 
     def build(self, document: dict) -> dict[str, OpResult]:
-        """Validate ``document`` and build each part.
+        """Resolve expressions, validate, and build each part.
 
         :param document: A loaded feature-tree document dict.
         :return: Map from part name to its :class:`OpResult`.
-        :raises ValueError: If the document fails schema validation.
+        :raises ExpressionError: If a parameter expression is malformed.
+        :raises ValueError: If the resolved document fails schema validation.
         """
-        issues = self._validator.validate(document)
+        resolved = self._resolver.resolve_document(document)
+        issues = self._validator.validate(resolved)
         if issues:
             rendered = "; ".join(f"{issue.location}: {issue.message}" for issue in issues)
             raise ValueError(f"document failed schema validation: {rendered}")
         results: dict[str, OpResult] = {}
-        for name, part in document["parts"].items():
+        for name, part in resolved["parts"].items():
             logger.debug("building part %s", name)
             results[name] = self._builder.build_part(part)
         return results

@@ -9,9 +9,11 @@ import logging
 from typing import Any
 
 from build123d import (
+    Axis,
     Edge,
     Face,
     Plane,
+    Solid,
     Unit,
     Vector,
     Wire,
@@ -21,11 +23,13 @@ from build123d import (
     extrude,
 )
 
-from ncad.kernel.kernel import Bounds, Kernel, Point2
+from ncad.kernel.kernel import Bounds, Kernel, Point2, Point3
+from ncad.kernel.kernel_op_error import KernelOpError
 
 logger = logging.getLogger(__name__)
 
 _PLANES = {"XY": Plane.XY, "XZ": Plane.XZ, "YZ": Plane.YZ}
+_AXES = {"X": Axis.X, "Y": Axis.Y, "Z": Axis.Z}
 
 
 class Build123dKernel(Kernel):
@@ -48,6 +52,129 @@ class Build123dKernel(Kernel):
 
     def extrude(self, face: Any, distance: float) -> Any:
         return extrude(face, amount=distance)
+
+    def circle_face(self, center: Point2, diameter: float, plane: str) -> Any:
+        if plane not in _PLANES:
+            raise ValueError(f"plane must be one of {tuple(_PLANES)}, got {plane!r}")
+        basis = _PLANES[plane]
+        # from_local_coords is stubbed as a wide union but returns a Vector at runtime;
+        # this is the untyped-OCP boundary (see the [tool.pyrefly] note in pyproject).
+        origin = basis.from_local_coords(Vector(center[0], center[1], 0))
+        face_plane = Plane(origin=origin, z_dir=basis.z_dir)  # pyrefly: ignore[no-matching-overload]
+        return Face(Wire(Edge.make_circle(diameter / 2.0, face_plane)))
+
+    def cylinder(self, center: Point3, axis: str, diameter: float, length: float) -> Any:
+        if axis not in _AXES:
+            raise ValueError(f"axis must be one of {tuple(_AXES)}, got {axis!r}")
+        base = Plane(origin=Vector(*center), z_dir=_AXES[axis].direction)
+        return Solid.make_cylinder(diameter / 2.0, length, base)
+
+    def cut(self, solid: Any, tools: list) -> Any:
+        return self._robust(self._do_cut, solid, tools, name="cut")
+
+    def fuse(self, solids: list) -> Any:
+        return self._robust(self._do_fuse, solids, name="fuse")
+
+    def intersect(self, solids: list) -> Any:
+        return self._robust(self._do_intersect, solids, name="intersect")
+
+    def fillet_edges(self, solid: Any, edges: list, radius: float) -> Any:
+        return self._robust(self._do_fillet, solid, edges, radius, name="fillet")
+
+    def chamfer_edges(self, solid: Any, edges: list, distance: float) -> Any:
+        return self._robust(self._do_chamfer, solid, edges, distance, name="chamfer")
+
+    def edges_of(self, solid: Any) -> list:
+        infos = []
+        for e in solid.edges():
+            p0, p1 = e.position_at(0), e.position_at(1)
+            direction = p1 - p0
+            vertical = (
+                abs(direction.Z) > 1e-6 and abs(direction.X) < 1e-6 and abs(direction.Y) < 1e-6
+            )
+            infos.append({
+                "edge": e,
+                "orientation": "vertical" if vertical else "horizontal",
+                "mid_z": e.position_at(0.5).Z,
+            })
+        return infos
+
+    @staticmethod
+    def _do_cut(solid: Any, tools: list) -> Any:
+        result = solid
+        for tool in tools:
+            result = result - tool
+        return result
+
+    @staticmethod
+    def _do_fuse(solids: list) -> Any:
+        result = solids[0]
+        for other in solids[1:]:
+            result = result + other
+        return result
+
+    @staticmethod
+    def _do_intersect(solids: list) -> Any:
+        result = solids[0]
+        for other in solids[1:]:
+            result = result & other
+        return result
+
+    @staticmethod
+    def _do_fillet(solid: Any, edges: list, radius: float) -> Any:
+        return solid.fillet(radius, edges)
+
+    @staticmethod
+    def _do_chamfer(solid: Any, edges: list, distance: float) -> Any:
+        return solid.chamfer(distance, None, edges)
+
+    def _robust(self, op, *args, name: str) -> Any:
+        """Run a fragile OCCT op and validate the result; raise KernelOpError on failure.
+
+        Bucket 0.2 uses the validity-gate + typed-failure steps of the robustness ladder
+        (docs/research/occt-boolean-robustness.md). Fuzzy-retry escalation and healing are
+        a later hardening; the gate already converts silent OCCT failures into a typed
+        error the calling op turns into an id-tagged issue.
+        """
+        try:
+            result = op(*args)
+        except Exception as exc:  # noqa: BLE001 - OCCT failures are broad; wrap them
+            raise KernelOpError(f"{name} failed: {exc}") from exc
+        if result is None or not self._is_valid(result):
+            raise KernelOpError(f"{name} produced an invalid result")
+        return self._as_single_shape(result)
+
+    @staticmethod
+    def _as_single_shape(result: Any) -> Any:
+        """Normalize a multi-body result (ShapeList) into one shape.
+
+        A boolean can split a body into disjoint pieces, returning a ShapeList; the rest
+        of the pipeline (volume, edges, export) expects a single shape, so wrap the parts
+        in one Compound. A single shape passes through unchanged.
+        """
+        if isinstance(result, (list, tuple)) or type(result).__name__ == "ShapeList":
+            from build123d import Compound
+
+            members = list(result)
+            return members[0] if len(members) == 1 else Compound(children=members)
+        return result
+
+    @staticmethod
+    def _is_valid(shape: Any) -> bool:
+        """Whether ``shape`` is a valid B-rep result.
+
+        A boolean/dress-up op may return a single solid, a Compound, or a ShapeList of
+        several solids (e.g. a cut that splits a body). ShapeList has no ``is_valid``, so
+        validate each of its members; a single shape uses its ``is_valid`` (a property in
+        build123d, tolerated as a callable across versions). An empty result is invalid.
+        """
+        if isinstance(shape, (list, tuple)) or type(shape).__name__ == "ShapeList":
+            members = list(shape)
+            return bool(members) and all(Build123dKernel._is_valid(m) for m in members)
+        flag = getattr(shape, "is_valid", None)
+        if flag is None:
+            return True
+        return bool(flag() if callable(flag) else flag)
 
     def volume(self, solid: Any) -> float:
         return solid.volume
