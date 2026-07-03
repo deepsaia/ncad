@@ -33,6 +33,38 @@ class Kernel(ABC):
         """Extrude ``face`` along its normal by ``distance`` into a solid."""
 
     @abstractmethod
+    def circle_face(self, center: Point2, diameter: float, plane: str) -> Any:
+        """A circular planar face of ``diameter`` centred at ``center`` on ``plane``."""
+
+    @abstractmethod
+    def cylinder(self, center: Point3, axis: str, diameter: float, length: float) -> Any:
+        """A solid cylinder of ``diameter`` and ``length`` from ``center`` along ``axis``."""
+
+    @abstractmethod
+    def cut(self, solid: Any, tools: list) -> Any:
+        """Subtract each tool in ``tools`` from ``solid``."""
+
+    @abstractmethod
+    def fuse(self, solids: list) -> Any:
+        """Union a non-empty list of solids into one."""
+
+    @abstractmethod
+    def intersect(self, solids: list) -> Any:
+        """Intersect a non-empty list of solids (their common volume)."""
+
+    @abstractmethod
+    def fillet_edges(self, solid: Any, edges: list, radius: float) -> Any:
+        """Round the given ``edges`` of ``solid`` with ``radius``."""
+
+    @abstractmethod
+    def chamfer_edges(self, solid: Any, edges: list, distance: float) -> Any:
+        """Bevel the given ``edges`` of ``solid`` by ``distance``."""
+
+    @abstractmethod
+    def edges_of(self, solid: Any) -> list:
+        """List edge descriptors ``{"edge", "orientation", "mid_z"}`` for ``solid``."""
+
+    @abstractmethod
     def volume(self, solid: Any) -> float:
         """Volume of ``solid`` in cubic (internal-unit) units."""
 

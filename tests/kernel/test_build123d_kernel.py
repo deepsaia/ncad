@@ -37,3 +37,17 @@ def test_export_glb_writes_file(tmp_path) -> None:
     kernel.export(solid, str(out))
 
     assert out.is_file() and out.stat().st_size > 0
+
+
+@pytest.mark.slow
+def test_cut_and_fillet_on_real_kernel() -> None:
+    kernel = Build123dKernel()
+    block = kernel.extrude(kernel.polygon_face([(0, 0), (40, 0), (40, 30), (0, 30)], "XY"), 8.0)
+    tool = kernel.cylinder((10, 10, 0), "Z", 6.0, 8.0)
+
+    drilled = kernel.cut(block, [tool])
+    assert kernel.volume(drilled) < kernel.volume(block)
+
+    vertical = [e["edge"] for e in kernel.edges_of(drilled) if e["orientation"] == "vertical"]
+    rounded = kernel.fillet_edges(drilled, vertical[:4], 2.0)
+    assert rounded is not None
