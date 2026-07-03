@@ -1,5 +1,6 @@
 """Per-feature op classes, result/issue types, and the op-dispatch registry."""
 
+from ncad.ops.boolean_op import BooleanOp
 from ncad.ops.build_issue import BuildIssue
 from ncad.ops.chamfer_op import ChamferOp
 from ncad.ops.edge_selector import EdgeSelector
@@ -12,6 +13,6 @@ from ncad.ops.pocket_op import PocketOp
 from ncad.ops.sketch_op import SketchOp
 
 __all__ = [
-    "BuildIssue", "ChamferOp", "EdgeSelector", "ExtrudeOp", "FilletOp", "HoleOp",
-    "OpRegistry", "OpResult", "PocketOp", "SketchOp",
+    "BooleanOp", "BuildIssue", "ChamferOp", "EdgeSelector", "ExtrudeOp", "FilletOp",
+    "HoleOp", "OpRegistry", "OpResult", "PocketOp", "SketchOp",
 ]

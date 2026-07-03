@@ -56,6 +56,9 @@ definitions {
       through { type = boolean }
       radius { type = number, exclusiveMinimum = 0 }
       edges { enum = ["all", "top", "bottom", "vertical", "horizontal"] }
+      operation { enum = ["cut", "union", "intersect"] }
+      target { type = string }
+      tool { type = string }
     }
   }
 
