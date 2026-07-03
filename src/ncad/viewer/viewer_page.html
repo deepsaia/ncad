@@ -86,8 +86,15 @@
   .combo { position: relative; flex: 1; }
   #spec-search { width: 100%; font: inherit; font-size: 13px; color: var(--text);
     background: var(--panel-2); border: 1px solid var(--border); border-radius: 9px;
-    padding: 8px 10px; }
+    padding: 8px 32px 8px 10px; }
   #spec-search:focus { border-color: var(--accent); outline: none; }
+  /* Clear (x) button: sits at the right of the search, red on hover. Hidden when empty. */
+  .combo-clear { position: absolute; top: 50%; right: 5px; transform: translateY(-50%);
+    display: inline-flex; align-items: center; justify-content: center; width: 22px;
+    height: 22px; padding: 0; color: var(--muted); background: none; border: none;
+    border-radius: 50%; cursor: pointer; transition: color .15s, background .15s; }
+  .combo-clear:hover { color: #e74c3c; background: var(--panel); }
+  .combo-clear[hidden] { display: none; }
   .spec-tree { position: absolute; z-index: 20; left: 0; right: 0; top: calc(100% + 4px);
     max-height: 40vh; overflow: auto; background: var(--panel); border: 1px solid var(--border);
     border-radius: 9px; padding: 6px; }
@@ -278,6 +285,9 @@
       <div class="spec-row">
         <div class="combo">
           <input id="spec-search" type="text" placeholder="search examples..." autocomplete="off" />
+          <button id="spec-clear" class="combo-clear" title="Clear" aria-label="Clear search" hidden>
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+          </button>
           <div id="spec-tree" class="spec-tree" hidden></div>
         </div>
         <button id="spec-build" class="icon-btn" title="Build" aria-label="Build">
@@ -925,6 +935,7 @@ function renderSpecTree(filter) {
     row.addEventListener("mousedown", () => {
       selectedSpec = s.path;
       document.getElementById("spec-search").value = s.path;
+      syncSpecClear();
       box.hidden = true;
     });
     box.appendChild(row);
@@ -1000,9 +1011,25 @@ function removeModel(name) {
     .catch(() => toast("could not delete " + name, true));
 }
 
-document.getElementById("spec-search").addEventListener("input", ev => renderSpecTree(ev.target.value));
-document.getElementById("spec-search").addEventListener("focus", ev => renderSpecTree(ev.target.value));
-document.getElementById("spec-search").addEventListener("blur", () => setTimeout(() => { document.getElementById("spec-tree").hidden = true; }, 150));
+const specSearchEl = document.getElementById("spec-search");
+const specClearEl = document.getElementById("spec-clear");
+
+function syncSpecClear() {
+  specClearEl.hidden = specSearchEl.value === "";
+}
+
+specSearchEl.addEventListener("input", ev => { renderSpecTree(ev.target.value); syncSpecClear(); });
+specSearchEl.addEventListener("focus", ev => renderSpecTree(ev.target.value));
+specSearchEl.addEventListener("blur", () => setTimeout(() => { document.getElementById("spec-tree").hidden = true; }, 150));
+specClearEl.addEventListener("mousedown", ev => {
+  // mousedown (not click) so it fires before the input's blur hides the tree.
+  ev.preventDefault();
+  specSearchEl.value = "";
+  selectedSpec = null;
+  syncSpecClear();
+  renderSpecTree("");
+  specSearchEl.focus();
+});
 document.getElementById("spec-build").addEventListener("click", () => build(selectedSpec));
 
 // ---- Color theme: one toggle cycling light -> system -> dark (persisted) ----
