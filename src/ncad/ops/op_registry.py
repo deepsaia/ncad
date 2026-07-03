@@ -8,7 +8,9 @@ methods so the executor can dispatch by op name.
 
 from collections.abc import Callable
 
+from ncad.ops.chamfer_op import ChamferOp
 from ncad.ops.extrude_op import ExtrudeOp
+from ncad.ops.fillet_op import FilletOp
 from ncad.ops.hole_op import HoleOp
 from ncad.ops.pocket_op import PocketOp
 from ncad.ops.sketch_op import SketchOp
@@ -40,4 +42,6 @@ class OpRegistry:
         registry.register("extrude", ExtrudeOp().build)
         registry.register("pocket", PocketOp().build)
         registry.register("hole", HoleOp().build)
+        registry.register("fillet", FilletOp().build)
+        registry.register("chamfer", ChamferOp().build)
         return registry
