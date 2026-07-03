@@ -1,0 +1,53 @@
+# Gate 0.2 (second example): a concentric hex boss, exercising polygon + circle
+# sketches, extrude, boolean union, pocket, and chamfer.
+#
+# Note (bucket 0.2 limits): every sketch originates centered on the world plane at
+# z = 0 (no in-plane offset or face placement until bucket 0.3's reference model), so
+# this part is deliberately concentric: a hexagonal flange, a round boss rising from it,
+# and a square bore straight down the axis.
+schema_version = 2
+units = mm
+parameters {
+  flat_r = 45
+  flange_t = 12
+  boss_d = 40
+  boss_h = 30
+  bore = 16
+}
+parts {
+  hex_boss {
+    profile = solid
+    features = [
+      # Hexagonal flange (regular 6-gon).
+      {
+        id = flange_sk
+        op = sketch
+        plane = XY
+        elements = [ { id = hex, type = polygon, sides = 6, r = "${flat_r}" } ]
+      }
+      { id = flange, op = extrude, profile = flange_sk, distance = "${flange_t}" }
+
+      # A round boss rising from the flange; unioned on so it is one body.
+      {
+        id = boss_sk
+        op = sketch
+        plane = XY
+        elements = [ { id = c, type = circle, d = "${boss_d}" } ]
+      }
+      { id = boss, op = extrude, profile = boss_sk, distance = "${boss_h}" }
+      { id = body, op = boolean, operation = union, target = flange, tool = boss }
+
+      # A square bore straight down the axis (a pocket cut fully through the body).
+      {
+        id = bore_sk
+        op = sketch
+        plane = XY
+        elements = [ { id = sq, type = rectangle, w = "${bore}", h = "${bore}" } ]
+      }
+      { id = broach, op = pocket, target = body, profile = bore_sk, distance = "${boss_h}" }
+
+      # Bevel the top rim.
+      { id = bevel, op = chamfer, distance = 2, edges = top }
+    ]
+  }
+}

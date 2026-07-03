@@ -33,3 +33,6 @@ out/
 
 # Playwright MCP artifacts
 .playwright-mcp/
+
+# Superpowers workflow specs/plans (kept local, not committed)
+docs/superpowers/

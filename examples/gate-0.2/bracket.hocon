@@ -1,0 +1,39 @@
+# Gate 0.2: the boring bracket, parametric.
+# rectangle >> extrude >> 4 corner holes (placed via a margin expression) >> edge fillet.
+schema_version = 2
+units = mm
+parameters {
+  w = 80
+  h = 60
+  thickness = 8
+  hole_d = 6
+  margin = "${hole_d} * 1.5"
+}
+parts {
+  bracket {
+    profile = solid
+    features = [
+      {
+        id = sk
+        op = sketch
+        plane = XY
+        elements = [ { id = r, type = rectangle, w = "${w}", h = "${h}" } ]
+      }
+      { id = pad, op = extrude, profile = sk, distance = "${thickness}" }
+      {
+        id = holes
+        op = hole
+        plane = XY
+        diameter = "${hole_d}"
+        through = true
+        positions = [
+          [ "${margin}", "${margin}" ]
+          [ "${w} - ${margin}", "${margin}" ]
+          [ "${margin}", "${h} - ${margin}" ]
+          [ "${w} - ${margin}", "${h} - ${margin}" ]
+        ]
+      }
+      { id = soften, op = fillet, radius = 2, edges = vertical }
+    ]
+  }
+}

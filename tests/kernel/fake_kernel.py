@@ -36,10 +36,16 @@ class _FakeCylinder:
 
 
 class _FakeCombined:
-    """Result of a boolean or dress-up op: carries a computed volume only."""
+    """Result of a boolean or dress-up op: carries a computed volume and bounds.
 
-    def __init__(self, volume: float) -> None:
+    Downstream ops (a fillet after a hole, a chamfer after a union) still call
+    ``edges_of``/``bounding_box`` on the result, so a combined shape must carry a
+    bounding box, not just a volume.
+    """
+
+    def __init__(self, volume: float, bounds: Bounds) -> None:
         self.volume_val = volume
+        self.bounds = bounds
 
 
 class FakeKernel(Kernel):
@@ -62,19 +68,35 @@ class FakeKernel(Kernel):
         return _FakeCylinder(diameter, length)
 
     def cut(self, solid: Any, tools: list) -> Any:
-        return _FakeCombined(self.volume(solid) - sum(self.volume(t) for t in tools))
+        # Cutting keeps the outer bounds of the solid being drilled/pocketed.
+        return _FakeCombined(self.volume(solid) - sum(self.volume(t) for t in tools),
+                             self.bounding_box(solid))
 
     def fuse(self, solids: list) -> Any:
-        return _FakeCombined(sum(self.volume(s) for s in solids))
+        return _FakeCombined(sum(self.volume(s) for s in solids),
+                             self._union_bounds(solids))
 
     def intersect(self, solids: list) -> Any:
-        return _FakeCombined(min(self.volume(s) for s in solids))
+        return _FakeCombined(min(self.volume(s) for s in solids),
+                             self.bounding_box(solids[0]))
 
     def fillet_edges(self, solid: Any, edges: list, radius: float) -> Any:
-        return _FakeCombined(self.volume(solid) - radius * len(edges))
+        return _FakeCombined(self.volume(solid) - radius * len(edges),
+                             self.bounding_box(solid))
 
     def chamfer_edges(self, solid: Any, edges: list, distance: float) -> Any:
-        return _FakeCombined(self.volume(solid) - distance * len(edges))
+        return _FakeCombined(self.volume(solid) - distance * len(edges),
+                             self.bounding_box(solid))
+
+    def _union_bounds(self, solids: list) -> Bounds:
+        """The bounding box enclosing all ``solids``."""
+        boxes = [self.bounding_box(s) for s in solids]
+        lows = [b[0] for b in boxes]
+        highs = [b[1] for b in boxes]
+        return (
+            (min(p[0] for p in lows), min(p[1] for p in lows), min(p[2] for p in lows)),
+            (max(p[0] for p in highs), max(p[1] for p in highs), max(p[2] for p in highs)),
+        )
 
     def edges_of(self, solid: Any) -> list:
         (minx, miny, minz), (maxx, maxy, maxz) = self.bounding_box(solid)
@@ -94,6 +116,8 @@ class FakeKernel(Kernel):
         return _polygon_area(solid.face.points) * solid.distance
 
     def bounding_box(self, solid: Any) -> Bounds:
+        if isinstance(solid, _FakeCombined):
+            return solid.bounds
         xs = [x for x, _ in solid.face.points]
         ys = [y for _, y in solid.face.points]
         # Bucket 0.1 uses the XY plane; extrude along +Z by distance.

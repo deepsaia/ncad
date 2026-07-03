@@ -142,13 +142,38 @@ class Build123dKernel(Kernel):
             raise KernelOpError(f"{name} failed: {exc}") from exc
         if result is None or not self._is_valid(result):
             raise KernelOpError(f"{name} produced an invalid result")
+        return self._as_single_shape(result)
+
+    @staticmethod
+    def _as_single_shape(result: Any) -> Any:
+        """Normalize a multi-body result (ShapeList) into one shape.
+
+        A boolean can split a body into disjoint pieces, returning a ShapeList; the rest
+        of the pipeline (volume, edges, export) expects a single shape, so wrap the parts
+        in one Compound. A single shape passes through unchanged.
+        """
+        if isinstance(result, (list, tuple)) or type(result).__name__ == "ShapeList":
+            from build123d import Compound
+
+            members = list(result)
+            return members[0] if len(members) == 1 else Compound(children=members)
         return result
 
     @staticmethod
     def _is_valid(shape: Any) -> bool:
-        """Whether ``shape`` is a valid B-rep. ``is_valid`` is a property in build123d,
-        but tolerate a callable form across versions."""
-        flag = shape.is_valid
+        """Whether ``shape`` is a valid B-rep result.
+
+        A boolean/dress-up op may return a single solid, a Compound, or a ShapeList of
+        several solids (e.g. a cut that splits a body). ShapeList has no ``is_valid``, so
+        validate each of its members; a single shape uses its ``is_valid`` (a property in
+        build123d, tolerated as a callable across versions). An empty result is invalid.
+        """
+        if isinstance(shape, (list, tuple)) or type(shape).__name__ == "ShapeList":
+            members = list(shape)
+            return bool(members) and all(Build123dKernel._is_valid(m) for m in members)
+        flag = getattr(shape, "is_valid", None)
+        if flag is None:
+            return True
         return bool(flag() if callable(flag) else flag)
 
     def volume(self, solid: Any) -> float:

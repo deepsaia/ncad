@@ -13,20 +13,27 @@ class PocketOp:
 
     def build(self, shape_in: Any, params: dict, provenance_in: dict[str, str],
               kernel: Kernel) -> OpResult:
-        """:param shape_in: The solid to cut (the previous feature's shape)."""
+        """Cut ``profile`` (a sketch) out of ``target`` (a solid).
+
+        Both are named prior features resolved from ``__shapes__``; if ``target`` is
+        omitted, the incoming ``shape_in`` (previous solid) is cut. (Interim reference
+        scheme; bucket 0.3 replaces the named lookups with the real reference model.)
+        """
         feature_id = params["id"]
         provenance = dict(provenance_in)
-        if shape_in is None:
+        shapes = params.get("__shapes__", {})
+        target = shapes.get(params["target"]) if params.get("target") else shape_in
+        if target is None:
             issue = BuildIssue(node_id=feature_id, message="pocket has no solid to cut")
             return OpResult(shape=None, provenance=provenance, issues=[issue])
-        profile_face = params.get("__shapes__", {}).get(params.get("profile"))
+        profile_face = shapes.get(params.get("profile"))
         if profile_face is None:
             issue = BuildIssue(node_id=feature_id,
                                message=f"pocket profile {params.get('profile')!r} not found")
             return OpResult(shape=None, provenance=provenance, issues=[issue])
         try:
             tool = kernel.extrude(profile_face, params["distance"])
-            result = kernel.cut(shape_in, [tool])
+            result = kernel.cut(target, [tool])
         except KernelOpError as exc:
             return OpResult(shape=None, provenance=provenance,
                             issues=[BuildIssue(node_id=feature_id, message=str(exc))])
