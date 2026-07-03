@@ -50,6 +50,10 @@ definitions {
       }
       profile { type = string }
       distance { type = number, exclusiveMinimum = 0 }
+      positions { type = array, items = ${definitions.vec2} }
+      diameter { type = number, exclusiveMinimum = 0 }
+      depth { type = number, exclusiveMinimum = 0 }
+      through { type = boolean }
     }
   }
 
