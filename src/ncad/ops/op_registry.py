@@ -9,6 +9,7 @@ methods so the executor can dispatch by op name.
 from collections.abc import Callable
 
 from ncad.ops.extrude_op import ExtrudeOp
+from ncad.ops.pocket_op import PocketOp
 from ncad.ops.sketch_op import SketchOp
 
 
@@ -32,8 +33,9 @@ class OpRegistry:
 
     @classmethod
     def with_defaults(cls) -> "OpRegistry":
-        """A registry with Bucket 0.1's ops (``sketch``, ``extrude``) registered."""
+        """A registry with the built-in feature ops registered."""
         registry = cls()
         registry.register("sketch", SketchOp().build)
         registry.register("extrude", ExtrudeOp().build)
+        registry.register("pocket", PocketOp().build)
         return registry

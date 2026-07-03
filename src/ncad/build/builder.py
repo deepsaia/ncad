@@ -42,7 +42,12 @@ class Builder:
             feature_id = feature["id"]
             shape_in = self._resolve_input(feature, shape_by_id, previous_shape, issues)
             builder_fn = self._registry.get(feature["op"])
-            result = builder_fn(shape_in, feature, provenance, self._kernel)
+            # Multi-input ops (pocket, boolean) need prior feature shapes by id; expose
+            # them under a reserved key without changing the op signature. Single-input
+            # ops ignore it.
+            feature_with_shapes = dict(feature)
+            feature_with_shapes["__shapes__"] = shape_by_id
+            result = builder_fn(shape_in, feature_with_shapes, provenance, self._kernel)
             provenance = result.provenance
             issues.extend(result.issues)
             shape_by_id[feature_id] = result.shape
