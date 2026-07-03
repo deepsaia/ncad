@@ -72,3 +72,35 @@ def test_build_file_exports_glb(tmp_path) -> None:
     glb = Path(artifacts["block"])
     assert glb.is_file() and glb.stat().st_size > 0
     assert glb.name == "block.glb"
+
+
+def test_build_resolves_parameters_and_expressions() -> None:
+    builder = DocumentBuilder(FakeKernel())
+    doc = {
+        "schema_version": 2, "units": "mm",
+        "parameters": {"w": 80, "h": 60, "t": 8},
+        "parts": {"block": {"profile": "solid", "features": [
+            {"id": "sk", "op": "sketch", "plane": "XY",
+             "elements": [{"id": "r", "type": "rectangle", "w": "${w}", "h": "${h}"}]},
+            {"id": "pad", "op": "extrude", "profile": "sk", "distance": "${t}"},
+        ]}},
+    }
+
+    results = builder.build(doc)
+
+    assert results["block"].issues == []
+    assert FakeKernel().volume(results["block"].shape) == 80.0 * 60.0 * 8.0
+
+
+def test_build_raises_on_expression_error() -> None:
+    from ncad.params.expression_error import ExpressionError
+
+    builder = DocumentBuilder(FakeKernel())
+    bad = {
+        "schema_version": 2, "units": "mm",
+        "parameters": {"x": "${missing} + 1"},
+        "parts": {"block": {"profile": "solid", "features": []}},
+    }
+
+    with pytest.raises(ExpressionError):
+        builder.build(bad)
