@@ -1296,7 +1296,6 @@ function refreshModels() {
 function selectModel(name) {
   activeModel = name;
   loadModel(name);
-  history.replaceState(null, "", "/" + name);
   refreshModels();
 }
 
