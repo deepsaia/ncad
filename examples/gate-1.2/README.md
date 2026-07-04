@@ -14,6 +14,6 @@ ncad
 - `rounded_bar.hocon`: a D-shaped profile (3 lines + 1 arc cap), the mixed straight and
   curved profile proof. The arc center is left free (an under-constrained warning) until
   symmetry/midpoint constraints arrive in bucket 1.3.
-- `slotted_tab.hocon`: a slot (the slot sugar, 2 lines + 2 semicircular arc caps,
-  solving to an exact stadium) and a standalone circle boss dimensioned by a radius
-  constraint, each its own single-loop sketch.
+- `slotted_tab.hocon`: one body from two curved sketches, a slot-shaped plate (the slot
+  sugar, 2 lines + 2 semicircular arc caps, solving to an exact stadium) with a round
+  hole pocketed through it (a first-class circle dimensioned by a radius constraint).

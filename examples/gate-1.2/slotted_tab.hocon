@@ -1,33 +1,29 @@
 schema_version = 1
 units = mm
-# The slot sugar and a standalone circle, each its own single-loop sketch (separate
-# parts). The slot lowers to 2 lines + 2 arc caps; the circle is a first-class entity
-# dimensioned by a radius constraint.
-parameters { slot_len = 50, slot_w = 16, boss_d = 24, t = 6 }
+# One part built from two curved sketches: a slot-shaped plate (the slot sugar lowers to
+# 2 lines + 2 semicircular arc caps, an exact stadium) with a round hole pocketed through
+# it (a first-class circle entity dimensioned by a radius constraint). Each sketch is a
+# single closed loop; the circle is subtracted from the slot, so the result is one body.
+parameters { slot_len = 60, slot_w = 24, hole_d = 10, t = 8 }
 parts {
-  slot_plate {
+  slotted_tab {
     profile = solid
     features = [
-      { id = sk, op = sketch, plane = XY,
+      { id = slot_sk, op = sketch, plane = XY,
         entities = [
           { id = a, type = point, at = [ 0, 0 ] }
-          { id = b, type = point, at = [ 50, 0 ] }
+          { id = b, type = point, at = [ 60, 0 ] }
           { id = sl, type = slot, p1 = a, p2 = b, width = "${slot_w}" }
         ]
         constraints = [ { type = distance, points = [ a, b ], value = "${slot_len}" } ] }
-      { id = pad, op = extrude, profile = sk, distance = "${t}" }
-    ]
-  }
-  boss {
-    profile = solid
-    features = [
-      { id = sk, op = sketch, plane = XY,
+      { id = plate, op = extrude, profile = slot_sk, distance = "${t}" }
+      { id = hole_sk, op = sketch, plane = XY,
         entities = [
-          { id = cp, type = point, at = [ 0, 0 ] }
-          { id = c0, type = circle, center = cp, radius = 12 }
+          { id = hc, type = point, at = [ 30, 0 ] }
+          { id = c0, type = circle, center = hc, radius = 5 }
         ]
-        constraints = [ { type = radius, of = c0, value = "${boss_d} / 2" } ] }
-      { id = pad, op = extrude, profile = sk, distance = "${t}" }
+        constraints = [ { type = radius, of = c0, value = "${hole_d} / 2" } ] }
+      { id = drill, op = pocket, target = plate, profile = hole_sk, distance = "${t}" }
     ]
   }
 }
