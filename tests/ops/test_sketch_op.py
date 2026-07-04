@@ -127,3 +127,18 @@ def test_primitive_elements_path_still_works():
                "elements": [{"id": "r", "type": "rectangle", "w": 20, "h": 20}]}
     result = SketchOp().build(None, feature, {}, kernel)
     assert result.shape is not None and result.issues == []
+
+
+def test_entities_path_builds_a_circle():
+    kernel = FakeKernel()
+    solved = SolveResult(
+        positions={"cp": (0.0, 0.0)}, dof=0, status="well_constrained", issues=[],
+        radii={"c0": 5.0})
+    feature = {"id": "sk", "op": "sketch", "plane": "XY",
+               "entities": [{"id": "cp", "type": "point", "at": [0, 0]},
+                            {"id": "c0", "type": "circle", "center": "cp", "radius": 5}],
+               "constraints": []}
+    result = SketchOp(_StubSolver(solved)).build(None, feature, {}, kernel)
+    import math
+    assert result.shape is not None
+    assert kernel.volume(kernel.extrude(result.shape, 1.0)) == pytest.approx(math.pi * 25.0)

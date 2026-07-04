@@ -12,6 +12,7 @@ from typing import Any
 from ncad.kernel.kernel import Kernel, Point2
 from ncad.ops.build_issue import BuildIssue
 from ncad.ops.op_result import OpResult
+from ncad.sketch.entity_expander import EntityExpander
 from ncad.sketch.sketch_solver import SketchSolver
 from ncad.sketch.wire_orderer import WireOrderer
 
@@ -69,7 +70,7 @@ class SketchOp:
         """Solve a constrained entity set and build a face from the closed wire."""
         feature_id = params["id"]
         plane = params.get("plane", "XY")
-        entities = params["entities"]
+        entities = EntityExpander().expand(params["entities"])
         constraints = params.get("constraints", [])
         result = self._solver.solve(entities, constraints, feature_id)
         if any(issue.level == "error" for issue in result.issues):
