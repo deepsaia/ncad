@@ -12,6 +12,7 @@ dependencies = [
     "trimesh",
     "pyrender",
     "typer>=0.26.8",
+    "lark>=1.3.1",
 ]
 
 [project.scripts]

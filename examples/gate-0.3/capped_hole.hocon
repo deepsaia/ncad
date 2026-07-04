@@ -1,0 +1,14 @@
+schema_version = 1
+units = mm
+parts {
+  capped_hole {
+    profile = solid
+    features = [
+      { id = sk, op = sketch, plane = XY,
+        elements = [ { id = r, type = rectangle, w = 50, h = 30 } ] }
+      { id = pad, op = extrude, profile = sk, distance = 10 }
+      { id = holes, op = hole, on = "pad.cap(+Z)", diameter = 5, depth = 6,
+        positions = [ [ 12, 8 ], [ 38, 22 ] ] }
+    ]
+  }
+}

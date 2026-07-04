@@ -15,27 +15,24 @@ class PocketOp:
               kernel: Kernel) -> OpResult:
         """Cut ``profile`` (a sketch) out of ``target`` (a solid).
 
-        Both are named prior features resolved from ``__shapes__``; if ``target`` is
-        omitted, the incoming ``shape_in`` (previous solid) is cut. (Interim reference
-        scheme; bucket 0.3 replaces the named lookups with the real reference model.)
+        Both arrive as resolved shapes in ``__refs__`` (semantic feature references
+        resolved by the Builder); if ``target`` is omitted, the incoming ``shape_in``
+        (previous solid) is cut.
         """
         feature_id = params["id"]
-        provenance = dict(provenance_in)
-        shapes = params.get("__shapes__", {})
-        target = shapes.get(params["target"]) if params.get("target") else shape_in
+        refs = params.get("__refs__", {})
+        target = refs.get("target") or shape_in
         if target is None:
             issue = BuildIssue(node_id=feature_id, message="pocket has no solid to cut")
-            return OpResult(shape=None, provenance=provenance, issues=[issue])
-        profile_face = shapes.get(params.get("profile"))
+            return OpResult(shape=None, provenance={}, issues=[issue])
+        profile_face = refs.get("profile")
         if profile_face is None:
-            issue = BuildIssue(node_id=feature_id,
-                               message=f"pocket profile {params.get('profile')!r} not found")
-            return OpResult(shape=None, provenance=provenance, issues=[issue])
+            issue = BuildIssue(node_id=feature_id, message="pocket profile did not resolve")
+            return OpResult(shape=None, provenance={}, issues=[issue])
         try:
             tool = kernel.extrude(profile_face, params["distance"])
             result = kernel.cut(target, [tool])
         except KernelOpError as exc:
-            return OpResult(shape=None, provenance=provenance,
+            return OpResult(shape=None, provenance={},
                             issues=[BuildIssue(node_id=feature_id, message=str(exc))])
-        provenance[feature_id] = "pocket"
-        return OpResult(shape=result, provenance=provenance, issues=[])
+        return OpResult(shape=result, provenance={}, issues=[])

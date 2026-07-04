@@ -20,8 +20,9 @@ _SERVABLE_EXTENSIONS = (".gltf", ".glb", ".bin", ".png", ".jpg", ".jpeg")
 _BOM_SUFFIX = ".bom.json"
 _PLAN_SUFFIX = ".plan.svg"
 _META_SUFFIX = ".meta.json"
+_ELEMENTMAP_SUFFIX = ".elementmap.json"
 # All sidecar suffixes removed alongside a model on delete.
-_SIDECAR_SUFFIXES = (_META_SUFFIX, _BOM_SUFFIX, _PLAN_SUFFIX)
+_SIDECAR_SUFFIXES = (_META_SUFFIX, _BOM_SUFFIX, _PLAN_SUFFIX, _ELEMENTMAP_SUFFIX)
 
 
 class ModelCatalog:
@@ -78,6 +79,10 @@ class ModelCatalog:
     def resolve_meta(self, model_name: str) -> str | None:
         """Resolve a model name to its metadata sidecar (``<stem>.meta.json``), or None."""
         return self._resolve_sidecar(model_name, _META_SUFFIX)
+
+    def resolve_elementmap(self, model_name: str) -> str | None:
+        """Resolve a model name to its element-map sidecar, or None."""
+        return self._resolve_sidecar(model_name, _ELEMENTMAP_SUFFIX)
 
     def models_with_sources(self) -> list[dict]:
         """List models with their recorded source spec (from meta), source None if absent."""

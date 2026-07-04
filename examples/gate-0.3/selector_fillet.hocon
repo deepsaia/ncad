@@ -1,0 +1,14 @@
+schema_version = 1
+units = mm
+parts {
+  selector_fillet {
+    profile = solid
+    features = [
+      { id = sk, op = sketch, plane = XY,
+        elements = [ { id = r, type = rectangle, w = 40, h = 40 } ] }
+      { id = pad, op = extrude, profile = sk, distance = 12 }
+      { id = rnd, op = fillet, radius = 3,
+        edges = "select edges where created_by='pad' and orientation='vertical'" }
+    ]
+  }
+}

@@ -30,6 +30,4 @@ class ExtrudeOp:
             return OpResult(shape=None, provenance=dict(provenance_in), issues=[issue])
 
         solid = kernel.extrude(shape_in, params["distance"])
-        provenance = dict(provenance_in)
-        provenance[feature_id] = "extrude"
-        return OpResult(shape=solid, provenance=provenance, issues=[])
+        return OpResult(shape=solid, provenance={}, issues=[])

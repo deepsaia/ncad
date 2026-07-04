@@ -18,6 +18,10 @@ def server(tmp_path):
     (tmp_path / "box.gltf").write_text('{"asset": {"version": "2.0"}}')
     (tmp_path / "box.bom.json").write_text('{"floor_area": 24.0, "door_count": 1}')
     (tmp_path / "box.plan.svg").write_text('<svg xmlns="http://www.w3.org/2000/svg"></svg>')
+    (tmp_path / "box.elementmap.json").write_text(
+        '{"attribute_model_version": 1, "elements": ['
+        '{"index": 0, "id": "pad/cap(+Z)/0", "kind": "face", '
+        '"created_by": "pad", "tag": "cap(+Z)"}]}')
     srv = ViewerServer(models_dir=str(tmp_path), host="127.0.0.1", port=0)
     srv.start()
     try:
@@ -107,6 +111,28 @@ def test_bom_endpoint_404_when_no_sidecar(tmp_path) -> None:
     try:
         with pytest.raises(urllib.error.HTTPError) as exc:
             _get(f"{srv.base_url}/api/bom/lonely.glb")
+        assert exc.value.code == 404
+    finally:
+        srv.stop()
+
+
+def test_elementmap_endpoint_returns_sidecar_json(server) -> None:
+    status, body, headers = _get(f"{server.base_url}/api/elementmap/box.gltf")
+
+    assert status == 200
+    assert "application/json" in headers["Content-Type"]
+    data = json.loads(body)
+    assert data["attribute_model_version"] == 1
+    assert data["elements"][0]["id"] == "pad/cap(+Z)/0"
+
+
+def test_elementmap_endpoint_404_when_no_sidecar(tmp_path) -> None:
+    (tmp_path / "lonely.glb").write_bytes(b"glTF\x02\x00\x00\x00")
+    srv = ViewerServer(models_dir=str(tmp_path), host="127.0.0.1", port=0)
+    srv.start()
+    try:
+        with pytest.raises(urllib.error.HTTPError) as exc:
+            _get(f"{srv.base_url}/api/elementmap/lonely.glb")
         assert exc.value.code == 404
     finally:
         srv.stop()

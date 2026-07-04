@@ -27,14 +27,6 @@ def test_builder_produces_solid_with_expected_volume() -> None:
     assert FakeKernel().volume(result.shape) == 80.0 * 60.0 * 8.0
 
 
-def test_builder_merges_provenance_across_features() -> None:
-    builder = Builder(FakeKernel(), OpRegistry.with_defaults())
-
-    result = builder.build_part(_block_part())
-
-    assert result.provenance == {"sk": "sketch", "pad": "extrude"}
-
-
 def test_builder_extrude_consumes_named_profile_not_previous_feature() -> None:
     # A second sketch ('other', 40x40) is threaded between 'sk' and 'pad'. Because
     # 'pad' names profile 'sk', it must extrude the 80x60 face (volume 80*60*8),
@@ -77,19 +69,60 @@ def test_builder_reports_issue_when_referenced_profile_missing() -> None:
     assert any(issue.node_id == "pad" for issue in result.issues)
 
 
-def test_builder_exposes_prior_shapes_to_ops() -> None:
-    seen = {}
+def _rect(id_, w, h):
+    return {"id": id_, "op": "sketch", "plane": "XY",
+            "elements": [{"id": "r", "type": "rectangle", "w": w, "h": h}]}
 
-    def capture(shape_in, params, provenance_in, kernel):
-        from ncad.ops.op_result import OpResult
-        seen.update(params.get("__shapes__", {}))
-        return OpResult(shape="X", provenance=dict(provenance_in), issues=[])
 
-    reg = OpRegistry()
-    reg.register("sketch", capture)
-    reg.register("probe", capture)
-    Builder(FakeKernel(), reg).build_part({"profile": "solid", "features": [
-        {"id": "a", "op": "sketch"}, {"id": "b", "op": "probe"},
-    ]})
+def test_fillet_by_selector_resolves_edges() -> None:
+    part = {"profile": "solid", "features": [
+        _rect("sk", 40, 40),
+        {"id": "pad", "op": "extrude", "profile": "sk", "distance": 10},
+        {"id": "rnd", "op": "fillet", "radius": 2,
+         "edges": "select edges where created_by='pad' and orientation='vertical'"},
+    ]}
+    result = Builder(FakeKernel(), OpRegistry.with_defaults()).build_part(part)
+    assert result.issues == [] and result.shape is not None
 
-    assert "a" in seen
+
+def test_generative_cap_ref_on_hole_resolves() -> None:
+    part = {"profile": "solid", "features": [
+        _rect("sk", 40, 40),
+        {"id": "pad", "op": "extrude", "profile": "sk", "distance": 10},
+        {"id": "h", "op": "hole", "on": "pad.cap(+Z)", "diameter": 4,
+         "depth": 5, "positions": [[10, 10]]},
+    ]}
+    result = Builder(FakeKernel(), OpRegistry.with_defaults()).build_part(part)
+    assert result.issues == [] and result.shape is not None
+
+
+def test_unresolvable_reference_is_id_tagged_issue() -> None:
+    part = {"profile": "solid", "features": [
+        _rect("sk", 40, 40),
+        {"id": "pad", "op": "extrude", "profile": "sk", "distance": 10},
+        {"id": "rnd", "op": "fillet", "radius": 2,
+         "edges": "select edges where created_by='ghost'"},
+    ]}
+    result = Builder(FakeKernel(), OpRegistry.with_defaults()).build_part(part)
+    assert any(i.node_id == "rnd" for i in result.issues)
+
+
+def test_keyword_edges_still_work() -> None:
+    part = {"profile": "solid", "features": [
+        _rect("sk", 40, 40),
+        {"id": "pad", "op": "extrude", "profile": "sk", "distance": 10},
+        {"id": "rnd", "op": "fillet", "radius": 2, "edges": "vertical"},
+    ]}
+    result = Builder(FakeKernel(), OpRegistry.with_defaults()).build_part(part)
+    assert result.issues == [] and result.shape is not None
+
+
+def test_build_part_mapped_returns_element_map() -> None:
+    part = {"profile": "solid", "features": [
+        _rect("sk", 40, 40),
+        {"id": "pad", "op": "extrude", "profile": "sk", "distance": 10},
+    ]}
+    result, element_map = Builder(
+        FakeKernel(), OpRegistry.with_defaults()).build_part_mapped(part)
+    assert result.shape is not None
+    assert element_map.by_tag("cap(+Z)"), "extrude should tag a +Z cap"

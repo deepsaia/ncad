@@ -29,6 +29,7 @@ _MODEL_ROUTE = "/models/"
 _API_MODELS_ROUTE = "/api/models/"
 _BOM_ROUTE = "/api/bom/"
 _PLAN_ROUTE = "/api/plan/"
+_ELEMENTMAP_ROUTE = "/api/elementmap/"
 _CONTENT_TYPES = {
     ".gltf": "model/gltf+json",
     ".glb": "model/gltf-binary",
@@ -78,6 +79,8 @@ class _ViewerRequestHandler(BaseHTTPRequestHandler):
             self._send_bom(path[len(_BOM_ROUTE) :])
         elif path.startswith(_PLAN_ROUTE):
             self._send_plan(path[len(_PLAN_ROUTE) :])
+        elif path.startswith(_ELEMENTMAP_ROUTE):
+            self._send_elementmap(path[len(_ELEMENTMAP_ROUTE) :])
         elif path.startswith(_MODEL_ROUTE):
             self._send_model(path[len(_MODEL_ROUTE) :])
         elif self._catalog.resolve(unquote(path.lstrip("/"))) is not None:
@@ -155,6 +158,14 @@ class _ViewerRequestHandler(BaseHTTPRequestHandler):
             return
         with open(resolved, "rb") as handle:
             self._send_bytes(200, "image/svg+xml; charset=utf-8", handle.read())
+
+    def _send_elementmap(self, model_name: str) -> None:
+        resolved = self._catalog.resolve_elementmap(unquote(model_name))
+        if resolved is None:
+            self.send_error(404, "no element map for model")
+            return
+        with open(resolved, "rb") as handle:
+            self._send_bytes(200, "application/json", handle.read())
 
     def _send_bytes(self, status: int, content_type: str, body: bytes) -> None:
         self.send_response(status)

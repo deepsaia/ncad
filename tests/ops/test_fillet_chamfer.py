@@ -19,7 +19,6 @@ def test_fillet_vertical_edges_changes_volume() -> None:
 
     assert result.issues == []
     assert result.shape is not None
-    assert result.provenance["f"] == "fillet"
 
 
 def test_chamfer_all_edges() -> None:
@@ -42,3 +41,16 @@ def test_fillet_unknown_keyword_reports_issue() -> None:
 
     assert result.shape is None
     assert result.issues[0].node_id == "f"
+
+
+def test_fillet_uses_resolved_edges_from_refs() -> None:
+    kernel = FakeKernel()
+    solid = _block(kernel)
+    edge_handles = [d["handle"] for d in kernel.describe_elements(solid)
+                    if d["kind"] == "edge"][:2]
+
+    feature = {"id": "rnd", "op": "fillet", "radius": 1.0,
+               "__refs__": {"edges": edge_handles}}
+    result = FilletOp().build(solid, feature, {}, kernel)
+
+    assert result.issues == [] and result.shape is not None

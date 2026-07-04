@@ -93,3 +93,11 @@ def test_delete_unknown_model_returns_none(tmp_path) -> None:
     catalog = ModelCatalog(str(tmp_path))
 
     assert catalog.delete_model("nope.glb") is None
+
+
+def test_resolve_elementmap(tmp_path) -> None:
+    (tmp_path / "m.glb").write_bytes(b"x")
+    (tmp_path / "m.elementmap.json").write_text("{}")
+    catalog = ModelCatalog(str(tmp_path))
+    assert catalog.resolve_elementmap("m.glb") is not None
+    assert catalog.resolve_elementmap("missing.glb") is None

@@ -34,25 +34,23 @@ class SketchOp:
                 node_id=feature_id,
                 message=f"sketch supports exactly one element; got {len(elements)}",
             )
-            return OpResult(shape=None, provenance=dict(provenance_in), issues=[issue])
+            return OpResult(shape=None, provenance={}, issues=[issue])
 
         element = elements[0]
         kind = element.get("type")
-        provenance = dict(provenance_in)
-        provenance[feature_id] = "sketch"
         if kind == "rectangle":
             points = self._rectangle_points(element["w"], element["h"])
             return OpResult(shape=kernel.polygon_face(points, plane),
-                            provenance=provenance, issues=[])
+                            provenance={}, issues=[])
         if kind == "circle":
             diameter = element["d"] if "d" in element else element["r"] * 2.0
             return OpResult(shape=kernel.circle_face((0.0, 0.0), diameter, plane),
-                            provenance=provenance, issues=[])
+                            provenance={}, issues=[])
         if kind == "polygon":
             return OpResult(shape=kernel.polygon_face(self._polygon_points(element), plane),
-                            provenance=provenance, issues=[])
+                            provenance={}, issues=[])
         issue = BuildIssue(node_id=feature_id, message=f"unknown sketch element type: {kind!r}")
-        return OpResult(shape=None, provenance=dict(provenance_in), issues=[issue])
+        return OpResult(shape=None, provenance={}, issues=[issue])
 
     @staticmethod
     def _rectangle_points(width: float, height: float) -> list[Point2]:
