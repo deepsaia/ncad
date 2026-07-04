@@ -125,7 +125,8 @@ class Builder:
                 result = builder_fn(shape_in, feature_with_refs, {}, self._kernel)
                 issues.extend(result.issues)
                 descriptors = self._rebuild_map(element_map, feature, result.shape)
-                succeeded = result.shape is not None and not result.issues
+                errors = [i for i in result.issues if i.level == "error"]
+                succeeded = result.shape is not None and not errors
                 if not succeeded:
                     failed.add(feature_id)
                 # Only a successful feature is cached, so a failure re-runs and

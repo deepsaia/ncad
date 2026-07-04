@@ -184,3 +184,30 @@ def test_cache_hit_preserves_generative_tags() -> None:
     _, element_map = builder.build_part_mapped(part)
 
     assert element_map.by_tag("cap(+Z)"), "cached rebuild must restore generative tags"
+
+
+def test_warning_issue_does_not_mark_feature_failed() -> None:
+    from ncad.build.feature_cache import FeatureCache
+    from ncad.ops.build_issue import BuildIssue
+    from ncad.ops.op_result import OpResult
+
+    kernel = FakeKernel()
+    solid = kernel.extrude(kernel.polygon_face([(0, 0), (10, 0), (10, 10), (0, 10)], "XY"), 5.0)
+
+    def warn_op(shape_in, params, prov, k):
+        return OpResult(shape=solid, provenance={},
+                        issues=[BuildIssue(node_id=params["id"], message="w", level="warning")])
+
+    def after_op(shape_in, params, prov, k):
+        # succeeds only if it received the warn feature's shape (not suppressed)
+        return OpResult(shape=shape_in, provenance={}, issues=[])
+
+    reg = OpRegistry()
+    reg.register("warn", warn_op)
+    reg.register("after", after_op)
+    part = {"profile": "solid", "features": [
+        {"id": "w", "op": "warn"}, {"id": "a", "op": "after"}]}
+    result, _ = Builder(kernel, reg, cache=FeatureCache()).build_part_mapped(part)
+
+    assert result.shape is solid
+    assert not any("depends on failed" in i.message for i in result.issues)

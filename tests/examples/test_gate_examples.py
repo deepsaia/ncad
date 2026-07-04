@@ -26,7 +26,8 @@ def test_example_builds_without_issues(doc_path: Path) -> None:
 
     assert results, f"{doc_path} produced no parts"
     for name, result in results.items():
-        assert result.issues == [], f"{doc_path} part {name} had issues: {result.issues}"
+        errors = [i for i in result.issues if i.level == "error"]
+        assert errors == [], f"{doc_path} part {name} had errors: {errors}"
         assert result.shape is not None
 
 

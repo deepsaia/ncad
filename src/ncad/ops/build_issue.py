@@ -9,7 +9,10 @@ class BuildIssue:
 
     :ivar node_id: The ``id`` of the feature/node the issue is attributed to.
     :ivar message: Human-readable description of the problem.
+    :ivar level: ``"error"`` (blocks the feature, the default) or ``"warning"`` (the
+        feature still builds; used for non-fatal status like an under-constrained sketch).
     """
 
     node_id: str
     message: str
+    level: str = "error"

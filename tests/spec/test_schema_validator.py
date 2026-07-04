@@ -74,3 +74,13 @@ def test_hole_on_field_is_valid() -> None:
             {"id": "h", "op": "hole", "diameter": 4, "depth": 5,
              "positions": [[1, 1]], "on": "pad.cap(+Z)"}]}}}
     assert SchemaValidator().validate(doc) == []
+
+
+def test_entities_and_constraints_are_valid() -> None:
+    doc = {"schema_version": 1, "units": "mm", "parts": {"p": {
+        "profile": "solid", "features": [
+            {"id": "sk", "op": "sketch", "plane": "XY",
+             "entities": [{"id": "p0", "type": "point", "at": [0, 0]},
+                          {"id": "l0", "type": "line", "p1": "p0", "p2": "p0"}],
+             "constraints": [{"type": "distance", "points": ["p0", "p0"], "value": 40}]}]}}}
+    assert SchemaValidator().validate(doc) == []

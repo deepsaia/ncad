@@ -1,0 +1,33 @@
+schema_version = 1
+units = mm
+# A rectangle authored as a constrained sketch: 4 points + 4 lines, made rectangular by
+# horizontal/vertical constraints and sized by two distances. The solver closes it; the
+# extrude turns it into a block. This is the "hello world" of the constraint solver.
+parameters { w = 60, h = 40, t = 10 }
+parts {
+  constrained_rect {
+    profile = solid
+    features = [
+      { id = sk, op = sketch, plane = XY,
+        entities = [
+          { id = p0, type = point, at = [ 0, 0 ] }
+          { id = p1, type = point, at = [ 55, 3 ] }
+          { id = p2, type = point, at = [ 58, 38 ] }
+          { id = p3, type = point, at = [ 2, 41 ] }
+          { id = l0, type = line, p1 = p0, p2 = p1 }
+          { id = l1, type = line, p1 = p1, p2 = p2 }
+          { id = l2, type = line, p1 = p2, p2 = p3 }
+          { id = l3, type = line, p1 = p3, p2 = p0 }
+        ]
+        constraints = [
+          { type = horizontal, of = l0 }
+          { type = vertical, of = l1 }
+          { type = horizontal, of = l2 }
+          { type = vertical, of = l3 }
+          { type = distance, points = [ p0, p1 ], value = "${w}" }
+          { type = distance, points = [ p1, p2 ], value = "${h}" }
+        ] }
+      { id = pad, op = extrude, profile = sk, distance = "${t}" }
+    ]
+  }
+}

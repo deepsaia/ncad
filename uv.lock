@@ -1252,6 +1252,7 @@ dependencies = [
     { name = "lark" },
     { name = "leaf-common" },
     { name = "numpy" },
+    { name = "py-slvs" },
     { name = "pyrender" },
     { name = "trimesh" },
     { name = "typer" },
@@ -1283,6 +1284,7 @@ requires-dist = [
     { name = "leaf-common" },
     { name = "neuro-san", marker = "extra == 'agents'" },
     { name = "numpy" },
+    { name = "py-slvs", specifier = ">=1.0.6" },
     { name = "pyrender" },
     { name = "trimesh" },
     { name = "typer", specifier = ">=0.26.8" },
@@ -1755,6 +1757,25 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/cd/05/0a34433a064256a578f1783a10da6df098ceaa4a57bbeaa96a6c0352786b/pure_eval-0.2.3.tar.gz", hash = "sha256:5f4e983f40564c576c7c8635ae88db5956bb2229d7e9237d03b3c0b0190eaf42", size = 19752, upload-time = "2024-07-21T12:58:21.801Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/8e/37/efad0257dc6e593a18957422533ff0f87ede7c9c6ea010a2177d738fb82f/pure_eval-0.2.3-py3-none-any.whl", hash = "sha256:1db8e35b67b3d218d818ae653e27f06c3aa420901fa7b081ca98cbedc874e0d0", size = 11842, upload-time = "2024-07-21T12:58:20.04Z" },
+]
+
+[[package]]
+name = "py-slvs"
+version = "1.0.6"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/da/c5/ac1a0f5f6872706eb6205ecd4774322892893943f8ac3537079701c183a3/py_slvs-1.0.6.tar.gz", hash = "sha256:53a4ff697cb42530b5a6d2f9a0199c874cad48f98891103c5ce8b7d4da40ae72", size = 2433600, upload-time = "2023-03-17T02:18:24.074Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/11/53/8e39a7e62caa8a4d24e034c051a6cadb2bd572d3a665e8464298c77acb84/py_slvs-1.0.6-cp313-cp313-macosx_10_13_universal2.whl", hash = "sha256:44bcc4d92b71b435b89642a803bda6f2f5dacbedb919dc7e4e1deeafd4de3e96", size = 425341, upload-time = "2025-03-07T13:46:42.458Z" },
+    { url = "https://files.pythonhosted.org/packages/78/d1/1279480e9b9f92eab265bc2108d26050462672b455f5c4b3ae41c5d63be0/py_slvs-1.0.6-cp313-cp313-macosx_10_13_x86_64.whl", hash = "sha256:a7b0f2d7b4f2e72da8f674e6cf7cbee75a803c9c22976e94bf702ef280f3c99c", size = 237743, upload-time = "2025-03-07T13:46:44.57Z" },
+    { url = "https://files.pythonhosted.org/packages/5b/70/12a8b4bdc72dc1a93acb2bf05a2f73ff302dfada5e94cd5e5a5189910a78/py_slvs-1.0.6-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:62087de72814e69561a9973a07bc007a57c75804d15d32026c96f999056bb2a6", size = 205652, upload-time = "2025-03-07T13:46:46.559Z" },
+    { url = "https://files.pythonhosted.org/packages/c5/ba/b3d88729c6d2c3d6d901f50f8e976747638f345c62a6978a59d663efbd12/py_slvs-1.0.6-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:7d81124379f6313e5a35f37a573bfaa97907cffe6bb66d9032a70d72b7e5360c", size = 295276, upload-time = "2025-03-07T13:46:48.209Z" },
+    { url = "https://files.pythonhosted.org/packages/3d/5b/9f99bd3f52af2b499074dabbd187e72cb71734413cf49d3a142f11cca2de/py_slvs-1.0.6-cp313-cp313-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:4fccd090766c233fa63eaf5b2a375a5bd657c1f213305f07f319c574c81e9ab0", size = 302731, upload-time = "2025-03-07T13:46:50.303Z" },
+    { url = "https://files.pythonhosted.org/packages/ed/de/700895d6b5b6851920b537337b32040a3db65de85dd4105008f39cbfac6b/py_slvs-1.0.6-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:ea0a9eb754d3efded198298381af8cff2a720e740fe534a2fe3e82bf531db453", size = 326780, upload-time = "2025-03-07T13:46:51.991Z" },
+    { url = "https://files.pythonhosted.org/packages/90/1c/f5fb68bd70952c893f11f96970898652f8fd1b89284f54aa3a266f6eef26/py_slvs-1.0.6-cp313-cp313-musllinux_1_2_aarch64.whl", hash = "sha256:9f8c607cd64c3820ce6302fbe0a82beaa443f688addee7888bdd4f8565dc8358", size = 1252628, upload-time = "2025-03-07T13:46:54.044Z" },
+    { url = "https://files.pythonhosted.org/packages/c9/78/8318fbc6ad6945e5a25c65670218aca24a11469e61d4de62b11162d953b3/py_slvs-1.0.6-cp313-cp313-musllinux_1_2_i686.whl", hash = "sha256:048e7aab79c2b593b54b2243fb3573ccf8acfa82decc85075c2d18a5e4ab5ab9", size = 1424532, upload-time = "2025-03-07T13:46:56.241Z" },
+    { url = "https://files.pythonhosted.org/packages/e1/30/b1748e914c37aa6e4beb464f6c3bb89c414aa7e1b1e23bb5f49751dff9f9/py_slvs-1.0.6-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:5ee01f9c50d1d61ec89557875704c51f68168c7851b1c1c0bab17583ebe0a48e", size = 1328967, upload-time = "2025-03-07T13:46:58.702Z" },
+    { url = "https://files.pythonhosted.org/packages/ac/02/356712a1b4b24ea321c69b1a033c8a7d5af07bc4debe9d517114dad1a0a3/py_slvs-1.0.6-cp313-cp313-win32.whl", hash = "sha256:816284a07c336b978a19483be135e7b84a78dc77b123ee50812f95f4bb0abbf2", size = 243196, upload-time = "2025-03-07T13:47:00.016Z" },
+    { url = "https://files.pythonhosted.org/packages/f3/18/f4a67514dc7605600215178835c77a3dba898b0b314f391f760810550c22/py_slvs-1.0.6-cp313-cp313-win_amd64.whl", hash = "sha256:d67a0fffa272405d483395062dd84baee063a9c010f374901ffcf32f0d77c5c8", size = 287877, upload-time = "2025-03-07T13:47:01.518Z" },
 ]
 
 [[package]]
