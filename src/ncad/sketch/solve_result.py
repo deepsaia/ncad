@@ -16,6 +16,8 @@ class SolveResult:
     """Solved positions and status for a sketch.
 
     :ivar radii: Solved radius per circle/arc entity id (empty for line-only sketches).
+    :ivar measurements: Measured value per driven (reference) dimension id (empty when
+        the sketch has no driven dimensions).
     """
 
     positions: dict[str, tuple[float, float]]
@@ -23,3 +25,4 @@ class SolveResult:
     status: str
     issues: list[BuildIssue]
     radii: dict[str, float] = field(default_factory=dict)
+    measurements: dict[str, float] = field(default_factory=dict)

@@ -24,3 +24,14 @@ def test_solve_result_carries_radii():
     r = SolveResult(positions={}, dof=0, status="well_constrained", issues=[],
                     radii={"c0": 8.0})
     assert r.radii["c0"] == 8.0
+
+
+def test_solve_result_measurements_defaults_empty():
+    r = SolveResult(positions={}, dof=0, status="well_constrained", issues=[])
+    assert r.measurements == {}
+
+
+def test_solve_result_carries_measurements():
+    r = SolveResult(positions={}, dof=0, status="well_constrained", issues=[],
+                    measurements={"m1": 27.3})
+    assert r.measurements["m1"] == 27.3
