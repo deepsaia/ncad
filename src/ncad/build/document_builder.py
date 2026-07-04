@@ -14,6 +14,7 @@ from ncad.ops.op_registry import OpRegistry
 from ncad.ops.op_result import OpResult
 from ncad.params.function_registry import FunctionRegistry
 from ncad.params.param_resolver import ParamResolver
+from ncad.spec.feature_id_validator import FeatureIdValidator
 from ncad.spec.schema_validator import SchemaValidator
 from ncad.spec.spec_loader import SpecLoader
 
@@ -28,6 +29,7 @@ class DocumentBuilder:
         self._kernel = kernel
         self._builder = Builder(kernel, OpRegistry.with_defaults())
         self._validator = SchemaValidator()
+        self._id_validator = FeatureIdValidator()
         self._loader = SpecLoader()
         self._resolver = ParamResolver(FunctionRegistry.with_defaults())
 
@@ -44,6 +46,10 @@ class DocumentBuilder:
         if issues:
             rendered = "; ".join(f"{issue.location}: {issue.message}" for issue in issues)
             raise ValueError(f"document failed schema validation: {rendered}")
+        id_issues = self._id_validator.validate(resolved)
+        if id_issues:
+            rendered = "; ".join(f"{i.location}: {i.message}" for i in id_issues)
+            raise ValueError(f"document has duplicate feature ids: {rendered}")
         results: dict[str, OpResult] = {}
         for name, part in resolved["parts"].items():
             logger.debug("building part %s", name)
