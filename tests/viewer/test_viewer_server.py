@@ -22,6 +22,9 @@ def server(tmp_path):
         '{"attribute_model_version": 1, "elements": ['
         '{"index": 0, "id": "pad/cap(+Z)/0", "kind": "face", '
         '"created_by": "pad", "tag": "cap(+Z)"}]}')
+    (tmp_path / "box.hierarchy.json").write_text(
+        '{"name": "box", "kind": "part", "op": "solid", "children": ['
+        '{"id": "pad", "kind": "feature", "op": "extrude", "children": []}]}')
     srv = ViewerServer(models_dir=str(tmp_path), host="127.0.0.1", port=0)
     srv.start()
     try:
@@ -133,6 +136,28 @@ def test_elementmap_endpoint_404_when_no_sidecar(tmp_path) -> None:
     try:
         with pytest.raises(urllib.error.HTTPError) as exc:
             _get(f"{srv.base_url}/api/elementmap/lonely.glb")
+        assert exc.value.code == 404
+    finally:
+        srv.stop()
+
+
+def test_hierarchy_endpoint_returns_sidecar_json(server) -> None:
+    status, body, headers = _get(f"{server.base_url}/api/hierarchy/box.gltf")
+
+    assert status == 200
+    assert "application/json" in headers["Content-Type"]
+    data = json.loads(body)
+    assert data["name"] == "box"
+    assert data["children"][0]["id"] == "pad"
+
+
+def test_hierarchy_endpoint_404_when_no_sidecar(tmp_path) -> None:
+    (tmp_path / "lonely.glb").write_bytes(b"glTF\x02\x00\x00\x00")
+    srv = ViewerServer(models_dir=str(tmp_path), host="127.0.0.1", port=0)
+    srv.start()
+    try:
+        with pytest.raises(urllib.error.HTTPError) as exc:
+            _get(f"{srv.base_url}/api/hierarchy/lonely.glb")
         assert exc.value.code == 404
     finally:
         srv.stop()
