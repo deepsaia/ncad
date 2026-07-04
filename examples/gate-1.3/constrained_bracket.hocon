@@ -1,0 +1,33 @@
+schema_version = 1
+units = mm
+# A fully-constrained plate: one corner fixed, sides horizontal/vertical, width+height
+# dimensioned. Solves to dof 0 (well-constrained), no under-constrained warning.
+parameters { w = 60, h = 40, t = 10 }
+parts {
+  constrained_bracket {
+    profile = solid
+    features = [
+      { id = sk, op = sketch, plane = XY,
+        entities = [
+          { id = p0, type = point, at = [ 0, 0 ] }
+          { id = p1, type = point, at = [ 60, 0 ] }
+          { id = p2, type = point, at = [ 60, 40 ] }
+          { id = p3, type = point, at = [ 0, 40 ] }
+          { id = l0, type = line, p1 = p0, p2 = p1 }
+          { id = l1, type = line, p1 = p1, p2 = p2 }
+          { id = l2, type = line, p1 = p2, p2 = p3 }
+          { id = l3, type = line, p1 = p3, p2 = p0 }
+        ]
+        constraints = [
+          { type = fix, of = p0 }
+          { type = horizontal, of = l0 }
+          { type = vertical, of = l1 }
+          { type = horizontal, of = l2 }
+          { type = vertical, of = l3 }
+          { type = distance, points = [ p0, p1 ], value = "${w}" }
+          { type = distance, points = [ p0, p3 ], value = "${h}" }
+        ] }
+      { id = pad, op = extrude, profile = sk, distance = "${t}" }
+    ]
+  }
+}
