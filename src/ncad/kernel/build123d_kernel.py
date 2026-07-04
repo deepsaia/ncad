@@ -5,11 +5,13 @@ STL. Importing this module pulls in OCP, which is slow on first load; keep it ou
 the fast test path.
 """
 
+import importlib.metadata
 import logging
 from typing import Any
 
 from build123d import (
     Axis,
+    CenterOf,
     Edge,
     Face,
     Plane,
@@ -184,6 +186,27 @@ class Build123dKernel(Kernel):
             return True
         return bool(flag() if callable(flag) else flag)
 
+    def version(self) -> str:
+        b123d = importlib.metadata.version("build123d")
+        ocp = importlib.metadata.version("cadquery-ocp")
+        return f"build123d={b123d};ocp={ocp}"
+
+    def signature(self, solid: Any) -> dict:
+        faces = solid.faces()
+        edges = solid.edges()
+        vertices = solid.vertices()
+        box = solid.bounding_box()
+        cog = solid.center(CenterOf.MASS)
+        return {
+            "counts": {"face": len(faces), "edge": len(edges), "vertex": len(vertices)},
+            "surface_types": _type_histogram(faces),
+            "curve_types": _type_histogram(edges),
+            "volume": solid.volume,
+            "area": solid.area,
+            "bbox": (tuple(box.min), tuple(box.max)),
+            "cog": (cog.X, cog.Y, cog.Z),
+        }
+
     def volume(self, solid: Any) -> float:
         return solid.volume
 
@@ -246,3 +269,12 @@ def _geom_name(shape: Any) -> str:
         return "other"
     name = getattr(geom_type, "name", str(geom_type))
     return str(name).lower()
+
+
+def _type_histogram(shapes: list) -> dict:
+    """Count shapes by lower-cased geometry-type name."""
+    histogram: dict = {}
+    for shape in shapes:
+        name = _geom_name(shape)
+        histogram[name] = histogram.get(name, 0) + 1
+    return histogram

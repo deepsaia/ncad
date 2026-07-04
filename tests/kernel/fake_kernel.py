@@ -138,6 +138,23 @@ class FakeKernel(Kernel):
             })
         return faces + edges
 
+    def version(self) -> str:
+        return "fake-1"
+
+    def signature(self, solid: Any) -> dict:
+        (minx, miny, minz), (maxx, maxy, maxz) = self.bounding_box(solid)
+        dx, dy, dz = maxx - minx, maxy - miny, maxz - minz
+        area = 2.0 * (dx * dy + dy * dz + dx * dz)
+        return {
+            "counts": {"face": 6, "edge": 12, "vertex": 8},
+            "surface_types": {"plane": 6},
+            "curve_types": {"line": 12},
+            "volume": self.volume(solid),
+            "area": area,
+            "bbox": ((minx, miny, minz), (maxx, maxy, maxz)),
+            "cog": ((minx + maxx) / 2, (miny + maxy) / 2, (minz + maxz) / 2),
+        }
+
     def volume(self, solid: Any) -> float:
         if isinstance(solid, (_FakeCylinder, _FakeCombined)):
             return solid.volume_val

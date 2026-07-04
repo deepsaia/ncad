@@ -12,6 +12,9 @@ and the feature is skipped; the build continues.
 import logging
 from typing import Any
 
+from ncad.build.cache_key import CacheKeyBuilder
+from ncad.build.feature_cache import CacheEntry, FeatureCache
+from ncad.build.rebuild_graph import RebuildGraph
 from ncad.kernel.kernel import Kernel
 from ncad.ops.build_issue import BuildIssue
 from ncad.ops.edge_selector import EdgeSelector
@@ -46,10 +49,12 @@ _NON_SOLID_OPS = frozenset({"sketch"})
 class Builder:
     """Builds a single part's feature tree into a geometry handle and element map."""
 
-    def __init__(self, kernel: Kernel, registry: OpRegistry) -> None:
+    def __init__(self, kernel: Kernel, registry: OpRegistry,
+                 cache: FeatureCache | None = None) -> None:
         self._kernel = kernel
         self._registry = registry
         self._tagger = GenerativeTagger()
+        self._cache = cache
 
     def build_part(self, part: dict) -> OpResult:
         """Execute ``part["features"]`` in order and return the final result."""
@@ -57,27 +62,56 @@ class Builder:
         return result
 
     def build_part_mapped(self, part: dict) -> tuple[OpResult, ElementMap]:
-        """Like build_part, but also return the final ElementMap (for the sidecar)."""
+        """Like build_part, but also return the final ElementMap (for the sidecar).
+
+        When a FeatureCache is present, features are walked in the RebuildGraph's
+        topological order and keyed by a chained content hash; a cache hit restores the
+        shape + element descriptors without running the op, so only the dirty suffix of
+        a parameter edit re-executes.
+        """
+        features = part["features"]
+        by_id = {f["id"]: f for f in features}
+        graph = RebuildGraph(features)
+        order = graph.order()
+        key_builder = CacheKeyBuilder(self._kernel.version()) if self._cache else None
+        keys: dict[str, str] = {}
+
         shape_by_id: dict[str, Any] = {}
         issues: list[BuildIssue] = []
         element_map = ElementMap()
         resolver = ReferenceResolver(element_map)
         previous_shape: Any = None
+        last_id: str | None = None
 
-        for feature in part["features"]:
-            feature_id = feature["id"]
+        for feature_id in order:
+            feature = by_id[feature_id]
             refs, shape_in = self._resolve_refs(
                 feature, shape_by_id, previous_shape, element_map, resolver, issues)
-            feature_with_refs = dict(feature)
-            feature_with_refs["__refs__"] = refs
-            builder_fn = self._registry.get(feature["op"])
-            result = builder_fn(shape_in, feature_with_refs, {}, self._kernel)
-            issues.extend(result.issues)
+            entry = None
+            if self._cache is not None and key_builder is not None:
+                dep_keys = [keys[d] for d in graph.deps(feature_id) if d in keys]
+                keys[feature_id] = key_builder.key(feature, dep_keys)
+                entry = self._cache.get(keys[feature_id])
+            if entry is not None and self._cache is not None:
+                self._cache.record(feature_id, hit=True)
+                result = OpResult(shape=entry.shape, provenance={}, issues=[])
+                self._rebuild_map_from_descriptors(element_map, feature, entry.descriptors)
+            else:
+                feature_with_refs = dict(feature)
+                feature_with_refs["__refs__"] = refs
+                builder_fn = self._registry.get(feature["op"])
+                result = builder_fn(shape_in, feature_with_refs, {}, self._kernel)
+                issues.extend(result.issues)
+                descriptors = self._rebuild_map(element_map, feature, result.shape)
+                if self._cache is not None and feature_id in keys:
+                    self._cache.record(feature_id, hit=False)
+                    self._cache.put(keys[feature_id], CacheEntry(result.shape, descriptors))
             shape_by_id[feature_id] = result.shape
             previous_shape = result.shape
-            self._rebuild_map(element_map, feature, result.shape)
+            last_id = feature_id
 
-        return OpResult(shape=previous_shape, provenance={}, issues=issues), element_map
+        final_shape = shape_by_id.get(last_id) if last_id is not None else None
+        return OpResult(shape=final_shape, provenance={}, issues=issues), element_map
 
     def _resolve_refs(self, feature: dict, shape_by_id: dict, previous_shape: Any,
                       element_map: ElementMap, resolver: ReferenceResolver,
@@ -111,11 +145,24 @@ class Builder:
             return []
         return EdgeSelector().select(self._kernel.edges_of(shape_in), keyword)
 
-    def _rebuild_map(self, element_map: ElementMap, feature: dict, shape: Any) -> None:
-        """Rebuild the element map from a feature's output shape (faces first)."""
+    def _rebuild_map(self, element_map: ElementMap, feature: dict, shape: Any) -> list | None:
+        """Rebuild the element map from a feature's output shape; return descriptors."""
         if shape is None or feature.get("op", "") in _NON_SOLID_OPS:
-            return
+            return None
         descriptors = self._kernel.describe_elements(shape)
+        self._apply_descriptors(element_map, feature, descriptors)
+        return descriptors
+
+    def _rebuild_map_from_descriptors(self, element_map: ElementMap, feature: dict,
+                                      descriptors: list | None) -> None:
+        """Rebuild the element map from cached descriptors (no kernel call)."""
+        if descriptors is None:
+            return
+        self._apply_descriptors(element_map, feature, descriptors)
+
+    def _apply_descriptors(self, element_map: ElementMap, feature: dict,
+                           descriptors: list) -> None:
+        """Tag faces and rebuild the map from descriptors (shared hit/miss path)."""
         faces = [d for d in descriptors if d["kind"] == "face"]
         tags = self._tagger.tags_for(feature.get("op", ""), feature.get("plane", "XY"), faces)
         element_map.rebuild(feature["id"], descriptors, tags)

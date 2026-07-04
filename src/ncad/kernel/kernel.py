@@ -76,6 +76,25 @@ class Kernel(ABC):
         """
 
     @abstractmethod
+    def version(self) -> str:
+        """A stable identifier for the pinned kernel build.
+
+        Baked into cache keys (design section 4a) so a kernel/dependency bump
+        invalidates cached geometry wholesale.
+        """
+
+    @abstractmethod
+    def signature(self, solid: Any) -> dict:
+        """The equality tuple for ``solid`` (design section 4a).
+
+        ``{"counts": {"face","edge","vertex": int}, "surface_types": {name: int},
+        "curve_types": {name: int}, "volume": float, "area": float,
+        "bbox": ((minx,miny,minz),(maxx,maxy,maxz)), "cog": (x,y,z)}``. Topology
+        counts/types are exact; measures are compared under a tolerance by the
+        EqualityComparator.
+        """
+
+    @abstractmethod
     def volume(self, solid: Any) -> float:
         """Volume of ``solid`` in cubic (internal-unit) units."""
 

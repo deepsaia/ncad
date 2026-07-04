@@ -126,3 +126,61 @@ def test_build_part_mapped_returns_element_map() -> None:
         FakeKernel(), OpRegistry.with_defaults()).build_part_mapped(part)
     assert result.shape is not None
     assert element_map.by_tag("cap(+Z)"), "extrude should tag a +Z cap"
+
+
+def test_cache_hit_skips_reexecution() -> None:
+    from ncad.build.feature_cache import FeatureCache
+
+    kernel = FakeKernel()
+    cache = FeatureCache()
+    part = {"profile": "solid", "features": [
+        _rect("sk", 40, 40),
+        {"id": "pad", "op": "extrude", "profile": "sk", "distance": 10},
+    ]}
+    builder = Builder(kernel, OpRegistry.with_defaults(), cache=cache)
+
+    builder.build_part_mapped(part)
+    first = cache.stats()
+    builder.build_part_mapped(part)
+    second = cache.stats()
+
+    assert first == {"sk": False, "pad": False}
+    assert second == {"sk": True, "pad": True}
+
+
+def test_param_edit_rebuilds_only_dirty_suffix() -> None:
+    from ncad.build.feature_cache import FeatureCache
+
+    kernel = FakeKernel()
+    cache = FeatureCache()
+    builder = Builder(kernel, OpRegistry.with_defaults(), cache=cache)
+
+    def part(distance):
+        return {"profile": "solid", "features": [
+            _rect("sk", 40, 40),
+            {"id": "pad", "op": "extrude", "profile": "sk", "distance": distance},
+            {"id": "h", "op": "hole", "diameter": 4, "depth": 3, "positions": [[10, 10]]},
+        ]}
+
+    builder.build_part_mapped(part(10))
+    builder.build_part_mapped(part(12))
+    stats = cache.stats()
+
+    assert stats == {"sk": True, "h": False, "pad": False}
+
+
+def test_cache_hit_preserves_generative_tags() -> None:
+    from ncad.build.feature_cache import FeatureCache
+
+    kernel = FakeKernel()
+    cache = FeatureCache()
+    part = {"profile": "solid", "features": [
+        _rect("sk", 40, 40),
+        {"id": "pad", "op": "extrude", "profile": "sk", "distance": 10},
+    ]}
+    builder = Builder(kernel, OpRegistry.with_defaults(), cache=cache)
+
+    builder.build_part_mapped(part)
+    _, element_map = builder.build_part_mapped(part)
+
+    assert element_map.by_tag("cap(+Z)"), "cached rebuild must restore generative tags"

@@ -82,3 +82,24 @@ def test_gate_0_3_exports_glb_and_elementmap(tmp_path) -> None:
     assert sidecar.is_file()
     data = json.loads(sidecar.read_text())
     assert data["elements"]
+
+
+@pytest.mark.slow
+def test_gate_0_3_signature_matches_golden() -> None:
+    import json
+
+    from ncad.build.equality_comparator import EqualityComparator
+    from ncad.kernel.build123d_kernel import Build123dKernel
+
+    golden_path = Path(__file__).resolve().parents[1] / "build" / "golden" / \
+        "selector_fillet.signature.json"
+    golden = json.loads(golden_path.read_text())
+
+    builder = DocumentBuilder(Build123dKernel())
+    resolved = builder._resolve_and_validate(
+        builder._loader.load(str(_EXAMPLES_DIR / "gate-0.3" / "selector_fillet.hocon")))
+    result, _ = builder._builder.build_part_mapped(resolved["parts"]["selector_fillet"])
+    live = Build123dKernel().signature(result.shape)
+
+    comparator = EqualityComparator()
+    assert comparator.equal(live, golden), comparator.explain(live, golden)

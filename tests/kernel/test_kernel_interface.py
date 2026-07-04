@@ -59,6 +59,23 @@ def test_edges_of_classifies_orientation_and_z() -> None:
     assert max(e["mid_z"] for e in infos) == pytest.approx(8.0)
 
 
+def test_fake_kernel_version_is_stable() -> None:
+    assert FakeKernel().version() == "fake-1"
+
+
+def test_fake_signature_of_box() -> None:
+    kernel = FakeKernel()
+    solid = kernel.extrude(kernel.polygon_face([(0, 0), (10, 0), (10, 20), (0, 20)], "XY"), 5.0)
+
+    sig = kernel.signature(solid)
+
+    assert sig["counts"] == {"face": 6, "edge": 12, "vertex": 8}
+    assert sig["surface_types"] == {"plane": 6}
+    assert sig["volume"] == 10 * 20 * 5
+    assert sig["bbox"] == ((0.0, 0.0, 0.0), (10.0, 20.0, 5.0))
+    assert sig["cog"] == (5.0, 10.0, 2.5)
+
+
 def test_fake_describe_elements_returns_faces_and_edges() -> None:
     kernel = FakeKernel()
     face = kernel.polygon_face([(0, 0), (10, 0), (10, 20), (0, 20)], "XY")
