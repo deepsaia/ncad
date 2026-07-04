@@ -1,0 +1,33 @@
+schema_version = 1
+units = mm
+# The slot sugar and a standalone circle, each its own single-loop sketch (separate
+# parts). The slot lowers to 2 lines + 2 arc caps; the circle is a first-class entity
+# dimensioned by a radius constraint.
+parameters { slot_len = 50, slot_w = 16, boss_d = 24, t = 6 }
+parts {
+  slot_plate {
+    profile = solid
+    features = [
+      { id = sk, op = sketch, plane = XY,
+        entities = [
+          { id = a, type = point, at = [ 0, 0 ] }
+          { id = b, type = point, at = [ 50, 0 ] }
+          { id = sl, type = slot, p1 = a, p2 = b, width = "${slot_w}" }
+        ]
+        constraints = [ { type = distance, points = [ a, b ], value = "${slot_len}" } ] }
+      { id = pad, op = extrude, profile = sk, distance = "${t}" }
+    ]
+  }
+  boss {
+    profile = solid
+    features = [
+      { id = sk, op = sketch, plane = XY,
+        entities = [
+          { id = cp, type = point, at = [ 0, 0 ] }
+          { id = c0, type = circle, center = cp, radius = 12 }
+        ]
+        constraints = [ { type = radius, of = c0, value = "${boss_d} / 2" } ] }
+      { id = pad, op = extrude, profile = sk, distance = "${t}" }
+    ]
+  }
+}
