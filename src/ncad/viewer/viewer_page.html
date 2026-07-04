@@ -950,9 +950,17 @@ function setRightSidebar(open) {
   document.getElementById("vc-sidebar-toggle").classList.toggle("active", open);
   document.getElementById("right-toggle").classList.toggle("collapsed", !open);
   localStorage.setItem("ncad.rs.open", open ? "1" : "0");
-  // The canvas stretches via CSS during the slide; refit the backing resolution once
-  // the width transition finishes (a single setSize, so no reload flicker).
-  setTimeout(fitRendererToStage, 280);
+  // During the width transition the canvas is stretched by CSS to fill the stage. Track
+  // the camera aspect to the displayed canvas size each frame so the image is never
+  // stretched (this is cheap and does NOT recreate the drawing buffer, so no flicker),
+  // then do a single crisp setSize once the slide has finished.
+  const started = performance.now();
+  (function follow() {
+    const w = renderer.domElement.clientWidth, h = renderer.domElement.clientHeight;
+    if (w && h) { camera.aspect = w / h; camera.updateProjectionMatrix(); }
+    if (performance.now() - started < 320) requestAnimationFrame(follow);
+    else fitRendererToStage();
+  })();
 }
 function toggleRightSidebar() {
   setRightSidebar(document.body.classList.contains("right-collapsed"));
