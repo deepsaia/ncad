@@ -82,11 +82,33 @@ class Builder:
         resolver = ReferenceResolver(element_map)
         previous_shape: Any = None
         last_id: str | None = None
+        failed: set[str] = set()
 
         for feature_id in order:
             feature = by_id[feature_id]
-            refs, shape_in = self._resolve_refs(
-                feature, shape_by_id, previous_shape, element_map, resolver, issues)
+
+            # Skip-and-suppress: a feature that depends on a failed one fails with a
+            # single "depends on failed" issue rather than running and emitting its own
+            # spurious geometry errors.
+            failed_dep = next((d for d in graph.deps(feature_id) if d in failed), None)
+            if failed_dep is not None:
+                issues.append(BuildIssue(
+                    node_id=feature_id,
+                    message=f"depends on failed feature {failed_dep}"))
+                self._mark_failed(feature_id, failed, shape_by_id)
+                previous_shape = None
+                last_id = feature_id
+                continue
+
+            refs, shape_in, ref_error = self._resolve_refs(
+                feature, shape_by_id, previous_shape, element_map, resolver)
+            if ref_error is not None:
+                issues.append(BuildIssue(node_id=feature_id, message=ref_error))
+                self._mark_failed(feature_id, failed, shape_by_id)
+                previous_shape = None
+                last_id = feature_id
+                continue
+
             entry = None
             if self._cache is not None and key_builder is not None:
                 dep_keys = [keys[d] for d in graph.deps(feature_id) if d in keys]
@@ -103,9 +125,16 @@ class Builder:
                 result = builder_fn(shape_in, feature_with_refs, {}, self._kernel)
                 issues.extend(result.issues)
                 descriptors = self._rebuild_map(element_map, feature, result.shape)
+                succeeded = result.shape is not None and not result.issues
+                if not succeeded:
+                    failed.add(feature_id)
+                # Only a successful feature is cached, so a failure re-runs and
+                # re-reports on the next build (issues are never swallowed by a hit).
                 if self._cache is not None and feature_id in keys:
                     self._cache.record(feature_id, hit=False)
-                    self._cache.put(keys[feature_id], CacheEntry(result.shape, descriptors))
+                    if succeeded:
+                        self._cache.put(keys[feature_id],
+                                        CacheEntry(result.shape, descriptors))
             shape_by_id[feature_id] = result.shape
             previous_shape = result.shape
             last_id = feature_id
@@ -113,12 +142,25 @@ class Builder:
         final_shape = shape_by_id.get(last_id) if last_id is not None else None
         return OpResult(shape=final_shape, provenance={}, issues=issues), element_map
 
+    def _mark_failed(self, feature_id: str, failed: set[str],
+                     shape_by_id: dict[str, Any]) -> None:
+        """Record a feature as failed with no output shape (skip-and-suppress)."""
+        failed.add(feature_id)
+        shape_by_id[feature_id] = None
+        if self._cache is not None:
+            self._cache.record(feature_id, hit=False)
+
     def _resolve_refs(self, feature: dict, shape_by_id: dict, previous_shape: Any,
-                      element_map: ElementMap, resolver: ReferenceResolver,
-                      issues: list[BuildIssue]) -> tuple[dict, Any]:
-        """Resolve the op's declared reference fields; return (__refs__, input shape)."""
+                      element_map: ElementMap,
+                      resolver: ReferenceResolver) -> tuple[dict, Any, str | None]:
+        """Resolve the op's declared reference fields.
+
+        Returns ``(refs, shape_in, error)`` where ``error`` is the first reference
+        resolution failure message, or None. The caller skips the op and marks the
+        feature failed when ``error`` is not None (skip-and-suppress), so one broken
+        reference yields one primary issue rather than a cascade.
+        """
         op = feature.get("op", "")
-        feature_id = feature["id"]
         refs: dict[str, Any] = {}
         shape_in = previous_shape
         for field, role in _REF_FIELDS.get(op, {}).items():
@@ -131,13 +173,11 @@ class Builder:
             resolution = resolver.resolve(
                 Reference.parse(str(value)), shape_by_id, element_map.elements())
             if resolution.error is not None:
-                issues.append(BuildIssue(node_id=feature_id, message=resolution.error))
-                refs[field] = None
-                continue
+                return refs, shape_in, resolution.error
             refs[field] = _resolved_value(role, resolution)
             if role == "input":
                 shape_in = refs[field]
-        return refs, shape_in
+        return refs, shape_in, None
 
     def _resolve_keyword_edges(self, shape_in: Any, keyword: str) -> list:
         """Keyword sugar: resolve one of the five edge keywords to edge handles."""
