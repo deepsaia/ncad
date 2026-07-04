@@ -74,6 +74,21 @@ def test_build_file_exports_glb(tmp_path) -> None:
     assert glb.name == "block.glb"
 
 
+@pytest.mark.slow
+def test_build_file_writes_hierarchy_sidecar(tmp_path) -> None:
+    import json
+
+    from ncad.kernel.build123d_kernel import Build123dKernel
+
+    DocumentBuilder(Build123dKernel()).build_file(str(_FIXTURE), str(tmp_path))
+
+    sidecar = tmp_path / "block.hierarchy.json"
+    assert sidecar.is_file()
+    data = json.loads(sidecar.read_text())
+    assert data["name"] == "block" and data["kind"] == "part"
+    assert [c["id"] for c in data["children"]] == ["sk", "pad"]
+
+
 def test_build_resolves_parameters_and_expressions() -> None:
     builder = DocumentBuilder(FakeKernel())
     doc = {
