@@ -63,6 +63,41 @@ def test_fake_kernel_version_is_stable() -> None:
     assert FakeKernel().version() == "fake-1"
 
 
+def test_fake_wire_face_line_loop_area() -> None:
+    kernel = FakeKernel()
+    edges = [
+        {"kind": "line", "points": [(0.0, 0.0), (40.0, 0.0)]},
+        {"kind": "line", "points": [(40.0, 0.0), (40.0, 20.0)]},
+        {"kind": "line", "points": [(40.0, 20.0), (0.0, 20.0)]},
+        {"kind": "line", "points": [(0.0, 20.0), (0.0, 0.0)]},
+    ]
+    face = kernel.wire_face(edges, "XY")
+    assert kernel.volume(kernel.extrude(face, 1.0)) == 800.0
+
+
+def test_fake_wire_face_circle_area() -> None:
+    import math
+
+    kernel = FakeKernel()
+    face = kernel.wire_face([{"kind": "circle", "center": (0.0, 0.0), "radius": 5.0}], "XY")
+    assert kernel.volume(kernel.extrude(face, 1.0)) == pytest.approx(math.pi * 25.0)
+
+
+def test_fake_wire_face_arc_adds_segment_area() -> None:
+    kernel = FakeKernel()
+    square = [
+        {"kind": "line", "points": [(0.0, 0.0), (10.0, 0.0)]},
+        {"kind": "line", "points": [(10.0, 0.0), (10.0, 10.0)]},
+        {"kind": "line", "points": [(10.0, 10.0), (0.0, 10.0)]},
+        {"kind": "line", "points": [(0.0, 10.0), (0.0, 0.0)]},
+    ]
+    plain = kernel.volume(kernel.extrude(kernel.wire_face(square, "XY"), 1.0))
+    bulged = list(square)
+    bulged[2] = {"kind": "arc", "points": [(10.0, 10.0), (5.0, 13.0), (0.0, 10.0)]}
+    bulged_area = kernel.volume(kernel.extrude(kernel.wire_face(bulged, "XY"), 1.0))
+    assert bulged_area > plain
+
+
 def test_fake_signature_of_box() -> None:
     kernel = FakeKernel()
     solid = kernel.extrude(kernel.polygon_face([(0, 0), (10, 0), (10, 20), (0, 20)], "XY"), 5.0)

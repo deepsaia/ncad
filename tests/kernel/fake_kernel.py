@@ -20,6 +20,20 @@ class _FakeFace:
         self.plane = plane
 
 
+class _FakeWireFace:
+    """A face from mixed line/arc/circle edge descriptors.
+
+    Carries the ordered endpoint ring (for bounds) and an analytic area (shoelace over
+    endpoints plus each arc's circular-segment bulge; a lone circle is pi r^2).
+    """
+
+    def __init__(self, edges: list, plane: str) -> None:
+        self.edges = edges
+        self.plane = plane
+        self.points = _wire_ring(edges)
+        self.area = _wire_face_area(edges)
+
+
 class _FakeSolid:
     """A face extruded by a distance along the plane normal."""
 
@@ -55,6 +69,9 @@ class FakeKernel(Kernel):
 
     def polygon_face(self, points: list[Point2], plane: str) -> Any:
         return _FakeFace(points, plane)
+
+    def wire_face(self, edges: list, plane: str) -> Any:
+        return _FakeWireFace(edges, plane)
 
     def extrude(self, face: Any, distance: float) -> Any:
         return _FakeSolid(face, distance)
@@ -158,6 +175,8 @@ class FakeKernel(Kernel):
     def volume(self, solid: Any) -> float:
         if isinstance(solid, (_FakeCylinder, _FakeCombined)):
             return solid.volume_val
+        if isinstance(solid.face, _FakeWireFace):
+            return solid.face.area * solid.distance
         return _polygon_area(solid.face.points) * solid.distance
 
     def bounding_box(self, solid: Any) -> Bounds:
@@ -190,3 +209,68 @@ def _polygon_area(points: list[Point2]) -> float:
         x1, y1 = points[(i + 1) % n]
         total += x0 * y1 - x1 * y0
     return abs(total) / 2.0
+
+
+def _wire_ring(edges: list) -> list[Point2]:
+    """Ordered endpoint ring for a wire's bounds (circle -> its bbox corners)."""
+    if len(edges) == 1 and edges[0]["kind"] == "circle":
+        cx, cy = edges[0]["center"]
+        r = edges[0]["radius"]
+        return [(cx - r, cy - r), (cx + r, cy - r), (cx + r, cy + r), (cx - r, cy + r)]
+    return [edge["points"][0] for edge in edges]
+
+
+def _wire_face_area(edges: list) -> float:
+    """Area of a closed wire loop; arcs are tessellated so the bulge sign is correct."""
+    if len(edges) == 1 and edges[0]["kind"] == "circle":
+        return math.pi * edges[0]["radius"] ** 2
+    dense: list[Point2] = []
+    for edge in edges:
+        if edge["kind"] == "arc":
+            dense.extend(_arc_samples(edge["points"], 24)[:-1])
+        else:
+            dense.append(edge["points"][0])
+    return _polygon_area(dense)
+
+
+def _arc_samples(points: list, n: int) -> list[Point2]:
+    """Sample an arc (start, mid, end) into ``n`` points inclusive of both ends."""
+    (sx, sy), (mx, my), (ex, ey) = points
+    center = _circumcenter((sx, sy), (mx, my), (ex, ey))
+    if center is None:
+        return [(sx, sy), (ex, ey)]
+    cx, cy = center
+    r = math.hypot(sx - cx, sy - cy)
+    a0 = math.atan2(sy - cy, sx - cx)
+    am = math.atan2(my - cy, mx - cx)
+    a1 = math.atan2(ey - cy, ex - cx)
+    # unwrap so the sweep passes through the mid angle
+    am_u = _unwrap(a0, am)
+    a1_u = _unwrap(am_u, a1)
+    return [(cx + r * math.cos(a0 + (a1_u - a0) * i / (n - 1)),
+             cy + r * math.sin(a0 + (a1_u - a0) * i / (n - 1))) for i in range(n)]
+
+
+def _unwrap(reference: float, angle: float) -> float:
+    """Shift ``angle`` by multiples of 2pi to lie within pi of ``reference``."""
+    while angle - reference > math.pi:
+        angle -= 2.0 * math.pi
+    while angle - reference < -math.pi:
+        angle += 2.0 * math.pi
+    return angle
+
+
+def _circumcenter(a: Point2, b: Point2, c: Point2) -> Point2 | None:
+    """Circumcircle center of a,b,c; None for (near-)collinear points."""
+    ax, ay = a
+    bx, by = b
+    cx, cy = c
+    d = 2.0 * (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by))
+    if abs(d) < 1e-12:
+        return None
+    a2 = ax * ax + ay * ay
+    b2 = bx * bx + by * by
+    c2 = cx * cx + cy * cy
+    ux = (a2 * (by - cy) + b2 * (cy - ay) + c2 * (ay - by)) / d
+    uy = (a2 * (cx - bx) + b2 * (ax - cx) + c2 * (bx - ax)) / d
+    return (ux, uy)

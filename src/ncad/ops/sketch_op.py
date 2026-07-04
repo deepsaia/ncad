@@ -12,7 +12,9 @@ from typing import Any
 from ncad.kernel.kernel import Kernel, Point2
 from ncad.ops.build_issue import BuildIssue
 from ncad.ops.op_result import OpResult
+from ncad.sketch.entity_expander import EntityExpander
 from ncad.sketch.sketch_solver import SketchSolver
+from ncad.sketch.wire_orderer import WireOrderer
 
 
 class SketchOp:
@@ -68,16 +70,16 @@ class SketchOp:
         """Solve a constrained entity set and build a face from the closed wire."""
         feature_id = params["id"]
         plane = params.get("plane", "XY")
-        entities = params["entities"]
+        entities = EntityExpander().expand(params["entities"])
         constraints = params.get("constraints", [])
         result = self._solver.solve(entities, constraints, feature_id)
         if any(issue.level == "error" for issue in result.issues):
             return OpResult(shape=None, provenance={}, issues=result.issues)
-        ring, ring_error = _order_ring(entities, result.positions)
+        edges, ring_error = WireOrderer().order(entities, result.positions, result.radii)
         if ring_error is not None:
             return OpResult(shape=None, provenance={},
                             issues=[BuildIssue(node_id=feature_id, message=ring_error)])
-        face = kernel.polygon_face(ring, plane)
+        face = kernel.wire_face(edges, plane)
         return OpResult(shape=face, provenance={}, issues=result.issues)
 
     @staticmethod
@@ -95,33 +97,3 @@ class SketchOp:
         r = float(element["r"])
         return [(r * math.cos(2 * math.pi * i / sides), r * math.sin(2 * math.pi * i / sides))
                 for i in range(sides)]
-
-
-def _order_ring(entities: list[dict], positions: dict) -> tuple[list, str | None]:
-    """Order line endpoints into a single closed loop of (u, v) points.
-
-    Follows line connectivity: each line contributes an edge between two point ids; the
-    loop is the ordered vertex sequence. Returns ``(ordered_points, None)`` on success,
-    or ``([], message)`` when the lines do not form one closed loop (bucket 1.1 scope).
-    """
-    lines = [e for e in entities if e.get("type") == "line"]
-    if not lines:
-        return [], "sketch has no line entities to form a loop"
-    adjacency: dict = {}
-    for line in lines:
-        adjacency.setdefault(line["p1"], []).append(line["p2"])
-        adjacency.setdefault(line["p2"], []).append(line["p1"])
-    if any(len(neighbours) != 2 for neighbours in adjacency.values()):
-        return [], "sketch entities do not form a single closed loop"
-    start = lines[0]["p1"]
-    order = [start]
-    prev, current = None, start
-    while True:
-        nxt = next((n for n in adjacency[current] if n != prev), None)
-        if nxt is None or nxt == start:
-            break
-        order.append(nxt)
-        prev, current = current, nxt
-    if len(order) != len(adjacency):
-        return [], "sketch entities do not form a single closed loop"
-    return [positions[pid] for pid in order], None

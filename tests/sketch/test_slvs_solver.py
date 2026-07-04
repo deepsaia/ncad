@@ -72,3 +72,49 @@ def test_unknown_entity_reference_is_error():
 
     assert result.status == "inconsistent"
     assert any(i.node_id == "sk" for i in result.issues)
+
+
+def test_circle_with_radius_constraint_solves():
+    entities = [
+        {"id": "cp", "type": "point", "at": [0, 0]},
+        {"id": "c0", "type": "circle", "center": "cp", "radius": 5},
+    ]
+    constraints = [{"type": "radius", "of": "c0", "value": 10}]
+    result = SlvsSolver().solve(entities, constraints, "sk")
+    assert result.status in ("well_constrained", "under_constrained")
+    assert abs(result.radii["c0"] - 10.0) < 1e-6
+
+
+def test_arc_endpoints_are_equidistant_from_center():
+    import math
+    entities = [
+        {"id": "cen", "type": "point", "at": [0, 0]},
+        {"id": "s", "type": "point", "at": [10, 0]},
+        {"id": "e", "type": "point", "at": [0, 9]},
+        {"id": "arc", "type": "arc", "center": "cen", "start": "s", "end": "e"},
+    ]
+    constraints = [{"type": "distance", "points": ["cen", "s"], "value": 10}]
+    result = SlvsSolver().solve(entities, constraints, "sk")
+    (cx, cy) = result.positions["cen"]
+    (ex, ey) = result.positions["e"]
+    assert math.isclose(math.hypot(ex - cx, ey - cy), 10.0, abs_tol=1e-6)
+
+
+def test_conflicting_radius_is_inconsistent():
+    entities = [
+        {"id": "cp", "type": "point", "at": [0, 0]},
+        {"id": "c0", "type": "circle", "center": "cp", "radius": 5},
+    ]
+    constraints = [
+        {"type": "radius", "of": "c0", "value": 10},
+        {"type": "radius", "of": "c0", "value": 20},
+    ]
+    result = SlvsSolver().solve(entities, constraints, "sk")
+    assert result.status == "inconsistent"
+
+
+def test_unknown_circle_center_is_error():
+    entities = [{"id": "c0", "type": "circle", "center": "ghost", "radius": 5}]
+    result = SlvsSolver().solve(entities, [], "sk")
+    assert result.status == "inconsistent"
+    assert any(i.node_id == "sk" for i in result.issues)
