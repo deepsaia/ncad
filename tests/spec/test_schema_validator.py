@@ -58,3 +58,19 @@ def test_negative_extrude_distance_is_flagged() -> None:
     issues = SchemaValidator().validate(doc)
 
     assert issues != []
+
+
+def test_selector_string_edges_is_valid() -> None:
+    doc = {"schema_version": 1, "units": "mm", "parts": {"p": {
+        "profile": "solid", "features": [
+            {"id": "rnd", "op": "fillet", "radius": 1,
+             "edges": "select edges where created_by='pad'"}]}}}
+    assert SchemaValidator().validate(doc) == []
+
+
+def test_hole_on_field_is_valid() -> None:
+    doc = {"schema_version": 1, "units": "mm", "parts": {"p": {
+        "profile": "solid", "features": [
+            {"id": "h", "op": "hole", "diameter": 4, "depth": 5,
+             "positions": [[1, 1]], "on": "pad.cap(+Z)"}]}}}
+    assert SchemaValidator().validate(doc) == []
