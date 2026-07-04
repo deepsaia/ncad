@@ -47,7 +47,7 @@
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif;
     background: var(--bg); color: var(--text); -webkit-font-smoothing: antialiased;
     transition: background .2s ease, color .2s ease; }
-  #app { display: flex; width: 100%; height: 100%; overflow: hidden; }
+  #app { display: flex; width: 100%; height: 100%; overflow: hidden; position: relative; }
 
   /* --- Sidebar --- */
   #sidebar { width: 286px; flex: none; background: linear-gradient(180deg, var(--panel), var(--bg-2));
@@ -149,6 +149,10 @@
 
   /* --- Stage (3D viewport) --- */
   #stage { flex: 1 1 0; min-width: 0; position: relative; overflow: hidden; }
+  /* The canvas always fills the stage via CSS, so during the sidebar slide it scales
+     smoothly; the backing resolution is refit once when the transition ends (no
+     per-frame setSize, which would recreate the drawing buffer and look like a reload). */
+  #stage canvas { display: block; width: 100% !important; height: 100% !important; }
   canvas { display: block; }
   #spinner { position: absolute; inset: 0; display: flex; align-items: center;
     justify-content: center; color: var(--muted); font-size: 14px; pointer-events: none; }
@@ -203,8 +207,6 @@
   #vc-light:hover { color: #ffd166; border-color: #ffd166; }
   .vc-toggle[data-toggle="rotate"]:hover { color: #7cc4ff; border-color: #7cc4ff; }
   #vc-reset:hover { color: #ff8f6b; border-color: #ff8f6b; }
-  .vc-panel-toggle.active { color: var(--accent); border-color: var(--accent);
-    background: var(--accent-tint); }
   /* Lighting: cycle button + caret dropdown of icon options */
   .vc-light-wrap { position: relative; display: flex; }
   .vc-light-wrap #vc-light { border-top-right-radius: 0; border-bottom-right-radius: 0; }
@@ -241,20 +243,39 @@
     top .28s ease, bottom .28s ease; }
 
   /* --- Floating content panels (BOM, Plan): top-right, collapsible --- */
-  #panels { position: absolute; top: 16px; right: 16px; width: 300px;
-    display: flex; flex-direction: column; gap: 12px; }
-  .panel { background: var(--panel-strong); border: 1px solid var(--border);
-    border-radius: 12px; box-shadow: var(--shadow); backdrop-filter: blur(10px);
-    overflow: hidden; }
-  .panel-head { display: flex; align-items: center; gap: 8px; padding: 12px 14px;
-    cursor: pointer; user-select: none; }
-  .panel-head .title { font-size: 12px; font-weight: 700; text-transform: uppercase;
-    letter-spacing: 1px; }
-  .panel-head .chev { margin-left: auto; color: var(--muted); transition: transform .2s;
-    font-size: 12px; }
-  .panel.collapsed .panel-head .chev { transform: rotate(-90deg); }
-  .panel-body { padding: 0 14px 14px; max-height: 56vh; overflow: auto; }
-  .panel.collapsed .panel-body { display: none; }
+  /* --- Right sidebar (BOM / Plan / Hierarchy), collapsible with a drag separator ---
+     Width is a CSS variable so collapse can animate it to zero smoothly (display:none
+     cannot transition). The rail animates its own width in the opposite direction. */
+  :root { --rs-width: 320px; }
+  #right-resizer { flex: none; width: 3px; cursor: col-resize; background: transparent;
+    border-left: 1px solid var(--border); transition: background .15s; }
+  #right-resizer:hover, #right-resizer.dragging { background: #7cc4ff;
+    box-shadow: 0 0 8px 1px rgba(124, 196, 255, .6); }
+  #right-sidebar { flex: none; width: var(--rs-width); overflow: hidden;
+    background: linear-gradient(180deg, var(--panel), var(--bg-2));
+    border-left: 1px solid var(--border); display: flex; flex-direction: column;
+    min-width: 0; transition: width .25s ease; }
+  #right-sidebar .tabs { display: flex; border-bottom: 1px solid var(--border); flex: none;
+    padding-right: 34px; }
+  #right-sidebar .tab { flex: 1; font: inherit; font-size: 11px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .6px; color: var(--muted); background: none;
+    border: none; border-bottom: 2px solid transparent; padding: 11px 4px; cursor: pointer; }
+  #right-sidebar .tab:hover { color: var(--text); }
+  #right-sidebar .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  #right-sidebar .tab-head { display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+    flex: none; border-bottom: 1px solid var(--border); }
+  #right-sidebar .tab-head .grow { flex: 1; }
+  .rs-icon-btn { width: 26px; height: 24px; display: inline-flex; align-items: center;
+    justify-content: center; color: var(--muted); background: var(--panel-2);
+    border: 1px solid var(--border); border-radius: 7px; cursor: pointer; }
+  .rs-icon-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .rs-icon-btn.active { color: var(--accent); border-color: var(--accent); }
+  .tab-panel { display: none; flex: 1; overflow: auto; padding: 12px 14px; }
+  .tab-panel.active { display: block; }
+  #tab-plan.tab-panel { padding: 0; }
+  /* The plan SVG is drawn dark-on-white, so its container is white only when it holds
+     a plan; the empty/placeholder state uses the normal panel padding + theme colors. */
+  #tab-plan.tab-panel:not(.has-plan) { padding: 12px 14px; }
   .bom-row { display: flex; justify-content: space-between; align-items: baseline;
     font-size: 13px; padding: 7px 0; border-top: 1px solid var(--border); }
   .bom-row:first-child { border-top: none; }
@@ -262,8 +283,46 @@
   .bom-row .v { font-weight: 600; font-variant-numeric: tabular-nums; }
   .bom-row .u { color: var(--muted); font-weight: 400; font-size: 11px; margin-left: 3px; }
   .panel-empty { font-size: 12px; color: var(--muted); padding: 8px 0; }
-  #plan-body { padding: 12px; background: #ffffff; border-radius: 0 0 11px 11px; }
+  /* White backing only when a real plan SVG is present (see .has-plan on the tab). */
+  #tab-plan.has-plan #plan-body { padding: 12px; background: #ffffff; }
   #plan-body svg { width: 100%; height: auto; display: block; }
+
+  /* Collapsed rail: a narrow bar with a reopen icon at the top. Its width animates
+     from 0 so open/close slides smoothly alongside the sidebar. */
+  #right-rail { flex: none; width: 0; overflow: hidden; background: var(--panel);
+    border-left: 1px solid var(--border); display: flex; flex-direction: column;
+    align-items: center; padding-top: 8px; transition: width .25s ease; }
+  body.right-collapsed #right-sidebar { width: 0; border-left: none; }
+  body.right-collapsed #right-resizer { display: none; }
+  body.right-collapsed #right-rail { width: 30px; }
+  #right-rail .rail-label { writing-mode: vertical-rl; margin-top: 38px; font-size: 10px;
+    letter-spacing: 1px; text-transform: uppercase; color: var(--muted); user-select: none; }
+  /* One fixed toggle, always at the same top-right spot (the rail's rest position). */
+  #right-toggle { position: absolute; top: 8px; right: 3px; z-index: 6; background: var(--panel); }
+  #right-toggle svg { transition: transform .25s ease; }
+  #right-toggle.collapsed svg { transform: scaleX(-1); }
+
+  /* --- Blender-style hierarchy tree --- */
+  .tree-row { display: flex; align-items: center; gap: 5px; font-size: 12.5px;
+    padding: 2px 0; white-space: nowrap; color: var(--text); }
+  .tree-twist { width: 12px; flex: none; color: var(--muted); cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center; font-size: 9px; }
+  .tree-twist.leaf { visibility: hidden; }
+  .tree-ico { width: 15px; height: 15px; flex: none; color: var(--muted);
+    display: inline-flex; align-items: center; justify-content: center; }
+  .tree-ico.part { color: var(--accent-2); }
+  .tree-ico.feature { color: var(--accent); }
+  .tree-name { overflow: hidden; text-overflow: ellipsis; }
+  .tree-op { color: var(--muted); font-size: 11px; margin-left: 4px; }
+  .tree-children { margin-left: 12px; border-left: 1px solid var(--border);
+    padding-left: 4px; }
+  .tree-collapsed > .tree-children { display: none; }
+  #tab-hierarchy.hide-text .tree-name, #tab-hierarchy.hide-text .tree-op { display: none; }
+
+  /* --- Orientation gizmo (top-right of the viewport). 128px matches the ViewHelper's
+     fixed draw size; non-interactive (orientation readout only). --- */
+  #gizmo { position: absolute; top: 10px; right: 10px; width: 128px; height: 128px;
+    pointer-events: none; z-index: 5; }
 
   /* --- Info readout (sidebar footer) --- */
   #info { font-size: 12px; color: var(--muted); line-height: 1.8;
@@ -393,6 +452,11 @@
           <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>
           <span class="vc-label">Auto-rotate</span>
         </button>
+        <button class="vc-btn vc-toggle" data-toggle="freelook"
+                title="Free-look: off = revolve around vertical axis, on = full free-form tumble">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="9" ry="3.6"/><ellipse cx="12" cy="12" rx="3.6" ry="9"/></svg>
+          <span class="vc-label">Free-look</span>
+        </button>
         <button id="vc-reset" class="vc-btn" title="Reset view">
           <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l4-4 4 4M7 5v9a4 4 0 0 0 4 4h6"/></svg>
           <span class="vc-label">Reset view</span>
@@ -402,29 +466,50 @@
       <div class="vc-sep"></div>
 
       <div class="vc-group" id="vc-panels">
-        <button class="vc-btn vc-panel-toggle" data-panel="bom" title="BOM">
-          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>
-          <span class="vc-label">BOM</span>
-        </button>
-        <button class="vc-btn vc-panel-toggle" data-panel="plan" title="Plan">
-          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h18v16H3z"/><path d="M9 4v10h8M3 14h6M15 4v6"/></svg>
-          <span class="vc-label">Plan</span>
+        <button class="vc-btn vc-toggle" id="vc-sidebar-toggle" title="Data sidebar (BOM / Plan / Hierarchy)">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg>
+          <span class="vc-label">Sidebar</span>
         </button>
       </div>
     </div>
-    <div id="panels">
-      <section class="panel" id="bom" data-store="ncad.panel.bom" aria-label="BOM">
-        <header class="panel-head"><span class="title">BOM</span><span class="chev">▼</span></header>
-        <div class="panel-body" id="bom-body"><div class="panel-empty">select a model</div></div>
-      </section>
-      <section class="panel" id="plan" data-store="ncad.panel.plan" aria-label="Plan">
-        <header class="panel-head"><span class="title">Plan</span><span class="chev">▼</span></header>
-        <div class="panel-body" id="plan-body"><div class="panel-empty">select a model</div></div>
-      </section>
-    </div>
+
+    <div id="gizmo"></div>
     <div id="hint">drag to orbit · scroll to zoom · right-drag to pan</div>
     <div id="toast"></div>
   </main>
+
+  <div id="right-resizer" title="Drag to resize" aria-label="Resize data sidebar" role="separator"></div>
+
+  <aside id="right-sidebar">
+    <div class="tabs" role="tablist">
+      <button class="tab active" data-tab="hierarchy" role="tab">Hierarchy</button>
+      <button class="tab" data-tab="bom" role="tab">BOM</button>
+      <button class="tab" data-tab="plan" role="tab">Plan</button>
+    </div>
+    <div class="tab-head">
+      <span class="grow"></span>
+      <button id="tree-text-toggle" class="rs-icon-btn active" title="Toggle labels" hidden>
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V5h16v2M9 5v14M7 19h4"/></svg>
+      </button>
+    </div>
+    <div class="tab-panel active" id="tab-hierarchy" role="tabpanel">
+      <div id="hierarchy-body"><div class="panel-empty">select a model</div></div>
+    </div>
+    <div class="tab-panel" id="tab-bom" role="tabpanel">
+      <div id="bom-body"><div class="panel-empty">select a model</div></div>
+    </div>
+    <div class="tab-panel" id="tab-plan" role="tabpanel">
+      <div id="plan-body"><div class="panel-empty">select a model</div></div>
+    </div>
+  </aside>
+
+  <div id="right-rail"><span class="rail-label">Data</span></div>
+
+  <!-- Single collapse/expand control, pinned to a fixed spot (top-right) so it never
+       moves between the open and collapsed states. The chevron flips direction. -->
+  <button id="right-toggle" class="rs-icon-btn" title="Toggle data sidebar" aria-label="Toggle data sidebar">
+    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+  </button>
 </div>
 
 <script type="importmap">
@@ -437,7 +522,9 @@
 <script type="module">
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { TrackballControls } from "three/addons/controls/TrackballControls.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { ViewHelper } from "three/addons/helpers/ViewHelper.js";
 
 const stage = document.getElementById("stage");
 const spinner = document.getElementById("spinner");
@@ -458,9 +545,74 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 stage.appendChild(renderer.domElement);
 
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true;
-controls.dampingFactor = 0.08;
+// Orientation mode: "axis" keeps up-vector fixed and revolves around the vertical
+// axis (OrbitControls, good for grounded parts); "free" allows full trackball tumble
+// so the model can be overturned completely (TrackballControls). `controls` is
+// swapped between the two, preserving the camera position and orbit target.
+let controls = null;
+let orientationMode = "axis";
+let autoRotate = false;
+
+function makeControls(mode) {
+  if (mode === "free") {
+    const c = new TrackballControls(camera, renderer.domElement);
+    c.rotateSpeed = 3.0;
+    c.panSpeed = 0.8;
+    c.dynamicDampingFactor = 0.15;
+    return c;
+  }
+  const c = new OrbitControls(camera, renderer.domElement);
+  c.enableDamping = true;
+  c.dampingFactor = 0.08;
+  return c;
+}
+
+function setOrientationMode(mode) {
+  const target = controls ? controls.target.clone() : new THREE.Vector3(0, 0, 0);
+  if (controls) controls.dispose();
+  orientationMode = mode;
+  // TrackballControls tilts camera.up while tumbling; axis mode must restore world-up
+  // so OrbitControls behaves exactly as it did originally (revolve around vertical,
+  // still able to look up at the underside). Without this the locked-in view stays
+  // tilted after a free-look session.
+  if (mode === "axis") camera.up.set(0, 1, 0);
+  controls = makeControls(mode);
+  controls.target.copy(target);
+  // OrbitControls honors autoRotate; TrackballControls has no such option.
+  if (mode === "axis") controls.autoRotate = autoRotate;
+  controls.update();
+}
+
+setOrientationMode("axis");
+
+// --- Orientation gizmo (Blender-style ViewHelper), labeled in CAD Z-up ---
+// Models are authored Z-up but the glTF export lands them Y-up in the scene (a -90 deg
+// rotation about X: part Z -> viewport +Y, part X -> +X, part Y -> -Z). The ViewHelper
+// labels world axes X/Y/Z, so we feed it a proxy camera rotated by the inverse of that
+// export transform; its labels then read as the part's authored X/Y/Z (Z up).
+const gizmoDiv = document.getElementById("gizmo");
+const gizmoRenderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+gizmoRenderer.setPixelRatio(window.devicePixelRatio);
+gizmoRenderer.setSize(128, 128);
+gizmoRenderer.setClearColor(0x000000, 0);
+gizmoDiv.appendChild(gizmoRenderer.domElement);
+const gizmoCamera = new THREE.PerspectiveCamera(45, 1, 0.1, 10);
+// Inverse of the export tilt (+90 deg about X) maps viewport frame back to part frame.
+const PART_FROM_VIEWPORT = new THREE.Quaternion().setFromAxisAngle(
+  new THREE.Vector3(1, 0, 0), Math.PI / 2);
+// ViewHelper's labels are the fixed X/Y/Z (red/green/blue); our proxy camera remaps
+// the viewport frame to the part frame, so those labels read as the authored axes.
+const viewHelper = new ViewHelper(gizmoCamera, gizmoRenderer.domElement);
+
+function renderGizmo() {
+  // Proxy camera shares the main camera's distance/orientation, re-expressed in the
+  // part's authored frame, so the gizmo tumbles with the view and reads Z-up.
+  gizmoCamera.position.copy(camera.position).sub(controls.target)
+    .applyQuaternion(PART_FROM_VIEWPORT).setLength(3);
+  gizmoCamera.quaternion.copy(PART_FROM_VIEWPORT).multiply(camera.quaternion);
+  gizmoCamera.up.copy(camera.up).applyQuaternion(PART_FROM_VIEWPORT);
+  viewHelper.render(gizmoRenderer);
+}
 
 // Face picking: raycast against the model's mesh parts. build123d exports one glTF
 // primitive per face in face order, so a part's index into `pickParts` is its index
@@ -671,6 +823,7 @@ function loadModel(name) {
     .catch(() => { elementMap = null; });
   loadBom(name);
   loadPlan(name);
+  loadHierarchy(name);
 }
 
 // ---- Bill of materials panel ----
@@ -698,23 +851,154 @@ function loadBom(name) {
   }).catch(() => { body.innerHTML = '<div class="panel-empty">no BOM for this model</div>'; });
 }
 
-// Each floating panel collapses independently; state persists per panel in localStorage.
-// Open/close is entirely the user's choice.
-document.querySelectorAll(".panel").forEach(panel => {
-  const storeKey = panel.dataset.store + ".collapsed";
-  if (localStorage.getItem(storeKey) === "1") panel.classList.add("collapsed");
-  panel.querySelector(".panel-head").addEventListener("click", () => {
-    panel.classList.toggle("collapsed");
-    localStorage.setItem(storeKey, panel.classList.contains("collapsed") ? "1" : "0");
-  });
-});
-
 function loadPlan(name) {
   const body = document.getElementById("plan-body");
+  const tab = document.getElementById("tab-plan");
   fetch(`/api/plan/${name}`).then(r => r.ok ? r.text() : Promise.reject()).then(svg => {
     body.innerHTML = svg;
-  }).catch(() => { body.innerHTML = '<div class="panel-empty">no plan for this model</div>'; });
+    tab.classList.add("has-plan");
+  }).catch(() => {
+    body.innerHTML = '<div class="panel-empty">no plan for this model</div>';
+    tab.classList.remove("has-plan");
+  });
 }
+
+// ---- Hierarchy tab (Blender-style tree, non-interactive) ----
+const TREE_ICONS = {
+  part: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M12 3 20 7.5v9L12 21 4 16.5v-9L12 3Z"/><path d="M4 7.5 12 12l8-4.5M12 12v9"/></svg>',
+  feature: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M6 6l2 2M16 16l2 2M18 6l-2 2M8 16l-2 2"/></svg>',
+  element: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><rect x="5" y="5" width="14" height="14" rx="1.5"/></svg>',
+};
+
+function loadHierarchy(name) {
+  const body = document.getElementById("hierarchy-body");
+  fetch(`/api/hierarchy/${name}`).then(r => r.ok ? r.json() : Promise.reject()).then(tree => {
+    body.innerHTML = "";
+    body.appendChild(treeNode(tree));
+  }).catch(() => { body.innerHTML = '<div class="panel-empty">no hierarchy for this model</div>'; });
+}
+
+// Build one tree node (and its subtree). The twist toggles a node's children; leaves
+// hide the twist. Names/ops carry a class so the label toggle can hide them.
+function treeNode(node) {
+  const wrap = document.createElement("div");
+  wrap.className = "tree-node";
+  const row = document.createElement("div");
+  row.className = "tree-row";
+  const kids = node.children || [];
+  const twist = document.createElement("span");
+  twist.className = "tree-twist" + (kids.length ? "" : " leaf");
+  twist.textContent = "▼";
+  const ico = document.createElement("span");
+  ico.className = "tree-ico " + node.kind;
+  ico.innerHTML = TREE_ICONS[node.kind] || TREE_ICONS.element;
+  const label = node.name || node.id || "?";
+  row.innerHTML = "";
+  row.appendChild(twist);
+  row.appendChild(ico);
+  const nameEl = document.createElement("span");
+  nameEl.className = "tree-name"; nameEl.textContent = label;
+  row.appendChild(nameEl);
+  if (node.op) {
+    const opEl = document.createElement("span");
+    opEl.className = "tree-op"; opEl.textContent = node.op;
+    row.appendChild(opEl);
+  }
+  wrap.appendChild(row);
+  if (kids.length) {
+    const childWrap = document.createElement("div");
+    childWrap.className = "tree-children";
+    kids.forEach(c => childWrap.appendChild(treeNode(c)));
+    wrap.appendChild(childWrap);
+    twist.addEventListener("click", () => {
+      const collapsed = wrap.classList.toggle("tree-collapsed");
+      twist.textContent = collapsed ? "▶" : "▼";
+    });
+  }
+  return wrap;
+}
+
+// ---- Right sidebar: tabs, collapse (two toggles), label toggle, drag separator ----
+const rightTabs = document.querySelectorAll("#right-sidebar .tab");
+const treeTextToggle = document.getElementById("tree-text-toggle");
+function setTab(name) {
+  rightTabs.forEach(t => t.classList.toggle("active", t.dataset.tab === name));
+  document.querySelectorAll(".tab-panel").forEach(p =>
+    p.classList.toggle("active", p.id === "tab-" + name));
+  treeTextToggle.hidden = name !== "hierarchy";
+  localStorage.setItem("ncad.rs.tab", name);
+}
+rightTabs.forEach(t => t.addEventListener("click", () => setTab(t.dataset.tab)));
+setTab(localStorage.getItem("ncad.rs.tab") || "hierarchy");
+
+// Label toggle for the hierarchy (icons-only when off), persisted.
+function setTreeText(on) {
+  document.getElementById("tab-hierarchy").classList.toggle("hide-text", !on);
+  treeTextToggle.classList.toggle("active", on);
+  localStorage.setItem("ncad.rs.treetext", on ? "1" : "0");
+}
+treeTextToggle.addEventListener("click", () =>
+  setTreeText(!treeTextToggle.classList.contains("active")));
+setTreeText(localStorage.getItem("ncad.rs.treetext") !== "0");
+
+// Collapse/expand: the floating toggle flips state; the rail and header buttons are
+// explicit open/close. State persists.
+function setRightSidebar(open) {
+  document.body.classList.toggle("right-collapsed", !open);
+  document.getElementById("vc-sidebar-toggle").classList.toggle("active", open);
+  document.getElementById("right-toggle").classList.toggle("collapsed", !open);
+  localStorage.setItem("ncad.rs.open", open ? "1" : "0");
+  // The canvas stretches via CSS during the slide; refit the backing resolution once
+  // the width transition finishes (a single setSize, so no reload flicker).
+  setTimeout(fitRendererToStage, 280);
+}
+function toggleRightSidebar() {
+  setRightSidebar(document.body.classList.contains("right-collapsed"));
+}
+document.getElementById("vc-sidebar-toggle").addEventListener("click", toggleRightSidebar);
+document.getElementById("right-toggle").addEventListener("click", toggleRightSidebar);
+setRightSidebar(localStorage.getItem("ncad.rs.open") !== "0");
+
+// Draggable separator for the right sidebar width (persisted), mirroring the left one.
+const RIGHT_WIDTH_KEY = "ncad.rs.width";
+const rightResizerEl = document.getElementById("right-resizer");
+let rightWidth = 320;
+// Width lives in the --rs-width CSS variable so the collapse animation (width -> 0) and
+// the drag both drive the same property.
+function applyRightWidth(px) {
+  rightWidth = Math.max(220, Math.min(560, px));
+  document.documentElement.style.setProperty("--rs-width", rightWidth + "px");
+}
+const savedRightWidth = localStorage.getItem(RIGHT_WIDTH_KEY);
+if (savedRightWidth) applyRightWidth(parseFloat(savedRightWidth));
+rightResizerEl.addEventListener("pointerdown", ev => {
+  ev.preventDefault();
+  document.body.classList.add("resizing-sidebar");
+  rightResizerEl.classList.add("dragging");
+  // Suppress the width transition while dragging so it tracks the pointer 1:1.
+  document.getElementById("right-sidebar").style.transition = "none";
+  const onMove = e => {
+    // Sidebar is anchored to the right edge; width grows as the pointer moves left.
+    // The canvas stretches via CSS live; the backing buffer is refit on release.
+    applyRightWidth(window.innerWidth - e.clientX);
+  };
+  const onUp = () => {
+    document.body.classList.remove("resizing-sidebar");
+    rightResizerEl.classList.remove("dragging");
+    document.getElementById("right-sidebar").style.transition = "";
+    localStorage.setItem(RIGHT_WIDTH_KEY, rightWidth);
+    fitRendererToStage();
+    window.removeEventListener("pointermove", onMove);
+    window.removeEventListener("pointerup", onUp);
+  };
+  window.addEventListener("pointermove", onMove);
+  window.addEventListener("pointerup", onUp);
+});
+rightResizerEl.addEventListener("dblclick", () => {
+  applyRightWidth(320);
+  localStorage.removeItem(RIGHT_WIDTH_KEY);
+  fitRendererToStage();
+});
 
 // ---- swatches ----
 const swatchWrap = document.getElementById("swatches");
@@ -761,7 +1045,11 @@ function bindVcToggle(name, key, apply) {
 bindVcToggle("edges", "ncad.edges", v => { showEdges = v; applyMode(); });
 bindVcToggle("grid", "ncad.grid", v => { grid.visible = v; });
 bindVcToggle("shadow", "ncad.shadow", v => { castShadows = v; applyMode(); });
-bindVcToggle("rotate", "ncad.rotate", v => { controls.autoRotate = v; });
+bindVcToggle("rotate", "ncad.rotate", v => {
+  autoRotate = v;
+  if (orientationMode === "axis") controls.autoRotate = v;
+});
+bindVcToggle("freelook", "ncad.freelook", v => { setOrientationMode(v ? "free" : "axis"); });
 document.getElementById("vc-reset").addEventListener("click", () => { if (modelRoot) frameModel(); });
 
 // Restore the saved display mode (default solid). Buttons reflect it; applyMode on load.
@@ -805,21 +1093,6 @@ document.addEventListener("mousedown", ev => {
 });
 document.addEventListener("keydown", ev => { if (ev.key === "Escape") lightMenu.hidden = true; });
 applyLight();
-
-// ---- BOM + Plan panel toggles (persisted) ----
-function bindPanelToggle(name, key) {
-  const btn = document.querySelector('.vc-panel-toggle[data-panel="' + name + '"]');
-  const panel = document.getElementById(name);
-  function setShown(on) {
-    panel.style.display = on ? "" : "none";
-    btn.classList.toggle("active", on);
-    localStorage.setItem(key, on ? "1" : "0");
-  }
-  btn.addEventListener("click", () => setShown(panel.style.display === "none"));
-  setShown(localStorage.getItem(key) !== "0");  // shown by default
-}
-bindPanelToggle("bom", "ncad.vc.bom");
-bindPanelToggle("plan", "ncad.vc.plan");
 
 // Material swatches start hidden (solid is the default mode).
 syncMaterialBlock();
@@ -1103,6 +1376,8 @@ refreshModels().then(models => {
 function fitRendererToStage() {
   camera.aspect = stage.clientWidth / stage.clientHeight; camera.updateProjectionMatrix();
   renderer.setSize(stage.clientWidth, stage.clientHeight);
+  // TrackballControls caches the viewport rect and must be told when it changes.
+  if (controls && controls.handleResize) controls.handleResize();
 }
 
 window.addEventListener("resize", fitRendererToStage);
@@ -1153,6 +1428,7 @@ resizerEl.addEventListener("dblclick", () => {
   requestAnimationFrame(animate);
   controls.update();
   renderer.render(scene, camera);
+  renderGizmo();
 })();
 </script>
 </body>
