@@ -270,6 +270,8 @@
     border: 1px solid var(--border); border-radius: 7px; cursor: pointer; }
   .rs-icon-btn:hover { color: var(--accent); border-color: var(--accent); }
   .rs-icon-btn.active { color: var(--accent); border-color: var(--accent); }
+  /* A class-level display would otherwise override the HTML `hidden` attribute. */
+  .rs-icon-btn[hidden] { display: none; }
   .tab-panel { display: none; flex: 1; overflow: auto; padding: 12px 14px; }
   .tab-panel.active { display: block; }
   #tab-plan.tab-panel { padding: 0; }
