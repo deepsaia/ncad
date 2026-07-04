@@ -56,3 +56,25 @@ def test_open_loop_is_error():
     ]
     edges, err = WireOrderer().order(entities, {"p0": (0, 0), "p1": (10, 0)}, {})
     assert err is not None and edges == []
+
+
+def test_clockwise_loop_is_reoriented_counter_clockwise():
+    # points authored so the natural traversal is clockwise (negative signed area)
+    entities = [
+        {"id": "p0", "type": "point", "at": [0, 0]},
+        {"id": "p1", "type": "point", "at": [0, 10]},
+        {"id": "p2", "type": "point", "at": [10, 10]},
+        {"id": "p3", "type": "point", "at": [10, 0]},
+        {"id": "l0", "type": "line", "p1": "p0", "p2": "p1"},
+        {"id": "l1", "type": "line", "p1": "p1", "p2": "p2"},
+        {"id": "l2", "type": "line", "p1": "p2", "p2": "p3"},
+        {"id": "l3", "type": "line", "p1": "p3", "p2": "p0"},
+    ]
+    positions = {"p0": (0, 0), "p1": (0, 10), "p2": (10, 10), "p3": (10, 0)}
+    edges, err = WireOrderer().order(entities, positions, {})
+    assert err is None
+    # after reorientation the ring's signed area is positive (counter-clockwise)
+    ring = [e["points"][0] for e in edges]
+    area = sum(ring[i][0] * ring[(i + 1) % 4][1] - ring[(i + 1) % 4][0] * ring[i][1]
+               for i in range(4)) / 2.0
+    assert area > 0

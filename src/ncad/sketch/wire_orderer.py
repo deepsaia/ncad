@@ -68,6 +68,8 @@ class WireOrderer:
             current_edge = nxt
         if len(used) != len(edges):
             return [], "sketch entities do not form a single closed loop"
+        if _signed_area(ordered) < 0.0:
+            ordered = _reverse_loop(ordered)
         return ordered, None
 
     def _descriptor(self, edge: dict, from_point: str, to_point: str,
@@ -82,6 +84,31 @@ class WireOrderer:
         if err is not None:
             return {}, err
         return {"kind": "arc", "points": [start, mid, end]}, None
+
+
+def _signed_area(edges: list[dict]) -> float:
+    """Signed shoelace area over the loop's ordered edge start points (CCW positive)."""
+    ring = [edge["points"][0] for edge in edges]
+    total = 0.0
+    n = len(ring)
+    for i in range(n):
+        x0, y0 = ring[i]
+        x1, y1 = ring[(i + 1) % n]
+        total += x0 * y1 - x1 * y0
+    return total / 2.0
+
+
+def _reverse_loop(edges: list[dict]) -> list[dict]:
+    """Reverse a loop's direction so it winds counter-clockwise (a +Z face normal).
+
+    Each edge's point order is reversed (an arc keeps its mid point, swapping start/end),
+    and the edge sequence is reversed, so the loop is traversed the other way.
+    """
+    reversed_edges: list[dict] = []
+    for edge in reversed(edges):
+        pts = list(reversed(edge["points"]))
+        reversed_edges.append({**edge, "points": pts})
+    return reversed_edges
 
 
 def _endpoints(edge: dict) -> tuple[str, str]:
