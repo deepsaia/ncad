@@ -74,6 +74,17 @@ def _rect(id_, w, h):
             "elements": [{"id": "r", "type": "rectangle", "w": w, "h": h}]}
 
 
+def test_fillet_by_selector_resolves_edges() -> None:
+    part = {"profile": "solid", "features": [
+        _rect("sk", 40, 40),
+        {"id": "pad", "op": "extrude", "profile": "sk", "distance": 10},
+        {"id": "rnd", "op": "fillet", "radius": 2,
+         "edges": "select edges where created_by='pad' and orientation='vertical'"},
+    ]}
+    result = Builder(FakeKernel(), OpRegistry.with_defaults()).build_part(part)
+    assert result.issues == [] and result.shape is not None
+
+
 def test_unresolvable_reference_is_id_tagged_issue() -> None:
     part = {"profile": "solid", "features": [
         _rect("sk", 40, 40),
