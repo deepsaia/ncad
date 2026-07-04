@@ -66,3 +66,22 @@ def test_describe_elements_lists_six_box_faces_in_face_order() -> None:
         [round(g.center().Z, 3) for g in solid.faces()]
     top = [f for f in faces if round(f["normal"][2], 3) == 1.0]
     assert top and round(top[0]["max_z"], 3) == 5.0
+
+
+@pytest.mark.slow
+def test_version_reports_build123d_and_ocp() -> None:
+    v = Build123dKernel().version()
+    assert v.startswith("build123d=") and "ocp=" in v
+
+
+@pytest.mark.slow
+def test_signature_of_box_is_correct() -> None:
+    kernel = Build123dKernel()
+    solid = kernel.extrude(kernel.polygon_face([(0, 0), (10, 0), (10, 20), (0, 20)], "XY"), 5.0)
+
+    sig = kernel.signature(solid)
+
+    assert sig["counts"] == {"face": 6, "edge": 12, "vertex": 8}
+    assert sig["surface_types"] == {"plane": 6}
+    assert sig["volume"] == pytest.approx(10 * 20 * 5)
+    assert sig["cog"] == pytest.approx((5.0, 10.0, 2.5))
