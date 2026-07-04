@@ -304,6 +304,7 @@
       <div><b>Size</b> <span id="i-size">-</span></div>
       <div><b>Triangles</b> <span id="i-tris">-</span></div>
       <div><b>Meshes</b> <span id="i-meshes">-</span></div>
+      <div><b>Picked</b> <span id="i-picked">-</span></div>
     </div>
   </aside>
 
@@ -461,6 +462,25 @@ const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.dampingFactor = 0.08;
 
+// Face picking: raycast against the model's mesh parts. build123d exports one glTF
+// primitive per face in face order, so a part's index into `pickParts` is its index
+// into the element-map sidecar's `elements` array.
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
+renderer.domElement.addEventListener("click", ev => {
+  if (!modelRoot || !elementMap) return;
+  const rect = renderer.domElement.getBoundingClientRect();
+  pointer.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
+  pointer.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(pointer, camera);
+  const hits = raycaster.intersectObjects(pickParts, false);
+  const out = document.getElementById("i-picked");
+  if (!hits.length) { out.textContent = "-"; return; }
+  const idx = pickParts.indexOf(hits[0].object);
+  const el = (elementMap.elements || [])[idx];
+  out.textContent = el ? `${el.id} (by ${el.created_by})` : "-";
+});
+
 // Ambient base, always on; the rig below provides the directional/spot character.
 const ambient = new THREE.HemisphereLight(0xffffff, 0x2a3340, 0.45);
 scene.add(ambient);
@@ -580,11 +600,15 @@ function materialMat() {
 }
 
 let modelRoot = null, edges = [], mode = "solid", showEdges = true, castShadows = true;
+let pickParts = [], elementMap = null;
 const loader = new GLTFLoader();
 
 function clearModel() {
   if (modelRoot) { scene.remove(modelRoot); modelRoot = null; }
   edges.forEach(e => scene.remove(e)); edges = [];
+  pickParts = []; elementMap = null;
+  const picked = document.getElementById("i-picked");
+  if (picked) picked.textContent = "-";
 }
 
 function applyMode() {
@@ -625,6 +649,7 @@ function loadModel(name) {
     modelRoot.traverse(o => {
       if (o.isMesh) {
         meshes++;
+        pickParts.push(o);
         const geo = o.geometry;
         tris += (geo.index ? geo.index.count : geo.attributes.position.count) / 3;
         const line = new THREE.LineSegments(
@@ -640,6 +665,10 @@ function loadModel(name) {
     applyMode(); frameModel();
     spinner.style.display = "none";
   }, undefined, err => { spinner.textContent = "failed to load model"; console.error(err); });
+  fetch(`/api/elementmap/${name}`)
+    .then(r => r.ok ? r.json() : null)
+    .then(j => { elementMap = j; })
+    .catch(() => { elementMap = null; });
   loadBom(name);
   loadPlan(name);
 }
