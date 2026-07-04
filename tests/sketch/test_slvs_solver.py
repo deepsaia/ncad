@@ -118,3 +118,14 @@ def test_unknown_circle_center_is_error():
     result = SlvsSolver().solve(entities, [], "sk")
     assert result.status == "inconsistent"
     assert any(i.node_id == "sk" for i in result.issues)
+
+
+def test_constraint_error_surfaces_as_inconsistent():
+    entities = [
+        {"id": "p0", "type": "point", "at": [0, 0]},
+        {"id": "p1", "type": "point", "at": [10, 0]},
+    ]
+    constraints = [{"type": "distance", "points": ["p0", "p1"], "driven": True}]  # no id
+    result = SlvsSolver().solve(entities, constraints, "sk")
+    assert result.status == "inconsistent"
+    assert any(i.node_id == "sk" for i in result.issues)
