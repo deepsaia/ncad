@@ -26,6 +26,14 @@ is layered on. Demo-ability leads; breadth follows.
 
 ## Where we are
 
+**Progress: Phase 0 complete; Phase 1 in progress (buckets 1.1-1.2 done).** The general
+spine is proven end-to-end: feature-tree schema, op registry, build123d kernel, the
+reference/provenance model (semantic/generative/selector), incremental rebuild with a
+content-addressed cache, the §4a equality harness, delete/broken-ref handling + the TNP
+spike, and a Three.js viewer (pick-by-id, right data sidebar, orientation gizmo). The
+constraint solver (py-slvs/SolveSpace) is integrated with points/lines/arcs/circles +
+sugar shapes and a first constraint set. Next: the full constraint + dimension set (1.3).
+
 v1 proved the *pattern*: `spec >> build >> BOM >> view`, determinism, build123d/OCCT,
 HOCON+jsonschema, traversal BOM, the Three.js viewer, on the **building profile**
 (footprint >> rooms >> walls >> openings >> roof).
@@ -56,8 +64,8 @@ modeling, the domain profiles, CAM/PCB seams, and a plugin layer.
 
 | Phase | Theme | Track | Status |
 |-------|-------|-------|--------|
-| 0 | The general spine (sketch>>extrude>>hole>>fillet, refs+provenance) | core | `[ ]` |
-| 1 | 2D sketching & the constraint solver | core | `[ ]` |
+| 0 | The general spine (sketch>>extrude>>hole>>fillet, refs+provenance) | core | `[x]` |
+| 1 | 2D sketching & the constraint solver | core | `[~]` |
 | 2 | Core solid features (sketched + dress-up) | solid | `[ ]` |
 | 3 | Patterns, transforms, booleans, multibody | solid | `[ ]` |
 | 4 | Persistent-name layer + direct/synchronous modeling | core | `[ ]` |
@@ -73,7 +81,7 @@ modeling, the domain profiles, CAM/PCB seams, and a plugin layer.
 | 14 | Multibody dynamics · advanced surfacing · hardening | motion/surface | `[ ]` |
 | 15 | **CAM seam & first toolpaths** (process profile) `(A)` | cam | `[ ]` |
 | 16 | **PCB/ECAD seam & board-to-solid** (data-model profile) `(A)` | ecad | `[ ]` |
-| P | References/provenance · caching · viewer · testing · migration | cross-cutting | `[ ]` |
+| P | References/provenance · caching · viewer · testing · migration | cross-cutting | `[~]` |
 
 > **Buckets, not just phases.** Each phase below is decomposed into numbered
 > buckets (e.g. `0.1`, `0.2`), thin vertical slices, each with its own demo +
@@ -91,52 +99,52 @@ new code (see "Where we are"). **This is the exemplar of bucketed slicing**: eac
 bucket below ends in a viewable/inspectable result.
 
 **Bucket 0.1: First shape on screen** *(demo-first)*
-- [ ] Minimal **feature-tree schema** (`schema/part_schema.hocon`): `parameters`,
+- [x] Minimal **feature-tree schema** (`schema/part_schema.hocon`): `parameters`,
       `datums`, `parts[features]`, stable `id`, `schema_version`, `profile`
       (default `solid`), only enough for a sketch + extrude
-- [ ] **Op registry** (`ops`): `feature_ops[op]` dispatch; uniform pure signature
+- [x] **Op registry** (`ops`): `feature_ops[op]` dispatch; uniform pure signature
       `(shape_in, params, prov_in) >> (shape_out, prov_out, issues)`
-- [ ] Ops `sketch` (rectangle) + `extrude`; general **kernel** interface v0 over
+- [x] Ops `sketch` (rectangle) + `extrude`; general **kernel** interface v0 over
       build123d
-- [ ] **glTF export**; the `nv` viewer shows the extruded block
+- [x] **glTF export**; the `nv` viewer shows the extruded block
 - **Demo:** author a rectangle+extrude HOCON >> `ncad build` >> block appears in `nv`.
 - **Gate:** a hand-authored document renders in the viewer.
 
 **Bucket 0.2: The everyday ops + expressions**
-- [ ] Ops `pocket`, `hole`, `fillet`, `chamfer`, `boolean`; sketch `circle`/`polygon`
-- [ ] **Expression layer** (`params`): `${ref}` + arithmetic + registered-function
+- [x] Ops `pocket`, `hole`, `fillet`, `chamfer`, `boolean`; sketch `circle`/`polygon`
+- [x] **Expression layer** (`params`): `${ref}` + arithmetic + registered-function
       calls; restricted-AST safe evaluator; units-aware (design §1, Q3)
 - **Demo:** the bracket (rect >> extrude >> 4 holes via a `margin = ${hole_d}*1.5`
       expression >> edge fillet) builds and renders.
 - **Gate:** the boring bracket builds from a parametric document.
 
 **Bucket 0.3: References, provenance & selection**
-- [ ] **Reference resolver v0** (`refs`): semantic + generative + selector refs
-- [ ] The **provenance map** (output element >> producing feature/op), threaded
+- [x] **Reference resolver v0** (`refs`): semantic + generative + selector refs
+- [x] The **provenance map** (output element >> producing feature/op), threaded
       through every op's signature
-- [ ] **Element-map sidecar** on glTF; viewer **picks/selects by `id`**
+- [x] **Element-map sidecar** on glTF; viewer **picks/selects by `id`**
 - **Demo:** click a face in `nv` >> it reports the feature `id` that made it;
       `hole on pad.cap(+Z)` resolves via provenance.
 - **Gate:** generative + selector references resolve; picking reports semantic ids.
 
 **Bucket 0.4: Incremental rebuild & determinism**
-- [ ] **Executor** (`build`): rebuild DAG, topological order, per-feature
+- [x] **Executor** (`build`): rebuild DAG, topological order, per-feature
       validation gate
-- [ ] **Content-addressed cache** keyed on `hash(subtree+params)` + pinned kernel
+- [x] **Content-addressed cache** keyed on `hash(subtree+params)` + pinned kernel
       version (design §4a); dirty-suffix re-execution
-- [ ] **Equality harness** (design §4a): topology signature + toleranced measures,
+- [x] **Equality harness** (design §4a): topology signature + toleranced measures,
       the golden comparator (not BREP bytes)
-- [ ] Golden tests: same document >> equal geometry; **edit-a-param** >>
+- [x] Golden tests: same document >> equal geometry; **edit-a-param** >>
       correct incremental rebuild
 - **Demo:** change `thickness`, only the dirty suffix rebuilds; golden equality holds.
 - **Gate:** editing a parameter yields a correct incremental rebuild against the
       §4a equality definition.
 
 **Bucket 0.5: Delete-a-feature, broken refs, and the TNP spike**
-- [ ] **Delete/insert/reorder** features >> correct incremental rebuild
-- [ ] **Broken-reference reporting:** an unresolvable ref is attributed to its `id`
+- [x] **Delete/insert/reorder** features >> correct incremental rebuild
+- [x] **Broken-reference reporting:** an unresolvable ref is attributed to its `id`
       (id-tagged issue), never silent garbage
-- [ ] **TNP spike** (design §2): a *minimal generative element-map* proven on the
+- [x] **TNP spike** (design §2): a *minimal generative element-map* proven on the
       bracket: a fillet's edge reference survives a parameter edit and an upstream
       feature delete, or fails loudly by `id`. Proves the persistent-name approach
       before Phase 4 hardens it.
@@ -151,30 +159,50 @@ bucket below ends in a viewable/inspectable result.
 
 ## Phase 1: 2D sketching & the constraint solver
 
-**Goal:** "Blender-like expressivity, but exact." Reuse a solver; never write a
-GCS. **Depends on** Phase 0.
+**Goal:** "Blender-like expressivity, but exact." Reuse a solver (`py-slvs` /
+SolveSpace, adopted); never write a GCS. **Depends on** Phase 0. Decomposed into
+five buckets; the phase gate is the 1.5 gate.
 
-- [ ] **Solver integration** (`py-slvs` / SolveSpace; `planegcs` fallback):
-      solve entity+constraint set >> positions; expose DoF status, conflict &
-      redundancy as id-tagged issues
-- [ ] **Geometry entities:** point, line, polyline, rectangle, circle, arc
-      (center / 3-point / tangent), ellipse + elliptical arc, conic
-      (parabola/hyperbola), **spline** (interpolated, control-point/B-spline, fit),
-      slot, regular polygon, text >> wires, construction/reference geometry
+**Bucket 1.1: Solver seam + first constrained sketch** `[x]`
+- [x] **Solver seam:** `SketchSolver` ABC + `SlvsSolver` (py-slvs); solve in 2D,
+      expose DoF/conflict/redundancy as id-tagged issues (`BuildIssue` gained a
+      `level`: under-constrained is a warning, not a failure)
+- [x] Entities `point`, `line`; constraints `coincident`, `horizontal`, `vertical`,
+      `distance`; additive `entities`+`constraints` schema alongside primitive `elements`
+- **Gate:** a constrained line profile solves and extrudes; over/under-constrained
+      reports cleanly. **(done)**
+
+**Bucket 1.2: The full entity vocabulary** `[x]`
+- [x] First-class `arc` and `circle` entities + `radius` constraint; `polyline`/`slot`/
+      regular-`polygon` sugar lowered by `EntityExpander`; `WireOrderer` orders mixed
+      line/arc loops (CCW-reoriented so pockets cut correctly); `kernel.wire_face`
+- **Gate:** a profile mixing lines + arcs + a circle solves and builds. **(done)**
+
+**Bucket 1.3: The full constraint vocabulary + dimensions** `[ ]`
+- [ ] **Geometric constraints:** collinear, concentric, parallel, perpendicular,
+      tangent, equal, symmetric, midpoint, point-on-entity, fix/ground
+- [ ] **Dimensional constraints:** angle, arc-length, diameter (radius shipped in 1.2);
+      **driven vs driving** dimensions (driven = read from geometry, not solved)
+- **Gate:** a fully-constrained dimensioned profile drives a feature; driven dims read back.
+
+**Bucket 1.4: Reference-into-sketch + sketch modify** `[ ]`
 - [ ] **Reference-into-sketch:** project / convert 3D edges & vertices onto the
       sketch plane; intersection curves
-- [ ] **Sketch modify:** trim, extend, split, corner fillet, corner chamfer,
-      offset, mirror, scale, move/rotate, sketch pattern (linear/circular)
-- [ ] **Geometric constraints:** coincident, collinear, concentric, parallel,
-      perpendicular, horizontal, vertical, tangent, equal, symmetric, midpoint,
-      point-on-entity, fix/ground, smooth (G2 spline)
-- [ ] **Dimensional constraints:** distance, horizontal/vertical distance, radius,
-      diameter, angle, arc-length; **driven vs driving** dimensions (driven = read
-      from geometry, not solved)
-- [ ] Sketch status surfaced in viewer (under/fully/over-constrained)
+- [ ] **Sketch modify:** trim, extend, split, corner fillet, corner chamfer, offset,
+      mirror, scale, move/rotate, sketch pattern (linear/circular)
+- **Gate:** a sketch that projects a prior face edge and offsets it builds.
 
-**Gate:** an over/under-constrained sketch solves or reports cleanly; a
-fully-constrained profile drives a downstream feature.
+**Bucket 1.5: Sketch status in the viewer (Phase 1 gate)** `[ ]`
+- [ ] Under/fully/over-constrained status + conflict highlighting surfaced in `nv`
+- **Gate (Phase 1):** an over/under-constrained sketch solves or reports cleanly; a
+      fully-constrained profile drives a downstream feature.
+
+> **Deferred within Phase 1** (scoped out of 1.1/1.2, land in the buckets above or a
+> later 1.x): **ellipse + elliptical arc**, **conic** (parabola/hyperbola), **spline**
+> (interpolated / control-point / B-spline / fit) and the **smooth (G2)** spline
+> constraint, **text**, and **construction/reference** geometry are a later entity
+> bucket (1.6); **multi-loop sketches / holes-in-one-sketch** stay deferred (holes come
+> from pocket/hole ops); tangent/equal/etc land in 1.3.
 
 ---
 
@@ -607,21 +635,23 @@ lowering), Phase 13 (interchange). Built late; the seam is designed from Phase 0
 
 Run alongside the phases, not after them:
 
-- [ ] **References & provenance maturity**: from selector + a generative
-      element-map **spike** (bucket 0.5) to a robust persistent-name layer
-      (Phase 4); the single most important track
-- [ ] **Performance & caching**: content-addressed cache keyed on subtree +
-      pinned kernel (bucket 0.4, design §4a) >> incremental everywhere >>
-      large-assembly budget (Phase 12)
-- [ ] **Viewer capabilities**: pick/select (0) >> measure >> motion playback (6) >>
-      PMI/saved views (8) >> sectioning (12) >> CAM toolpath preview (15)
-- [ ] **Testing & golden**: the §4a **equality harness** (topology signature +
-      toleranced measures, *not* BREP bytes) from bucket 0.4; incremental-rebuild
-      goldens; per-feature failure goldens; STEP round-trip goldens
+- [~] **References & provenance maturity**: selector + generative element-map
+      **spike** shipped (buckets 0.3/0.5); the robust persistent-name layer (Phase 4)
+      is still ahead. The single most important track.
+- [~] **Performance & caching**: content-addressed cache keyed on subtree + pinned
+      kernel shipped (bucket 0.4, design §4a); incremental rebuild live. Large-assembly
+      budget (Phase 12) ahead.
+- [~] **Viewer capabilities**: pick/select shipped (0.3), plus the right data sidebar
+      (Hierarchy/BOM/Plan), orientation gizmo, free-look. Next: measure >> motion
+      playback (6) >> PMI/saved views (8) >> sectioning (12) >> CAM preview (15).
+- [~] **Testing & golden**: the §4a **equality harness** (topology signature +
+      toleranced measures, *not* BREP bytes) shipped (bucket 0.4); golden equality
+      tuples + fast/slow gate examples per bucket. Ahead: per-feature failure goldens,
+      STEP round-trip goldens.
 - [ ] **Versioning & migration**: `schema_version` per domain + migration
       converters + "upgrade this design?" prompt (design §14, Q6); keep the
       registry small and tested
-- [ ] **Docs**: keep `design.md` (architecture) and this file (catalogue) in sync;
+- [~] **Docs**: keep `design.md` (architecture) and this file (catalogue) in sync;
       author-facing HOCON reference per profile
 
 ---
