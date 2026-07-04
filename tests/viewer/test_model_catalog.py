@@ -101,3 +101,11 @@ def test_resolve_elementmap(tmp_path) -> None:
     catalog = ModelCatalog(str(tmp_path))
     assert catalog.resolve_elementmap("m.glb") is not None
     assert catalog.resolve_elementmap("missing.glb") is None
+
+
+def test_resolve_hierarchy(tmp_path) -> None:
+    (tmp_path / "m.glb").write_bytes(b"x")
+    (tmp_path / "m.hierarchy.json").write_text("{}")
+    catalog = ModelCatalog(str(tmp_path))
+    assert catalog.resolve_hierarchy("m.glb") is not None
+    assert catalog.resolve_hierarchy("missing.glb") is None

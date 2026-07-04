@@ -10,6 +10,7 @@ import logging
 import os
 
 from ncad.build.builder import Builder
+from ncad.build.hierarchy_builder import HierarchyBuilder
 from ncad.kernel.kernel import Kernel
 from ncad.ops.op_registry import OpRegistry
 from ncad.ops.op_result import OpResult
@@ -23,6 +24,7 @@ from ncad.spec.spec_loader import SpecLoader
 logger = logging.getLogger(__name__)
 
 _ELEMENTMAP_SUFFIX = ".elementmap.json"
+_HIERARCHY_SUFFIX = ".hierarchy.json"
 
 
 class DocumentBuilder:
@@ -34,6 +36,7 @@ class DocumentBuilder:
         self._builder = Builder(kernel, OpRegistry.with_defaults())
         self._validator = SchemaValidator()
         self._id_validator = FeatureIdValidator()
+        self._hierarchy = HierarchyBuilder()
         self._loader = SpecLoader()
         self._resolver = ParamResolver(FunctionRegistry.with_defaults())
 
@@ -74,6 +77,7 @@ class DocumentBuilder:
             glb_path = os.path.join(out_dir, f"{name}.glb")
             self._kernel.export(result.shape, glb_path)
             self._write_element_map(element_map, out_dir, name)
+            self._write_hierarchy(part, out_dir, name)
             artifacts[name] = glb_path
         return artifacts
 
@@ -114,4 +118,11 @@ class DocumentBuilder:
                    "elements": element_map.to_sidecar()}
         with open(path, "w", encoding="utf-8") as handle:
             json.dump(payload, handle)
+        return path
+
+    def _write_hierarchy(self, part: dict, out_dir: str, name: str) -> str:
+        """Write ``<name>.hierarchy.json`` (the display feature tree) and return its path."""
+        path = os.path.join(out_dir, f"{name}{_HIERARCHY_SUFFIX}")
+        with open(path, "w", encoding="utf-8") as handle:
+            json.dump(self._hierarchy.hierarchy(name, part), handle)
         return path
