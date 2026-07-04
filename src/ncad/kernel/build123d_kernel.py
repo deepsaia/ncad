@@ -65,6 +65,13 @@ class Build123dKernel(Kernel):
         face_plane = Plane(origin=origin, z_dir=basis.z_dir)  # pyrefly: ignore[no-matching-overload]
         return Face(Wire(Edge.make_circle(diameter / 2.0, face_plane)))
 
+    def wire_face(self, edges: list, plane: str) -> Any:
+        if plane not in _PLANES:
+            raise ValueError(f"plane must be one of {tuple(_PLANES)}, got {plane!r}")
+        basis = _PLANES[plane]
+        occ_edges = [_build_edge(edge, basis) for edge in edges]
+        return Face(Wire(occ_edges))
+
     def cylinder(self, center: Point3, axis: str, diameter: float, length: float) -> Any:
         if axis not in _AXES:
             raise ValueError(f"axis must be one of {tuple(_AXES)}, got {axis!r}")
@@ -269,6 +276,28 @@ def _geom_name(shape: Any) -> str:
         return "other"
     name = getattr(geom_type, "name", str(geom_type))
     return str(name).lower()
+
+
+def _build_edge(edge: dict, basis: Any) -> Any:
+    """Build a build123d Edge from a sketch edge descriptor on the ``basis`` plane."""
+    kind = edge["kind"]
+    if kind == "line":
+        (ax, ay), (bx, by) = edge["points"]
+        a = basis.from_local_coords(Vector(ax, ay, 0))
+        b = basis.from_local_coords(Vector(bx, by, 0))
+        return Edge.make_line(a, b)  # pyrefly: ignore[bad-argument-type]
+    if kind == "arc":
+        (sx, sy), (mx, my), (ex, ey) = edge["points"]
+        start = basis.from_local_coords(Vector(sx, sy, 0))
+        mid = basis.from_local_coords(Vector(mx, my, 0))
+        end = basis.from_local_coords(Vector(ex, ey, 0))
+        return Edge.make_three_point_arc(start, mid, end)  # pyrefly: ignore[bad-argument-type]
+    if kind == "circle":
+        cx, cy = edge["center"]
+        origin = basis.from_local_coords(Vector(cx, cy, 0))
+        face_plane = Plane(origin=origin, z_dir=basis.z_dir)  # pyrefly: ignore[no-matching-overload]
+        return Edge.make_circle(edge["radius"], face_plane)
+    raise ValueError(f"unknown sketch edge kind {kind!r}")
 
 
 def _type_histogram(shapes: list) -> dict:

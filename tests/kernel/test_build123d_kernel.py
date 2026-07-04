@@ -85,3 +85,26 @@ def test_signature_of_box_is_correct() -> None:
     assert sig["surface_types"] == {"plane": 6}
     assert sig["volume"] == pytest.approx(10 * 20 * 5)
     assert sig["cog"] == pytest.approx((5.0, 10.0, 2.5))
+
+
+@pytest.mark.slow
+def test_wire_face_mixed_line_and_arc_is_valid() -> None:
+    kernel = Build123dKernel()
+    edges = [
+        {"kind": "line", "points": [(0.0, 0.0), (20.0, 0.0)]},
+        {"kind": "arc", "points": [(20.0, 0.0), (25.0, 5.0), (20.0, 10.0)]},
+        {"kind": "line", "points": [(20.0, 10.0), (0.0, 10.0)]},
+        {"kind": "line", "points": [(0.0, 10.0), (0.0, 0.0)]},
+    ]
+    solid = kernel.extrude(kernel.wire_face(edges, "XY"), 5.0)
+    assert kernel.volume(solid) > 0
+
+
+@pytest.mark.slow
+def test_wire_face_circle_is_valid() -> None:
+    import math
+
+    kernel = Build123dKernel()
+    solid = kernel.extrude(
+        kernel.wire_face([{"kind": "circle", "center": (0.0, 0.0), "radius": 6.0}], "XY"), 3.0)
+    assert kernel.volume(solid) == pytest.approx(math.pi * 36.0 * 3.0, rel=1e-3)

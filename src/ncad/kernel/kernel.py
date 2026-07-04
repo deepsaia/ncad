@@ -37,6 +37,16 @@ class Kernel(ABC):
         """A circular planar face of ``diameter`` centred at ``center`` on ``plane``."""
 
     @abstractmethod
+    def wire_face(self, edges: list, plane: str) -> Any:
+        """A planar face from an ordered list of edge descriptors on ``plane``.
+
+        Each edge is ``{"kind":"line","points":[a,b]}``,
+        ``{"kind":"arc","points":[start,mid,end]}`` (a 3-point arc), or
+        ``{"kind":"circle","center":c,"radius":r}`` (a full closed circle, its own loop).
+        Used by constrained sketches whose profiles mix straight and curved edges.
+        """
+
+    @abstractmethod
     def cylinder(self, center: Point3, axis: str, diameter: float, length: float) -> Any:
         """A solid cylinder of ``diameter`` and ``length`` from ``center`` along ``axis``."""
 
