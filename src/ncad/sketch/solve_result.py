@@ -6,16 +6,20 @@ issues (an inconsistent solve reports errors; an under-constrained solve reports
 warning). Returned by every SketchSolver so the SketchOp is solver-agnostic.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from ncad.ops.build_issue import BuildIssue
 
 
 @dataclass(frozen=True)
 class SolveResult:
-    """Solved positions and status for a sketch."""
+    """Solved positions and status for a sketch.
+
+    :ivar radii: Solved radius per circle/arc entity id (empty for line-only sketches).
+    """
 
     positions: dict[str, tuple[float, float]]
     dof: int
     status: str
     issues: list[BuildIssue]
+    radii: dict[str, float] = field(default_factory=dict)
