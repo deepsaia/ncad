@@ -85,6 +85,17 @@ def test_fillet_by_selector_resolves_edges() -> None:
     assert result.issues == [] and result.shape is not None
 
 
+def test_generative_cap_ref_on_hole_resolves() -> None:
+    part = {"profile": "solid", "features": [
+        _rect("sk", 40, 40),
+        {"id": "pad", "op": "extrude", "profile": "sk", "distance": 10},
+        {"id": "h", "op": "hole", "on": "pad.cap(+Z)", "diameter": 4,
+         "depth": 5, "positions": [[10, 10]]},
+    ]}
+    result = Builder(FakeKernel(), OpRegistry.with_defaults()).build_part(part)
+    assert result.issues == [] and result.shape is not None
+
+
 def test_unresolvable_reference_is_id_tagged_issue() -> None:
     part = {"profile": "solid", "features": [
         _rect("sk", 40, 40),

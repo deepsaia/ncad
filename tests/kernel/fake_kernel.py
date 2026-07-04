@@ -29,9 +29,11 @@ class _FakeSolid:
 
 
 class _FakeCylinder:
-    """A cylinder tool: volume = pi r^2 * length."""
+    """A cylinder tool: volume = pi r^2 * length; records its placement for assertions."""
 
-    def __init__(self, diameter: float, length: float) -> None:
+    def __init__(self, center: Point3, axis: str, diameter: float, length: float) -> None:
+        self.center = center
+        self.axis = axis
         self.volume_val = math.pi * (diameter / 2.0) ** 2 * length
 
 
@@ -65,7 +67,7 @@ class FakeKernel(Kernel):
         return _FakeFace(pts, plane)
 
     def cylinder(self, center: Point3, axis: str, diameter: float, length: float) -> Any:
-        return _FakeCylinder(diameter, length)
+        return _FakeCylinder(center, axis, diameter, length)
 
     def cut(self, solid: Any, tools: list) -> Any:
         # Cutting keeps the outer bounds of the solid being drilled/pocketed.
