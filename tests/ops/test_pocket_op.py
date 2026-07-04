@@ -16,8 +16,8 @@ def test_pocket_cuts_from_solid() -> None:
     solid = kernel.extrude(base_face, 8.0)
     tool_face = SketchOp().build(None, _rect("cut", 20, 20), {}, kernel).shape
 
-    feature = {"id": "pkt", "op": "pocket", "profile": "cut", "distance": 8.0,
-               "__shapes__": {"cut": tool_face}}
+    feature = {"id": "pkt", "op": "pocket", "distance": 8.0,
+               "__refs__": {"profile": tool_face}}
     result = PocketOp().build(solid, feature, {}, kernel)
 
     assert result.issues == []
@@ -27,8 +27,8 @@ def test_pocket_cuts_from_solid() -> None:
 def test_pocket_without_solid_reports_issue() -> None:
     kernel = FakeKernel()
     tool_face = SketchOp().build(None, _rect("cut", 20, 20), {}, kernel).shape
-    feature = {"id": "pkt", "op": "pocket", "profile": "cut", "distance": 8.0,
-               "__shapes__": {"cut": tool_face}}
+    feature = {"id": "pkt", "op": "pocket", "distance": 8.0,
+               "__refs__": {"profile": tool_face}}
 
     result = PocketOp().build(None, feature, {}, kernel)
 
