@@ -48,6 +48,8 @@ definitions {
         type = array
         items = ${definitions.sketch_element}
       }
+      entities { type = array, items { type = object } }
+      constraints { type = array, items { type = object } }
       profile { type = string }
       distance { type = number, exclusiveMinimum = 0 }
       positions { type = array, items = ${definitions.vec2} }
