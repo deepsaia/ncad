@@ -110,6 +110,32 @@ class FakeKernel(Kernel):
             infos.append({"edge": object(), "orientation": "horizontal", "mid_z": minz})
         return infos
 
+    def describe_elements(self, solid: Any) -> list:
+        (minx, miny, minz), (maxx, maxy, maxz) = self.bounding_box(solid)
+        faces = [
+            _box_face((minx + maxx) / 2, (miny + maxy) / 2, maxz, (0.0, 0.0, 1.0),
+                      (maxx - minx) * (maxy - miny), maxz),
+            _box_face((minx + maxx) / 2, (miny + maxy) / 2, minz, (0.0, 0.0, -1.0),
+                      (maxx - minx) * (maxy - miny), minz),
+            _box_face((minx + maxx) / 2, miny, (minz + maxz) / 2, (0.0, -1.0, 0.0),
+                      (maxx - minx) * (maxz - minz), (minz + maxz) / 2),
+            _box_face((minx + maxx) / 2, maxy, (minz + maxz) / 2, (0.0, 1.0, 0.0),
+                      (maxx - minx) * (maxz - minz), (minz + maxz) / 2),
+            _box_face(minx, (miny + maxy) / 2, (minz + maxz) / 2, (-1.0, 0.0, 0.0),
+                      (maxy - miny) * (maxz - minz), (minz + maxz) / 2),
+            _box_face(maxx, (miny + maxy) / 2, (minz + maxz) / 2, (1.0, 0.0, 0.0),
+                      (maxy - miny) * (maxz - minz), (minz + maxz) / 2),
+        ]
+        edges = []
+        for info in self.edges_of(solid):
+            edges.append({
+                "kind": "edge", "handle": info["edge"], "geom_type": "line",
+                "length": 0.0, "center": (0.0, 0.0, info["mid_z"]),
+                "orientation": info["orientation"],
+                "min_z": info["mid_z"], "mid_z": info["mid_z"], "max_z": info["mid_z"],
+            })
+        return faces + edges
+
     def volume(self, solid: Any) -> float:
         if isinstance(solid, (_FakeCylinder, _FakeCombined)):
             return solid.volume_val
@@ -125,6 +151,15 @@ class FakeKernel(Kernel):
 
     def export(self, solid: Any, path: str) -> None:
         raise NotImplementedError("FakeKernel does not export geometry")
+
+
+def _box_face(cx: float, cy: float, cz: float, normal: Point3, area: float,
+              z: float) -> dict:
+    """A synthetic planar face descriptor for the FakeKernel's axis-aligned bounds."""
+    return {
+        "kind": "face", "handle": object(), "geom_type": "planar", "normal": normal,
+        "area": area, "center": (cx, cy, cz), "min_z": z, "mid_z": z, "max_z": z,
+    }
 
 
 def _polygon_area(points: list[Point2]) -> float:

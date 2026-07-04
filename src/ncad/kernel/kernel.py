@@ -65,6 +65,17 @@ class Kernel(ABC):
         """List edge descriptors ``{"edge", "orientation", "mid_z"}`` for ``solid``."""
 
     @abstractmethod
+    def describe_elements(self, solid: Any) -> list:
+        """Describe the faces and edges of ``solid`` for the reference model.
+
+        Returns face descriptors first (in the backend's native face order, which the
+        glTF exporter mirrors as mesh-part order), then edge descriptors. Face dict:
+        ``{"kind":"face","handle","geom_type","normal","area","center","min_z","mid_z",
+        "max_z"}``. Edge dict: ``{"kind":"edge","handle","geom_type","length","center",
+        "orientation","min_z","mid_z","max_z"}``.
+        """
+
+    @abstractmethod
     def volume(self, solid: Any) -> float:
         """Volume of ``solid`` in cubic (internal-unit) units."""
 

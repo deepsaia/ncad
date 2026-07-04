@@ -51,3 +51,18 @@ def test_cut_and_fillet_on_real_kernel() -> None:
     vertical = [e["edge"] for e in kernel.edges_of(drilled) if e["orientation"] == "vertical"]
     rounded = kernel.fillet_edges(drilled, vertical[:4], 2.0)
     assert rounded is not None
+
+
+@pytest.mark.slow
+def test_describe_elements_lists_six_box_faces_in_face_order() -> None:
+    kernel = Build123dKernel()
+    face = kernel.polygon_face([(0, 0), (10, 0), (10, 20), (0, 20)], "XY")
+    solid = kernel.extrude(face, 5.0)
+
+    described = kernel.describe_elements(solid)
+    faces = [d for d in described if d["kind"] == "face"]
+    assert len(faces) == 6
+    assert [round(f["center"][2], 3) for f in faces] == \
+        [round(g.center().Z, 3) for g in solid.faces()]
+    top = [f for f in faces if round(f["normal"][2], 3) == 1.0]
+    assert top and round(top[0]["max_z"], 3) == 5.0

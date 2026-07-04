@@ -99,6 +99,14 @@ class Build123dKernel(Kernel):
             })
         return infos
 
+    def describe_elements(self, solid: Any) -> list:
+        described: list = []
+        for face in solid.faces():
+            described.append(_describe_face(face))
+        for edge in solid.edges():
+            described.append(_describe_edge(edge))
+        return described
+
     @staticmethod
     def _do_cut(solid: Any, tools: list) -> Any:
         result = solid
@@ -198,3 +206,43 @@ class Build123dKernel(Kernel):
                 f"unsupported export format for {path!r}; expected .gltf/.glb/.step/.stp/.stl"
             )
         logger.debug("exported solid to %s", path)
+
+
+def _describe_face(face: Any) -> dict:
+    """Face descriptor from a build123d Face."""
+    center = face.center()
+    normal = face.normal_at()
+    box = face.bounding_box()
+    return {
+        "kind": "face", "handle": face, "geom_type": _geom_name(face),
+        "normal": (round(normal.X, 9), round(normal.Y, 9), round(normal.Z, 9)),
+        "area": face.area,
+        "center": (center.X, center.Y, center.Z),
+        "min_z": box.min.Z, "mid_z": center.Z, "max_z": box.max.Z,
+    }
+
+
+def _describe_edge(edge: Any) -> dict:
+    """Edge descriptor from a build123d Edge (orientation rule matches edges_of)."""
+    p0, p1 = edge.position_at(0), edge.position_at(1)
+    direction = p1 - p0
+    vertical = (abs(direction.Z) > 1e-6 and abs(direction.X) < 1e-6
+                and abs(direction.Y) < 1e-6)
+    mid = edge.position_at(0.5)
+    box = edge.bounding_box()
+    return {
+        "kind": "edge", "handle": edge, "geom_type": _geom_name(edge),
+        "length": edge.length,
+        "center": (mid.X, mid.Y, mid.Z),
+        "orientation": "vertical" if vertical else "horizontal",
+        "min_z": box.min.Z, "mid_z": mid.Z, "max_z": box.max.Z,
+    }
+
+
+def _geom_name(shape: Any) -> str:
+    """Lower-cased geometry-type name (e.g. 'plane', 'cylinder', 'line')."""
+    geom_type = getattr(shape, "geom_type", None)
+    if geom_type is None:
+        return "other"
+    name = getattr(geom_type, "name", str(geom_type))
+    return str(name).lower()

@@ -57,3 +57,20 @@ def test_edges_of_classifies_orientation_and_z() -> None:
     assert any(e["orientation"] == "vertical" for e in infos)
     assert any(e["orientation"] == "horizontal" for e in infos)
     assert max(e["mid_z"] for e in infos) == pytest.approx(8.0)
+
+
+def test_fake_describe_elements_returns_faces_and_edges() -> None:
+    kernel = FakeKernel()
+    face = kernel.polygon_face([(0, 0), (10, 0), (10, 20), (0, 20)], "XY")
+    solid = kernel.extrude(face, 5.0)
+
+    described = kernel.describe_elements(solid)
+
+    faces = [d for d in described if d["kind"] == "face"]
+    edges = [d for d in described if d["kind"] == "edge"]
+    assert len(faces) == 6
+    assert edges, "expected edge descriptors"
+    top = [f for f in faces if f["normal"][2] == 1.0]
+    assert top and top[0]["max_z"] == 5.0
+    for descriptor in described:
+        assert "center" in descriptor and "handle" in descriptor
