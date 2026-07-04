@@ -64,3 +64,21 @@ def test_gate_0_2_hex_boss_exports_glb(tmp_path) -> None:
 
     glb = Path(artifacts["hex_boss"])
     assert glb.is_file() and glb.stat().st_size > 0
+
+
+@pytest.mark.slow
+def test_gate_0_3_exports_glb_and_elementmap(tmp_path) -> None:
+    import json
+
+    from ncad.kernel.build123d_kernel import Build123dKernel
+
+    doc = _EXAMPLES_DIR / "gate-0.3" / "selector_fillet.hocon"
+    builder = DocumentBuilder(Build123dKernel())
+    artifacts = builder.build_file(str(doc), str(tmp_path))
+
+    glb = Path(artifacts["selector_fillet"])
+    assert glb.is_file() and glb.stat().st_size > 0
+    sidecar = tmp_path / "selector_fillet.elementmap.json"
+    assert sidecar.is_file()
+    data = json.loads(sidecar.read_text())
+    assert data["elements"]
