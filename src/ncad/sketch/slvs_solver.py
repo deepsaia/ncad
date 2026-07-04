@@ -45,6 +45,10 @@ class SlvsSolver(SketchSolver):
     _CONSTRAINT_HANDLERS = {
         "horizontal": "_c_horizontal", "vertical": "_c_vertical",
         "coincident": "_c_coincident", "distance": "_c_distance", "radius": "_c_radius",
+        "parallel": "_c_parallel", "perpendicular": "_c_perpendicular",
+        "equal": "_c_equal", "symmetric": "_c_symmetric", "midpoint": "_c_midpoint",
+        "point_on": "_c_point_on", "collinear": "_c_collinear",
+        "concentric": "_c_concentric", "tangent": "_c_tangent", "fix": "_c_fix",
     }
 
     def solve(self, entities: list[dict], constraints: list[dict],
@@ -147,6 +151,94 @@ class SlvsSolver(SketchSolver):
         system.addDiameter(2.0 * float(constraint["value"]), ctx.curves[constraint["of"]],
                            group=_SKETCH_GROUP)
 
+    def _c_parallel(self, system: Any, constraint: dict, ctx: _Ctx) -> None:
+        a, b = constraint["lines"]
+        system.addParallel(ctx.curves[a], ctx.curves[b], wrkpln=ctx.workplane,
+                           group=_SKETCH_GROUP)
+
+    def _c_perpendicular(self, system: Any, constraint: dict, ctx: _Ctx) -> None:
+        a, b = constraint["lines"]
+        system.addPerpendicular(ctx.curves[a], ctx.curves[b], wrkpln=ctx.workplane,
+                                group=_SKETCH_GROUP)
+
+    def _c_equal(self, system: Any, constraint: dict, ctx: _Ctx) -> None:
+        a, b = constraint["of"]
+        ta, tb = ctx.entities[a]["type"], ctx.entities[b]["type"]
+        if ta == "line" and tb == "line":
+            system.addEqualLength(ctx.curves[a], ctx.curves[b], wrkpln=ctx.workplane,
+                                  group=_SKETCH_GROUP)
+        elif ta in ("circle", "arc") and tb in ("circle", "arc"):
+            system.addEqualRadius(ctx.curves[a], ctx.curves[b], group=_SKETCH_GROUP)
+        else:
+            raise ConstraintError(f"equal needs two lines or two curves, got {ta}+{tb}")
+
+    def _c_symmetric(self, system: Any, constraint: dict, ctx: _Ctx) -> None:
+        a, b = constraint["points"]
+        system.addSymmetricLine(ctx.points[a], ctx.points[b],
+                                ctx.curves[constraint["about"]], ctx.workplane,
+                                group=_SKETCH_GROUP)
+
+    def _c_midpoint(self, system: Any, constraint: dict, ctx: _Ctx) -> None:
+        system.addMidPoint(ctx.points[constraint["point"]], ctx.curves[constraint["of"]],
+                           wrkpln=ctx.workplane, group=_SKETCH_GROUP)
+
+    def _c_point_on(self, system: Any, constraint: dict, ctx: _Ctx) -> None:
+        point = ctx.points[constraint["point"]]
+        target = constraint["of"]
+        if ctx.entities[target]["type"] == "line":
+            system.addPointOnLine(point, ctx.curves[target], wrkpln=ctx.workplane,
+                                  group=_SKETCH_GROUP)
+        else:
+            system.addPointOnCircle(point, ctx.curves[target], group=_SKETCH_GROUP)
+
+    def _c_collinear(self, system: Any, constraint: dict, ctx: _Ctx) -> None:
+        a, b = constraint["lines"]
+        system.addParallel(ctx.curves[a], ctx.curves[b], wrkpln=ctx.workplane,
+                           group=_SKETCH_GROUP)
+        endpoint = ctx.points[ctx.entities[b]["p1"]]
+        system.addPointOnLine(endpoint, ctx.curves[a], wrkpln=ctx.workplane,
+                              group=_SKETCH_GROUP)
+
+    def _c_concentric(self, system: Any, constraint: dict, ctx: _Ctx) -> None:
+        a, b = constraint["of"]
+        center_a = ctx.points[ctx.entities[a]["center"]]
+        center_b = ctx.points[ctx.entities[b]["center"]]
+        system.addPointsCoincident(center_a, center_b, wrkpln=ctx.workplane,
+                                   group=_SKETCH_GROUP)
+
+    def _c_tangent(self, system: Any, constraint: dict, ctx: _Ctx) -> None:
+        a, b = constraint["of"]
+        ta, tb = ctx.entities[a]["type"], ctx.entities[b]["type"]
+        if ta == "arc" and tb == "line":
+            arc_id, line_id = a, b
+        elif tb == "arc" and ta == "line":
+            arc_id, line_id = b, a
+        else:
+            arc_id = line_id = None
+        if arc_id is not None:
+            at_end = _touches_arc_end(ctx.entities[arc_id], ctx.entities[line_id])
+            system.addArcLineTangent(at_end, ctx.curves[arc_id], ctx.curves[line_id],
+                                     group=_SKETCH_GROUP)
+        elif ta in ("arc", "circle") and tb in ("arc", "circle"):
+            system.addCurvesTangent(True, False, ctx.curves[a], ctx.curves[b],
+                                    wrkpln=ctx.workplane, group=_SKETCH_GROUP)
+        else:
+            raise ConstraintError(f"tangent needs arc+line or two curves, got {ta}+{tb}")
+
+    def _c_fix(self, system: Any, constraint: dict, ctx: _Ctx) -> None:
+        target = constraint["of"]
+        etype = ctx.entities[target]["type"]
+        if etype == "point":
+            system.addWhereDragged(ctx.points[target], wrkpln=ctx.workplane,
+                                   group=_SKETCH_GROUP)
+        elif etype == "line":
+            for key in ("p1", "p2"):
+                system.addWhereDragged(ctx.points[ctx.entities[target][key]],
+                                       wrkpln=ctx.workplane, group=_SKETCH_GROUP)
+        else:
+            system.addWhereDragged(ctx.points[ctx.entities[target]["center"]],
+                                   wrkpln=ctx.workplane, group=_SKETCH_GROUP)
+
 
 def _missing_reference(entities: list[dict], constraints: list[dict],
                        by_id: dict[str, dict]) -> str | None:
@@ -183,6 +275,11 @@ def _constraint_refs(constraint: dict) -> list[str]:
     elif isinstance(of, list):
         refs.extend(of)
     return refs
+
+
+def _touches_arc_end(arc: dict, line: dict) -> bool:
+    """Whether the line meets the arc at the arc's end point (else its start)."""
+    return arc["end"] in (line.get("p1"), line.get("p2"))
 
 
 def _measure(constraint: dict, positions: dict, radii: dict, entities: dict) -> float:
