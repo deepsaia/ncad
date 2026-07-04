@@ -178,3 +178,18 @@ def test_same_document_builds_are_deterministic() -> None:
     a = DocumentBuilder(FakeKernel()).build(doc)["blk"].shape
     b = DocumentBuilder(FakeKernel()).build(doc)["blk"].shape
     assert EqualityComparator().equal(FakeKernel().signature(a), FakeKernel().signature(b))
+
+
+def test_build_rejects_forward_reference() -> None:
+    import pytest
+
+    from tests.kernel.fake_kernel import FakeKernel
+
+    doc = {"schema_version": 1, "units": "mm", "parts": {"p": {
+        "profile": "solid", "features": [
+            {"id": "pad", "op": "extrude", "profile": "sk", "distance": 5},
+            {"id": "sk", "op": "sketch", "plane": "XY",
+             "elements": [{"id": "r", "type": "rectangle", "w": 20, "h": 20}]}]}}}
+
+    with pytest.raises(ValueError, match="dependency"):
+        DocumentBuilder(FakeKernel()).build(doc)

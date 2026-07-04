@@ -18,6 +18,7 @@ from ncad.ops.op_result import OpResult
 from ncad.params.function_registry import FunctionRegistry
 from ncad.params.param_resolver import ParamResolver
 from ncad.refs.attribute_model import AttributeModel
+from ncad.spec.dependency_validator import DependencyValidator
 from ncad.spec.feature_id_validator import FeatureIdValidator
 from ncad.spec.schema_validator import SchemaValidator
 from ncad.spec.spec_loader import SpecLoader
@@ -38,6 +39,7 @@ class DocumentBuilder:
         self._builder = Builder(kernel, OpRegistry.with_defaults(), cache=self._cache)
         self._validator = SchemaValidator()
         self._id_validator = FeatureIdValidator()
+        self._dependency_validator = DependencyValidator()
         self._hierarchy = HierarchyBuilder()
         self._loader = SpecLoader()
         self._resolver = ParamResolver(FunctionRegistry.with_defaults())
@@ -123,6 +125,10 @@ class DocumentBuilder:
         if id_issues:
             rendered = "; ".join(f"{i.location}: {i.message}" for i in id_issues)
             raise ValueError(f"document has duplicate feature ids: {rendered}")
+        dep_issues = self._dependency_validator.validate(resolved)
+        if dep_issues:
+            rendered = "; ".join(f"{i.location}: {i.message}" for i in dep_issues)
+            raise ValueError(f"document has dependency errors: {rendered}")
         return resolved
 
     @staticmethod
