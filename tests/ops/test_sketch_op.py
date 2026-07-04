@@ -24,14 +24,6 @@ def test_sketch_builds_a_face_with_expected_area() -> None:
     assert kernel.volume(solid) == 80.0 * 60.0
 
 
-def test_sketch_records_provenance_for_the_feature() -> None:
-    kernel = FakeKernel()
-
-    result = SketchOp().build(None, _rect_feature(), {}, kernel)
-
-    assert result.provenance.get("sk") == "sketch"
-
-
 def test_sketch_with_unknown_element_reports_issue_by_id() -> None:
     kernel = FakeKernel()
     feature = _rect_feature()

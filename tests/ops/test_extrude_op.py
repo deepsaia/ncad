@@ -20,7 +20,6 @@ def test_extrude_produces_solid_with_expected_volume() -> None:
 
     assert result.issues == []
     assert kernel.volume(result.shape) == 80.0 * 60.0 * 8.0
-    assert result.provenance.get("pad") == "extrude"
 
 
 def test_extrude_without_input_shape_reports_issue_by_id() -> None:

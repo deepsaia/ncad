@@ -11,9 +11,9 @@ class OpResult:
     """What every feature op returns.
 
     :ivar shape: The output geometry handle (kernel-opaque), or ``None`` on failure.
-    :ivar provenance: Map from output-element tag to the feature ``id`` that produced
-        it. Bucket 0.1 records the producing feature per shape; it grows into the full
-        element map in later buckets (design §2).
+    :ivar provenance: Legacy per-op map, retained for signature compatibility and now
+        left empty by ops. Element provenance lives in the Builder's ElementMap as of
+        bucket 0.3 (design §2); the Builder does not read this field.
     :ivar issues: Build issues attributed to node ids; empty means clean.
     """
 
