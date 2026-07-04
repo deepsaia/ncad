@@ -137,3 +137,44 @@ def test_build_raises_on_expression_error() -> None:
 
     with pytest.raises(ExpressionError):
         builder.build(bad)
+
+
+def test_incremental_rebuild_reuses_unchanged_features() -> None:
+    from ncad.build.equality_comparator import EqualityComparator
+    from tests.kernel.fake_kernel import FakeKernel
+
+    kernel = FakeKernel()
+    builder = DocumentBuilder(kernel)
+
+    def doc(thickness):
+        return {"schema_version": 1, "units": "mm", "parameters": {"t": thickness},
+                "parts": {"blk": {"profile": "solid", "features": [
+                    {"id": "sk", "op": "sketch", "plane": "XY",
+                     "elements": [{"id": "r", "type": "rectangle", "w": 40, "h": 40}]},
+                    {"id": "pad", "op": "extrude", "profile": "sk", "distance": "${t}"},
+                    {"id": "h", "op": "hole", "diameter": 4, "depth": 3,
+                     "positions": [[10, 10]]}]}}}
+
+    builder.build(doc(8))
+    results = builder.build(doc(10))
+    stats = builder.rebuild_stats()
+
+    assert stats["blk"] == {"sk": True, "pad": False, "h": False}
+    cold = DocumentBuilder(FakeKernel()).build(doc(10))
+    comparator = EqualityComparator()
+    assert comparator.equal(kernel.signature(results["blk"].shape),
+                            FakeKernel().signature(cold["blk"].shape))
+
+
+def test_same_document_builds_are_deterministic() -> None:
+    from ncad.build.equality_comparator import EqualityComparator
+    from tests.kernel.fake_kernel import FakeKernel
+
+    doc = {"schema_version": 1, "units": "mm", "parts": {"blk": {
+        "profile": "solid", "features": [
+            {"id": "sk", "op": "sketch", "plane": "XY",
+             "elements": [{"id": "r", "type": "rectangle", "w": 20, "h": 30}]},
+            {"id": "pad", "op": "extrude", "profile": "sk", "distance": 5}]}}}
+    a = DocumentBuilder(FakeKernel()).build(doc)["blk"].shape
+    b = DocumentBuilder(FakeKernel()).build(doc)["blk"].shape
+    assert EqualityComparator().equal(FakeKernel().signature(a), FakeKernel().signature(b))

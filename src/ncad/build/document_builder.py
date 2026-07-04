@@ -10,6 +10,7 @@ import logging
 import os
 
 from ncad.build.builder import Builder
+from ncad.build.feature_cache import FeatureCache
 from ncad.build.hierarchy_builder import HierarchyBuilder
 from ncad.kernel.kernel import Kernel
 from ncad.ops.op_registry import OpRegistry
@@ -33,15 +34,21 @@ class DocumentBuilder:
     def __init__(self, kernel: Kernel) -> None:
         """:param kernel: Geometry backend used by the Builder and for export."""
         self._kernel = kernel
-        self._builder = Builder(kernel, OpRegistry.with_defaults())
+        self._cache = FeatureCache()
+        self._builder = Builder(kernel, OpRegistry.with_defaults(), cache=self._cache)
         self._validator = SchemaValidator()
         self._id_validator = FeatureIdValidator()
         self._hierarchy = HierarchyBuilder()
         self._loader = SpecLoader()
         self._resolver = ParamResolver(FunctionRegistry.with_defaults())
+        self._rebuild_stats: dict[str, dict[str, bool]] = {}
 
     def build(self, document: dict) -> dict[str, OpResult]:
-        """Resolve expressions, validate, and build each part.
+        """Resolve expressions, validate, and build each part (incremental via cache).
+
+        The cache persists across calls on this instance, so re-building an edited
+        document re-executes only the dirty suffix (design section 4). Per-part cache
+        hit/miss stats are captured for the last call (see :meth:`rebuild_stats`).
 
         :param document: A loaded feature-tree document dict.
         :return: Map from part name to its :class:`OpResult`.
@@ -50,10 +57,18 @@ class DocumentBuilder:
         """
         resolved = self._resolve_and_validate(document)
         results: dict[str, OpResult] = {}
+        self._rebuild_stats = {}
         for name, part in resolved["parts"].items():
             logger.debug("building part %s", name)
-            results[name] = self._builder.build_part(part)
+            self._cache.reset_stats()
+            result, _ = self._builder.build_part_mapped(part)
+            results[name] = result
+            self._rebuild_stats[name] = self._cache.stats()
         return results
+
+    def rebuild_stats(self) -> dict[str, dict[str, bool]]:
+        """Per-part cache hit/miss map from the last build call."""
+        return {name: dict(stats) for name, stats in self._rebuild_stats.items()}
 
     def build_file_document(self, path: str) -> dict[str, OpResult]:
         """Load the document at ``path`` and build it (no export)."""
