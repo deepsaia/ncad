@@ -227,3 +227,45 @@ def test_tangent_arc_line_solves():
     r = SlvsSolver().solve(ents, cons, "sk")
     assert r.status in ("well_constrained", "under_constrained")
     assert not any(i.level == "error" for i in r.issues)
+
+
+def test_angle_drives_two_lines():
+    import math
+    ents = [
+        {"id": "a", "type": "point", "at": [0, 0]}, {"id": "b", "type": "point", "at": [10, 0]},
+        {"id": "c", "type": "point", "at": [7, 7]},
+        {"id": "l0", "type": "line", "p1": "a", "p2": "b"},
+        {"id": "l1", "type": "line", "p1": "a", "p2": "c"},
+    ]
+    cons = [{"type": "fix", "of": "a"}, {"type": "horizontal", "of": "l0"},
+            {"type": "distance", "points": ["a", "b"], "value": 10},
+            {"type": "distance", "points": ["a", "c"], "value": 10},
+            {"type": "angle", "lines": ["l0", "l1"], "value": 60}]
+    r = SlvsSolver().solve(ents, cons, "sk")
+    (cx, cy) = r.positions["c"]
+    assert math.isclose(math.degrees(math.atan2(cy, cx)), 60.0, abs_tol=0.5)
+
+
+def test_diameter_sizes_a_circle():
+    ents = [{"id": "cp", "type": "point", "at": [0, 0]},
+            {"id": "c0", "type": "circle", "center": "cp", "radius": 3}]
+    r = SlvsSolver().solve(ents, [{"type": "diameter", "of": "c0", "value": 20}], "sk")
+    assert abs(r.radii["c0"] - 10.0) < 1e-6
+
+
+def test_driven_distance_is_measured_not_enforced():
+    ents = [
+        {"id": "a", "type": "point", "at": [0, 0]}, {"id": "b", "type": "point", "at": [10, 0]},
+    ]
+    cons = [{"type": "fix", "of": "a"}, {"type": "fix", "of": "b"},
+            {"type": "distance", "points": ["a", "b"], "driven": True, "id": "len"}]
+    r = SlvsSolver().solve(ents, cons, "sk")
+    assert abs(r.measurements["len"] - 10.0) < 1e-6
+
+
+def test_driven_dim_does_not_change_dof():
+    ents = [{"id": "a", "type": "point", "at": [0, 0]}, {"id": "b", "type": "point", "at": [10, 0]}]
+    with_driven = SlvsSolver().solve(ents, [
+        {"type": "distance", "points": ["a", "b"], "driven": True, "id": "d"}], "sk")
+    without = SlvsSolver().solve(ents, [], "sk")
+    assert with_driven.dof == without.dof

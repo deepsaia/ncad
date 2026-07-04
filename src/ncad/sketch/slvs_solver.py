@@ -49,6 +49,7 @@ class SlvsSolver(SketchSolver):
         "equal": "_c_equal", "symmetric": "_c_symmetric", "midpoint": "_c_midpoint",
         "point_on": "_c_point_on", "collinear": "_c_collinear",
         "concentric": "_c_concentric", "tangent": "_c_tangent", "fix": "_c_fix",
+        "angle": "_c_angle", "diameter": "_c_diameter",
     }
 
     def solve(self, entities: list[dict], constraints: list[dict],
@@ -238,6 +239,15 @@ class SlvsSolver(SketchSolver):
         else:
             system.addWhereDragged(ctx.points[ctx.entities[target]["center"]],
                                    wrkpln=ctx.workplane, group=_SKETCH_GROUP)
+
+    def _c_angle(self, system: Any, constraint: dict, ctx: _Ctx) -> None:
+        a, b = constraint["lines"]
+        system.addAngle(float(constraint["value"]), False, ctx.curves[a], ctx.curves[b],
+                        wrkpln=ctx.workplane, group=_SKETCH_GROUP)
+
+    def _c_diameter(self, system: Any, constraint: dict, ctx: _Ctx) -> None:
+        system.addDiameter(float(constraint["value"]), ctx.curves[constraint["of"]],
+                           group=_SKETCH_GROUP)
 
 
 def _missing_reference(entities: list[dict], constraints: list[dict],
