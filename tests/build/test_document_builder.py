@@ -92,6 +92,24 @@ def test_build_resolves_parameters_and_expressions() -> None:
     assert FakeKernel().volume(results["block"].shape) == 80.0 * 60.0 * 8.0
 
 
+def test_build_file_writes_elementmap_sidecar(tmp_path) -> None:
+    import json
+
+    doc = {"schema_version": 1, "units": "mm", "parts": {"blk": {
+        "profile": "solid", "features": [
+            {"id": "sk", "op": "sketch", "plane": "XY",
+             "elements": [{"id": "r", "type": "rectangle", "w": 20, "h": 20}]},
+            {"id": "pad", "op": "extrude", "profile": "sk", "distance": 5}]}}}
+    builder = DocumentBuilder(FakeKernel())
+
+    sidecars = builder.write_element_maps(doc, str(tmp_path))
+
+    path = sidecars["blk"]
+    data = json.loads(Path(path).read_text())
+    assert data["elements"] and "attribute_model_version" in data
+    assert any(e["tag"] == "cap(+Z)" for e in data["elements"])
+
+
 def test_build_raises_on_expression_error() -> None:
     from ncad.params.expression_error import ExpressionError
 
