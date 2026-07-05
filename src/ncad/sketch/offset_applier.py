@@ -44,7 +44,7 @@ def _expand_offset(offset: dict, by_id: dict) -> list[dict]:
     if stype == "line":
         return _offset_line(oid, source, by_id, distance)
     if stype in ("circle", "arc"):
-        return _offset_curve(oid, source, distance)
+        return _offset_curve(oid, source, by_id, distance)
     raise OffsetError(f"cannot offset a {stype!r} (offset {oid!r})")
 
 
@@ -61,16 +61,23 @@ def _offset_line(oid: str, source: dict, by_id: dict, distance: float) -> list[d
     return [
         {"id": f"{oid}/a", "type": "point", "at": [ax + ox, ay + oy]},
         {"id": f"{oid}/b", "type": "point", "at": [bx + ox, by + oy]},
-        {"id": oid, "type": "line", "p1": f"{oid}/a", "p2": f"{oid}/b"},
+        {"id": oid, "type": "line", "p1": f"{oid}/a", "p2": f"{oid}/b", "fixed": True},
     ]
 
 
-def _offset_curve(oid: str, source: dict, distance: float) -> list[dict]:
-    """A concentric circle/arc of radius +/- distance, sharing the source center."""
+def _offset_curve(oid: str, source: dict, by_id: dict, distance: float) -> list[dict]:
+    """A concentric circle/arc of radius +/- distance with its own (real) center point.
+
+    The offset gets a fresh center point seeded at the source center, rather than reusing
+    the source's (possibly construction-pinned) center, so the offset curve is an
+    independent real entity the solver can size cleanly.
+    """
     new_radius = float(source.get("radius", 0.0)) + distance
-    result = {"id": oid, "type": source["type"], "center": source["center"],
-              "radius": new_radius}
+    cx, cy = by_id[source["center"]]["at"]
+    center_id = f"{oid}/c"
+    result = {"id": oid, "type": source["type"], "center": center_id,
+              "radius": new_radius, "fixed": True}
     if source["type"] == "arc":
         result["start"] = source["start"]
         result["end"] = source["end"]
-    return [result]
+    return [{"id": center_id, "type": "point", "at": [cx, cy]}, result]
