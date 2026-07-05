@@ -14,13 +14,17 @@ from tests.kernel.fake_kernel import FakeKernel
 
 _EXAMPLES_DIR = Path(__file__).resolve().parents[2] / "examples"
 _EXAMPLE_DOCS = sorted(_EXAMPLES_DIR.glob("gate-*/*.hocon"))
+# Examples that project a prior feature's real edges (a `project` field) cannot build on
+# the dependency-free FakeKernel (its analytic edges have no circle/curve type); they are
+# covered by the slow real-kernel sweep and their own end-to-end tests.
+_FAKE_KERNEL_DOCS = [p for p in _EXAMPLE_DOCS if "project" not in p.read_text()]
 
 
 def test_examples_exist() -> None:
     assert _EXAMPLE_DOCS, "no gate example documents found under examples/gate-*/"
 
 
-@pytest.mark.parametrize("doc_path", _EXAMPLE_DOCS, ids=lambda p: f"{p.parent.name}/{p.name}")
+@pytest.mark.parametrize("doc_path", _FAKE_KERNEL_DOCS, ids=lambda p: f"{p.parent.name}/{p.name}")
 def test_example_builds_without_issues(doc_path: Path) -> None:
     results = DocumentBuilder(FakeKernel()).build_file_document(str(doc_path))
 
