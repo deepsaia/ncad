@@ -26,13 +26,14 @@ is layered on. Demo-ability leads; breadth follows.
 
 ## Where we are
 
-**Progress: Phase 0 complete; Phase 1 in progress (buckets 1.1-1.2 done).** The general
+**Progress: Phase 0 complete; Phase 1 in progress (buckets 1.1-1.4 done).** The general
 spine is proven end-to-end: feature-tree schema, op registry, build123d kernel, the
 reference/provenance model (semantic/generative/selector), incremental rebuild with a
 content-addressed cache, the §4a equality harness, delete/broken-ref handling + the TNP
 spike, and a Three.js viewer (pick-by-id, right data sidebar, orientation gizmo). The
-constraint solver (py-slvs/SolveSpace) is integrated with points/lines/arcs/circles +
-sugar shapes and a first constraint set. Next: the full constraint + dimension set (1.3).
+constraint solver (py-slvs/SolveSpace) is integrated with the full entity + constraint +
+dimension vocabulary (driven vs driving) and reference-into-sketch (project prior edges,
+offset). Next: sketch-modify (1.4b), then sketch status in the viewer (1.5, Phase 1 gate).
 
 v1 proved the *pattern*: `spec >> build >> BOM >> view`, determinism, build123d/OCCT,
 HOCON+jsonschema, traversal BOM, the Three.js viewer, on the **building profile**
@@ -178,31 +179,40 @@ five buckets; the phase gate is the 1.5 gate.
       line/arc loops (CCW-reoriented so pockets cut correctly); `kernel.wire_face`
 - **Gate:** a profile mixing lines + arcs + a circle solves and builds. **(done)**
 
-**Bucket 1.3: The full constraint vocabulary + dimensions** `[ ]`
-- [ ] **Geometric constraints:** collinear, concentric, parallel, perpendicular,
-      tangent, equal, symmetric, midpoint, point-on-entity, fix/ground
-- [ ] **Dimensional constraints:** angle, arc-length, diameter (radius shipped in 1.2);
-      **driven vs driving** dimensions (driven = read from geometry, not solved)
-- **Gate:** a fully-constrained dimensioned profile drives a feature; driven dims read back.
+**Bucket 1.3: The full constraint vocabulary + dimensions** `[x]`
+- [x] **Geometric constraints:** collinear, concentric, parallel, perpendicular,
+      tangent, equal, symmetric, midpoint, point-on-entity, fix/ground (dispatch-table
+      handlers; ConstraintError surfaces as an id-tagged inconsistent result)
+- [x] **Dimensional constraints:** angle, diameter (radius shipped in 1.2); **driven vs
+      driving** dimensions (driven = measured post-solve into `SolveResult.measurements`,
+      not enforced). Driving arc-length deferred (arc_length is driven-measure only).
+- **Gate:** a fully-constrained dimensioned profile drives a feature; driven dims read
+      back. **(done)**
 
-**Bucket 1.4: Reference-into-sketch + sketch modify** `[ ]`
-- [ ] **Reference-into-sketch:** project / convert 3D edges & vertices onto the
-      sketch plane; intersection curves
-- [ ] **Sketch modify:** trim, extend, split, corner fillet, corner chamfer, offset,
-      mirror, scale, move/rotate, sketch pattern (linear/circular)
-- **Gate:** a sketch that projects a prior face edge and offsets it builds.
+**Bucket 1.4: Reference-into-sketch (+ offset)** `[x]`
+- [x] **Reference-into-sketch:** a sketch `project` field resolves references to a prior
+      feature's edges; `kernel.project_edges` projects them onto the plane; `EdgeProjector`
+      makes fixed `construction` reference entities (pinned, excluded from the wire)
+- [x] **Offset:** an `offset` entity derives a real entity (line parallel; circle/arc
+      radius +/- d); zero-padded generated ids (`PaddedNaming`)
+- **Gate:** a sketch that projects a prior face edge and offsets it builds. **(done)**
+
+**Bucket 1.4b: Sketch modify** `[ ]`
+- [ ] trim, extend, split, corner fillet, corner chamfer, mirror, scale, move/rotate,
+      sketch pattern (linear/circular); whole-loop offset with corner trim/extend
+- **Gate:** a sketch trimmed + mirrored builds; a linear sketch pattern replicates.
 
 **Bucket 1.5: Sketch status in the viewer (Phase 1 gate)** `[ ]`
 - [ ] Under/fully/over-constrained status + conflict highlighting surfaced in `nv`
 - **Gate (Phase 1):** an over/under-constrained sketch solves or reports cleanly; a
       fully-constrained profile drives a downstream feature.
 
-> **Deferred within Phase 1** (scoped out of 1.1/1.2, land in the buckets above or a
-> later 1.x): **ellipse + elliptical arc**, **conic** (parabola/hyperbola), **spline**
-> (interpolated / control-point / B-spline / fit) and the **smooth (G2)** spline
-> constraint, **text**, and **construction/reference** geometry are a later entity
-> bucket (1.6); **multi-loop sketches / holes-in-one-sketch** stay deferred (holes come
-> from pocket/hole ops); tangent/equal/etc land in 1.3.
+> **Deferred within Phase 1** (land in the buckets above or a later 1.x): **ellipse +
+> elliptical arc**, **conic** (parabola/hyperbola), **spline** (interpolated /
+> control-point / B-spline / fit) and the **smooth (G2)** spline constraint, and **text**
+> are a later entity bucket (1.6); **intersection curves** and **vertex projection** land
+> with 1.4b or later; **multi-loop sketches / holes-in-one-sketch** stay deferred (holes
+> come from pocket/hole ops). (Construction/reference geometry shipped in 1.4.)
 
 ---
 
