@@ -219,3 +219,53 @@ def test_transform_error_surfaces_as_issue() -> None:
     result = SketchOp().build(None, params, {}, kernel)
     assert result.shape is None
     assert any(i.level == "error" for i in result.issues)
+
+
+def test_modify_trim_then_build() -> None:
+    kernel = FakeKernel()
+    # a square with an overshooting top edge, trimmed back to close the loop, builds.
+    params = {
+        "id": "sk", "op": "sketch", "plane": "XY",
+        "entities": [
+            {"id": "p0", "type": "point", "at": [0.0, 0.0]},
+            {"id": "p1", "type": "point", "at": [10.0, 0.0]},
+            {"id": "p2", "type": "point", "at": [10.0, 10.0]},
+            {"id": "tl", "type": "point", "at": [0.0, 10.0]},
+            {"id": "tr", "type": "point", "at": [20.0, 10.0]},
+            {"id": "bot", "type": "line", "p1": "p0", "p2": "p1"},
+            {"id": "right", "type": "line", "p1": "p1", "p2": "p2"},
+            {"id": "top", "type": "line", "p1": "tl", "p2": "tr"},
+            {"id": "left", "type": "line", "p1": "tl", "p2": "p0"},
+        ],
+        # the trimmed `top` is fixed and pins its endpoints tl + p2, so only the other
+        # corners (p0, p1) need an explicit fix; pinning tl/p2 too would over-constrain.
+        "constraints": [
+            {"type": "fix", "of": "p0"}, {"type": "fix", "of": "p1"},
+        ],
+        "modify": [
+            {"id": "cut", "op": "trim", "of": "top", "at": "right", "keep": "tl"},
+        ],
+    }
+    result = SketchOp().build(None, params, {}, kernel)
+    errors = [i for i in result.issues if i.level == "error"]
+    assert errors == [] and result.shape is not None
+
+
+def test_modify_error_surfaces_as_issue() -> None:
+    kernel = FakeKernel()
+    params = {
+        "id": "sk", "op": "sketch", "plane": "XY",
+        "entities": [
+            {"id": "a0", "type": "point", "at": [0.0, 0.0]},
+            {"id": "a1", "type": "point", "at": [10.0, 0.0]},
+            {"id": "b0", "type": "point", "at": [0.0, 3.0]},
+            {"id": "b1", "type": "point", "at": [10.0, 3.0]},
+            {"id": "la", "type": "line", "p1": "a0", "p2": "a1"},
+            {"id": "lb", "type": "line", "p1": "b0", "p2": "b1"},
+        ],
+        "constraints": [],
+        "modify": [{"id": "t", "op": "trim", "of": "la", "at": "lb", "keep": "a0"}],
+    }
+    result = SketchOp().build(None, params, {}, kernel)
+    assert result.shape is None
+    assert any(i.level == "error" for i in result.issues)

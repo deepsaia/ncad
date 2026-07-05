@@ -124,16 +124,35 @@ def _move_far_endpoint(entities: list[dict], line: dict, keep_xy: tuple,
 
 def _set_endpoint(entities: list[dict], line: dict, end_key: str, hit: tuple,
                   new_id: str) -> list[dict]:
-    """Return entities with ``line``'s ``end_key`` re-pointed at a new fixed point."""
-    new_point = {"id": new_id, "type": "point", "at": [hit[0], hit[1]], "fixed": True}
+    """Return entities with ``line``'s ``end_key`` re-pointed at the trim/extend point.
+
+    If ``hit`` coincides with an existing point (e.g. the tool line's own corner), that
+    point's id is reused so the trimmed/extended edge welds to the shared vertex and the
+    loop stays closed; otherwise a new fixed point ``new_id`` is minted.
+    """
+    welded = _coincident_point_id(entities, hit)
+    endpoint_id = welded if welded is not None else new_id
     out: list[dict] = []
     for entity in entities:
         if entity["id"] == line["id"]:
-            out.append({**entity, end_key: new_id, "fixed": True})
+            out.append({**entity, end_key: endpoint_id, "fixed": True})
         else:
             out.append(entity)
-    out.append(new_point)
+    if welded is None:
+        out.append({"id": new_id, "type": "point", "at": [hit[0], hit[1]],
+                    "fixed": True})
     return out
+
+
+def _coincident_point_id(entities: list[dict], hit: tuple[float, float]) -> str | None:
+    """The id of an existing point entity coincident with ``hit`` (within eps), or None."""
+    for entity in entities:
+        if entity.get("type") != "point":
+            continue
+        px, py = float(entity["at"][0]), float(entity["at"][1])
+        if _dist_sq((px, py), hit) < 1e-12:
+            return entity["id"]
+    return None
 
 
 def _m_fillet(op: dict, entities: list[dict]) -> list[dict]:
