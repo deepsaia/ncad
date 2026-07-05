@@ -77,96 +77,78 @@ def _center_of(transform: dict, by_id: dict, key: str) -> tuple[float, float]:
     return float(value[0]), float(value[1])
 
 
-def _transform_entities(source_ids: list[str], by_id: dict, affine: AffineTransform,
-                        relabel: dict[str, str]) -> list[dict]:
-    """Emit fixed copies of the source entities mapped through ``affine``.
+def _point_ids(source_ids: list[str], by_id: dict) -> list[str]:
+    """Ordered unique point ids in the sources: explicit points + curve endpoints."""
+    ordered: list[str] = []
+    for sid in source_ids:
+        source = by_id[sid]
+        if source["type"] == "point":
+            candidates = [sid]
+        else:
+            candidates = [source[key] for key in _CURVE_POINT_KEYS[source["type"]]]
+        for pid in candidates:
+            if pid not in ordered:
+                ordered.append(pid)
+    return ordered
 
-    ``relabel`` maps a source entity id to the id its copy should take. Points a source
-    curve references but that are not themselves in ``source_ids`` are transformed too
-    (so a copied line/arc/circle carries its own endpoints), extending ``relabel`` with
-    the same namespace prefix. Points are emitted once; curves are re-pointed at
-    relabeled ids.
-    """
-    point_ids = _points_to_transform(source_ids, by_id, relabel)
-    emitted: list[dict] = []
-    seen: set[str] = set()
-    for pid in point_ids:
-        source = by_id[pid]
-        new_id = relabel[pid]
-        if new_id in seen:
-            continue
-        seen.add(new_id)
-        x, y = affine.apply_point(float(source["at"][0]), float(source["at"][1]))
-        emitted.append({"id": new_id, "type": "point", "at": [x, y], "fixed": True})
+
+def _curve_copies(source_ids: list[str], by_id: dict, affine: AffineTransform,
+                  relabel: dict[str, str]) -> list[dict]:
+    """Fixed copies of the source curves, re-pointed at their relabeled endpoints."""
+    copies: list[dict] = []
     for sid in source_ids:
         source = by_id[sid]
         stype = source["type"]
         if stype == "point":
             continue
-        copy = {"id": relabel[sid], "type": stype, "fixed": True}
+        copy: dict = {"id": relabel[sid], "type": stype, "fixed": True}
         for key in _CURVE_POINT_KEYS[stype]:
-            copy[key] = relabel.get(source[key], source[key])
+            copy[key] = relabel[source[key]]
         if stype in ("circle", "arc") and "radius" in source:
             copy["radius"] = float(source["radius"]) * affine.radius_factor
-        emitted.append(copy)
-    return emitted
-
-
-def _points_to_transform(source_ids: list[str], by_id: dict,
-                         relabel: dict[str, str]) -> list[str]:
-    """Ordered unique point ids to transform: explicit point sources + curve endpoints.
-
-    Endpoints a source curve references but that are not explicit sources are added to
-    ``relabel`` under the same prefix as their curve's copy id, so the copy stays welded
-    to its own transformed points.
-    """
-    prefix = _relabel_prefix(source_ids, relabel)
-    ordered: list[str] = []
-    for sid in source_ids:
-        source = by_id[sid]
-        if source["type"] == "point":
-            _add_point(sid, prefix, relabel, ordered)
-            continue
-        for key in _CURVE_POINT_KEYS[source["type"]]:
-            _add_point(source[key], prefix, relabel, ordered)
-    return ordered
-
-
-def _add_point(pid: str, prefix: str, relabel: dict[str, str], ordered: list[str]) -> None:
-    """Record ``pid`` for transforming once, assigning its copy id if not already set."""
-    if pid in ordered:
-        return
-    relabel.setdefault(pid, f"{prefix}{pid}")
-    ordered.append(pid)
-
-
-def _relabel_prefix(source_ids: list[str], relabel: dict[str, str]) -> str:
-    """The common namespace prefix copies add to source ids (empty for in-place).
-
-    Derived from any source's copy id (all copies in one call share one prefix).
-    """
-    for sid in source_ids:
-        copy_id = relabel.get(sid, sid)
-        if copy_id.endswith(sid):
-            return copy_id[: len(copy_id) - len(sid)]
-    return ""
+        copies.append(copy)
+    return copies
 
 
 def _replace_in_place(entities: list[dict], source_ids: list[str], by_id: dict,
                       affine: AffineTransform) -> list[dict]:
     """Re-emit the sources transformed under their own ids, keeping others as-is."""
     relabel = {sid: sid for sid in source_ids}
-    transformed = {e["id"]: e
-                   for e in _transform_entities(source_ids, by_id, affine, relabel)}
-    source_set = set(source_ids)
-    out: list[dict] = []
-    for entity in entities:
-        eid = entity.get("id")
-        if eid in source_set:
-            out.append(transformed[eid])
-        else:
-            out.append(entity)
-    return out
+    point_ids = _point_ids(source_ids, by_id)
+    for pid in point_ids:
+        relabel.setdefault(pid, pid)
+    transformed: dict[str, dict] = {}
+    for pid in point_ids:
+        x, y = affine.apply_point(float(by_id[pid]["at"][0]), float(by_id[pid]["at"][1]))
+        transformed[pid] = {"id": pid, "type": "point", "at": [x, y], "fixed": True}
+    for copy in _curve_copies(source_ids, by_id, affine, relabel):
+        transformed[copy["id"]] = copy
+    return [transformed.get(e.get("id"), e) if e.get("id") in transformed else e
+            for e in entities]
+
+
+def _append_copy(prefix: str, source_ids: list[str], by_id: dict,
+                 affine: AffineTransform) -> list[dict]:
+    """One namespaced copy of the sources, welding transform-invariant points.
+
+    A point whose image coincides with its own original position (e.g. a point on a
+    mirror axis) keeps its original id, so the copy stays connected to the source chain
+    into a single loop. Other points get a ``prefix``-namespaced id.
+    """
+    point_ids = _point_ids(source_ids, by_id)
+    relabel = {sid: f"{prefix}/{sid}" for sid in source_ids}
+    emitted: list[dict] = []
+    for pid in point_ids:
+        ox, oy = float(by_id[pid]["at"][0]), float(by_id[pid]["at"][1])
+        nx, ny = affine.apply_point(ox, oy)
+        if abs(nx - ox) < 1e-9 and abs(ny - oy) < 1e-9:
+            relabel[pid] = pid  # invariant point: weld to the original
+            continue
+        relabel[pid] = f"{prefix}/{pid}"
+        emitted.append({"id": relabel[pid], "type": "point", "at": [nx, ny],
+                        "fixed": True})
+    emitted.extend(_curve_copies(source_ids, by_id, affine, relabel))
+    return emitted
 
 
 def _t_move(transform: dict, entities: list[dict], source_ids: list[str],
@@ -249,8 +231,7 @@ def _append_copies(transform_id: str, entities: list[dict], source_ids: list[str
     out = list(entities)
     copy_prefixes = PaddedNaming().child_ids(transform_id, len(affines))
     for prefix, affine in zip(copy_prefixes, affines):
-        relabel = {sid: f"{prefix}/{sid}" for sid in source_ids}
-        out.extend(_transform_entities(source_ids, by_id, affine, relabel))
+        out.extend(_append_copy(prefix, source_ids, by_id, affine))
     return out
 
 

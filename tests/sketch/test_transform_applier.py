@@ -104,13 +104,17 @@ def test_mirror_reflects_and_appends_copies():
     assert -5.0 in xs
 
 
-def test_mirror_shares_points_on_axis():
+def test_mirror_welds_points_on_axis():
     out = TransformApplier().apply(_half_vee(), [
         {"id": "m", "op": "mirror", "sources": ["s0", "s1"],
          "axis": {"p1": "apex", "p2": "top"}}])
     mirrored_pts = [e for e in out if e["type"] == "point" and e["id"].startswith("m/")]
-    # apex(0,0) and top(0,10) are on the axis, right(5,5) reflects: 3 distinct points
-    assert len(mirrored_pts) == 3
+    # apex(0,0) and top(0,10) are ON the axis so they weld to the originals; only
+    # right(5,5) reflects to a new point m/right, and the mirror lines reuse apex/top.
+    assert len(mirrored_pts) == 1 and mirrored_pts[0]["id"] == "m/0/right"
+    mirror_lines = {e["id"]: e for e in out if e["type"] == "line" and e["id"].startswith("m/")}
+    endpoints = {p for line in mirror_lines.values() for p in (line["p1"], line["p2"])}
+    assert "apex" in endpoints and "top" in endpoints and "m/0/right" in endpoints
 
 
 def test_linear_pattern_replicates_count_copies():
