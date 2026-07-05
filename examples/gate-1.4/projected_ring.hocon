@@ -1,0 +1,26 @@
+schema_version = 1
+units = mm
+# Reference-into-sketch: a disc, then a sketch that projects the disc's top circular edge
+# and offsets it inward to make a concentric ring (a washer), extruded taller. A circle
+# offset is self-closing, so the projected + offset loop needs no corner handling.
+parameters { disc_d = 40, disc_h = 10, wall = 6, ring_h = 14 }
+parts {
+  projected_ring {
+    profile = solid
+    features = [
+      { id = disc_sk, op = sketch, plane = XY,
+        entities = [
+          { id = cp, type = point, at = [ 0, 0 ] }
+          { id = c0, type = circle, center = cp, radius = 20 }
+        ]
+        constraints = [ { type = fix, of = cp },
+          { type = radius, of = c0, value = "${disc_d} / 2" } ] }
+      { id = disc, op = extrude, profile = disc_sk, distance = "${disc_h}" }
+      { id = ring_sk, op = sketch, plane = XY,
+        project = [ "select edges where created_by='disc' and type='circle' and min_z>5" ],
+        entities = [ { id = inner, type = offset, from = "proj/0", distance = "0 - ${wall}" } ]
+        constraints = [] }
+      { id = ring, op = extrude, profile = ring_sk, distance = "${ring_h}" }
+    ]
+  }
+}
