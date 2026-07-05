@@ -108,3 +108,19 @@ def test_wire_face_circle_is_valid() -> None:
     solid = kernel.extrude(
         kernel.wire_face([{"kind": "circle", "center": (0.0, 0.0), "radius": 6.0}], "XY"), 3.0)
     assert kernel.volume(solid) == pytest.approx(math.pi * 36.0 * 3.0, rel=1e-3)
+
+
+@pytest.mark.slow
+def test_project_edges_of_a_top_face_gives_rectangle() -> None:
+    kernel = Build123dKernel()
+    face = kernel.polygon_face([(0, 0), (20, 0), (20, 10), (0, 10)], "XY")
+    solid = kernel.extrude(face, 5.0)
+    top_edges = [d["handle"] for d in kernel.describe_elements(solid)
+                 if d["kind"] == "edge" and round(d["max_z"], 3) == 5.0]
+    projected = kernel.project_edges(top_edges, "XY")
+    lines = [p for p in projected if p["kind"] == "line"]
+    assert lines, "top rectangle edges should project to lines"
+    xs = [pt[0] for p in lines for pt in p["points"]]
+    ys = [pt[1] for p in lines for pt in p["points"]]
+    assert min(xs) == pytest.approx(0.0) and max(xs) == pytest.approx(20.0)
+    assert min(ys) == pytest.approx(0.0) and max(ys) == pytest.approx(10.0)

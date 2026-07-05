@@ -73,6 +73,10 @@ class FakeKernel(Kernel):
     def wire_face(self, edges: list, plane: str) -> Any:
         return _FakeWireFace(edges, plane)
 
+    def project_edges(self, edges: list, plane: str) -> list:
+        # FakeKernel edges in tests are already 2D descriptors; identity projection.
+        return list(edges)
+
     def extrude(self, face: Any, distance: float) -> Any:
         return _FakeSolid(face, distance)
 

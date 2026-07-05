@@ -47,6 +47,16 @@ class Kernel(ABC):
         """
 
     @abstractmethod
+    def project_edges(self, edges: list, plane: str) -> list:
+        """Project ``edges`` (kernel edge handles) onto ``plane``, returning 2D descriptors.
+
+        Each descriptor is ``{"kind":"line","points":[a,b]}``,
+        ``{"kind":"arc","points":[start,mid,end]}``,
+        ``{"kind":"circle","center":c,"radius":r}``, or ``{"kind":"degenerate"}`` for an
+        edge that projects to zero length. Coordinates are in the plane's 2D (u, v) frame.
+        """
+
+    @abstractmethod
     def cylinder(self, center: Point3, axis: str, diameter: float, length: float) -> Any:
         """A solid cylinder of ``diameter`` and ``length`` from ``center`` along ``axis``."""
 
