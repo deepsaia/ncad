@@ -58,3 +58,15 @@ def test_attrs_include_normal_components_and_orientation():
     e = m.by_feature("pad")[0]
     assert e.attrs["normal_z"] == 1.0
     assert e.attrs["created_by"] == "pad"
+
+
+def test_element_ids_are_padded_past_ten():
+    m = ElementMap()
+    # 12 edge descriptors in one role -> width 2 padded ids
+    edges = [{"kind": "edge", "handle": object(), "geom_type": "line", "length": 1.0,
+              "center": (float(i), 0.0, 0.0), "min_z": 0.0, "mid_z": 0.0, "max_z": 0.0}
+             for i in range(12)]
+    m.rebuild("f", edges, tags={})
+    edge_ids = sorted(e.id for e in m.by_feature("f"))
+    assert edge_ids == sorted(edge_ids)
+    assert any(i.endswith("/edge/00") for i in edge_ids)

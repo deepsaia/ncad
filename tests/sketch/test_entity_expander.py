@@ -46,3 +46,16 @@ def test_slot_expands_to_two_lines_and_two_arcs():
     lines = [e for e in out if e.get("type") == "line" and e["id"].startswith("sl/")]
     arcs = [e for e in out if e.get("type") == "arc" and e["id"].startswith("sl/")]
     assert len(lines) == 2 and len(arcs) == 2
+
+
+def test_polygon_child_ids_padded_past_ten():
+    entities = [
+        {"id": "hc", "type": "point", "at": [0, 0]},
+        {"id": "poly", "type": "polygon", "center": "hc", "sides": 12, "r": 20},
+    ]
+    out = EntityExpander().expand(entities)
+    point_ids = sorted(
+        e["id"] for e in out if e["type"] == "point" and e["id"].startswith("poly/p"))
+    # 12 sides -> width 2 -> lexical sort matches numeric
+    assert point_ids == sorted(point_ids)
+    assert any(i.endswith("/00") for i in point_ids)
