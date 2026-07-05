@@ -28,6 +28,8 @@ class GeometryIntersector:
             hits = _line_circle(a, b, points)
         elif ta in ("circle", "arc") and tb == "line":
             hits = _line_circle(b, a, points)
+        elif ta in ("circle", "arc") and tb in ("circle", "arc"):
+            hits = _circle_circle(a, b, points)
         else:
             hits = []
         return sorted(hits)
@@ -83,6 +85,26 @@ def _circle_radius(circle: dict, points: dict) -> float:
     cx, cy = points[circle["center"]]
     sx, sy = points[circle["start"]]
     return math.hypot(sx - cx, sy - cy)
+
+
+def _circle_circle(a: dict, b: dict, points: dict) -> list[tuple[float, float]]:
+    """Intersections of two circles/arcs (each operand's arc range filtered)."""
+    ax, ay = points[a["center"]]
+    bx, by = points[b["center"]]
+    ra, rb = _circle_radius(a, points), _circle_radius(b, points)
+    d = math.hypot(bx - ax, by - ay)
+    if d < _EPS or d > ra + rb + _EPS or d < abs(ra - rb) - _EPS:
+        return []
+    aa = (ra * ra - rb * rb + d * d) / (2 * d)
+    h_sq = max(0.0, ra * ra - aa * aa)
+    mx, my = ax + aa * (bx - ax) / d, ay + aa * (by - ay) / d
+    if h_sq < _EPS:
+        hits = [(mx, my)]
+    else:
+        h = math.sqrt(h_sq)
+        ox, oy = -(by - ay) / d * h, (bx - ax) / d * h
+        hits = [(mx + ox, my + oy), (mx - ox, my - oy)]
+    return _arc_filter(a, _arc_filter(b, hits, points), points)
 
 
 def _arc_filter(entity: dict, hits: list[tuple[float, float]],
