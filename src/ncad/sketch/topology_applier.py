@@ -9,6 +9,7 @@ TopologyError.
 """
 
 import logging
+import math
 
 from ncad.sketch.geometry_intersector import GeometryIntersector
 
@@ -135,7 +136,148 @@ def _set_endpoint(entities: list[dict], line: dict, end_key: str, hit: tuple,
     return out
 
 
+def _m_fillet(op: dict, entities: list[dict]) -> list[dict]:
+    """Round the corner at ``at`` (two lines) with a tangent arc of ``radius``."""
+    radius = float(op.get("radius", 0.0))
+    if radius <= 0.0:
+        raise TopologyError(f"fillet at {op.get('at')!r} needs a positive radius")
+    corner_id = op["at"]
+    line_a, line_b = _corner_entities(corner_id, entities, op)
+    seeds = _seeds(entities)
+    corner = seeds[corner_id]
+    ua = _line_dir(line_a, corner_id, seeds)
+    ub = _line_dir(line_b, corner_id, seeds)
+    center, ta, tb = _fillet_geometry(corner, ua, ub, radius, op)
+    prefix = f"{corner_id}/fillet"
+    new_points = [
+        {"id": f"{prefix}/a", "type": "point", "at": [ta[0], ta[1]], "fixed": True},
+        {"id": f"{prefix}/b", "type": "point", "at": [tb[0], tb[1]], "fixed": True},
+        {"id": f"{prefix}/c", "type": "point", "at": [center[0], center[1]],
+         "fixed": True},
+    ]
+    arc = _oriented_arc(f"{prefix}/arc", f"{prefix}/c", f"{prefix}/a", f"{prefix}/b",
+                        center, ta, tb)
+    rewired = _repoint_corner(entities, line_a, line_b, corner_id,
+                              f"{prefix}/a", f"{prefix}/b")
+    return rewired + new_points + [arc]
+
+
+def _m_chamfer(op: dict, entities: list[dict]) -> list[dict]:
+    """Bevel the corner at ``at`` (two lines) with a line set back by ``setback``."""
+    setback = float(op.get("setback", 0.0))
+    if setback <= 0.0:
+        raise TopologyError(f"chamfer at {op.get('at')!r} needs a positive setback")
+    corner_id = op["at"]
+    line_a, line_b = _corner_entities(corner_id, entities, op)
+    seeds = _seeds(entities)
+    corner = seeds[corner_id]
+    ua = _line_dir(line_a, corner_id, seeds)
+    ub = _line_dir(line_b, corner_id, seeds)
+    pa = (corner[0] + ua[0] * setback, corner[1] + ua[1] * setback)
+    pb = (corner[0] + ub[0] * setback, corner[1] + ub[1] * setback)
+    prefix = f"{corner_id}/chamfer"
+    new_points = [
+        {"id": f"{prefix}/a", "type": "point", "at": [pa[0], pa[1]], "fixed": True},
+        {"id": f"{prefix}/b", "type": "point", "at": [pb[0], pb[1]], "fixed": True},
+    ]
+    seg = {"id": f"{prefix}/line", "type": "line", "p1": f"{prefix}/a",
+           "p2": f"{prefix}/b", "fixed": True}
+    rewired = _repoint_corner(entities, line_a, line_b, corner_id,
+                              f"{prefix}/a", f"{prefix}/b")
+    return rewired + new_points + [seg]
+
+
+def _corner_entities(corner_id: str, entities: list[dict], op: dict) -> tuple[dict, dict]:
+    """The exactly-two line entities sharing ``corner_id``; else a TopologyError."""
+    touching = [e for e in entities
+                if e.get("type") in ("line", "arc", "circle")
+                and corner_id in _endpoint_ids(e)]
+    if len(touching) != 2:
+        raise TopologyError(f"corner {corner_id!r} must be shared by exactly two "
+                            f"entities (found {len(touching)})")
+    if any(e["type"] != "line" for e in touching):
+        raise TopologyError(f"corner {corner_id!r}: fillet/chamfer supports line-line "
+                            f"corners only in this bucket")
+    return touching[0], touching[1]
+
+
+def _endpoint_ids(entity: dict) -> tuple:
+    """The connecting point ids of a line/arc (empty for a circle)."""
+    if entity["type"] == "line":
+        return entity["p1"], entity["p2"]
+    if entity["type"] == "arc":
+        return entity["start"], entity["end"]
+    return ()
+
+
+def _line_dir(line: dict, from_id: str, seeds: dict) -> tuple[float, float]:
+    """Unit direction of ``line`` pointing AWAY from the corner point ``from_id``."""
+    other = line["p2"] if line["p1"] == from_id else line["p1"]
+    fx, fy = seeds[from_id]
+    ox, oy = seeds[other]
+    dx, dy = ox - fx, oy - fy
+    length = math.hypot(dx, dy)
+    if length < 1e-9:
+        raise TopologyError(f"degenerate line {line['id']!r} at corner {from_id!r}")
+    return dx / length, dy / length
+
+
+def _fillet_geometry(corner: tuple, ua: tuple, ub: tuple, radius: float,
+                     op: dict) -> tuple[tuple, tuple, tuple]:
+    """Arc center + the two tangent points for a fillet between two rays from a corner.
+
+    The center sits along the interior angle bisector at distance radius/sin(theta/2);
+    each tangent point is the foot of the perpendicular from the center onto a ray.
+    """
+    dot = max(-1.0, min(1.0, ua[0] * ub[0] + ua[1] * ub[1]))
+    theta = math.acos(dot)
+    if theta < 1e-6 or abs(theta - math.pi) < 1e-6:
+        raise TopologyError(f"fillet at {op.get('at')!r}: the two lines are collinear")
+    tan_dist = radius / math.tan(theta / 2.0)
+    ta = (corner[0] + ua[0] * tan_dist, corner[1] + ua[1] * tan_dist)
+    tb = (corner[0] + ub[0] * tan_dist, corner[1] + ub[1] * tan_dist)
+    bx, by = ua[0] + ub[0], ua[1] + ub[1]
+    blen = math.hypot(bx, by)
+    center_dist = radius / math.sin(theta / 2.0)
+    center = (corner[0] + bx / blen * center_dist, corner[1] + by / blen * center_dist)
+    return center, ta, tb
+
+
+def _oriented_arc(arc_id: str, center_id: str, a_id: str, b_id: str,
+                  center: tuple, ta: tuple, tb: tuple) -> dict:
+    """A CCW arc from a to b; swap ends if a->b would sweep the wrong way.
+
+    WireOrderer draws arcs CCW start->end about center. Choose start/end so the CCW span
+    is the minor arc (the fillet), by checking the cross product of the two radial vecs.
+    """
+    ax, ay = ta[0] - center[0], ta[1] - center[1]
+    bx, by = tb[0] - center[0], tb[1] - center[1]
+    cross = ax * by - ay * bx
+    if cross >= 0.0:
+        return {"id": arc_id, "type": "arc", "center": center_id,
+                "start": a_id, "end": b_id, "fixed": True}
+    return {"id": arc_id, "type": "arc", "center": center_id,
+            "start": b_id, "end": a_id, "fixed": True}
+
+
+def _repoint_corner(entities: list[dict], line_a: dict, line_b: dict, corner_id: str,
+                    a_id: str, b_id: str) -> list[dict]:
+    """Re-point line_a's corner end to a_id and line_b's corner end to b_id (fixed)."""
+    remap = {line_a["id"]: a_id, line_b["id"]: b_id}
+    out: list[dict] = []
+    for entity in entities:
+        new_id = remap.get(entity["id"])
+        if new_id is None:
+            out.append(entity)
+            continue
+        end_key = "p1" if entity["p1"] == corner_id else "p2"
+        out.append({**entity, end_key: new_id, "fixed": True})
+    return out
+
+
 _MODIFY_HANDLERS = {
     "trim": "_m_trim",
     "extend": "_m_extend",
+    "fillet": "_m_fillet",
+    "chamfer": "_m_chamfer",
 }
