@@ -131,7 +131,8 @@ class SlvsSolver(SketchSolver):
         for constraint in constraints:
             if constraint.get("driven"):
                 measurements[constraint["id"]] = _measure(constraint, positions, radii, by_id)
-        return _result_from(code, dof, failed, positions, feature_id, radii, measurements)
+        return _result_from(code, dof, failed, positions, feature_id, radii,
+                            measurements)
 
     def _apply(self, system: Any, constraint: dict, ctx: _Ctx) -> None:
         """Dispatch one constraint to its handler; skip driven dims (measured post-solve)."""
@@ -371,10 +372,22 @@ def _arc_length(arc: dict, positions: dict) -> float:
     return radius * sweep
 
 
+# SolveSpace result codes: 0 OKAY, 1 INCONSISTENT, 2 DIDNT_CONVERGE, 3 TOO_MANY_UNKNOWNS.
+# py-slvs additionally returns 5 for a *redundant-but-consistent* system: every constraint
+# is satisfied and the geometry solved, but a constraint is mathematically redundant. This
+# is expected for fully-fixed geometry whose points are each pinned while the entity also
+# couples them (a fixed arc's equal-radius, an offset curve sharing a pinned center), so we
+# accept code 5 as solved. Genuine failures (1/2/3) and any reported failing constraints
+# still make the sketch inconsistent.
+_REDUNDANT_OKAY = 5
+
+
 def _result_from(code: int, dof: int, failed: list, positions: dict,
                  feature_id: str, radii: dict, measurements: dict) -> SolveResult:
     """Map a py-slvs solve outcome to a SolveResult."""
-    if code != 0 or failed:
+    # Code 5 (redundant-but-consistent) reports its redundant pins in ``failed``, but the
+    # geometry solved, so it is accepted. Any other nonzero code is a genuine failure.
+    if code not in (0, _REDUNDANT_OKAY):
         message = (f"sketch is over-constrained or inconsistent "
                    f"(solver code {code}, {len(failed)} failing constraint(s))")
         return SolveResult(positions=positions, dof=dof, status="inconsistent",
