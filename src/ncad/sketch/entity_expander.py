@@ -11,6 +11,8 @@ refines them under any constraints.
 import logging
 import math
 
+from ncad.sketch.id_padding import PaddedNaming
+
 logger = logging.getLogger(__name__)
 
 _PASSTHROUGH = frozenset({"point", "line", "arc", "circle"})
@@ -18,6 +20,9 @@ _PASSTHROUGH = frozenset({"point", "line", "arc", "circle"})
 
 class EntityExpander:
     """Expands sugar entities (polyline/slot/polygon) into primitives."""
+
+    def __init__(self) -> None:
+        self._naming = PaddedNaming()
 
     def expand(self, entities: list[dict]) -> list[dict]:
         """Return a new entity list with sugar lowered to primitives."""
@@ -40,9 +45,9 @@ class EntityExpander:
 
     def _expand_polyline(self, entity: dict) -> list[dict]:
         """A polyline is an open chain of lines between consecutive point ids."""
-        sid = entity["id"]
         points = entity["points"]
-        return [{"id": f"{sid}/l{i}", "type": "line", "p1": points[i], "p2": points[i + 1]}
+        line_ids = self._naming.child_ids(f"{entity['id']}/l", len(points) - 1)
+        return [{"id": line_ids[i], "type": "line", "p1": points[i], "p2": points[i + 1]}
                 for i in range(len(points) - 1)]
 
     def _expand_polygon(self, entity: dict, by_id: dict) -> list[dict]:
@@ -51,14 +56,16 @@ class EntityExpander:
         sides = int(entity["sides"])
         radius = float(entity["r"])
         cx, cy = _seed_of(by_id, entity["center"])
+        point_ids = self._naming.child_ids(f"{sid}/p", sides)
+        line_ids = self._naming.child_ids(f"{sid}/l", sides)
         result: list[dict] = []
         for i in range(sides):
             angle = 2.0 * math.pi * i / sides
-            result.append({"id": f"{sid}/p{i}", "type": "point",
+            result.append({"id": point_ids[i], "type": "point",
                            "at": [cx + radius * math.cos(angle), cy + radius * math.sin(angle)]})
         for i in range(sides):
-            result.append({"id": f"{sid}/l{i}", "type": "line",
-                           "p1": f"{sid}/p{i}", "p2": f"{sid}/p{(i + 1) % sides}"})
+            result.append({"id": line_ids[i], "type": "line",
+                           "p1": point_ids[i], "p2": point_ids[(i + 1) % sides]})
         return result
 
     def _expand_slot(self, entity: dict, by_id: dict) -> list[dict]:

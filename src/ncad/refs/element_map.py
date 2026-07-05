@@ -90,8 +90,10 @@ def _assign_indices(feature_id: str, descriptors: list[dict],
     for role, group in by_role.items():
         ordered = sorted(group, key=lambda t: _canonical_sort_key(
             t[0], t[0]["kind"], order=t[0].get("order")))
+        width = max(1, len(str(len(ordered) - 1))) if ordered else 1
         for index, (descriptor, tag) in enumerate(ordered):
-            result.append((descriptor, f"{feature_id}/{role}/{index}", role, tag))
+            element_id = f"{feature_id}/{role}/{index:0{width}d}"
+            result.append((descriptor, element_id, role, tag))
     return result
 
 
