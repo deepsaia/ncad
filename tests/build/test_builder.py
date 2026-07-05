@@ -211,3 +211,31 @@ def test_warning_issue_does_not_mark_feature_failed() -> None:
 
     assert result.shape is solid
     assert not any("depends on failed" in i.message for i in result.issues)
+
+
+def test_sketch_project_field_resolves_to_refs() -> None:
+    from ncad.ops.op_result import OpResult
+
+    captured = {}
+
+    def probe(shape_in, params, prov, kernel):
+        # capture refs only for the feature that declares a project field
+        if "project" in params:
+            captured["refs"] = params.get("__refs__", {})
+        # sketches must still produce a solid-ish shape for downstream; reuse a fake face
+        if params.get("project") is None and "elements" in params:
+            return SketchOpReal().build(shape_in, params, prov, kernel)
+        return OpResult(shape=None, provenance={}, issues=[])
+
+    from ncad.ops.sketch_op import SketchOp as SketchOpReal
+    reg = OpRegistry.with_defaults()
+    reg.register("sketch", probe)
+    part = {"profile": "solid", "features": [
+        _rect("base", 40, 40),
+        {"id": "pad", "op": "extrude", "profile": "base", "distance": 5},
+        {"id": "sk2", "op": "sketch", "plane": "XY",
+         "project": ["select edges where created_by='pad'"]},
+    ]}
+    Builder(FakeKernel(), reg).build_part_mapped(part)
+    assert "project" in captured["refs"]
+    assert isinstance(captured["refs"]["project"], list)

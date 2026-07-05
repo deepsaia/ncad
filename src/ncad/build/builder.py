@@ -39,6 +39,7 @@ _REF_FIELDS: dict[str, dict[str, str]] = {
     "hole": {"on": "face"},
     "fillet": {"edges": "edges"},
     "chamfer": {"edges": "edges"},
+    "sketch": {"project": "edges"},
 }
 _EDGE_KEYWORDS = ("all", "top", "bottom", "vertical", "horizontal")
 # Ops whose output is not a model solid (a sketch produces an input face); the element
@@ -168,6 +169,15 @@ class Builder:
             if field not in feature:
                 continue
             value = feature[field]
+            # A list of references (e.g. a sketch's ``project``) resolves each to edge
+            # handles and concatenates them.
+            if isinstance(value, list):
+                handles, error = self._resolve_edge_list(
+                    value, shape_by_id, element_map, resolver)
+                if error is not None:
+                    return refs, shape_in, error
+                refs[field] = handles
+                continue
             if role == "edges" and value in _EDGE_KEYWORDS:
                 refs[field] = self._resolve_keyword_edges(previous_shape, value)
                 continue
@@ -179,6 +189,19 @@ class Builder:
             if role == "input":
                 shape_in = refs[field]
         return refs, shape_in, None
+
+    def _resolve_edge_list(self, references: list, shape_by_id: dict,
+                           element_map: ElementMap,
+                           resolver: ReferenceResolver) -> tuple[list, str | None]:
+        """Resolve a list of references to a concatenated list of edge handles."""
+        handles: list = []
+        for reference in references:
+            resolution = resolver.resolve(
+                Reference.parse(str(reference)), shape_by_id, element_map.elements())
+            if resolution.error is not None:
+                return handles, resolution.error
+            handles.extend(e.handle for e in resolution.elements)
+        return handles, None
 
     def _resolve_keyword_edges(self, shape_in: Any, keyword: str) -> list:
         """Keyword sugar: resolve one of the five edge keywords to edge handles."""
