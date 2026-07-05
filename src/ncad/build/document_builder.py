@@ -89,7 +89,10 @@ class DocumentBuilder:
         for name, part in resolved["parts"].items():
             result, element_map = self._builder.build_part_mapped(part)
             if result.shape is None:
-                logger.warning("part %s did not build; skipping export", name)
+                reasons = "; ".join(f"[{i.node_id}] {i.message}" for i in result.issues
+                                    if i.level == "error") or "no error detail reported"
+                logger.warning("part %s did not build; skipping export. reason(s): %s",
+                               name, reasons)
                 continue
             glb_path = os.path.join(out_dir, f"{name}.glb")
             self._kernel.export(result.shape, glb_path)

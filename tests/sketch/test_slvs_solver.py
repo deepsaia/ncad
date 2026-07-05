@@ -280,3 +280,41 @@ def test_construction_entity_is_pinned():
     r = SlvsSolver().solve(ents, [], "sk")
     assert r.positions["a"] == (3.0, 4.0) and r.positions["b"] == (9.0, 4.0)
     assert r.dof == 0
+
+
+def test_fixed_arc_redundant_pin_is_accepted():
+    # A closed loop with a fixed fillet arc: two fixed lines meet a fixed tangent arc.
+    # The arc's equal-radius coupling makes its point pins redundant (solver code 5, 0
+    # failing constraints). SolveSpace still finds the correct positions, so we must
+    # accept it as solved, not report it inconsistent. This mirrors what fillet emits.
+    entities = [
+        {"id": "bl", "type": "point", "at": [0.0, 0.0], "fixed": True},
+        {"id": "ta", "type": "point", "at": [10.0, 0.0], "fixed": True},
+        {"id": "tb", "type": "point", "at": [0.0, 10.0], "fixed": True},
+        {"id": "cc", "type": "point", "at": [10.0, 10.0], "fixed": True},
+        {"id": "bottom", "type": "line", "p1": "bl", "p2": "ta", "fixed": True},
+        {"id": "left", "type": "line", "p1": "tb", "p2": "bl", "fixed": True},
+        {"id": "arc", "type": "arc", "center": "cc", "start": "ta", "end": "tb",
+         "fixed": True},
+    ]
+    result = SlvsSolver().solve(entities, [], "sk")
+    assert result.status != "inconsistent"
+    assert result.positions["ta"] == (10.0, 0.0)
+    assert result.positions["tb"] == (0.0, 10.0)
+
+
+def test_genuine_conflict_still_inconsistent():
+    # Two conflicting distance constraints on the same segment must still report failure
+    # (Failed is non-empty), so the redundant-but-consistent relaxation is not too broad.
+    entities = [
+        {"id": "p0", "type": "point", "at": [0.0, 0.0]},
+        {"id": "p1", "type": "point", "at": [10.0, 0.0]},
+        {"id": "l", "type": "line", "p1": "p0", "p2": "p1"},
+    ]
+    constraints = [
+        {"type": "fix", "of": "p0"},
+        {"type": "distance", "points": ["p0", "p1"], "value": 10},
+        {"type": "distance", "points": ["p0", "p1"], "value": 20},
+    ]
+    result = SlvsSolver().solve(entities, constraints, "sk")
+    assert result.status == "inconsistent"
