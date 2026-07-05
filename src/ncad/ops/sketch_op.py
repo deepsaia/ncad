@@ -7,14 +7,18 @@ into 2D positions, ordered into a closed wire, and built as a planar face.
 """
 
 import math
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from ncad.kernel.kernel import Kernel, Point2
 from ncad.ops.build_issue import BuildIssue
 from ncad.ops.op_result import OpResult
+from ncad.sketch.edge_projector import EdgeProjector
 from ncad.sketch.entity_expander import EntityExpander
-from ncad.sketch.sketch_solver import SketchSolver
+from ncad.sketch.offset_applier import OffsetApplier, OffsetError
 from ncad.sketch.wire_orderer import WireOrderer
+
+if TYPE_CHECKING:
+    from ncad.sketch.sketch_solver import SketchSolver
 
 
 class SketchOp:
@@ -38,7 +42,7 @@ class SketchOp:
         :param kernel: Geometry backend.
         :return: An :class:`OpResult` whose shape is the face, or ``None`` + an issue.
         """
-        if params.get("entities"):
+        if params.get("entities") or params.get("project"):
             return self._build_from_entities(params, kernel)
         feature_id = params["id"]
         plane = params.get("plane", "XY")
@@ -67,20 +71,47 @@ class SketchOp:
         return OpResult(shape=None, provenance={}, issues=[issue])
 
     def _build_from_entities(self, params: dict, kernel: Kernel) -> OpResult:
-        """Solve a constrained entity set and build a face from the closed wire."""
+        """Solve a constrained entity set and build a face from the closed wire.
+
+        Handles reference-into-sketch (project prior edges onto the plane as fixed
+        construction entities) and offset (derive real entities), then expand/solve/order.
+        """
         feature_id = params["id"]
         plane = params.get("plane", "XY")
-        entities = EntityExpander().expand(params["entities"])
+        entities = list(params.get("entities", []))
+        projected_issue = None
+        project_edges = params.get("__refs__", {}).get("project")
+        if project_edges:
+            descriptors = kernel.project_edges(project_edges, plane)
+            reference_entities, degenerate = EdgeProjector().project(descriptors)
+            entities = reference_entities + entities
+            if degenerate and not reference_entities:
+                return OpResult(shape=None, provenance={}, issues=[BuildIssue(
+                    node_id=feature_id, message="sketch projected no usable geometry")])
+            if degenerate:
+                projected_issue = BuildIssue(
+                    node_id=feature_id,
+                    message=f"{degenerate} projected edge(s) were degenerate and skipped",
+                    level="warning")
+        try:
+            entities = OffsetApplier().apply(entities)
+        except OffsetError as exc:
+            return OpResult(shape=None, provenance={},
+                            issues=[BuildIssue(node_id=feature_id, message=str(exc))])
+        entities = EntityExpander().expand(entities)
         constraints = params.get("constraints", [])
         result = self._solver.solve(entities, constraints, feature_id)
-        if any(issue.level == "error" for issue in result.issues):
-            return OpResult(shape=None, provenance={}, issues=result.issues)
+        issues = list(result.issues)
+        if projected_issue is not None:
+            issues.append(projected_issue)
+        if any(issue.level == "error" for issue in issues):
+            return OpResult(shape=None, provenance={}, issues=issues)
         edges, ring_error = WireOrderer().order(entities, result.positions, result.radii)
         if ring_error is not None:
             return OpResult(shape=None, provenance={},
                             issues=[BuildIssue(node_id=feature_id, message=ring_error)])
         face = kernel.wire_face(edges, plane)
-        return OpResult(shape=face, provenance={}, issues=result.issues)
+        return OpResult(shape=face, provenance={}, issues=issues)
 
     @staticmethod
     def _rectangle_points(width: float, height: float) -> list[Point2]:

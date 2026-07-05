@@ -72,6 +72,12 @@ class Build123dKernel(Kernel):
         occ_edges = [_build_edge(edge, basis) for edge in edges]
         return Face(Wire(occ_edges))
 
+    def project_edges(self, edges: list, plane: str) -> list:
+        if plane not in _PLANES:
+            raise ValueError(f"plane must be one of {tuple(_PLANES)}, got {plane!r}")
+        basis = _PLANES[plane]
+        return [_project_edge(edge, basis) for edge in edges]
+
     def cylinder(self, center: Point3, axis: str, diameter: float, length: float) -> Any:
         if axis not in _AXES:
             raise ValueError(f"axis must be one of {tuple(_AXES)}, got {axis!r}")
@@ -298,6 +304,24 @@ def _build_edge(edge: dict, basis: Any) -> Any:
         face_plane = Plane(origin=origin, z_dir=basis.z_dir)  # pyrefly: ignore[no-matching-overload]
         return Edge.make_circle(edge["radius"], face_plane)
     raise ValueError(f"unknown sketch edge kind {kind!r}")
+
+
+def _project_edge(edge: Any, basis: Any) -> dict:
+    """Project one build123d edge onto ``basis`` plane, returning a 2D descriptor."""
+    name = _geom_name(edge)
+    if name == "circle":
+        center = basis.to_local_coords(edge.arc_center)
+        return {"kind": "circle", "center": (center.X, center.Y),
+                "radius": float(edge.radius)}
+    a = basis.to_local_coords(edge.position_at(0))
+    b = basis.to_local_coords(edge.position_at(1))
+    pa, pb = (a.X, a.Y), (b.X, b.Y)
+    if abs(pa[0] - pb[0]) < 1e-9 and abs(pa[1] - pb[1]) < 1e-9:
+        return {"kind": "degenerate"}
+    if name == "arc":
+        mid = basis.to_local_coords(edge.position_at(0.5))
+        return {"kind": "arc", "points": [pa, (mid.X, mid.Y), pb]}
+    return {"kind": "line", "points": [pa, pb]}
 
 
 def _type_histogram(shapes: list) -> dict:

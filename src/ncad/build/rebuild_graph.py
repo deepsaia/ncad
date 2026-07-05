@@ -72,6 +72,9 @@ def _compute_deps(features: list[dict]) -> dict[str, list[str]]:
         named = _named_deps(feature, op)
         if op == "pocket" and not feature.get("target") and previous_solid is not None:
             named = [previous_solid, *named]
+        # A sketch that projects prior geometry depends on the working solid it projects.
+        if op == "sketch" and feature.get("project") and previous_solid is not None:
+            named = [previous_solid, *named]
         if named:
             deps[fid] = named
         elif op in _NON_SOLID_OPS:

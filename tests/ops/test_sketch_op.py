@@ -142,3 +142,42 @@ def test_entities_path_builds_a_circle():
     import math
     assert result.shape is not None
     assert kernel.volume(kernel.extrude(result.shape, 1.0)) == pytest.approx(math.pi * 25.0)
+
+
+def test_project_and_offset_builds_a_face():
+    kernel = FakeKernel()
+
+    class _Passthrough(SketchSolver):
+        def solve(self, entities, constraints, feature_id):
+            positions = {e["id"]: tuple(e["at"]) for e in entities if e["type"] == "point"}
+            return SolveResult(positions=positions, dof=0, status="well_constrained",
+                               issues=[], radii={})
+
+    # __refs__["project"] carries 2D descriptors (FakeKernel.project_edges is identity):
+    # the projected square is construction (excluded from the wire); an inner real square
+    # is what gets built.
+    feature = {
+        "id": "sk", "op": "sketch", "plane": "XY",
+        "project": ["ignored-by-stub"],
+        "__refs__": {"project": [
+            {"kind": "line", "points": [(0.0, 0.0), (40.0, 0.0)]},
+            {"kind": "line", "points": [(40.0, 0.0), (40.0, 40.0)]},
+            {"kind": "line", "points": [(40.0, 40.0), (0.0, 40.0)]},
+            {"kind": "line", "points": [(0.0, 40.0), (0.0, 0.0)]},
+        ]},
+        "entities": [
+            {"id": "q0", "type": "point", "at": [5, 5]},
+            {"id": "q1", "type": "point", "at": [35, 5]},
+            {"id": "q2", "type": "point", "at": [35, 35]},
+            {"id": "q3", "type": "point", "at": [5, 35]},
+            {"id": "m0", "type": "line", "p1": "q0", "p2": "q1"},
+            {"id": "m1", "type": "line", "p1": "q1", "p2": "q2"},
+            {"id": "m2", "type": "line", "p1": "q2", "p2": "q3"},
+            {"id": "m3", "type": "line", "p1": "q3", "p2": "q0"},
+        ],
+        "constraints": [],
+    }
+    result = SketchOp(_Passthrough()).build(None, feature, {}, kernel)
+    assert result.shape is not None
+    # inner 30x30 loop built; projected construction square excluded
+    assert kernel.volume(kernel.extrude(result.shape, 1.0)) == 900.0

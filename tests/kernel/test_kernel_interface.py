@@ -63,6 +63,15 @@ def test_fake_kernel_version_is_stable() -> None:
     assert FakeKernel().version() == "fake-1"
 
 
+def test_fake_project_edges_passthrough() -> None:
+    kernel = FakeKernel()
+    descriptors = [
+        {"kind": "line", "points": [(0.0, 0.0), (10.0, 0.0)]},
+        {"kind": "circle", "center": (0.0, 0.0), "radius": 5.0},
+    ]
+    assert kernel.project_edges(descriptors, "XY") == descriptors
+
+
 def test_fake_wire_face_line_loop_area() -> None:
     kernel = FakeKernel()
     edges = [

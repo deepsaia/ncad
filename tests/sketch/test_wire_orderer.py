@@ -78,3 +78,23 @@ def test_clockwise_loop_is_reoriented_counter_clockwise():
     area = sum(ring[i][0] * ring[(i + 1) % 4][1] - ring[(i + 1) % 4][0] * ring[i][1]
                for i in range(4)) / 2.0
     assert area > 0
+
+
+def test_construction_entities_excluded_from_loop():
+    entities = [
+        {"id": "ra", "type": "point", "at": [0, 0], "construction": True},
+        {"id": "rb", "type": "point", "at": [100, 0], "construction": True},
+        {"id": "ref", "type": "line", "p1": "ra", "p2": "rb", "construction": True},
+        {"id": "p0", "type": "point", "at": [0, 0]},
+        {"id": "p1", "type": "point", "at": [10, 0]},
+        {"id": "p2", "type": "point", "at": [10, 10]},
+        {"id": "p3", "type": "point", "at": [0, 10]},
+        {"id": "l0", "type": "line", "p1": "p0", "p2": "p1"},
+        {"id": "l1", "type": "line", "p1": "p1", "p2": "p2"},
+        {"id": "l2", "type": "line", "p1": "p2", "p2": "p3"},
+        {"id": "l3", "type": "line", "p1": "p3", "p2": "p0"},
+    ]
+    positions = {e["id"]: tuple(e["at"]) for e in entities if e["type"] == "point"}
+    edges, err = WireOrderer().order(entities, positions, {})
+    assert err is None
+    assert len(edges) == 4

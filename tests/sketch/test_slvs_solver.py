@@ -269,3 +269,14 @@ def test_driven_dim_does_not_change_dof():
         {"type": "distance", "points": ["a", "b"], "driven": True, "id": "d"}], "sk")
     without = SlvsSolver().solve(ents, [], "sk")
     assert with_driven.dof == without.dof
+
+
+def test_construction_entity_is_pinned():
+    ents = [
+        {"id": "a", "type": "point", "at": [3, 4], "construction": True},
+        {"id": "b", "type": "point", "at": [9, 4], "construction": True},
+        {"id": "l0", "type": "line", "p1": "a", "p2": "b", "construction": True},
+    ]
+    r = SlvsSolver().solve(ents, [], "sk")
+    assert r.positions["a"] == (3.0, 4.0) and r.positions["b"] == (9.0, 4.0)
+    assert r.dof == 0

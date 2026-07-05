@@ -91,6 +91,22 @@ class SlvsSolver(SketchSolver):
                     point_handles[entity["start"]], point_handles[entity["end"]],
                     group=_SKETCH_GROUP)
 
+        # Construction (reference) and fixed (offset-derived) entities are dimensionally
+        # locked: pin each defining point once (a point may back several such entities),
+        # and pin a circle's radius via a diameter constraint.
+        pinned_points: set = set()
+        for entity in entities:
+            if not (entity.get("construction") or entity.get("fixed")):
+                continue
+            for pid in _defining_points(entity):
+                if pid not in pinned_points:
+                    system.addWhereDragged(point_handles[pid], wrkpln=workplane,
+                                           group=_SKETCH_GROUP)
+                    pinned_points.add(pid)
+            if entity["type"] == "circle":
+                system.addDiameter(2.0 * float(entity["radius"]),
+                                   curve_handles[entity["id"]], group=_SKETCH_GROUP)
+
         ctx = _Ctx(workplane, point_handles, curve_handles, by_id)
         try:
             for constraint in constraints:
@@ -285,6 +301,20 @@ def _constraint_refs(constraint: dict) -> list[str]:
     elif isinstance(of, list):
         refs.extend(of)
     return refs
+
+
+def _defining_points(entity: dict) -> list[str]:
+    """Point ids that define an entity's position (for pinning construction geometry)."""
+    kind = entity.get("type")
+    if kind == "point":
+        return [entity["id"]]
+    if kind == "line":
+        return [entity["p1"], entity["p2"]]
+    if kind == "arc":
+        return [entity["center"], entity["start"], entity["end"]]
+    if kind == "circle":
+        return [entity["center"]]
+    return []
 
 
 def _touches_arc_end(arc: dict, line: dict) -> bool:
