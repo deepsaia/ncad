@@ -1,0 +1,36 @@
+schema_version = 1
+units = mm
+# The gate profile: a right-side open chain whose overshooting top edge is TRIMMED back
+# to the right edge (welding to its top corner), then the whole chain is MIRRORED across
+# the Y axis to close a symmetric hexagonal plate. Proves trim + mirror compose into one
+# closed face. The chain runs top-centre -> (trimmed top) -> right corner -> down -> base
+# corner -> bottom-centre; both centre points sit on the mirror axis so they weld.
+parameters { t = 6 }
+parts {
+  trimmed_mirror {
+    profile = solid
+    features = [
+      { id = sk, op = sketch, plane = XY,
+        entities = [
+          { id = tc, type = point, at = [ 0, 25 ] }
+          { id = tr, type = point, at = [ 20, 15 ] }
+          { id = br, type = point, at = [ 20, 0 ] }
+          { id = bc, type = point, at = [ 0, 0 ] }
+          { id = over, type = point, at = [ 40, 5 ] }
+          { id = top, type = line, p1 = tc, p2 = over }
+          { id = right, type = line, p1 = tr, p2 = br }
+          { id = bottom, type = line, p1 = br, p2 = bc }
+        ]
+        constraints = [ { type = fix, of = br }, { type = fix, of = tr },
+          { type = fix, of = tc } ]
+        modify = [
+          { id = cut, op = trim, of = top, at = right, keep = tc }
+        ]
+        transforms = [
+          { id = mir, op = mirror, sources = [ top, right, bottom ],
+            axis = { p1 = bc, p2 = tc } }
+        ] }
+      { id = pad, op = extrude, profile = sk, distance = "${t}" }
+    ]
+  }
+}
