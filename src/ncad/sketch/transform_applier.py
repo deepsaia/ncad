@@ -11,6 +11,7 @@ absent transform list is a no-op. Contract violations raise TransformError.
 import logging
 
 from ncad.sketch.affine_transform import AffineTransform
+from ncad.sketch.id_padding import PaddedNaming
 
 logger = logging.getLogger(__name__)
 
@@ -80,16 +81,18 @@ def _transform_entities(source_ids: list[str], by_id: dict, affine: AffineTransf
                         relabel: dict[str, str]) -> list[dict]:
     """Emit fixed copies of the source entities mapped through ``affine``.
 
-    ``relabel`` maps a source entity id to the id its copy should take (points and
-    curves alike). Points are emitted once; curves are re-pointed at relabeled ids.
+    ``relabel`` maps a source entity id to the id its copy should take. Points a source
+    curve references but that are not themselves in ``source_ids`` are transformed too
+    (so a copied line/arc/circle carries its own endpoints), extending ``relabel`` with
+    the same namespace prefix. Points are emitted once; curves are re-pointed at
+    relabeled ids.
     """
+    point_ids = _points_to_transform(source_ids, by_id, relabel)
     emitted: list[dict] = []
     seen: set[str] = set()
-    for sid in source_ids:
-        source = by_id[sid]
-        if source["type"] != "point":
-            continue
-        new_id = relabel[sid]
+    for pid in point_ids:
+        source = by_id[pid]
+        new_id = relabel[pid]
         if new_id in seen:
             continue
         seen.add(new_id)
@@ -107,6 +110,46 @@ def _transform_entities(source_ids: list[str], by_id: dict, affine: AffineTransf
             copy["radius"] = float(source["radius"]) * affine.radius_factor
         emitted.append(copy)
     return emitted
+
+
+def _points_to_transform(source_ids: list[str], by_id: dict,
+                         relabel: dict[str, str]) -> list[str]:
+    """Ordered unique point ids to transform: explicit point sources + curve endpoints.
+
+    Endpoints a source curve references but that are not explicit sources are added to
+    ``relabel`` under the same prefix as their curve's copy id, so the copy stays welded
+    to its own transformed points.
+    """
+    prefix = _relabel_prefix(source_ids, relabel)
+    ordered: list[str] = []
+    for sid in source_ids:
+        source = by_id[sid]
+        if source["type"] == "point":
+            _add_point(sid, prefix, relabel, ordered)
+            continue
+        for key in _CURVE_POINT_KEYS[source["type"]]:
+            _add_point(source[key], prefix, relabel, ordered)
+    return ordered
+
+
+def _add_point(pid: str, prefix: str, relabel: dict[str, str], ordered: list[str]) -> None:
+    """Record ``pid`` for transforming once, assigning its copy id if not already set."""
+    if pid in ordered:
+        return
+    relabel.setdefault(pid, f"{prefix}{pid}")
+    ordered.append(pid)
+
+
+def _relabel_prefix(source_ids: list[str], relabel: dict[str, str]) -> str:
+    """The common namespace prefix copies add to source ids (empty for in-place).
+
+    Derived from any source's copy id (all copies in one call share one prefix).
+    """
+    for sid in source_ids:
+        copy_id = relabel.get(sid, sid)
+        if copy_id.endswith(sid):
+            return copy_id[: len(copy_id) - len(sid)]
+    return ""
 
 
 def _replace_in_place(entities: list[dict], source_ids: list[str], by_id: dict,
@@ -153,8 +196,88 @@ def _t_scale(transform: dict, entities: list[dict], source_ids: list[str],
     return _replace_in_place(entities, source_ids, by_id, affine)
 
 
+def _t_mirror(transform: dict, entities: list[dict], source_ids: list[str],
+              by_id: dict) -> list[dict]:
+    """Reflect the sources across ``axis`` and append the copies (sources kept)."""
+    transform_id = _require_id(transform)
+    axis = transform.get("axis")
+    if not axis:
+        raise TransformError("mirror transform needs an 'axis'")
+    ax, ay = _axis_point(axis, by_id, "p1", 0)
+    bx, by = _axis_point(axis, by_id, "p2", 1)
+    if abs(ax - bx) < 1e-12 and abs(ay - by) < 1e-12:
+        raise TransformError("mirror axis endpoints are coincident")
+    affine = AffineTransform.reflection(ax, ay, bx, by)
+    return _append_copies(transform_id, entities, source_ids, by_id, [affine])
+
+
+def _t_pattern(transform: dict, entities: list[dict], source_ids: list[str],
+               by_id: dict) -> list[dict]:
+    """Replicate the sources ``count`` times (linear or circular); append copies."""
+    transform_id = _require_id(transform)
+    count = int(transform.get("count", 0))
+    if count < 1:
+        raise TransformError("pattern count must be >= 1")
+    kind = transform.get("kind")
+    if kind == "linear":
+        dx, dy = float(transform.get("dx", 0.0)), float(transform.get("dy", 0.0))
+        affines = [AffineTransform.translation(dx * i, dy * i) for i in range(1, count)]
+    elif kind == "circular":
+        cx, cy = _center_of(transform, by_id, "center")
+        affines = [AffineTransform.rotation(cx, cy, _circular_step(transform, count) * i)
+                   for i in range(1, count)]
+    else:
+        raise TransformError(f"unknown pattern kind {kind!r}")
+    return _append_copies(transform_id, entities, source_ids, by_id, affines)
+
+
+def _circular_step(transform: dict, count: int) -> float:
+    """Degrees between adjacent circular-pattern copies.
+
+    A full sweep (>= 360) spaces ``count`` copies evenly around the circle; a partial
+    sweep spreads ``count`` copies across the arc (endpoints inclusive).
+    """
+    sweep = float(transform.get("angle", 360.0))
+    if abs(sweep) >= 360.0 - 1e-9:
+        return sweep / count
+    return sweep / (count - 1) if count > 1 else 0.0
+
+
+def _append_copies(transform_id: str, entities: list[dict], source_ids: list[str],
+                   by_id: dict, affines: list[AffineTransform]) -> list[dict]:
+    """Keep ``entities`` and append one namespaced copy of the sources per affine."""
+    out = list(entities)
+    copy_prefixes = PaddedNaming().child_ids(transform_id, len(affines))
+    for prefix, affine in zip(copy_prefixes, affines):
+        relabel = {sid: f"{prefix}/{sid}" for sid in source_ids}
+        out.extend(_transform_entities(source_ids, by_id, affine, relabel))
+    return out
+
+
+def _require_id(transform: dict) -> str:
+    """The transform's ``id`` (required so copies get a namespace)."""
+    tid = transform.get("id")
+    if not tid:
+        raise TransformError(f"{transform.get('op')!r} transform needs an 'id'")
+    return tid
+
+
+def _axis_point(axis: dict, by_id: dict, key: str, index: int) -> tuple[float, float]:
+    """An axis endpoint from ``{p1,p2}`` point ids or a two-point ``[[x,y],[x,y]]``."""
+    if isinstance(axis, dict):
+        ref = axis.get(key)
+        point = by_id.get(ref)
+        if point is None or point.get("type") != "point":
+            raise TransformError(f"mirror axis {key!r} {ref!r} is not a known point")
+        return float(point["at"][0]), float(point["at"][1])
+    endpoint = axis[index]
+    return float(endpoint[0]), float(endpoint[1])
+
+
 _TRANSFORM_HANDLERS = {
     "move": "_t_move",
     "rotate": "_t_rotate",
     "scale": "_t_scale",
+    "mirror": "_t_mirror",
+    "pattern": "_t_pattern",
 }

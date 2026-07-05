@@ -78,3 +78,98 @@ def test_zero_scale_factor_raises():
     with pytest.raises(TransformError):
         TransformApplier().apply(_triangle(), [
             {"op": "scale", "sources": ["p0"], "center": [0.0, 0.0], "factor": 0.0}])
+
+
+def _half_vee():
+    # an open two-segment chain to be mirrored across the Y axis into a closed vee
+    return [
+        {"id": "apex", "type": "point", "at": [0.0, 0.0]},
+        {"id": "top", "type": "point", "at": [0.0, 10.0]},
+        {"id": "right", "type": "point", "at": [5.0, 5.0]},
+        {"id": "s0", "type": "line", "p1": "top", "p2": "right"},
+        {"id": "s1", "type": "line", "p1": "right", "p2": "apex"},
+    ]
+
+
+def test_mirror_reflects_and_appends_copies():
+    out = TransformApplier().apply(_half_vee(), [
+        {"id": "m", "op": "mirror", "sources": ["s0", "s1"],
+         "axis": {"p1": "apex", "p2": "top"}}])
+    ids = {e["id"] for e in out}
+    assert {"s0", "s1"}.issubset(ids)
+    mirror_lines = [e for e in out if e["type"] == "line" and e["id"].startswith("m/")]
+    assert len(mirror_lines) == 2
+    mirrored_pts = [e for e in out if e["type"] == "point" and e["id"].startswith("m/")]
+    xs = sorted(round(e["at"][0], 6) for e in mirrored_pts)
+    assert -5.0 in xs
+
+
+def test_mirror_shares_points_on_axis():
+    out = TransformApplier().apply(_half_vee(), [
+        {"id": "m", "op": "mirror", "sources": ["s0", "s1"],
+         "axis": {"p1": "apex", "p2": "top"}}])
+    mirrored_pts = [e for e in out if e["type"] == "point" and e["id"].startswith("m/")]
+    # apex(0,0) and top(0,10) are on the axis, right(5,5) reflects: 3 distinct points
+    assert len(mirrored_pts) == 3
+
+
+def test_linear_pattern_replicates_count_copies():
+    ents = [
+        {"id": "a", "type": "point", "at": [0.0, 0.0]},
+        {"id": "b", "type": "point", "at": [1.0, 0.0]},
+        {"id": "seg", "type": "line", "p1": "a", "p2": "b"},
+    ]
+    out = TransformApplier().apply(ents, [
+        {"id": "row", "op": "pattern", "sources": ["a", "b", "seg"],
+         "kind": "linear", "count": 4, "dx": 10.0, "dy": 0.0}])
+    copy_lines = [e for e in out if e["type"] == "line" and e["id"].startswith("row/")]
+    assert len(copy_lines) == 3
+    xs = sorted(round(e["at"][0], 6) for e in out
+                if e["type"] == "point" and e["id"].startswith("row/"))
+    assert 30.0 in xs
+
+
+def test_circular_pattern_spaces_by_angle():
+    ents = [
+        {"id": "c", "type": "point", "at": [0.0, 0.0]},
+        {"id": "tooth", "type": "circle", "center": "c", "radius": 1.0},
+    ]
+    out = TransformApplier().apply(ents, [
+        {"id": "ring", "op": "pattern", "sources": ["c", "tooth"],
+         "kind": "circular", "count": 4, "center": [10.0, 0.0]}])
+    copy_centers = [e for e in out if e["type"] == "point" and e["id"].startswith("ring/")]
+    assert len(copy_centers) == 3
+
+
+def test_mirror_missing_axis_raises():
+    with pytest.raises(TransformError):
+        TransformApplier().apply(_half_vee(), [
+            {"id": "m", "op": "mirror", "sources": ["s0"]}])
+
+
+def test_pattern_missing_id_raises():
+    with pytest.raises(TransformError):
+        TransformApplier().apply(_half_vee(), [
+            {"op": "pattern", "sources": ["s0"], "kind": "linear", "count": 2,
+             "dx": 1.0, "dy": 0.0}])
+
+
+def test_pattern_count_below_one_raises():
+    with pytest.raises(TransformError):
+        TransformApplier().apply(_half_vee(), [
+            {"id": "p", "op": "pattern", "sources": ["s0"], "kind": "linear",
+             "count": 0, "dx": 1.0, "dy": 0.0}])
+
+
+def test_pattern_copy_ids_padded_past_ten():
+    ents = [
+        {"id": "c", "type": "point", "at": [0.0, 0.0]},
+        {"id": "t", "type": "circle", "center": "c", "radius": 1.0},
+    ]
+    out = TransformApplier().apply(ents, [
+        {"id": "ring", "op": "pattern", "sources": ["c", "t"], "kind": "linear",
+         "count": 12, "dx": 5.0, "dy": 0.0}])
+    circ_ids = sorted(e["id"] for e in out
+                      if e["type"] == "circle" and e["id"].startswith("ring/"))
+    assert circ_ids == sorted(circ_ids)
+    assert any("/00/" in i for i in circ_ids)
