@@ -1028,6 +1028,14 @@ Stated explicitly, because scope discipline is what makes the spine provable:
   *multibody dynamics* are in scope (§8); structural/thermal/fluid analysis is
   not: it is an export/integration concern. This is the one part of "CAE" we
   deliberately do **not** own.
+
+  > **Note (simulation delegation).** If structural / thermal / fluid analysis is
+  > ever wanted, ncad *exports* the geometry to a mature open FEM engine
+  > (**CalculiX**, **Elmer**, **Z88**) rather than solving it in-house, exactly as
+  > FreeCAD shells out to them. FEA/CFD stays an integration seam, never a solver we
+  > write. (This is distinct from the *geometric constraint* solver we do own via
+  > `py-slvs`, §5/§8: a GCS solves geometry from constraints; FEM solves physics on a
+  > fixed mesh: different category, different decision.)
 - **CAM and PCB are in scope as *seams first, build late*, not non-goals.** The
   design commits to their substrate hooks now (§6a, §6b) precisely so they are not
   quietly dropped; what is *not* near-term is the machining-strategy library, the
@@ -1056,6 +1064,48 @@ SOT, pure executor, reference model (§2), cache (§4), id-tagged validation (§
 Everything after (sketch solver, the full solid feature set, direct modeling,
 assemblies, motion, drafting, PMI, surfacing, convergent, the domain profiles, and
 the plugin/migration layers) is phased in [`plan.md`](./plan.md).
+
+> **Note (the generative north-star: reproduce the public 3D-model corpus from
+> HOCON).** Beyond the bracket, the standing proof-of-power we aim at is that ncad
+> can *generate* all or most of the geometry in the public 3D-model datasets **from
+> a HOCON document** (a spec/generator), with ease. The relevant datasets split by
+> whether they ship *code that produces the model* (the family we most want to match,
+> since it is the same "data >> build" contract as ncad) versus a baked mesh:
+>
+> | Dataset | URL | Approx. count | Model-producing code? | 3D file shipped? |
+> |---|---|---|---|---|
+> | 3DCode | https://huggingface.co/datasets/YipengGao/3DCode | ~12,720 (212 cats × 60 seeds; benchmark 212) | Yes: Blender Python (full + geo) | Yes: textured + geometry GLB |
+> | CAD-Coder | https://huggingface.co/datasets/gudo7208/CAD-Coder | ~170K text-CadQuery pairs | Yes: executable CadQuery (+ CoT) | No: run the code |
+> | Text2CAD *(gated)* | https://huggingface.co/datasets/SadilKhan/Text2CAD | ~170K models / ~660K prompts | Partial: CAD command-sequence JSON | No: renders + depth; mesh reconstructable |
+> | CADLLM | https://huggingface.co/datasets/lanlanguai/CADLLM | DeepCAD-derived (~178K base; exact unconfirmed) | Partial: CAD command sequence | Yes: STL + PLY point cloud |
+> | dataset_cadquery | https://huggingface.co/datasets/Arwenxu/dataset_cadquery | Unconfirmed (small; verify provenance) | Yes: CadQuery Python | No: run the code |
+> | Fusion 360 Gallery | https://huggingface.co/datasets/chandar-lab/Fusion360-ds | ~8,600 designs | Partial: construction sequences (sketch+extrude) | Yes: meshes / B-rep |
+> | DeepCAD | https://github.com/ChrisWu1997/DeepCAD | 178,238 models | Partial: command-sequence JSON | No: reconstructable |
+> | Infinigen | https://github.com/princeton-vl/infinigen | Unlimited (procedural) | Yes: Python generators | No: run them |
+> | Objaverse | https://huggingface.co/datasets/allenai/objaverse | ~800K | No: artist-made | Yes: GLB/USDZ |
+> | Objaverse-XL | https://huggingface.co/datasets/allenai/objaverse-xl | ~10.2M | No | Yes: GLB/USDZ |
+> | Objaverse++ | https://huggingface.co/datasets/cindyxl/ObjaversePlusPlus | ~800K annotated | No | Yes: meshes + quality tags |
+> | Cap3D | https://huggingface.co/datasets/tiange/Cap3D | ~1,006,782 captions | No | Partial: point clouds + renders |
+> | ShapeNetCore *(gated)* | https://huggingface.co/datasets/ShapeNet/ShapeNetCore | ~51,300 models | No | Yes: OBJ meshes |
+> | ABO | https://huggingface.co/datasets/bstds/abo_listings | 147,702 listings; 7,953 with 3D | No | Yes: glTF 2.0 (the 7,953) |
+> | Toys4K | https://huggingface.co/datasets/FrozenBurning/toy4k | ~4,000 (105 cats) | No | Yes: meshes |
+> | Thingi10K | https://huggingface.co/datasets/Thingi10K/Thingi10K | ~10,000 meshes | No | Yes: STL |
+>
+> **What ncad targets first:** the **code-producing / construction-sequence family**
+> (3DCode, CAD-Coder, Fusion 360 Gallery, DeepCAD, dataset_cadquery, Infinigen): these
+> encode a *recipe*, the same "spec >> build" contract as ncad, so "author the HOCON,
+> `build`, get the solid" is a direct apples-to-apples proof. Fusion 360 Gallery
+> (Autodesk's programmatic sketch+extrude sequences, the set DeepCAD was scaled from) is
+> the most legitimate CAD-native target. The mesh-only sets (Objaverse(-XL/++), Cap3D,
+> ShapeNetCore, ABO, Toys4K, Thingi10K) are baked artist/scan geometry with no source
+> recipe: they are a *coverage* yardstick (can our feature vocabulary express these
+> shapes?), reachable via the convergent-modeling path (§4, Phase 10), not the primary
+> generative proof. **Not cleanly catalogued:** the **ABC** dataset (~1M B-rep CAD
+> models, the base DeepCAD/Fusion360 draw from) lives at its NYU project site with no
+> canonical HF page and is B-rep-only (no construction code); **OmniObject3D** and
+> **Google Scanned Objects** appear on HF only as derivatives/paper pages, so they are
+> omitted here rather than pointing at a fork. Access: **Text2CAD** and **ShapeNetCore**
+> are gated (request required).
 
 ---
 
