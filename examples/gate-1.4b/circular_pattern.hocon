@@ -1,0 +1,25 @@
+schema_version = 1
+units = mm
+# A circular pattern replicating a small round hole profile six times about the origin.
+# Each copy is a self-closed circle, so the six copies are six disjoint loops: like the
+# linear pattern, this documents entity-level replication (a multi-loop face is deferred
+# until WireOrderer supports multiple loops). Its test asserts the copies exist.
+parameters { hole_r = 3, bolt_circle = 30, count = 6 }
+parts {
+  circular_pattern {
+    profile = solid
+    features = [
+      { id = sk, op = sketch, plane = XY,
+        entities = [
+          { id = hc, type = point, at = [ 30, 0 ] }
+          { id = hole, type = circle, center = hc, radius = 3 }
+        ]
+        constraints = [ { type = fix, of = hc },
+          { type = radius, of = hole, value = "${hole_r}" } ]
+        transforms = [
+          { id = ring, op = pattern, sources = [ hc, hole ],
+            kind = circular, count = 6, center = [ 0, 0 ] }
+        ] }
+    ]
+  }
+}

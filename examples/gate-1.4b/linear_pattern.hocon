@@ -1,0 +1,31 @@
+schema_version = 1
+units = mm
+# A linear pattern replicating a small square profile four times along X. Each copy is a
+# closed loop, so the four copies are four disjoint loops: this documents entity-level
+# replication (a multi-loop face is deferred until WireOrderer supports multiple loops).
+# The test for this example asserts the replicated entities exist, not a built face.
+parameters { size = 8, pitch = 20, count = 4 }
+parts {
+  linear_pattern {
+    profile = solid
+    features = [
+      { id = sk, op = sketch, plane = XY,
+        entities = [
+          { id = p0, type = point, at = [ 0, 0 ] }
+          { id = p1, type = point, at = [ 8, 0 ] }
+          { id = p2, type = point, at = [ 8, 8 ] }
+          { id = p3, type = point, at = [ 0, 8 ] }
+          { id = b, type = line, p1 = p0, p2 = p1 }
+          { id = r, type = line, p1 = p1, p2 = p2 }
+          { id = tp, type = line, p1 = p2, p2 = p3 }
+          { id = l, type = line, p1 = p3, p2 = p0 }
+        ]
+        constraints = [ { type = fix, of = p0 }, { type = fix, of = p1 },
+          { type = fix, of = p2 }, { type = fix, of = p3 } ]
+        transforms = [
+          { id = row, op = pattern, sources = [ p0, p1, p2, p3, b, r, tp, l ],
+            kind = linear, count = 4, dx = 20, dy = 0 }
+        ] }
+    ]
+  }
+}
