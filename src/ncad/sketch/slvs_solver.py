@@ -91,6 +91,12 @@ class SlvsSolver(SketchSolver):
                     point_handles[entity["start"]], point_handles[entity["end"]],
                     group=_SKETCH_GROUP)
 
+        for entity in entities:
+            if entity.get("construction"):
+                for pid in _defining_points(entity):
+                    system.addWhereDragged(point_handles[pid], wrkpln=workplane,
+                                           group=_SKETCH_GROUP)
+
         ctx = _Ctx(workplane, point_handles, curve_handles, by_id)
         try:
             for constraint in constraints:
@@ -285,6 +291,20 @@ def _constraint_refs(constraint: dict) -> list[str]:
     elif isinstance(of, list):
         refs.extend(of)
     return refs
+
+
+def _defining_points(entity: dict) -> list[str]:
+    """Point ids that define an entity's position (for pinning construction geometry)."""
+    kind = entity.get("type")
+    if kind == "point":
+        return [entity["id"]]
+    if kind == "line":
+        return [entity["p1"], entity["p2"]]
+    if kind == "arc":
+        return [entity["center"], entity["start"], entity["end"]]
+    if kind == "circle":
+        return [entity["center"]]
+    return []
 
 
 def _touches_arc_end(arc: dict, line: dict) -> bool:

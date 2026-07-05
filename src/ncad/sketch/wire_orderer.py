@@ -21,6 +21,9 @@ class WireOrderer:
     def order(self, entities: list[dict], positions: dict[str, tuple[float, float]],
               radii: dict[str, float]) -> tuple[list[dict], str | None]:
         """Return ``(ordered edge descriptors, None)`` or ``([], error_message)``."""
+        # Construction/reference entities (e.g. projected edges) anchor the sketch but
+        # are not part of the built wire.
+        entities = [e for e in entities if not e.get("construction")]
         circles = [e for e in entities if e.get("type") == "circle"]
         connective = [e for e in entities if e.get("type") in _CONNECTIVE]
         if circles and connective:

@@ -7,14 +7,16 @@ into 2D positions, ordered into a closed wire, and built as a planar face.
 """
 
 import math
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from ncad.kernel.kernel import Kernel, Point2
 from ncad.ops.build_issue import BuildIssue
 from ncad.ops.op_result import OpResult
 from ncad.sketch.entity_expander import EntityExpander
-from ncad.sketch.sketch_solver import SketchSolver
 from ncad.sketch.wire_orderer import WireOrderer
+
+if TYPE_CHECKING:
+    from ncad.sketch.sketch_solver import SketchSolver
 
 
 class SketchOp:
