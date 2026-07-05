@@ -425,8 +425,67 @@ def _loop_offset_mitre(op: dict, entities: list[dict], ordered: list[str],
 def _loop_offset_round(op: dict, entities: list[dict], ordered: list[str],
                        offsets: list, edge_names: list[str], corner_names: list[str],
                        distance: float) -> list[dict]:
-    """Placeholder until Task 4: round corners not yet implemented."""
-    raise TopologyError(f"loop_offset {op.get('id')!r}: round corners not yet supported")
+    """Round each corner with a fillet arc between adjacent offset edges.
+
+    The arc center is the ORIGINAL shared vertex (each offset edge is |distance| from it),
+    and the tangent points are the perpendicular feet from that vertex onto the two offset
+    edges, so the arc radius is exactly |distance|. Straight edges only in this bucket.
+    """
+    if any(_primitive(grp)["type"] != "line" for grp in offsets):
+        raise TopologyError(f"loop_offset {op.get('id')!r}: round corners support "
+                            f"straight edges only")
+    off_seeds = _seeds([e for grp in offsets for e in grp])
+    src_by_id = by_id_of(entities)
+    src_ends = {eid: _endpoint_ids(src_by_id[eid]) for eid in ordered}
+    src_seeds = _seeds(entities)
+    radius = abs(distance)
+    count = len(ordered)
+    out_points: list[dict] = []
+    out_arcs: list[dict] = []
+    for i in range(count):
+        prev_id, this_id = ordered[(i - 1) % count], ordered[i]
+        shared = _shared_vertex(src_ends[prev_id], src_ends[this_id], op)
+        cx, cy = src_seeds[shared]
+        prev_line = _primitive(offsets[(i - 1) % count])
+        this_line = _primitive(offsets[i])
+        ta = _foot_on_line(prev_line, (cx, cy), off_seeds)
+        tb = _foot_on_line(this_line, (cx, cy), off_seeds)
+        ca, cb, cc = f"{corner_names[i]}/a", f"{corner_names[i]}/b", f"{corner_names[i]}/c"
+        out_points += [
+            {"id": ca, "type": "point", "at": [ta[0], ta[1]], "fixed": True},
+            {"id": cb, "type": "point", "at": [tb[0], tb[1]], "fixed": True},
+            {"id": cc, "type": "point", "at": [cx, cy], "fixed": True},
+        ]
+        arc = _oriented_arc(f"{op['id']}/arc{i}", cc, cb, ca, (cx, cy), tb, ta)
+        arc["radius"] = radius
+        out_arcs.append(arc)
+    out_edges: list[dict] = []
+    for i in range(count):
+        prim = _primitive(offsets[i])
+        out_edges.append({**prim, "id": edge_names[i],
+                          "p1": f"{corner_names[i]}/b",
+                          "p2": f"{corner_names[(i + 1) % count]}/a", "fixed": True})
+    result = [e for e in entities if e["id"] not in set(ordered)
+              and not _is_loop_point(e, ordered, entities)]
+    return result + out_points + out_edges + out_arcs
+
+
+def _shared_vertex(ends_a: tuple, ends_b: tuple, op: dict) -> str:
+    """The point id shared by two adjacent edges."""
+    common = set(ends_a) & set(ends_b)
+    if not common:
+        raise TopologyError(f"loop_offset {op.get('id')!r}: adjacent edges share no vertex")
+    return next(iter(common))
+
+
+def _foot_on_line(line: dict, point: tuple, seeds: dict) -> tuple[float, float]:
+    """The perpendicular foot from ``point`` onto the infinite line through ``line``."""
+    ax, ay = seeds[line["p1"]]
+    bx, by = seeds[line["p2"]]
+    dx, dy = bx - ax, by - ay
+    seg_sq = dx * dx + dy * dy
+    t = ((point[0] - ax) * dx + (point[1] - ay) * dy) / seg_sq
+    return (ax + t * dx, ay + t * dy)
 
 
 def _order_loop(edge_ids: list[str], by_id: dict, op: dict) -> list[str]:

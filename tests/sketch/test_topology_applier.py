@@ -234,3 +234,15 @@ def test_loop_offset_collapsing_distance_raises():
         TopologyApplier().apply(_square_loop(), [
             {"id": "in", "op": "loop_offset",
              "entities": ["bottom", "right", "top", "left"], "distance": -20.0}])
+
+
+def test_loop_offset_round_makes_rounded_corners():
+    out = TopologyApplier().apply(_square_loop(), [
+        {"id": "in", "op": "loop_offset",
+         "entities": ["bottom", "right", "top", "left"],
+         "distance": -4.0, "corner": "round"}])
+    arcs = [e for e in out if e["type"] == "arc" and e["id"].startswith("in/arc")]
+    edges = [e for e in out if e["type"] == "line" and e["id"].startswith("in/e")]
+    assert len(arcs) == 4 and len(edges) == 4
+    assert all(round(a["radius"], 6) == 4.0 for a in arcs)
+    assert all(e.get("fixed") for e in arcs)
