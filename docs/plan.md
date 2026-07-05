@@ -33,7 +33,8 @@ content-addressed cache, the §4a equality harness, delete/broken-ref handling +
 spike, and a Three.js viewer (pick-by-id, right data sidebar, orientation gizmo). The
 constraint solver (py-slvs/SolveSpace) is integrated with the full entity + constraint +
 dimension vocabulary (driven vs driving) and reference-into-sketch (project prior edges,
-offset). Next: sketch-modify (1.4b), then sketch status in the viewer (1.5, Phase 1 gate).
+offset). Sketch-modify transforms (1.4b) done. Next: sketch-modify topology (1.4c),
+then sketch status in the viewer (1.5, Phase 1 gate).
 
 v1 proved the *pattern*: `spec >> build >> BOM >> view`, determinism, build123d/OCCT,
 HOCON+jsonschema, traversal BOM, the Three.js viewer, on the **building profile**
@@ -197,10 +198,21 @@ five buckets; the phase gate is the 1.5 gate.
       radius +/- d); zero-padded generated ids (`PaddedNaming`)
 - **Gate:** a sketch that projects a prior face edge and offsets it builds. **(done)**
 
-**Bucket 1.4b: Sketch modify** `[ ]`
-- [ ] trim, extend, split, corner fillet, corner chamfer, mirror, scale, move/rotate,
-      sketch pattern (linear/circular); whole-loop offset with corner trim/extend
-- **Gate:** a sketch trimmed + mirrored builds; a linear sketch pattern replicates.
+**Bucket 1.4b: Sketch modify , transforms** `[x]`
+- [x] **Transforms:** move, rotate, scale, mirror, sketch pattern (linear/circular) as a
+      `TransformApplier` pre-solve stage after `EntityExpander`; copies are fixed
+      primitives (positions locked, like `OffsetApplier`); `TransformError` surfaces as an
+      id-tagged issue. move/rotate/scale replace in place; mirror/pattern append copies
+      (a mirror welds points on the axis so the halves close into one loop).
+- **Gate:** a mirrored half-profile builds a closed face; a linear/circular pattern
+      replicates entities (multi-loop face deferred). **(done)**
+
+**Bucket 1.4c: Sketch modify , topology** `[ ]`
+- [ ] trim, extend, split, corner fillet, corner chamfer; whole-loop offset with corner
+      trim/extend (intersection + entity-graph rewriting; needs multi-loop face support
+      for the general case)
+- **Gate:** a sketch trimmed + mirrored builds; a linear sketch pattern replicates
+      (the original 1.4b gate, now that trim lands here).
 
 **Bucket 1.5: Sketch status in the viewer (Phase 1 gate)** `[ ]`
 - [ ] Under/fully/over-constrained status + conflict highlighting surfaced in `nv`
@@ -210,9 +222,13 @@ five buckets; the phase gate is the 1.5 gate.
 > **Deferred within Phase 1** (land in the buckets above or a later 1.x): **ellipse +
 > elliptical arc**, **conic** (parabola/hyperbola), **spline** (interpolated /
 > control-point / B-spline / fit) and the **smooth (G2)** spline constraint, and **text**
-> are a later entity bucket (1.6); **intersection curves** and **vertex projection** land
-> with 1.4b or later; **multi-loop sketches / holes-in-one-sketch** stay deferred (holes
-> come from pocket/hole ops). (Construction/reference geometry shipped in 1.4.)
+> are a later entity bucket (1.6); an **`arc_polar` authoring sugar**
+> (`center`/`radius`/`start`/`angle`, lowered by `EntityExpander` into a three-point arc
+> plus the equivalent radius + angle constraints, keeping radius/angle in the constraint
+> layer rather than duplicating them as entity fields) also lands in 1.6; **intersection
+> curves** and **vertex projection** land with 1.4b or later; **multi-loop sketches /
+> holes-in-one-sketch** stay deferred (holes come from pocket/hole ops).
+> (Construction/reference geometry shipped in 1.4.)
 
 ---
 
