@@ -143,3 +143,53 @@ def test_fillet_non_line_corner_raises():
     ]
     with pytest.raises(TopologyError):
         TopologyApplier().apply(ents, [{"op": "fillet", "at": "c", "radius": 2.0}])
+
+
+def _open_line():
+    return [
+        {"id": "a", "type": "point", "at": [0.0, 0.0]},
+        {"id": "b", "type": "point", "at": [10.0, 0.0]},
+        {"id": "seg", "type": "line", "p1": "a", "p2": "b"},
+    ]
+
+
+def test_split_line_into_two_at_interior_point():
+    out = TopologyApplier().apply(_open_line(), [
+        {"id": "s", "op": "split", "of": "seg", "at": [4.0, 0.0]}])
+    cut = [e for e in out if e["id"] == "s/x"][0]
+    assert (round(cut["at"][0], 6), round(cut["at"][1], 6)) == (4.0, 0.0)
+    halves = [e for e in out if e["type"] == "line" and e["id"] in ("s/0", "s/1")]
+    assert len(halves) == 2
+    endpoints = {p for h in halves for p in (h["p1"], h["p2"])}
+    assert "s/x" in endpoints and "a" in endpoints and "b" in endpoints
+    assert not [e for e in out if e["id"] == "seg"]
+
+
+def test_split_point_projected_onto_line():
+    out = TopologyApplier().apply(_open_line(), [
+        {"id": "s", "op": "split", "of": "seg", "at": [4.0, 9.0]}])
+    cut = [e for e in out if e["id"] == "s/x"][0]
+    assert (round(cut["at"][0], 6), round(cut["at"][1], 6)) == (4.0, 0.0)
+
+
+def test_split_point_off_segment_raises():
+    with pytest.raises(TopologyError):
+        TopologyApplier().apply(_open_line(), [
+            {"id": "s", "op": "split", "of": "seg", "at": [20.0, 0.0]}])
+
+
+def test_split_arc_into_two_arcs():
+    import math
+    ents = [
+        {"id": "c", "type": "point", "at": [0.0, 0.0]},
+        {"id": "s", "type": "point", "at": [5.0, 0.0]},
+        {"id": "e", "type": "point", "at": [0.0, 5.0]},
+        {"id": "arc", "type": "arc", "center": "c", "start": "s", "end": "e"},
+    ]
+    out = TopologyApplier().apply(ents, [
+        {"id": "sp", "op": "split", "of": "arc", "at": [3.5355, 3.5355]}])
+    arcs = [e for e in out if e["type"] == "arc" and e["id"] in ("sp/0", "sp/1")]
+    assert len(arcs) == 2
+    assert all(a["center"] == "c" for a in arcs)
+    cut = [e for e in out if e["id"] == "sp/x"][0]
+    assert round(math.hypot(cut["at"][0], cut["at"][1]), 3) == 5.0

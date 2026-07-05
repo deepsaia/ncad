@@ -294,9 +294,84 @@ def _repoint_corner(entities: list[dict], line_a: dict, line_b: dict, corner_id:
     return out
 
 
+def _m_split(op: dict, entities: list[dict]) -> list[dict]:
+    """Cut ``of`` into two entities at the projection of ``at`` onto it."""
+    by_id = {e["id"]: e for e in entities}
+    seeds = _seeds(entities)
+    entity = _require(by_id, op["of"], op)
+    target = _target_xy(op["at"], seeds)
+    cut = _project_onto(entity, target, by_id, seeds, op)
+    cut_id = f"{op['id']}/x"
+    cut_point = {"id": cut_id, "type": "point", "at": [cut[0], cut[1]], "fixed": True}
+    if entity["type"] == "line":
+        halves = [
+            {"id": f"{op['id']}/0", "type": "line", "p1": entity["p1"], "p2": cut_id,
+             "fixed": True},
+            {"id": f"{op['id']}/1", "type": "line", "p1": cut_id, "p2": entity["p2"],
+             "fixed": True},
+        ]
+    elif entity["type"] == "arc":
+        halves = [
+            {"id": f"{op['id']}/0", "type": "arc", "center": entity["center"],
+             "start": entity["start"], "end": cut_id, "fixed": True},
+            {"id": f"{op['id']}/1", "type": "arc", "center": entity["center"],
+             "start": cut_id, "end": entity["end"], "fixed": True},
+        ]
+    else:
+        raise TopologyError(f"cannot split a {entity['type']!r} (split {op.get('id')!r})")
+    kept = [e for e in entities if e["id"] != entity["id"]]
+    return kept + [cut_point] + halves
+
+
+def _project_onto(entity: dict, target: tuple, by_id: dict, seeds: dict,
+                  op: dict) -> tuple[float, float]:
+    """Project ``target`` onto ``entity``; raise if the foot is outside its span."""
+    if entity["type"] == "line":
+        ax, ay = seeds[entity["p1"]]
+        bx, by = seeds[entity["p2"]]
+        dx, dy = bx - ax, by - ay
+        seg_sq = dx * dx + dy * dy
+        if seg_sq < 1e-12:
+            raise TopologyError(f"split {op.get('id')!r}: zero-length target line")
+        t = ((target[0] - ax) * dx + (target[1] - ay) * dy) / seg_sq
+        if t <= 1e-9 or t >= 1.0 - 1e-9:
+            raise TopologyError(f"split {op.get('id')!r}: point not on segment")
+        return (ax + t * dx, ay + t * dy)
+    if entity["type"] == "arc":
+        cx, cy = seeds[entity["center"]]
+        radius = _seed_radius_pt(entity, seeds)
+        ang = math.atan2(target[1] - cy, target[0] - cx)
+        point = (cx + radius * math.cos(ang), cy + radius * math.sin(ang))
+        if not _arc_span_contains(entity, point, seeds):
+            raise TopologyError(f"split {op.get('id')!r}: point not on arc")
+        return point
+    raise TopologyError(f"cannot split a {entity['type']!r} (split {op.get('id')!r})")
+
+
+def _seed_radius_pt(curve: dict, seeds: dict) -> float:
+    """An arc's radius from seed points (center to start)."""
+    cx, cy = seeds[curve["center"]]
+    sx, sy = seeds[curve["start"]]
+    return math.hypot(sx - cx, sy - cy)
+
+
+def _arc_span_contains(arc: dict, point: tuple, seeds: dict) -> bool:
+    """Whether ``point`` lies within the arc's CCW span from start to end."""
+    cx, cy = seeds[arc["center"]]
+    sx, sy = seeds[arc["start"]]
+    ex, ey = seeds[arc["end"]]
+    a0 = math.atan2(sy - cy, sx - cx)
+    a1 = math.atan2(ey - cy, ex - cx)
+    ap = math.atan2(point[1] - cy, point[0] - cx)
+    span = (a1 - a0) % (2 * math.pi)
+    rel = (ap - a0) % (2 * math.pi)
+    return 1e-9 < rel < span - 1e-9
+
+
 _MODIFY_HANDLERS = {
     "trim": "_m_trim",
     "extend": "_m_extend",
     "fillet": "_m_fillet",
     "chamfer": "_m_chamfer",
+    "split": "_m_split",
 }
