@@ -11,11 +11,14 @@ TopologyError.
 import logging
 import math
 
+from ncad.sketch.entity_offsetter import EntityOffsetter
 from ncad.sketch.geometry_intersector import GeometryIntersector
+from ncad.sketch.id_padding import PaddedNaming
 
 logger = logging.getLogger(__name__)
 
 _INTERSECTOR = GeometryIntersector()
+_OFFSETTER = EntityOffsetter()
 
 
 class TopologyError(Exception):
@@ -368,10 +371,200 @@ def _arc_span_contains(arc: dict, point: tuple, seeds: dict) -> bool:
     return 1e-9 < rel < span - 1e-9
 
 
+def _m_loop_offset(op: dict, entities: list[dict]) -> list[dict]:
+    """Offset a closed loop's edges by a signed distance, replacing the source loop."""
+    by_id = {e["id"]: e for e in entities}
+    edge_ids = op.get("entities") or []
+    for eid in edge_ids:
+        _require(by_id, eid, op)
+    ordered = _order_loop(edge_ids, by_id, op)
+    distance = float(op.get("distance", 0.0))
+    corner_style = op.get("corner", "mitre")
+    prefix = op["id"]
+    count = len(ordered)
+    edge_names = PaddedNaming().child_ids(f"{prefix}/e", count)
+    corner_names = PaddedNaming().child_ids(f"{prefix}/c", count)
+    # Offset each edge along the loop-interior normal. The interior side is found once from
+    # the loop's signed area, so a negative distance always insets (shrinks) the loop
+    # regardless of the authored winding or each edge's p1/p2 direction.
+    inward_sign = -1.0 if _loop_signed_area(ordered, by_id) > 0.0 else 1.0
+    offsets = [_OFFSETTER.offset(by_id[eid], by_id, distance * inward_sign, name)
+               for eid, name in zip(ordered, edge_names)]
+    if corner_style == "round":
+        return _loop_offset_round(op, entities, ordered, offsets, edge_names,
+                                  corner_names, distance)
+    return _loop_offset_mitre(op, entities, ordered, offsets, edge_names, corner_names)
+
+
+def _loop_offset_mitre(op: dict, entities: list[dict], ordered: list[str],
+                       offsets: list, edge_names: list[str],
+                       corner_names: list[str]) -> list[dict]:
+    """Trim adjacent offset edges to their intersection (sharp mitred corners)."""
+    seeds = _seeds([e for grp in offsets for e in grp])
+    count = len(ordered)
+    corner_xy: list[tuple] = []
+    for i in range(count):
+        prev_line = _primitive(offsets[(i - 1) % count])
+        this_line = _primitive(offsets[i])
+        corner_xy.append(_mitre_corner(prev_line, this_line, seeds, op))
+    _check_not_collapsed(corner_xy, ordered, by_id_of(entities), op)
+    _check_edges_not_flipped(corner_xy, ordered, by_id_of(entities), op)
+    result = [e for e in entities if e["id"] not in set(ordered)
+              and not _is_loop_point(e, ordered, entities)]
+    corner_points = [{"id": corner_names[i], "type": "point",
+                      "at": [corner_xy[i][0], corner_xy[i][1]], "fixed": True}
+                     for i in range(count)]
+    edges = []
+    for i in range(count):
+        prim = _primitive(offsets[i])
+        edges.append({**prim, "id": edge_names[i], "p1": corner_names[i],
+                      "p2": corner_names[(i + 1) % count], "fixed": True})
+    return result + corner_points + edges
+
+
+def _loop_offset_round(op: dict, entities: list[dict], ordered: list[str],
+                       offsets: list, edge_names: list[str], corner_names: list[str],
+                       distance: float) -> list[dict]:
+    """Placeholder until Task 4: round corners not yet implemented."""
+    raise TopologyError(f"loop_offset {op.get('id')!r}: round corners not yet supported")
+
+
+def _order_loop(edge_ids: list[str], by_id: dict, op: dict) -> list[str]:
+    """Return the edge ids in cyclic loop order; raise if they are not a closed loop."""
+    if len(edge_ids) < 3:
+        raise TopologyError(f"loop_offset {op.get('id')!r}: need >= 3 edges")
+    ends = {eid: _endpoint_ids(by_id[eid]) for eid in edge_ids}
+    if any(len(v) != 2 for v in ends.values()):
+        raise TopologyError(f"loop_offset {op.get('id')!r}: edges must be lines/arcs")
+    remaining = list(edge_ids)
+    ordered = [remaining.pop(0)]
+    tail = ends[ordered[0]][1]
+    while remaining:
+        nxt = next((e for e in remaining if tail in ends[e]), None)
+        if nxt is None:
+            raise TopologyError(f"loop_offset {op.get('id')!r}: edges do not form a "
+                                f"closed loop")
+        a, b = ends[nxt]
+        tail = b if a == tail else a
+        ordered.append(nxt)
+        remaining.remove(nxt)
+    if tail != ends[ordered[0]][0]:
+        raise TopologyError(f"loop_offset {op.get('id')!r}: loop is not closed")
+    return ordered
+
+
+def by_id_of(entities: list[dict]) -> dict:
+    """An id -> entity map for the given entities."""
+    return {e["id"]: e for e in entities}
+
+
+def _check_not_collapsed(corner_xy: list[tuple], ordered: list[str], by_id: dict,
+                         op: dict) -> None:
+    """Raise if the offset corners no longer enclose area with the loop's orientation.
+
+    An inset larger than the loop's half-width folds the loop through itself; the offset
+    corner polygon then loses area or flips sign, which we reject as a collapse.
+    """
+    orig = _loop_signed_area(ordered, by_id)
+    n = len(corner_xy)
+    area = 0.0
+    for i in range(n):
+        x0, y0 = corner_xy[i]
+        x1, y1 = corner_xy[(i + 1) % n]
+        area += x0 * y1 - x1 * y0
+    area /= 2.0
+    if abs(area) < 1e-6 or (area > 0.0) != (orig > 0.0):
+        raise TopologyError(f"loop_offset {op.get('id')!r}: offset distance collapses "
+                            f"the loop")
+
+
+def _check_edges_not_flipped(corner_xy: list[tuple], ordered: list[str], by_id: dict,
+                             op: dict) -> None:
+    """Raise if any offset edge points opposite its source edge (inset past the centre).
+
+    An inset larger than the loop's half-width flips an edge's direction; the offset loop
+    then self-folds even when its area magnitude is preserved.
+    """
+    seeds = {pid: (float(by_id[pid]["at"][0]), float(by_id[pid]["at"][1]))
+             for eid in ordered for pid in _endpoint_ids(by_id[eid])}
+    ring = _loop_ring(ordered, by_id)
+    n = len(corner_xy)
+    for i in range(n):
+        sx, sy = seeds[ring[i]]
+        ex, ey = seeds[ring[(i + 1) % n]]
+        src = (ex - sx, ey - sy)
+        ox0, oy0 = corner_xy[i]
+        ox1, oy1 = corner_xy[(i + 1) % n]
+        off = (ox1 - ox0, oy1 - oy0)
+        if src[0] * off[0] + src[1] * off[1] <= 0.0:
+            raise TopologyError(f"loop_offset {op.get('id')!r}: offset distance collapses "
+                                f"the loop (an edge reversed direction)")
+
+
+def _loop_ring(ordered: list[str], by_id: dict) -> list[str]:
+    """The loop's vertex ids in traversal order (one per edge, at its tail)."""
+    ring: list[str] = []
+    tail = None
+    for eid in ordered:
+        a, b = _endpoint_ids(by_id[eid])
+        if tail is None or a == tail:
+            ring.append(a)
+            tail = b
+        else:
+            ring.append(b)
+            tail = a
+    return ring
+
+
+def _loop_signed_area(ordered: list[str], by_id: dict) -> float:
+    """Signed shoelace area over the loop's ordered edge endpoints (CCW positive)."""
+    seeds = {pid: (float(by_id[pid]["at"][0]), float(by_id[pid]["at"][1]))
+             for eid in ordered for pid in _endpoint_ids(by_id[eid])}
+    ring = _loop_ring(ordered, by_id)
+    total = 0.0
+    n = len(ring)
+    for i in range(n):
+        x0, y0 = seeds[ring[i]]
+        x1, y1 = seeds[ring[(i + 1) % n]]
+        total += x0 * y1 - x1 * y0
+    return total / 2.0
+
+
+def _mitre_corner(prev_line: dict, this_line: dict, seeds: dict,
+                  op: dict) -> tuple[float, float]:
+    """Intersection of two adjacent offset edges (their new shared corner)."""
+    hits = _INTERSECTOR.intersect(prev_line, this_line, seeds)
+    if not hits:
+        raise TopologyError(f"loop_offset {op.get('id')!r}: offset distance collapses "
+                            f"the loop (adjacent edges do not meet)")
+    return hits[0]
+
+
+def _primitive(offset_group: list[dict]) -> dict:
+    """The line/arc/circle primitive within an EntityOffsetter output group."""
+    return next(e for e in offset_group if e["type"] in ("line", "arc", "circle"))
+
+
+def _is_loop_point(entity: dict, ordered: list[str], entities: list[dict]) -> bool:
+    """Whether ``entity`` is a point used only by the loop edges being replaced."""
+    if entity.get("type") != "point":
+        return False
+    by_id = {e["id"]: e for e in entities}
+    loop_pts: set = set()
+    for eid in ordered:
+        loop_pts.update(_endpoint_ids(by_id[eid]))
+    if entity["id"] not in loop_pts:
+        return False
+    users = [e for e in entities if e["id"] not in ordered
+             and entity["id"] in _endpoint_ids(e)]
+    return not users
+
+
 _MODIFY_HANDLERS = {
     "trim": "_m_trim",
     "extend": "_m_extend",
     "fillet": "_m_fillet",
     "chamfer": "_m_chamfer",
     "split": "_m_split",
+    "loop_offset": "_m_loop_offset",
 }

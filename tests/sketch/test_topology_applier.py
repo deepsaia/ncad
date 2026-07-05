@@ -193,3 +193,44 @@ def test_split_arc_into_two_arcs():
     assert all(a["center"] == "c" for a in arcs)
     cut = [e for e in out if e["id"] == "sp/x"][0]
     assert round(math.hypot(cut["at"][0], cut["at"][1]), 3) == 5.0
+
+
+def _square_loop():
+    return [
+        {"id": "bl", "type": "point", "at": [0.0, 0.0]},
+        {"id": "br", "type": "point", "at": [20.0, 0.0]},
+        {"id": "tr", "type": "point", "at": [20.0, 20.0]},
+        {"id": "tl", "type": "point", "at": [0.0, 20.0]},
+        {"id": "bottom", "type": "line", "p1": "bl", "p2": "br"},
+        {"id": "right", "type": "line", "p1": "br", "p2": "tr"},
+        {"id": "top", "type": "line", "p1": "tr", "p2": "tl"},
+        {"id": "left", "type": "line", "p1": "tl", "p2": "bl"},
+    ]
+
+
+def test_loop_offset_inward_mitre_makes_smaller_square():
+    out = TopologyApplier().apply(_square_loop(), [
+        {"id": "in", "op": "loop_offset",
+         "entities": ["bottom", "right", "top", "left"], "distance": -4.0}])
+    assert not [e for e in out if e["id"] in ("bottom", "right", "top", "left")]
+    edges = [e for e in out if e["type"] == "line" and e["id"].startswith("in/e")]
+    corners = [e for e in out if e["type"] == "point" and e["id"].startswith("in/c")]
+    assert len(edges) == 4 and len(corners) == 4
+    xy = {(round(c["at"][0], 6), round(c["at"][1], 6)) for c in corners}
+    assert xy == {(4.0, 4.0), (16.0, 4.0), (16.0, 16.0), (4.0, 16.0)}
+    assert all(e.get("fixed") for e in edges)
+
+
+def test_loop_offset_open_loop_raises():
+    ents = [e for e in _square_loop() if e["id"] != "left"]
+    with pytest.raises(TopologyError):
+        TopologyApplier().apply(ents, [
+            {"id": "in", "op": "loop_offset",
+             "entities": ["bottom", "right", "top"], "distance": -4.0}])
+
+
+def test_loop_offset_collapsing_distance_raises():
+    with pytest.raises(TopologyError):
+        TopologyApplier().apply(_square_loop(), [
+            {"id": "in", "op": "loop_offset",
+             "entities": ["bottom", "right", "top", "left"], "distance": -20.0}])
