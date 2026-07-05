@@ -33,8 +33,8 @@ content-addressed cache, the §4a equality harness, delete/broken-ref handling +
 spike, and a Three.js viewer (pick-by-id, right data sidebar, orientation gizmo). The
 constraint solver (py-slvs/SolveSpace) is integrated with the full entity + constraint +
 dimension vocabulary (driven vs driving) and reference-into-sketch (project prior edges,
-offset). Sketch-modify transforms (1.4b) done. Next: sketch-modify topology (1.4c),
-then sketch status in the viewer (1.5, Phase 1 gate).
+offset). Sketch-modify transforms (1.4b) and topology (1.4c) done. Next: sketch status in
+the viewer (1.5, Phase 1 gate).
 
 v1 proved the *pattern*: `spec >> build >> BOM >> view`, determinism, build123d/OCCT,
 HOCON+jsonschema, traversal BOM, the Three.js viewer, on the **building profile**
@@ -207,12 +207,22 @@ five buckets; the phase gate is the 1.5 gate.
 - **Gate:** a mirrored half-profile builds a closed face; a linear/circular pattern
       replicates entities (multi-loop face deferred). **(done)**
 
-**Bucket 1.4c: Sketch modify , topology** `[ ]`
-- [ ] trim, extend, split, corner fillet, corner chamfer; whole-loop offset with corner
-      trim/extend (intersection + entity-graph rewriting; needs multi-loop face support
-      for the general case)
-- **Gate:** a sketch trimmed + mirrored builds; a linear sketch pattern replicates
-      (the original 1.4b gate, now that trim lands here).
+**Bucket 1.4c: Sketch modify , topology** `[x]`
+- [x] **trim, extend, corner fillet, corner chamfer** as a `TopologyApplier` pre-solve
+      stage (before `TransformApplier`); intersections from seed coords via a shared
+      `GeometryIntersector`; results are fixed primitives; `TopologyError` surfaces as an
+      id-tagged issue. Corner fillet/chamfer handle line-line corners. Trim/extend weld a
+      new endpoint onto a coincident existing point so loops stay closed.
+- [x] **Solver hardening:** accept redundant-but-consistent solves (SolveSpace code 5),
+      needed because a fixed arc's equal-radius coupling makes its point pins redundant;
+      and surface a part's build-failure reasons in the build log (CLI/viewer).
+- **Gate:** a sketch trimmed + mirrored builds; a linear sketch pattern replicates. **(done)**
+
+**Bucket 1.4d: Sketch modify , split + whole-loop offset** `[ ]`
+- [ ] split (cut an entity into two at a point); whole-loop offset with corner
+      trim/extend; line-arc / arc-arc corner fillet/chamfer. The general whole-loop case
+      needs multi-loop face support (still deferred).
+- **Gate:** a rectangular loop offset inward with mitred corners builds a smaller face.
 
 **Bucket 1.5: Sketch status in the viewer (Phase 1 gate)** `[ ]`
 - [ ] Under/fully/over-constrained status + conflict highlighting surfaced in `nv`
