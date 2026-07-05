@@ -181,3 +181,41 @@ def test_project_and_offset_builds_a_face():
     assert result.shape is not None
     # inner 30x30 loop built; projected construction square excluded
     assert kernel.volume(kernel.extrude(result.shape, 1.0)) == 900.0
+
+
+def test_transform_mirror_builds_face() -> None:
+    kernel = FakeKernel()
+    # a half-vee mirrored across the Y axis closes into a single loop and builds
+    params = {
+        "id": "sk", "op": "sketch", "plane": "XY",
+        "entities": [
+            {"id": "apex", "type": "point", "at": [0.0, 0.0]},
+            {"id": "top", "type": "point", "at": [0.0, 10.0]},
+            {"id": "right", "type": "point", "at": [5.0, 5.0]},
+            {"id": "s0", "type": "line", "p1": "top", "p2": "right"},
+            {"id": "s1", "type": "line", "p1": "right", "p2": "apex"},
+        ],
+        # apex + top weld onto the axis (pinned by the fixed mirror copies), so only the
+        # free reflecting point `right` needs fixing; pinning apex/top too over-constrains.
+        "constraints": [{"type": "fix", "of": "right"}],
+        "transforms": [
+            {"id": "m", "op": "mirror", "sources": ["s0", "s1"],
+             "axis": {"p1": "apex", "p2": "top"}},
+        ],
+    }
+    result = SketchOp().build(None, params, {}, kernel)
+    errors = [i for i in result.issues if i.level == "error"]
+    assert errors == [] and result.shape is not None
+
+
+def test_transform_error_surfaces_as_issue() -> None:
+    kernel = FakeKernel()
+    params = {
+        "id": "sk", "op": "sketch", "plane": "XY",
+        "entities": [{"id": "p0", "type": "point", "at": [0.0, 0.0]}],
+        "constraints": [],
+        "transforms": [{"op": "warp", "sources": ["p0"]}],
+    }
+    result = SketchOp().build(None, params, {}, kernel)
+    assert result.shape is None
+    assert any(i.level == "error" for i in result.issues)

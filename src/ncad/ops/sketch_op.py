@@ -15,6 +15,7 @@ from ncad.ops.op_result import OpResult
 from ncad.sketch.edge_projector import EdgeProjector
 from ncad.sketch.entity_expander import EntityExpander
 from ncad.sketch.offset_applier import OffsetApplier, OffsetError
+from ncad.sketch.transform_applier import TransformApplier, TransformError
 from ncad.sketch.wire_orderer import WireOrderer
 
 if TYPE_CHECKING:
@@ -42,7 +43,7 @@ class SketchOp:
         :param kernel: Geometry backend.
         :return: An :class:`OpResult` whose shape is the face, or ``None`` + an issue.
         """
-        if params.get("entities") or params.get("project"):
+        if params.get("entities") or params.get("project") or params.get("transforms"):
             return self._build_from_entities(params, kernel)
         feature_id = params["id"]
         plane = params.get("plane", "XY")
@@ -99,6 +100,11 @@ class SketchOp:
             return OpResult(shape=None, provenance={},
                             issues=[BuildIssue(node_id=feature_id, message=str(exc))])
         entities = EntityExpander().expand(entities)
+        try:
+            entities = TransformApplier().apply(entities, params.get("transforms", []))
+        except TransformError as exc:
+            return OpResult(shape=None, provenance={},
+                            issues=[BuildIssue(node_id=feature_id, message=str(exc))])
         constraints = params.get("constraints", [])
         result = self._solver.solve(entities, constraints, feature_id)
         issues = list(result.issues)
