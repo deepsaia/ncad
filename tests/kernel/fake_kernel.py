@@ -93,6 +93,31 @@ class FakeKernel(Kernel):
         wall_area = self._wall_area(face, thin) if thin is not None else None
         return _FakeSolid(face, height, wall_area)
 
+    def revolve(self, face: Any, axis_point: Point3, axis_dir: Point3, *,
+                angle: float = 360.0, symmetric: bool = False,
+                thin: float | None = None) -> Any:
+        # Pappus's theorem: a planar region revolved about an external axis sweeps a volume
+        # equal to its area times the distance its centroid travels (area * 2pi * r_c *
+        # angle/360). Enough for the fake kernel's volume assertions without modeling the
+        # B-rep. `symmetric` only re-centers the arc, so it does not change the volume;
+        # `thin` revolves a ring (the wall area).
+        pts = getattr(face, "points", None)
+        if pts is None:
+            raise KernelOpError("revolve needs a polygonal profile in the fake kernel")
+        area = self._wall_area(face, thin) if thin is not None else _polygon_area(pts)
+        cx, cy = _polygon_centroid(pts)
+        r_centroid = _distance_point_to_axis((cx, cy, 0.0), axis_point, axis_dir)
+        volume = area * 2.0 * math.pi * r_centroid * (angle / 360.0)
+        return _FakeCombined(volume, self._revolve_bounds(pts, r_centroid))
+
+    def _revolve_bounds(self, pts: list, r_centroid: float) -> Bounds:
+        # A coarse envelope: the revolved profile reaches at most r_centroid plus its own
+        # radial extent from the axis. Sufficient for downstream bbox-based ops in tests.
+        xs = [x for x, _ in pts]
+        ys = [y for _, y in pts]
+        reach = r_centroid + (max(xs) - min(xs))
+        return ((-reach, min(ys), -reach), (reach, max(ys), reach))
+
     def _effective_height(self, distance: float | None, second_distance: float | None,
                           until: str | None, target: Any) -> float:
         if until is not None or target is not None:
@@ -252,6 +277,38 @@ def _polygon_area(points: list[Point2]) -> float:
         x1, y1 = points[(i + 1) % n]
         total += x0 * y1 - x1 * y0
     return abs(total) / 2.0
+
+
+def _polygon_centroid(points: list[Point2]) -> Point2:
+    """Area centroid of a closed polygon ring (non-repeating vertices)."""
+    n = len(points)
+    a = 0.0
+    cx = 0.0
+    cy = 0.0
+    for i in range(n):
+        x0, y0 = points[i]
+        x1, y1 = points[(i + 1) % n]
+        cross = x0 * y1 - x1 * y0
+        a += cross
+        cx += (x0 + x1) * cross
+        cy += (y0 + y1) * cross
+    a *= 0.5
+    if abs(a) < 1e-12:
+        return points[0]
+    return (cx / (6.0 * a), cy / (6.0 * a))
+
+
+def _distance_point_to_axis(point: Point3, axis_point: Point3, axis_dir: Point3) -> float:
+    """Perpendicular distance from ``point`` to the line (``axis_point``, unit ``axis_dir``)."""
+    px, py, pz = point
+    ax, ay, az = axis_point
+    dx, dy, dz = axis_dir
+    wx, wy, wz = px - ax, py - ay, pz - az
+    # |cross(w, dir)| / |dir|; dir is unit, so just the cross-product magnitude.
+    cx = wy * dz - wz * dy
+    cy = wz * dx - wx * dz
+    cz = wx * dy - wy * dx
+    return math.sqrt(cx * cx + cy * cy + cz * cz)
 
 
 def _wire_ring(edges: list) -> list[Point2]:
