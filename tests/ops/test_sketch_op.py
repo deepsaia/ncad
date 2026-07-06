@@ -269,3 +269,48 @@ def test_modify_error_surfaces_as_issue() -> None:
     result = SketchOp().build(None, params, {}, kernel)
     assert result.shape is None
     assert any(i.level == "error" for i in result.issues)
+
+
+def test_loop_offset_builds_smaller_face() -> None:
+    kernel = FakeKernel()
+    params = {
+        "id": "sk", "op": "sketch", "plane": "XY",
+        "entities": [
+            {"id": "bl", "type": "point", "at": [0.0, 0.0]},
+            {"id": "br", "type": "point", "at": [20.0, 0.0]},
+            {"id": "tr", "type": "point", "at": [20.0, 20.0]},
+            {"id": "tl", "type": "point", "at": [0.0, 20.0]},
+            {"id": "bottom", "type": "line", "p1": "bl", "p2": "br"},
+            {"id": "right", "type": "line", "p1": "br", "p2": "tr"},
+            {"id": "top", "type": "line", "p1": "tr", "p2": "tl"},
+            {"id": "left", "type": "line", "p1": "tl", "p2": "bl"},
+        ],
+        "constraints": [],
+        "modify": [
+            {"id": "in", "op": "loop_offset",
+             "entities": ["bottom", "right", "top", "left"], "distance": -4.0},
+        ],
+    }
+    result = SketchOp().build(None, params, {}, kernel)
+    errors = [i for i in result.issues if i.level == "error"]
+    assert errors == [] and result.shape is not None
+    # 12x12 inner square (offset 4 inward each side), extruded by 1, volume 144
+    assert kernel.volume(kernel.extrude(result.shape, 1.0)) == 12.0 * 12.0
+
+
+def test_loop_offset_error_surfaces_as_issue() -> None:
+    kernel = FakeKernel()
+    params = {
+        "id": "sk", "op": "sketch", "plane": "XY",
+        "entities": [
+            {"id": "a", "type": "point", "at": [0.0, 0.0]},
+            {"id": "b", "type": "point", "at": [10.0, 0.0]},
+            {"id": "seg", "type": "line", "p1": "a", "p2": "b"},
+        ],
+        "constraints": [],
+        "modify": [{"id": "in", "op": "loop_offset", "entities": ["seg"],
+                    "distance": -2.0}],
+    }
+    result = SketchOp().build(None, params, {}, kernel)
+    assert result.shape is None
+    assert any(i.level == "error" for i in result.issues)
