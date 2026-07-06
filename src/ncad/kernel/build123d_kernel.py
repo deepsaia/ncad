@@ -17,12 +17,14 @@ from build123d import (
     Plane,
     Solid,
     Unit,
+    Until,
     Vector,
     Wire,
     export_gltf,
     export_step,
     export_stl,
     extrude,
+    offset,
 )
 
 from ncad.kernel.kernel import Bounds, Kernel, Point2, Point3
@@ -32,6 +34,8 @@ logger = logging.getLogger(__name__)
 
 _PLANES = {"XY": Plane.XY, "XZ": Plane.XZ, "YZ": Plane.YZ}
 _AXES = {"X": Axis.X, "Y": Axis.Y, "Z": Axis.Z}
+# End-condition until-token -> build123d Until. "last" = through everything.
+_UNTIL_TOKENS = {"last": Until.LAST, "next": Until.NEXT}
 
 
 class Build123dKernel(Kernel):
@@ -52,8 +56,27 @@ class Build123dKernel(Kernel):
         ]
         return Face(Wire(edges))
 
-    def extrude(self, face: Any, distance: float) -> Any:
-        return extrude(face, amount=distance)
+    def extrude(self, face: Any, distance: float | None = None, *,
+                symmetric: bool = False, second_distance: float | None = None,
+                draft: float = 0.0, thin: float | None = None,
+                until: str | None = None, target: Any = None) -> Any:
+        to_extrude = _thin_ring(face, thin) if thin is not None else face
+        if until is not None or target is not None:
+            until_token = _UNTIL_TOKENS.get(until) if until is not None else None
+            return extrude(to_extrude, until=until_token, target=target, taper=draft)
+        if distance is None:
+            raise KernelOpError("extrude needs a distance unless an until/target is given")
+        amount = float(distance)
+        if second_distance is not None:
+            forward = extrude(to_extrude, amount=amount, taper=draft)
+            back = extrude(to_extrude, amount=-float(second_distance), taper=draft)
+            return self.fuse([forward, back])
+        if symmetric:
+            # build123d both=True extrudes `amount` in EACH direction (verified: it doubles
+            # the height). Halve so the TOTAL symmetric height equals `distance`, matching
+            # the FakeKernel model and the blind-vs-symmetric equal-volume test.
+            return extrude(to_extrude, amount=amount / 2.0, both=True, taper=draft)
+        return extrude(to_extrude, amount=amount, taper=draft)
 
     def circle_face(self, center: Point2, diameter: float, plane: str) -> Any:
         if plane not in _PLANES:
@@ -331,3 +354,9 @@ def _type_histogram(shapes: list) -> dict:
         name = _geom_name(shape)
         histogram[name] = histogram.get(name, 0) + 1
     return histogram
+
+
+def _thin_ring(face: Any, thin: float) -> Any:
+    """A wall-thick ring: the face minus its inward offset by ``thin`` (a hollow profile)."""
+    inner = offset(face, amount=-abs(thin))  # pyrefly: ignore[no-matching-overload]
+    return face - inner
