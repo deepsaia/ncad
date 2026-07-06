@@ -106,7 +106,7 @@ def test_gate_0_3_signature_matches_golden() -> None:
     builder = DocumentBuilder(Build123dKernel())
     resolved = builder._resolve_and_validate(
         builder._loader.load(str(_EXAMPLES_DIR / "gate-0.3" / "selector_fillet.hocon")))
-    result, _ = builder._builder.build_part_mapped(resolved["parts"]["selector_fillet"])
+    result, _, _ = builder._builder.build_part_mapped(resolved["parts"]["selector_fillet"])
     live = Build123dKernel().signature(result.shape)
 
     comparator = EqualityComparator()

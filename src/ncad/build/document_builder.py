@@ -63,7 +63,7 @@ class DocumentBuilder:
         for name, part in resolved["parts"].items():
             logger.debug("building part %s", name)
             self._cache.reset_stats()
-            result, _ = self._builder.build_part_mapped(part)
+            result, _, _ = self._builder.build_part_mapped(part)
             results[name] = result
             self._rebuild_stats[name] = self._cache.stats()
         return results
@@ -87,7 +87,7 @@ class DocumentBuilder:
         resolved = self._resolve_and_validate(self._loader.load(path))
         artifacts: dict[str, str] = {}
         for name, part in resolved["parts"].items():
-            result, element_map = self._builder.build_part_mapped(part)
+            result, element_map, statuses = self._builder.build_part_mapped(part)
             if result.shape is None:
                 reasons = "; ".join(f"[{i.node_id}] {i.message}" for i in result.issues
                                     if i.level == "error") or "no error detail reported"
@@ -113,7 +113,7 @@ class DocumentBuilder:
         resolved = self._resolve_and_validate(document)
         written: dict[str, str] = {}
         for name, part in resolved["parts"].items():
-            _, element_map = self._builder.build_part_mapped(part)
+            _, element_map, _ = self._builder.build_part_mapped(part)
             written[name] = self._write_element_map(element_map, out_dir, name)
         return written
 

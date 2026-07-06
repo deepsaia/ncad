@@ -20,6 +20,7 @@ from ncad.ops.build_issue import BuildIssue
 from ncad.ops.edge_selector import EdgeSelector
 from ncad.ops.op_registry import OpRegistry
 from ncad.ops.op_result import OpResult
+from ncad.ops.sketch_status import SketchStatus
 from ncad.refs.element_map import ElementMap
 from ncad.refs.generative_tagger import GenerativeTagger
 from ncad.refs.reference import Reference
@@ -59,10 +60,12 @@ class Builder:
 
     def build_part(self, part: dict) -> OpResult:
         """Execute ``part["features"]`` in order and return the final result."""
-        result, _ = self.build_part_mapped(part)
+        result, _, _ = self.build_part_mapped(part)
         return result
 
-    def build_part_mapped(self, part: dict) -> tuple[OpResult, ElementMap]:
+    def build_part_mapped(
+        self, part: dict
+    ) -> tuple[OpResult, ElementMap, list[SketchStatus]]:
         """Like build_part, but also return the final ElementMap (for the sidecar).
 
         When a FeatureCache is present, features are walked in the RebuildGraph's
@@ -79,6 +82,7 @@ class Builder:
 
         shape_by_id: dict[str, Any] = {}
         issues: list[BuildIssue] = []
+        statuses: list[SketchStatus] = []
         element_map = ElementMap()
         resolver = ReferenceResolver(element_map)
         previous_shape: Any = None
@@ -117,7 +121,8 @@ class Builder:
                 entry = self._cache.get(keys[feature_id])
             if entry is not None and self._cache is not None:
                 self._cache.record(feature_id, hit=True)
-                result = OpResult(shape=entry.shape, provenance={}, issues=[])
+                result = OpResult(shape=entry.shape, provenance={}, issues=[],
+                                  status_report=entry.status_report)
                 self._rebuild_map_from_descriptors(element_map, feature, entry.descriptors)
             else:
                 feature_with_refs = dict(feature)
@@ -135,14 +140,17 @@ class Builder:
                 if self._cache is not None and feature_id in keys:
                     self._cache.record(feature_id, hit=False)
                     if succeeded:
-                        self._cache.put(keys[feature_id],
-                                        CacheEntry(result.shape, descriptors))
+                        self._cache.put(keys[feature_id], CacheEntry(
+                            result.shape, descriptors, result.status_report))
+            if result.status_report is not None:
+                statuses.append(result.status_report)
             shape_by_id[feature_id] = result.shape
             previous_shape = result.shape
             last_id = feature_id
 
         final_shape = shape_by_id.get(last_id) if last_id is not None else None
-        return OpResult(shape=final_shape, provenance={}, issues=issues), element_map
+        return (OpResult(shape=final_shape, provenance={}, issues=issues),
+                element_map, statuses)
 
     def _mark_failed(self, feature_id: str, failed: set[str],
                      shape_by_id: dict[str, Any]) -> None:

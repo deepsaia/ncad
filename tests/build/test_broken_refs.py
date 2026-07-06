@@ -20,7 +20,7 @@ def _bracket(extrude_profile="sk"):
 
 def test_missing_profile_yields_one_primary_and_one_downstream_issue():
     part = _bracket(extrude_profile="ghost")
-    result, _ = Builder(FakeKernel(), OpRegistry.with_defaults()).build_part_mapped(part)
+    result, _, _ = Builder(FakeKernel(), OpRegistry.with_defaults()).build_part_mapped(part)
 
     by_id: dict = {}
     for issue in result.issues:
@@ -37,7 +37,7 @@ def test_dressup_over_missing_solid_reports_depends_on_failed():
         {"id": "pad", "op": "extrude", "profile": "missing", "distance": 10},
         {"id": "rnd", "op": "fillet", "radius": 3, "edges": "vertical"},
     ]}
-    result, _ = Builder(FakeKernel(), OpRegistry.with_defaults()).build_part_mapped(part)
+    result, _, _ = Builder(FakeKernel(), OpRegistry.with_defaults()).build_part_mapped(part)
     rnd = [i for i in result.issues if i.node_id == "rnd"]
     assert len(rnd) == 1 and "depends on failed feature pad" in rnd[0].message
 
@@ -47,8 +47,8 @@ def test_failed_feature_is_not_cached_and_reports_each_build():
     builder = Builder(FakeKernel(), OpRegistry.with_defaults(), cache=cache)
     part = _bracket(extrude_profile="ghost")
 
-    first, _ = builder.build_part_mapped(part)
-    second, _ = builder.build_part_mapped(part)
+    first, _, _ = builder.build_part_mapped(part)
+    second, _, _ = builder.build_part_mapped(part)
 
     def ids(result):
         return sorted({i.node_id for i in result.issues})
@@ -60,8 +60,8 @@ def test_fixing_the_doc_clears_the_issue_and_caches():
     cache = FeatureCache()
     builder = Builder(FakeKernel(), OpRegistry.with_defaults(), cache=cache)
 
-    broken, _ = builder.build_part_mapped(_bracket(extrude_profile="ghost"))
+    broken, _, _ = builder.build_part_mapped(_bracket(extrude_profile="ghost"))
     assert broken.issues
 
-    fixed, _ = builder.build_part_mapped(_bracket(extrude_profile="sk"))
+    fixed, _, _ = builder.build_part_mapped(_bracket(extrude_profile="sk"))
     assert fixed.issues == [] and fixed.shape is not None
