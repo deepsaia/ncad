@@ -1065,47 +1065,118 @@ Everything after (sketch solver, the full solid feature set, direct modeling,
 assemblies, motion, drafting, PMI, surfacing, convergent, the domain profiles, and
 the plugin/migration layers) is phased in [`plan.md`](./plan.md).
 
-> **Note (the generative north-star: reproduce the public 3D-model corpus from
-> HOCON).** Beyond the bracket, the standing proof-of-power we aim at is that ncad
-> can *generate* all or most of the geometry in the public 3D-model datasets **from
-> a HOCON document** (a spec/generator), with ease. The relevant datasets split by
-> whether they ship *code that produces the model* (the family we most want to match,
-> since it is the same "data >> build" contract as ncad) versus a baked mesh:
->
-> | Dataset | URL | Approx. count | Model-producing code? | 3D file shipped? |
-> |---|---|---|---|---|
-> | 3DCode | https://huggingface.co/datasets/YipengGao/3DCode | ~12,720 (212 cats × 60 seeds; benchmark 212) | Yes: Blender Python (full + geo) | Yes: textured + geometry GLB |
-> | CAD-Coder | https://huggingface.co/datasets/gudo7208/CAD-Coder | ~170K text-CadQuery pairs | Yes: executable CadQuery (+ CoT) | No: run the code |
-> | Text2CAD *(gated)* | https://huggingface.co/datasets/SadilKhan/Text2CAD | ~170K models / ~660K prompts | Partial: CAD command-sequence JSON | No: renders + depth; mesh reconstructable |
-> | CADLLM | https://huggingface.co/datasets/lanlanguai/CADLLM | DeepCAD-derived (~178K base; exact unconfirmed) | Partial: CAD command sequence | Yes: STL + PLY point cloud |
-> | dataset_cadquery | https://huggingface.co/datasets/Arwenxu/dataset_cadquery | Unconfirmed (small; verify provenance) | Yes: CadQuery Python | No: run the code |
-> | Fusion 360 Gallery | https://huggingface.co/datasets/chandar-lab/Fusion360-ds | ~8,600 designs | Partial: construction sequences (sketch+extrude) | Yes: meshes / B-rep |
-> | DeepCAD | https://github.com/ChrisWu1997/DeepCAD | 178,238 models | Partial: command-sequence JSON | No: reconstructable |
-> | Infinigen | https://github.com/princeton-vl/infinigen | Unlimited (procedural) | Yes: Python generators | No: run them |
-> | Objaverse | https://huggingface.co/datasets/allenai/objaverse | ~800K | No: artist-made | Yes: GLB/USDZ |
-> | Objaverse-XL | https://huggingface.co/datasets/allenai/objaverse-xl | ~10.2M | No | Yes: GLB/USDZ |
-> | Objaverse++ | https://huggingface.co/datasets/cindyxl/ObjaversePlusPlus | ~800K annotated | No | Yes: meshes + quality tags |
-> | Cap3D | https://huggingface.co/datasets/tiange/Cap3D | ~1,006,782 captions | No | Partial: point clouds + renders |
-> | ShapeNetCore *(gated)* | https://huggingface.co/datasets/ShapeNet/ShapeNetCore | ~51,300 models | No | Yes: OBJ meshes |
-> | ABO | https://huggingface.co/datasets/bstds/abo_listings | 147,702 listings; 7,953 with 3D | No | Yes: glTF 2.0 (the 7,953) |
-> | Toys4K | https://huggingface.co/datasets/FrozenBurning/toy4k | ~4,000 (105 cats) | No | Yes: meshes |
-> | Thingi10K | https://huggingface.co/datasets/Thingi10K/Thingi10K | ~10,000 meshes | No | Yes: STL |
->
-> **What ncad targets first:** the **code-producing / construction-sequence family**
-> (3DCode, CAD-Coder, Fusion 360 Gallery, DeepCAD, dataset_cadquery, Infinigen): these
-> encode a *recipe*, the same "spec >> build" contract as ncad, so "author the HOCON,
-> `build`, get the solid" is a direct apples-to-apples proof. Fusion 360 Gallery
-> (Autodesk's programmatic sketch+extrude sequences, the set DeepCAD was scaled from) is
-> the most legitimate CAD-native target. The mesh-only sets (Objaverse(-XL/++), Cap3D,
-> ShapeNetCore, ABO, Toys4K, Thingi10K) are baked artist/scan geometry with no source
-> recipe: they are a *coverage* yardstick (can our feature vocabulary express these
-> shapes?), reachable via the convergent-modeling path (§4, Phase 10), not the primary
-> generative proof. **Not cleanly catalogued:** the **ABC** dataset (~1M B-rep CAD
-> models, the base DeepCAD/Fusion360 draw from) lives at its NYU project site with no
-> canonical HF page and is B-rep-only (no construction code); **OmniObject3D** and
-> **Google Scanned Objects** appear on HF only as derivatives/paper pages, so they are
-> omitted here rather than pointing at a fork. Access: **Text2CAD** and **ShapeNetCore**
-> are gated (request required).
+The **realistic-outcome expectations** this milestone builds toward, the generative
+corpus we aim to reproduce and the honest line on the kinematics/motion side, are §18a.
+
+---
+
+## 18a. Realistic expectations: what ncad should (and should not) produce
+
+This section sets honest expectations for ncad's *output*, separately from the build
+order (§18). It has two halves: the **static-geometry** corpus (what "generate the world
+from a document" realistically means) and the **kinematics/motion** corpus (where ncad's
+first-class-motion claim, §8, meets what the public datasets actually contain). Both are
+framed as **coverage yardsticks**, not commitments; the point is to be clear about which
+targets are apples-to-apples with ncad's "document >> pure build" contract and which are a
+different kind of artifact we can only *approach*.
+
+### Static geometry: the generative north-star
+
+Beyond the bracket, the standing proof-of-power we aim at is that ncad can *generate* all
+or most of the geometry in the public 3D-model datasets **from a HOCON document** (a
+spec/generator), with ease. The relevant datasets split by whether they ship *code that
+produces the model* (the family we most want to match, since it is the same "data >>
+build" contract as ncad) versus a baked mesh:
+
+| Dataset | URL | Approx. count | Model-producing code? | 3D file shipped? |
+|---|---|---|---|---|
+| 3DCode | https://huggingface.co/datasets/YipengGao/3DCode | ~12,720 (212 cats × 60 seeds; benchmark 212) | Yes: Blender Python (full + geo) | Yes: textured + geometry GLB |
+| CAD-Coder | https://huggingface.co/datasets/gudo7208/CAD-Coder | ~170K text-CadQuery pairs | Yes: executable CadQuery (+ CoT) | No: run the code |
+| Text2CAD *(gated)* | https://huggingface.co/datasets/SadilKhan/Text2CAD | ~170K models / ~660K prompts | Partial: CAD command-sequence JSON | No: renders + depth; mesh reconstructable |
+| CADLLM | https://huggingface.co/datasets/lanlanguai/CADLLM | DeepCAD-derived (~178K base; exact unconfirmed) | Partial: CAD command sequence | Yes: STL + PLY point cloud |
+| dataset_cadquery | https://huggingface.co/datasets/Arwenxu/dataset_cadquery | Unconfirmed (small; verify provenance) | Yes: CadQuery Python | No: run the code |
+| Fusion 360 Gallery | https://huggingface.co/datasets/chandar-lab/Fusion360-ds | ~8,600 designs | Partial: construction sequences (sketch+extrude) | Yes: meshes / B-rep |
+| DeepCAD | https://github.com/ChrisWu1997/DeepCAD | 178,238 models | Partial: command-sequence JSON | No: reconstructable |
+| Infinigen | https://github.com/princeton-vl/infinigen | Unlimited (procedural) | Yes: Python generators | No: run them |
+| Objaverse | https://huggingface.co/datasets/allenai/objaverse | ~800K | No: artist-made | Yes: GLB/USDZ |
+| Objaverse-XL | https://huggingface.co/datasets/allenai/objaverse-xl | ~10.2M | No | Yes: GLB/USDZ |
+| Objaverse++ | https://huggingface.co/datasets/cindyxl/ObjaversePlusPlus | ~800K annotated | No | Yes: meshes + quality tags |
+| Cap3D | https://huggingface.co/datasets/tiange/Cap3D | ~1,006,782 captions | No | Partial: point clouds + renders |
+| ShapeNetCore *(gated)* | https://huggingface.co/datasets/ShapeNet/ShapeNetCore | ~51,300 models | No | Yes: OBJ meshes |
+| ABO | https://huggingface.co/datasets/bstds/abo_listings | 147,702 listings; 7,953 with 3D | No | Yes: glTF 2.0 (the 7,953) |
+| Toys4K | https://huggingface.co/datasets/FrozenBurning/toy4k | ~4,000 (105 cats) | No | Yes: meshes |
+| Thingi10K | https://huggingface.co/datasets/Thingi10K/Thingi10K | ~10,000 meshes | No | Yes: STL |
+
+**What ncad targets first:** the **code-producing / construction-sequence family**
+(3DCode, CAD-Coder, Fusion 360 Gallery, DeepCAD, dataset_cadquery, Infinigen): these
+encode a *recipe*, the same "spec >> build" contract as ncad, so "author the HOCON,
+`build`, get the solid" is a direct apples-to-apples proof. Fusion 360 Gallery
+(Autodesk's programmatic sketch+extrude sequences, the set DeepCAD was scaled from) is
+the most legitimate CAD-native target. The mesh-only sets (Objaverse(-XL/++), Cap3D,
+ShapeNetCore, ABO, Toys4K, Thingi10K) are baked artist/scan geometry with no source
+recipe: they are a *coverage* yardstick (can our feature vocabulary express these
+shapes?), reachable via the convergent-modeling path (§4, Phase 10), not the primary
+generative proof. **Not cleanly catalogued:** the **ABC** dataset (~1M B-rep CAD
+models, the base DeepCAD/Fusion360 draw from) lives at its NYU project site with no
+canonical HF page and is B-rep-only (no construction code); **OmniObject3D** and
+**Google Scanned Objects** appear on HF only as derivatives/paper pages, so they are
+omitted here rather than pointing at a fork. Access: **Text2CAD** and **ShapeNetCore**
+are gated (request required).
+
+### Kinematics & motion: what "first-class motion" realistically reaches
+
+ncad treats motion/kinematics as a first-class output (§8): a joint graph, DoF analysis,
+drivers/FK/IK, and a mechanism solve, with rigid-body MBD later. The public
+motion/articulation datasets set the realistic bar, and split into three bands by how
+close they are to what ncad actually *owns* (mechanism geometry + joints), versus what is
+an *export/consume* concern:
+
+| Dataset | URL | Approx. count | Kinematics / motion type | Format |
+|---|---|---|---|---|
+| PartNet-Mobility (SAPIEN) | https://sapien.ucsd.edu/browse | 2,346 objects, 46 categories, 14,000+ movable parts | Articulated 3D objects w/ joint types + limits | URDF + meshes (gated) |
+| GAPartNet | https://huggingface.co/datasets/yangyandan/GAPartNet_PhyScene | 1,166 objects / 8,489 part instances | Articulated objects + actionable-part poses | URDF + meshes (gated, CC-BY-NC) |
+| S2O (PartNet-Mobility derivative) | https://huggingface.co/datasets/3dlg-hcvc/s2o | PM-based | Articulated meshes w/ joint anno in glTF extras | GLB + point clouds |
+| AMASS | https://amass.is.tue.mpg.de | 11,000+ motions, ~45 hrs, 480 subjects | Human mocap → SMPL-X body params | SMPL-X params (gated) |
+| HumanML3D | https://huggingface.co/datasets/lxxiao/272-dim-HumanML3D | 14,616 motions / 44,970 text descriptions | Text-to-motion (human) | Motion feature vectors / BVH |
+| Retargeted AMASS (robots) | https://huggingface.co/datasets/fleaven/Retargeted_AMASS_for_robotics | AMASS-derived | Human motion retargeted to robot URDFs | Per-robot joint trajectories |
+| Motion-X | https://github.com/IDEA-Research/Motion-X | ~81K whole-body sequences | Whole-body motion + text (incl. IDEA400, Kungfu) | SMPL-X + text |
+| Open X-Embodiment | https://huggingface.co/datasets/jxu124/OpenX-Embodiment | 1M+ (up to ~2.4M) trajectories, 22 embodiments | Real robot manipulation trajectories | RLDS / TFRecord |
+| DROID | https://huggingface.co/datasets/IPEC-COMMUNITY/droid_lerobot | ~76K trajectories (~350 hrs) | In-the-wild robot manipulation | LeRobot format |
+| NVIDIA GR00T X-Embodiment Sim | https://huggingface.co/datasets/nvidia/PhysicalAI-Robotics-GR00T-X-Embodiment-Sim | Multi-embodiment sim set | Simulated manipulation trajectories | LeRobot format |
+
+**What ncad realistically owns vs. consumes:**
+
+- **In scope, apples-to-apples: articulated *mechanisms*** (PartNet-Mobility, GAPartNet,
+  S2O). These are exactly ncad's model, parts + joints (revolute/prismatic) with limits,
+  lowering to a solid assembly, so "author the HOCON, get an articulated solid whose
+  joints drive" is the direct proof. URDF/MJCF/USD export (Infinigen-style, and per §14)
+  is the natural interchange. This is the band ncad should target first for motion.
+- **Adjacent, via joints-as-drivers, not our origin: robot manipulation trajectories**
+  (Open X-Embodiment, DROID, GR00T Sim). ncad can supply the *mechanism* (a robot's link/
+  joint geometry) and *play back* a joint trajectory (§8 driver-of-time), but the
+  trajectories themselves are learned/teleoperated data we **consume/replay**, not
+  generate. The realistic claim is "ncad models and animates the arm," not "ncad produces
+  the manipulation policy."
+- **Out of scope as a source, export/consume only: human mocap** (AMASS, HumanML3D,
+  Motion-X, retargeted-AMASS). SMPL-X body models and text-to-motion are a *different
+  domain* (deformable character animation), not mechanism kinematics. ncad neither owns a
+  skinned-character rig nor a motion-generation model; at most it consumes a retargeted
+  joint trajectory to drive an articulated assembly. This is the analogue, on the motion
+  side, of the FEA/CFD line in §17: a boundary we integrate across, not a solver we write.
+
+**Honest caveats (data provenance).** PartNet-Mobility and AMASS are the canonical,
+most-cited sources but both require accepting terms on their own project sites and do not
+live cleanly on Hugging Face; GAPartNet on HF is gated (CC-BY-NC). The HF entries above
+(S2O, retargeted-AMASS, the LeRobot mirrors) are **derivatives**, directly downloadable
+but to be checked for the fields you need. **AKB-48** (~2,037 real-world articulated
+objects, 48 categories) is another notable articulated set, omitted here only because it
+lacks a clean canonical HF page (avoid pointing at a fork).
+
+**Net expectation.** ncad's defensible motion outcome is the **articulated-mechanism**
+band: text/data-defined parts + joints that solve and animate deterministically, exported
+to URDF/MJCF/USD. Robot-trajectory and human-mocap corpora are things ncad *drives with*
+or *exports for*, not things it generates, exactly the CAD-vs-physics-engine line drawn in
+§8 and §17.
 
 ---
 
