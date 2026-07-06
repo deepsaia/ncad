@@ -30,3 +30,36 @@ def test_extrude_without_input_shape_reports_issue_by_id() -> None:
     assert result.shape is None
     assert len(result.issues) == 1
     assert result.issues[0].node_id == "pad"
+
+
+def test_extrude_symmetric_volume():
+    kernel = FakeKernel()
+    face = kernel.polygon_face([(0, 0), (10, 0), (10, 10), (0, 10)], "XY")
+    result = ExtrudeOp().build(face, {"id": "pad", "end": "symmetric", "distance": 6},
+                               {}, kernel)
+    assert result.shape is not None
+    assert kernel.volume(result.shape) == 10 * 10 * 6
+
+
+def test_extrude_two_side_volume():
+    kernel = FakeKernel()
+    face = kernel.polygon_face([(0, 0), (10, 0), (10, 10), (0, 10)], "XY")
+    result = ExtrudeOp().build(
+        face, {"id": "pad", "end": "two_side", "distance": 6, "second_distance": 4},
+        {}, kernel)
+    assert kernel.volume(result.shape) == 10 * 10 * 10
+
+
+def test_extrude_unknown_end_reports_issue():
+    kernel = FakeKernel()
+    face = kernel.polygon_face([(0, 0), (10, 0), (10, 10), (0, 10)], "XY")
+    result = ExtrudeOp().build(face, {"id": "pad", "end": "warp"}, {}, kernel)
+    assert result.shape is None
+    assert any(i.level == "error" for i in result.issues)
+
+
+def test_extrude_blind_default_unchanged():
+    kernel = FakeKernel()
+    face = kernel.polygon_face([(0, 0), (10, 0), (10, 10), (0, 10)], "XY")
+    result = ExtrudeOp().build(face, {"id": "pad", "distance": 8}, {}, kernel)
+    assert kernel.volume(result.shape) == 10 * 10 * 8

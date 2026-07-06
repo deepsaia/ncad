@@ -34,3 +34,15 @@ def test_pocket_without_solid_reports_issue() -> None:
 
     assert result.shape is None
     assert result.issues[0].node_id == "pkt"
+
+
+def test_pocket_through_all_cuts_full_height():
+    kernel = FakeKernel()
+    block = kernel.extrude(
+        kernel.polygon_face([(0, 0), (20, 0), (20, 20), (0, 20)], "XY"), 10)
+    hole = kernel.polygon_face([(5, 5), (10, 5), (10, 10), (5, 10)], "XY")
+    result = PocketOp().build(
+        None, {"id": "cut", "end": "through_all",
+               "__refs__": {"target": block, "profile": hole}}, {}, kernel)
+    assert result.shape is not None
+    assert kernel.volume(result.shape) == 20 * 20 * 10 - 5 * 5 * 10

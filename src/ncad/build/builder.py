@@ -34,8 +34,8 @@ logger = logging.getLogger(__name__)
 #   "face"  -> a resolved face Element (hole placement)
 #   "edges" -> a list of edge handles (fillet/chamfer)
 _REF_FIELDS: dict[str, dict[str, str]] = {
-    "extrude": {"profile": "input"},
-    "pocket": {"profile": "shape", "target": "shape"},
+    "extrude": {"profile": "input", "to": "face"},
+    "pocket": {"profile": "shape", "target": "shape", "to": "face"},
     "boolean": {"target": "shape", "tool": "shape"},
     "hole": {"on": "face"},
     "fillet": {"edges": "edges"},
