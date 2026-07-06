@@ -33,8 +33,8 @@ content-addressed cache, the §4a equality harness, delete/broken-ref handling +
 spike, and a Three.js viewer (pick-by-id, right data sidebar, orientation gizmo). The
 constraint solver (py-slvs/SolveSpace) is integrated with the full entity + constraint +
 dimension vocabulary (driven vs driving) and reference-into-sketch (project prior edges,
-offset). Sketch-modify transforms (1.4b) and topology (1.4c) done. Next: sketch status in
-the viewer (1.5, Phase 1 gate).
+offset). Sketch-modify (1.4b transforms, 1.4c topology, 1.4d split + loop-offset) done.
+Next: sketch status in the viewer (1.5, Phase 1 gate).
 
 v1 proved the *pattern*: `spec >> build >> BOM >> view`, determinism, build123d/OCCT,
 HOCON+jsonschema, traversal BOM, the Three.js viewer, on the **building profile**
@@ -218,14 +218,21 @@ five buckets; the phase gate is the 1.5 gate.
       and surface a part's build-failure reasons in the build log (CLI/viewer).
 - **Gate:** a sketch trimmed + mirrored builds; a linear sketch pattern replicates. **(done)**
 
-**Bucket 1.4d: Sketch modify , split + whole-loop offset** `[ ]`
-- [ ] split (cut an entity into two at a point); whole-loop offset with corner
-      trim/extend; line-arc / arc-arc corner fillet/chamfer. The general whole-loop case
-      needs multi-loop face support (still deferred).
-- **Gate:** a rectangular loop offset inward with mitred corners builds a smaller face.
+**Bucket 1.4d: Sketch modify , split + whole-loop offset** `[x]`
+- [x] **split** (cut an entity in two at a point), **line-arc / arc-arc corner
+      fillet/chamfer** (extends 1.4c line-line), and **whole-loop `loop_offset`** (mitre +
+      round corners) as `TopologyApplier` ops built on a shared `EntityOffsetter`;
+      `loop_offset` replaces the source loop (single-loop; negative distance insets
+      regardless of winding). Solver rejects a fixed point that drifts off its seed
+      (closes the redundant-solve gap from 1.4c).
+- **Gate:** a rectangular loop offset inward with mitred corners builds a smaller face. **(done)**
+
+> Remaining sketch-modify long-tail (reflex/self-intersecting offset corners, per-face
+> variable offset, conic/G2 rounds) stays deferred to the Phase-2 dress-up buckets;
+> sketch-modify (1.4b/c/d) is complete.
 
 **Bucket 1.5: Sketch status in the viewer (Phase 1 gate)** `[ ]`
-- [ ] Under/fully/over-constrained status + conflict highlighting surfaced in `nv`
+- [ ] Under/fully/over-constrained status + conflict highlighting surfaced in `ncad`
 - **Gate (Phase 1):** an over/under-constrained sketch solves or reports cleanly; a
       fully-constrained profile drives a downstream feature.
 
