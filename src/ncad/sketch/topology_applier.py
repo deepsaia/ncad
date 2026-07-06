@@ -167,9 +167,13 @@ def _m_fillet(op: dict, entities: list[dict]) -> list[dict]:
     line_a, line_b = _corner_entities(corner_id, entities, op)
     seeds = _seeds(entities)
     corner = seeds[corner_id]
-    ua = _line_dir(line_a, corner_id, seeds)
-    ub = _line_dir(line_b, corner_id, seeds)
-    center, ta, tb = _fillet_geometry(corner, ua, ub, radius, op)
+    if line_a["type"] == "line" and line_b["type"] == "line":
+        ua = _line_dir(line_a, corner_id, seeds)
+        ub = _line_dir(line_b, corner_id, seeds)
+        center, ta, tb = _fillet_geometry(corner, ua, ub, radius, op)
+    else:
+        center, ta, tb = _arc_corner_fillet(line_a, line_b, corner_id, radius,
+                                             entities, op)
     prefix = f"{corner_id}/fillet"
     new_points = [
         {"id": f"{prefix}/a", "type": "point", "at": [ta[0], ta[1]], "fixed": True},
@@ -192,11 +196,8 @@ def _m_chamfer(op: dict, entities: list[dict]) -> list[dict]:
     corner_id = op["at"]
     line_a, line_b = _corner_entities(corner_id, entities, op)
     seeds = _seeds(entities)
-    corner = seeds[corner_id]
-    ua = _line_dir(line_a, corner_id, seeds)
-    ub = _line_dir(line_b, corner_id, seeds)
-    pa = (corner[0] + ua[0] * setback, corner[1] + ua[1] * setback)
-    pb = (corner[0] + ub[0] * setback, corner[1] + ub[1] * setback)
+    pa = _setback_point(line_a, corner_id, setback, seeds)
+    pb = _setback_point(line_b, corner_id, setback, seeds)
     prefix = f"{corner_id}/chamfer"
     new_points = [
         {"id": f"{prefix}/a", "type": "point", "at": [pa[0], pa[1]], "fixed": True},
@@ -209,17 +210,131 @@ def _m_chamfer(op: dict, entities: list[dict]) -> list[dict]:
     return rewired + new_points + [seg]
 
 
+def _arc_corner_fillet(ent_a: dict, ent_b: dict, corner_id: str, radius: float,
+                       entities: list[dict], op: dict) -> tuple[tuple, tuple, tuple]:
+    """Fillet center + tangent points for a corner where at least one entity is an arc.
+
+    The center is equidistant (``radius``) from both entities; it is the intersection of
+    the two offset loci (a line offset to a parallel line, an arc/circle to a concentric
+    one) that lies on the corner's interior side. Tangent points are the nearest points on
+    each entity to that center.
+    """
+    seeds = _seeds(entities)
+    corner = seeds[corner_id]
+    interior = _interior_direction(ent_a, ent_b, corner_id, seeds)
+    interior_pt = (corner[0] + interior[0] * radius, corner[1] + interior[1] * radius)
+    candidates: list[tuple[float, float]] = []
+    for sign_a in (radius, -radius):
+        loc_a, seeds_a = _offset_locus(ent_a, seeds, sign_a, "la")
+        for sign_b in (radius, -radius):
+            loc_b, seeds_b = _offset_locus(ent_b, seeds, sign_b, "lb")
+            combined = {**seeds_a, **seeds_b}
+            candidates.extend(_INTERSECTOR.intersect(loc_a, loc_b, combined))
+    valid = [c for c in candidates
+             if abs(_dist_to_entity(ent_a, c, seeds) - radius) < 1e-6
+             and abs(_dist_to_entity(ent_b, c, seeds) - radius) < 1e-6]
+    if not valid:
+        raise TopologyError(f"fillet at {op.get('at')!r}: no tangent circle of radius "
+                            f"{radius}")
+    center = min(valid, key=lambda c: _dist_sq(c, interior_pt))
+    return center, _foot_on_entity(ent_a, center, seeds), _foot_on_entity(ent_b, center,
+                                                                          seeds)
+
+
+def _offset_locus(entity: dict, seeds: dict, signed: float,
+                  tag: str) -> tuple[dict, dict]:
+    """An intersector-ready locus of points at distance |signed| from ``entity``.
+
+    Returns (locus dict, seed map for its referenced points). A line >> a parallel line; a
+    circle/arc >> a concentric circle (arc range is not applied to the locus, so the full
+    circle is searched for candidate centers).
+    """
+    if entity["type"] == "line":
+        ax, ay = seeds[entity["p1"]]
+        bx, by = seeds[entity["p2"]]
+        dx, dy = bx - ax, by - ay
+        length = math.hypot(dx, dy)
+        nx, ny = -dy / length, dx / length
+        ox, oy = nx * signed, ny * signed
+        a_id, b_id = f"{tag}/a", f"{tag}/b"
+        loc_seeds = {a_id: (ax + ox, ay + oy), b_id: (bx + ox, by + oy)}
+        return {"type": "line", "p1": a_id, "p2": b_id}, loc_seeds
+    cx, cy = seeds[entity["center"]]
+    radius = _seed_radius_pt(entity, seeds)
+    c_id = f"{tag}/c"
+    return ({"type": "circle", "center": c_id, "radius": abs(radius + signed)},
+            {c_id: (cx, cy)})
+
+
+def _interior_direction(ent_a: dict, ent_b: dict, corner_id: str,
+                        seeds: dict) -> tuple[float, float]:
+    """A unit vector into the corner interior (bisector of the two outgoing tangents)."""
+    ua = _tangent_dir(ent_a, corner_id, seeds)
+    ub = _tangent_dir(ent_b, corner_id, seeds)
+    bx, by = ua[0] + ub[0], ua[1] + ub[1]
+    blen = math.hypot(bx, by)
+    if blen < 1e-9:
+        raise TopologyError(f"fillet at {corner_id!r}: entities are collinear")
+    return bx / blen, by / blen
+
+
+def _tangent_dir(entity: dict, from_id: str, seeds: dict) -> tuple[float, float]:
+    """Unit tangent of a line/arc at the corner, pointing away from the corner."""
+    if entity["type"] == "line":
+        return _line_dir(entity, from_id, seeds)
+    cx, cy = seeds[entity["center"]]
+    px, py = seeds[from_id]
+    tang = (-(py - cy), px - cx)
+    length = math.hypot(*tang)
+    other = entity["end"] if entity["start"] == from_id else entity["start"]
+    ox, oy = seeds[other]
+    if (ox - px) * tang[0] + (oy - py) * tang[1] < 0.0:
+        tang = (-tang[0], -tang[1])
+    return tang[0] / length, tang[1] / length
+
+
+def _dist_to_entity(entity: dict, point: tuple, seeds: dict) -> float:
+    """Distance from ``point`` to a line (perpendicular) or arc/circle (to the curve)."""
+    if entity["type"] == "line":
+        return _dist(point, _foot_on_line_seeds(entity, point, seeds))
+    cx, cy = seeds[entity["center"]]
+    r = _seed_radius_pt(entity, seeds)
+    return abs(_dist(point, (cx, cy)) - r)
+
+
+def _foot_on_entity(entity: dict, point: tuple, seeds: dict) -> tuple[float, float]:
+    """The nearest point on ``entity`` to ``point`` (the fillet tangent point)."""
+    if entity["type"] == "line":
+        return _foot_on_line_seeds(entity, point, seeds)
+    cx, cy = seeds[entity["center"]]
+    r = _seed_radius_pt(entity, seeds)
+    ang = math.atan2(point[1] - cy, point[0] - cx)
+    return (cx + r * math.cos(ang), cy + r * math.sin(ang))
+
+
+def _foot_on_line_seeds(line: dict, point: tuple, seeds: dict) -> tuple[float, float]:
+    """The perpendicular foot from ``point`` onto the infinite line through ``line``."""
+    ax, ay = seeds[line["p1"]]
+    bx, by = seeds[line["p2"]]
+    dx, dy = bx - ax, by - ay
+    seg_sq = dx * dx + dy * dy
+    t = ((point[0] - ax) * dx + (point[1] - ay) * dy) / seg_sq
+    return (ax + t * dx, ay + t * dy)
+
+
+def _dist(a: tuple, b: tuple) -> float:
+    """Euclidean distance."""
+    return math.hypot(a[0] - b[0], a[1] - b[1])
+
+
 def _corner_entities(corner_id: str, entities: list[dict], op: dict) -> tuple[dict, dict]:
     """The exactly-two line entities sharing ``corner_id``; else a TopologyError."""
     touching = [e for e in entities
-                if e.get("type") in ("line", "arc", "circle")
+                if e.get("type") in ("line", "arc")
                 and corner_id in _endpoint_ids(e)]
     if len(touching) != 2:
         raise TopologyError(f"corner {corner_id!r} must be shared by exactly two "
                             f"entities (found {len(touching)})")
-    if any(e["type"] != "line" for e in touching):
-        raise TopologyError(f"corner {corner_id!r}: fillet/chamfer supports line-line "
-                            f"corners only in this bucket")
     return touching[0], touching[1]
 
 
@@ -230,6 +345,24 @@ def _endpoint_ids(entity: dict) -> tuple:
     if entity["type"] == "arc":
         return entity["start"], entity["end"]
     return ()
+
+
+def _setback_point(entity: dict, corner_id: str, setback: float,
+                   seeds: dict) -> tuple[float, float]:
+    """The point ``setback`` back from the corner along ``entity`` (arc-length for arcs)."""
+    corner = seeds[corner_id]
+    if entity["type"] == "line":
+        u = _line_dir(entity, corner_id, seeds)
+        return (corner[0] + u[0] * setback, corner[1] + u[1] * setback)
+    cx, cy = seeds[entity["center"]]
+    radius = _seed_radius_pt(entity, seeds)
+    other = entity["end"] if entity["start"] == corner_id else entity["start"]
+    ox, oy = seeds[other]
+    start_ang = math.atan2(corner[1] - cy, corner[0] - cx)
+    other_ang = math.atan2(oy - cy, ox - cx)
+    direction = 1.0 if (other_ang - start_ang) % (2 * math.pi) < math.pi else -1.0
+    ang = start_ang + direction * (setback / radius)
+    return (cx + radius * math.cos(ang), cy + radius * math.sin(ang))
 
 
 def _line_dir(line: dict, from_id: str, seeds: dict) -> tuple[float, float]:
@@ -292,7 +425,8 @@ def _repoint_corner(entities: list[dict], line_a: dict, line_b: dict, corner_id:
         if new_id is None:
             out.append(entity)
             continue
-        end_key = "p1" if entity["p1"] == corner_id else "p2"
+        keys = ("p1", "p2") if entity["type"] == "line" else ("start", "end")
+        end_key = keys[0] if entity[keys[0]] == corner_id else keys[1]
         out.append({**entity, end_key: new_id, "fixed": True})
     return out
 
@@ -448,8 +582,8 @@ def _loop_offset_round(op: dict, entities: list[dict], ordered: list[str],
         cx, cy = src_seeds[shared]
         prev_line = _primitive(offsets[(i - 1) % count])
         this_line = _primitive(offsets[i])
-        ta = _foot_on_line(prev_line, (cx, cy), off_seeds)
-        tb = _foot_on_line(this_line, (cx, cy), off_seeds)
+        ta = _foot_on_line_seeds(prev_line, (cx, cy), off_seeds)
+        tb = _foot_on_line_seeds(this_line, (cx, cy), off_seeds)
         ca, cb, cc = f"{corner_names[i]}/a", f"{corner_names[i]}/b", f"{corner_names[i]}/c"
         out_points += [
             {"id": ca, "type": "point", "at": [ta[0], ta[1]], "fixed": True},
@@ -476,16 +610,6 @@ def _shared_vertex(ends_a: tuple, ends_b: tuple, op: dict) -> str:
     if not common:
         raise TopologyError(f"loop_offset {op.get('id')!r}: adjacent edges share no vertex")
     return next(iter(common))
-
-
-def _foot_on_line(line: dict, point: tuple, seeds: dict) -> tuple[float, float]:
-    """The perpendicular foot from ``point`` onto the infinite line through ``line``."""
-    ax, ay = seeds[line["p1"]]
-    bx, by = seeds[line["p2"]]
-    dx, dy = bx - ax, by - ay
-    seg_sq = dx * dx + dy * dy
-    t = ((point[0] - ax) * dx + (point[1] - ay) * dy) / seg_sq
-    return (ax + t * dx, ay + t * dy)
 
 
 def _order_loop(edge_ids: list[str], by_id: dict, op: dict) -> list[str]:

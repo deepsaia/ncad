@@ -132,14 +132,14 @@ def test_corner_not_shared_by_two_raises():
         TopologyApplier().apply(ents, [{"op": "fillet", "at": "c", "radius": 3.0}])
 
 
-def test_fillet_non_line_corner_raises():
+def test_fillet_corner_with_only_one_entity_raises():
+    # a circle has no endpoints, so only the single line touches `c`: not a valid corner
     ents = [
         {"id": "c", "type": "point", "at": [0.0, 0.0]},
-        {"id": "cc", "type": "point", "at": [0.0, 5.0]},
         {"id": "ex", "type": "point", "at": [10.0, 0.0]},
-        {"id": "ee", "type": "point", "at": [5.0, 0.0]},
+        {"id": "cc", "type": "point", "at": [0.0, 20.0]},
         {"id": "lx", "type": "line", "p1": "c", "p2": "ex"},
-        {"id": "arc0", "type": "arc", "center": "cc", "start": "c", "end": "ee"},
+        {"id": "circ", "type": "circle", "center": "cc", "radius": 5.0},
     ]
     with pytest.raises(TopologyError):
         TopologyApplier().apply(ents, [{"op": "fillet", "at": "c", "radius": 2.0}])
@@ -246,3 +246,56 @@ def test_loop_offset_round_makes_rounded_corners():
     assert len(arcs) == 4 and len(edges) == 4
     assert all(round(a["radius"], 6) == 4.0 for a in arcs)
     assert all(e.get("fixed") for e in arcs)
+
+
+def _line_arc_corner():
+    # a line from corner c along +x, and an arc from c curving up (center above c)
+    return [
+        {"id": "c", "type": "point", "at": [0.0, 0.0]},
+        {"id": "ex", "type": "point", "at": [20.0, 0.0]},
+        {"id": "ac", "type": "point", "at": [0.0, 10.0]},
+        {"id": "ae", "type": "point", "at": [10.0, 10.0]},
+        {"id": "lx", "type": "line", "p1": "c", "p2": "ex"},
+        {"id": "arc", "type": "arc", "center": "ac", "start": "c", "end": "ae"},
+    ]
+
+
+def test_fillet_line_arc_corner_inserts_arc():
+    out = TopologyApplier().apply(_line_arc_corner(), [
+        {"op": "fillet", "at": "c", "radius": 2.0}])
+    arc = [e for e in out if e["type"] == "arc" and e["id"] == "c/fillet/arc"][0]
+    center = [e for e in out if e["id"] == "c/fillet/c"][0]
+    # the fillet center is radius 2 above the line y=0
+    assert round(center["at"][1], 6) == 2.0
+    ta = [e for e in out if e["id"] == "c/fillet/a"][0]
+    tb = [e for e in out if e["id"] == "c/fillet/b"][0]
+    assert ta.get("fixed") and tb.get("fixed") and arc.get("fixed")
+    lx = [e for e in out if e["id"] == "lx"][0]
+    assert "c" not in {lx["p1"], lx["p2"]}
+
+
+def test_fillet_line_line_still_exact():
+    ents = [
+        {"id": "c", "type": "point", "at": [0.0, 0.0]},
+        {"id": "ex", "type": "point", "at": [10.0, 0.0]},
+        {"id": "ey", "type": "point", "at": [0.0, 10.0]},
+        {"id": "lx", "type": "line", "p1": "c", "p2": "ex"},
+        {"id": "ly", "type": "line", "p1": "c", "p2": "ey"},
+    ]
+    out = TopologyApplier().apply(ents, [{"op": "fillet", "at": "c", "radius": 3.0}])
+    center = [e for e in out if e["id"] == "c/fillet/c"][0]
+    assert (round(center["at"][0], 6), round(center["at"][1], 6)) == (3.0, 3.0)
+
+
+def test_chamfer_line_arc_corner_sets_back_along_arc():
+    out = TopologyApplier().apply(_line_arc_corner(), [
+        {"op": "chamfer", "at": "c", "setback": 2.0}])
+    seg = [e for e in out if e["type"] == "line" and e["id"] == "c/chamfer/line"][0]
+    a = [e for e in out if e["id"] == "c/chamfer/a"][0]
+    b = [e for e in out if e["id"] == "c/chamfer/b"][0]
+    # one setback point sits 2 along the line from origin (2,0); the other 2 arc-length
+    # back along the arc (radius 10 => angle 0.2 rad from the corner)
+    pts = {(round(a["at"][0], 4), round(a["at"][1], 4)),
+           (round(b["at"][0], 4), round(b["at"][1], 4))}
+    assert (2.0, 0.0) in pts
+    assert {seg["p1"], seg["p2"]} == {"c/chamfer/a", "c/chamfer/b"}
