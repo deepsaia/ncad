@@ -131,8 +131,9 @@ class SlvsSolver(SketchSolver):
         for constraint in constraints:
             if constraint.get("driven"):
                 measurements[constraint["id"]] = _measure(constraint, positions, radii, by_id)
+        drifted = _fixed_points_held(entities, positions)
         return _result_from(code, dof, failed, positions, feature_id, radii,
-                            measurements)
+                            measurements, drifted)
 
     def _apply(self, system: Any, constraint: dict, ctx: _Ctx) -> None:
         """Dispatch one constraint to its handler; skip driven dims (measured post-solve)."""
@@ -382,14 +383,36 @@ def _arc_length(arc: dict, positions: dict) -> float:
 _REDUNDANT_OKAY = 5
 
 
+def _fixed_points_held(entities: list[dict], positions: dict) -> str | None:
+    """Return the id of a ``fixed`` point that drifted off its seed, or None if all held.
+
+    A consistent solve must leave every fixed point at its declared seed; a drift means
+    the solver silently relaxed a pin (masked over-pinning), which we reject. This closes
+    the theoretical gap in accepting the redundant-but-consistent solver code.
+    """
+    for entity in entities:
+        if entity.get("type") != "point" or not entity.get("fixed"):
+            continue
+        solved = positions.get(entity["id"])
+        if solved is None:
+            continue
+        sx, sy = float(entity["at"][0]), float(entity["at"][1])
+        if abs(solved[0] - sx) > 1e-6 or abs(solved[1] - sy) > 1e-6:
+            return entity["id"]
+    return None
+
+
 def _result_from(code: int, dof: int, failed: list, positions: dict,
-                 feature_id: str, radii: dict, measurements: dict) -> SolveResult:
+                 feature_id: str, radii: dict, measurements: dict,
+                 drifted: str | None = None) -> SolveResult:
     """Map a py-slvs solve outcome to a SolveResult."""
     # Code 5 (redundant-but-consistent) reports its redundant pins in ``failed``, but the
-    # geometry solved, so it is accepted. Any other nonzero code is a genuine failure.
-    if code not in (0, _REDUNDANT_OKAY):
-        message = (f"sketch is over-constrained or inconsistent "
-                   f"(solver code {code}, {len(failed)} failing constraint(s))")
+    # geometry solved, so it is accepted. Any other nonzero code is a genuine failure, and
+    # a fixed point that drifted off its seed means the redundancy masked a real conflict.
+    if code not in (0, _REDUNDANT_OKAY) or drifted is not None:
+        detail = (f"fixed point {drifted!r} moved off its seed" if drifted is not None
+                  else f"solver code {code}, {len(failed)} failing constraint(s)")
+        message = f"sketch is over-constrained or inconsistent ({detail})"
         return SolveResult(positions=positions, dof=dof, status="inconsistent",
                            issues=[BuildIssue(node_id=feature_id, message=message)],
                            radii=radii, measurements=measurements)

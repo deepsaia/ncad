@@ -318,3 +318,19 @@ def test_genuine_conflict_still_inconsistent():
     ]
     result = SlvsSolver().solve(entities, constraints, "sk")
     assert result.status == "inconsistent"
+
+
+def test_fixed_point_drift_is_rejected():
+    # A reported solve that leaves a fixed point far from its seed must be downgraded to
+    # inconsistent by the safety net (masked over-pinning guard).
+    from ncad.sketch import slvs_solver as m
+
+    result = m._result_from(5, 0, [], {"p": (99.0, 99.0)}, "sk", {}, {}, drifted="p")
+    assert result.status == "inconsistent"
+
+
+def test_no_drift_solve_is_accepted():
+    from ncad.sketch import slvs_solver as m
+
+    result = m._result_from(5, 0, [], {"p": (0.0, 0.0)}, "sk", {}, {}, drifted=None)
+    assert result.status != "inconsistent"
