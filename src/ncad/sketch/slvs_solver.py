@@ -108,9 +108,15 @@ class SlvsSolver(SketchSolver):
                                    curve_handles[entity["id"]], group=_SKETCH_GROUP)
 
         ctx = _Ctx(workplane, point_handles, curve_handles, by_id)
+        handle_to_id: dict[int, str] = {}
         try:
-            for constraint in constraints:
+            for index, constraint in enumerate(constraints):
+                before = int(system.ConstraintHandle)
                 self._apply(system, constraint, ctx)
+                after = int(system.ConstraintHandle)
+                label = constraint.get("id") or f"{constraint.get('type', '?')}#{index}"
+                for handle in range(before + 1, after + 1):
+                    handle_to_id[handle] = label
         except ConstraintError as exc:
             return SolveResult(positions={}, dof=0, status="inconsistent",
                                issues=[BuildIssue(node_id=feature_id, message=str(exc))])
@@ -118,6 +124,7 @@ class SlvsSolver(SketchSolver):
         code = system.solve(group=_SKETCH_GROUP, reportFailed=True)
         dof = int(system.Dof)
         failed = list(system.Failed)
+        failing_ids = _failing_ids(failed, handle_to_id)
         positions = {
             pid: (system.getParam(system.getEntityParam(handle, 0)).val,
                   system.getParam(system.getEntityParam(handle, 1)).val)
@@ -133,7 +140,7 @@ class SlvsSolver(SketchSolver):
                 measurements[constraint["id"]] = _measure(constraint, positions, radii, by_id)
         drifted = _fixed_points_held(entities, positions)
         return _result_from(code, dof, failed, positions, feature_id, radii,
-                            measurements, drifted)
+                            measurements, drifted, failing_ids)
 
     def _apply(self, system: Any, constraint: dict, ctx: _Ctx) -> None:
         """Dispatch one constraint to its handler; skip driven dims (measured post-solve)."""
@@ -402,10 +409,28 @@ def _fixed_points_held(entities: list[dict], positions: dict) -> str | None:
     return None
 
 
+def _failing_ids(failed: list, handle_to_id: dict[int, str]) -> list[str]:
+    """Authored-constraint ids for the solver's failing handles, in declaration order.
+
+    A failing handle that maps to no authored constraint (a fixed/construction pin) is
+    skipped; the visible over-constraint is attributed to the authored constraints.
+    """
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for handle in failed:
+        label = handle_to_id.get(int(handle))
+        if label is not None and label not in seen:
+            seen.add(label)
+            ordered.append(label)
+    return ordered
+
+
 def _result_from(code: int, dof: int, failed: list, positions: dict,
                  feature_id: str, radii: dict, measurements: dict,
-                 drifted: str | None = None) -> SolveResult:
+                 drifted: str | None = None,
+                 failing_ids: list[str] | None = None) -> SolveResult:
     """Map a py-slvs solve outcome to a SolveResult."""
+    failing = failing_ids or []
     # Code 5 (redundant-but-consistent) reports its redundant pins in ``failed``, but the
     # geometry solved, so it is accepted. Any other nonzero code is a genuine failure, and
     # a fixed point that drifted off its seed means the redundancy masked a real conflict.
@@ -415,12 +440,13 @@ def _result_from(code: int, dof: int, failed: list, positions: dict,
         message = f"sketch is over-constrained or inconsistent ({detail})"
         return SolveResult(positions=positions, dof=dof, status="inconsistent",
                            issues=[BuildIssue(node_id=feature_id, message=message)],
-                           radii=radii, measurements=measurements)
+                           radii=radii, measurements=measurements, failing_ids=failing)
     if dof > 0:
         return SolveResult(
             positions=positions, dof=dof, status="under_constrained",
             issues=[BuildIssue(node_id=feature_id,
                                message=f"sketch under-constrained: {dof} free DoF",
-                               level="warning")], radii=radii, measurements=measurements)
+                               level="warning")], radii=radii, measurements=measurements,
+            failing_ids=failing)
     return SolveResult(positions=positions, dof=0, status="well_constrained", issues=[],
-                       radii=radii, measurements=measurements)
+                       radii=radii, measurements=measurements, failing_ids=failing)

@@ -122,7 +122,7 @@ def test_build_part_mapped_returns_element_map() -> None:
         _rect("sk", 40, 40),
         {"id": "pad", "op": "extrude", "profile": "sk", "distance": 10},
     ]}
-    result, element_map = Builder(
+    result, element_map, _ = Builder(
         FakeKernel(), OpRegistry.with_defaults()).build_part_mapped(part)
     assert result.shape is not None
     assert element_map.by_tag("cap(+Z)"), "extrude should tag a +Z cap"
@@ -181,7 +181,7 @@ def test_cache_hit_preserves_generative_tags() -> None:
     builder = Builder(kernel, OpRegistry.with_defaults(), cache=cache)
 
     builder.build_part_mapped(part)
-    _, element_map = builder.build_part_mapped(part)
+    _, element_map, _ = builder.build_part_mapped(part)
 
     assert element_map.by_tag("cap(+Z)"), "cached rebuild must restore generative tags"
 
@@ -207,7 +207,7 @@ def test_warning_issue_does_not_mark_feature_failed() -> None:
     reg.register("after", after_op)
     part = {"profile": "solid", "features": [
         {"id": "w", "op": "warn"}, {"id": "a", "op": "after"}]}
-    result, _ = Builder(kernel, reg, cache=FeatureCache()).build_part_mapped(part)
+    result, _, _ = Builder(kernel, reg, cache=FeatureCache()).build_part_mapped(part)
 
     assert result.shape is solid
     assert not any("depends on failed" in i.message for i in result.issues)
@@ -239,3 +239,12 @@ def test_sketch_project_field_resolves_to_refs() -> None:
     Builder(FakeKernel(), reg).build_part_mapped(part)
     assert "project" in captured["refs"]
     assert isinstance(captured["refs"]["project"], list)
+
+
+def test_build_part_mapped_returns_sketch_statuses() -> None:
+    result, _element_map, statuses = Builder(
+        FakeKernel(), OpRegistry.with_defaults()).build_part_mapped(_block_part())
+    assert result.shape is not None
+    # only the sketch feature contributes a status; the extrude does not
+    assert [s.feature_id for s in statuses] == ["sk"]
+    assert statuses[0].status == "well"

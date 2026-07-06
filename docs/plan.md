@@ -33,8 +33,8 @@ content-addressed cache, the §4a equality harness, delete/broken-ref handling +
 spike, and a Three.js viewer (pick-by-id, right data sidebar, orientation gizmo). The
 constraint solver (py-slvs/SolveSpace) is integrated with the full entity + constraint +
 dimension vocabulary (driven vs driving) and reference-into-sketch (project prior edges,
-offset). Sketch-modify (1.4b transforms, 1.4c topology, 1.4d split + loop-offset) done.
-Next: sketch status in the viewer (1.5, Phase 1 gate).
+offset). Sketch status in the viewer (1.5) done, **Phase 1 complete**. Next: Phase 2
+(core solid features, sketched + dress-up).
 
 v1 proved the *pattern*: `spec >> build >> BOM >> view`, determinism, build123d/OCCT,
 HOCON+jsonschema, traversal BOM, the Three.js viewer, on the **building profile**
@@ -231,10 +231,13 @@ five buckets; the phase gate is the 1.5 gate.
 > variable offset, conic/G2 rounds) stays deferred to the Phase-2 dress-up buckets;
 > sketch-modify (1.4b/c/d) is complete.
 
-**Bucket 1.5: Sketch status in the viewer (Phase 1 gate)** `[ ]`
-- [ ] Under/fully/over-constrained status + conflict highlighting surfaced in `ncad`
+**Bucket 1.5: Sketch status in the viewer (Phase 1 gate)** `[x]`
+- [x] Sketch constraint status (well/under/over/inconsistent + dof + failing-constraint
+      ids) threaded out of the build as `SketchStatus` on `OpResult`, written to a
+      `<stem>.status.json` sidecar, logged per-sketch on the CLI, and shown as a
+      collapsible status badge in the viewer sidebar.
 - **Gate (Phase 1):** an over/under-constrained sketch solves or reports cleanly; a
-      fully-constrained profile drives a downstream feature.
+      fully-constrained profile drives a downstream feature. **(done , Phase 1 gate met)**
 
 > **Deferred within Phase 1** (land in the buckets above or a later 1.x): **ellipse +
 > elliptical arc**, **conic** (parabola/hyperbola), **spline** (interpolated /

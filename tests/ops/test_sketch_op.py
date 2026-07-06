@@ -314,3 +314,38 @@ def test_loop_offset_error_surfaces_as_issue() -> None:
     result = SketchOp().build(None, params, {}, kernel)
     assert result.shape is None
     assert any(i.level == "error" for i in result.issues)
+
+
+def test_status_report_for_solved_sketch() -> None:
+    kernel = FakeKernel()
+    params = {
+        "id": "sk", "op": "sketch", "plane": "XY",
+        "entities": [
+            {"id": "p0", "type": "point", "at": [0.0, 0.0]},
+            {"id": "p1", "type": "point", "at": [10.0, 0.0]},
+            {"id": "p2", "type": "point", "at": [10.0, 10.0]},
+            {"id": "p3", "type": "point", "at": [0.0, 10.0]},
+            {"id": "b", "type": "line", "p1": "p0", "p2": "p1"},
+            {"id": "r", "type": "line", "p1": "p1", "p2": "p2"},
+            {"id": "t", "type": "line", "p1": "p2", "p2": "p3"},
+            {"id": "l", "type": "line", "p1": "p3", "p2": "p0"},
+        ],
+        "constraints": [
+            {"type": "fix", "of": "p0"}, {"type": "fix", "of": "p1"},
+            {"type": "fix", "of": "p2"}, {"type": "fix", "of": "p3"},
+        ],
+    }
+    result = SketchOp().build(None, params, {}, kernel)
+    assert result.status_report is not None
+    assert result.status_report.feature_id == "sk"
+    assert result.status_report.status == "well"
+    assert result.status_report.dof == 0
+
+
+def test_status_report_for_primitive_elements_sketch() -> None:
+    kernel = FakeKernel()
+    params = {"id": "sk", "op": "sketch", "plane": "XY",
+              "elements": [{"id": "r", "type": "rectangle", "w": 80.0, "h": 60.0}]}
+    result = SketchOp().build(None, params, {}, kernel)
+    assert result.status_report is not None
+    assert result.status_report.status == "well" and result.status_report.dof == 0

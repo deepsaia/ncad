@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any
 from ncad.kernel.kernel import Kernel, Point2
 from ncad.ops.build_issue import BuildIssue
 from ncad.ops.op_result import OpResult
+from ncad.ops.sketch_status import SketchStatus
 from ncad.sketch.edge_projector import EdgeProjector
 from ncad.sketch.entity_expander import EntityExpander
 from ncad.sketch.offset_applier import OffsetApplier, OffsetError
@@ -59,17 +60,19 @@ class SketchOp:
 
         element = elements[0]
         kind = element.get("type")
+        # A primitive element sketch has no solver: it is trivially well-constrained.
+        well = SketchStatus(feature_id, "well", 0)
         if kind == "rectangle":
             points = self._rectangle_points(element["w"], element["h"])
             return OpResult(shape=kernel.polygon_face(points, plane),
-                            provenance={}, issues=[])
+                            provenance={}, issues=[], status_report=well)
         if kind == "circle":
             diameter = element["d"] if "d" in element else element["r"] * 2.0
             return OpResult(shape=kernel.circle_face((0.0, 0.0), diameter, plane),
-                            provenance={}, issues=[])
+                            provenance={}, issues=[], status_report=well)
         if kind == "polygon":
             return OpResult(shape=kernel.polygon_face(self._polygon_points(element), plane),
-                            provenance={}, issues=[])
+                            provenance={}, issues=[], status_report=well)
         issue = BuildIssue(node_id=feature_id, message=f"unknown sketch element type: {kind!r}")
         return OpResult(shape=None, provenance={}, issues=[issue])
 
@@ -117,14 +120,18 @@ class SketchOp:
         issues = list(result.issues)
         if projected_issue is not None:
             issues.append(projected_issue)
+        status = SketchStatus(feature_id, _short_status(result.status), result.dof,
+                              result.failing_ids)
         if any(issue.level == "error" for issue in issues):
-            return OpResult(shape=None, provenance={}, issues=issues)
+            return OpResult(shape=None, provenance={}, issues=issues,
+                            status_report=status)
         edges, ring_error = WireOrderer().order(entities, result.positions, result.radii)
         if ring_error is not None:
             return OpResult(shape=None, provenance={},
-                            issues=[BuildIssue(node_id=feature_id, message=ring_error)])
+                            issues=[BuildIssue(node_id=feature_id, message=ring_error)],
+                            status_report=status)
         face = kernel.wire_face(edges, plane)
-        return OpResult(shape=face, provenance={}, issues=issues)
+        return OpResult(shape=face, provenance={}, issues=issues, status_report=status)
 
     @staticmethod
     def _rectangle_points(width: float, height: float) -> list[Point2]:
@@ -141,3 +148,16 @@ class SketchOp:
         r = float(element["r"])
         return [(r * math.cos(2 * math.pi * i / sides), r * math.sin(2 * math.pi * i / sides))
                 for i in range(sides)]
+
+
+_SHORT_STATUS = {"well_constrained": "well", "under_constrained": "under",
+                 "inconsistent": "inconsistent"}
+
+
+def _short_status(status: str) -> str:
+    """Map a SolveResult status to the short viewer/sidecar vocabulary.
+
+    ``over`` and ``inconsistent`` share the solver's ``inconsistent`` status; both surface
+    as ``inconsistent`` (an over-constrained sketch is a special inconsistency).
+    """
+    return _SHORT_STATUS.get(status, status)

@@ -12,15 +12,18 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
+from ncad.ops.sketch_status import SketchStatus
+
 logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
 class CacheEntry:
-    """A cached feature result: the built shape and its element descriptors."""
+    """A cached feature result: the shape, its element descriptors, and sketch status."""
 
     shape: Any
     descriptors: list | None
+    status_report: SketchStatus | None = None
 
 
 class FeatureCache:

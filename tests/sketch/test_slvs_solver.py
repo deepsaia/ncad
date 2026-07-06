@@ -334,3 +334,33 @@ def test_no_drift_solve_is_accepted():
 
     result = m._result_from(5, 0, [], {"p": (0.0, 0.0)}, "sk", {}, {}, drifted=None)
     assert result.status != "inconsistent"
+
+
+def test_overconstrained_reports_failing_constraint_ids():
+    entities = [
+        {"id": "p0", "type": "point", "at": [0.0, 0.0]},
+        {"id": "p1", "type": "point", "at": [10.0, 0.0]},
+        {"id": "l", "type": "line", "p1": "p0", "p2": "p1"},
+    ]
+    constraints = [
+        {"id": "fix0", "type": "fix", "of": "p0"},
+        {"id": "d_ten", "type": "distance", "points": ["p0", "p1"], "value": 10},
+        {"id": "d_twenty", "type": "distance", "points": ["p0", "p1"], "value": 20},
+    ]
+    result = SlvsSolver().solve(entities, constraints, "sk")
+    assert result.status == "inconsistent"
+    assert any(fid in ("d_ten", "d_twenty") for fid in result.failing_ids)
+
+
+def test_well_constrained_has_no_failing_ids():
+    entities = [
+        {"id": "p0", "type": "point", "at": [0.0, 0.0]},
+        {"id": "p1", "type": "point", "at": [10.0, 0.0]},
+        {"id": "l", "type": "line", "p1": "p0", "p2": "p1"},
+    ]
+    constraints = [
+        {"id": "fix0", "type": "fix", "of": "p0"},
+        {"id": "fix1", "type": "fix", "of": "p1"},
+    ]
+    result = SlvsSolver().solve(entities, constraints, "sk")
+    assert result.failing_ids == []
