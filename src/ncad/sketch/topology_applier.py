@@ -11,11 +11,14 @@ TopologyError.
 import logging
 import math
 
+from ncad.sketch.entity_offsetter import EntityOffsetter
 from ncad.sketch.geometry_intersector import GeometryIntersector
+from ncad.sketch.id_padding import PaddedNaming
 
 logger = logging.getLogger(__name__)
 
 _INTERSECTOR = GeometryIntersector()
+_OFFSETTER = EntityOffsetter()
 
 
 class TopologyError(Exception):
@@ -164,9 +167,13 @@ def _m_fillet(op: dict, entities: list[dict]) -> list[dict]:
     line_a, line_b = _corner_entities(corner_id, entities, op)
     seeds = _seeds(entities)
     corner = seeds[corner_id]
-    ua = _line_dir(line_a, corner_id, seeds)
-    ub = _line_dir(line_b, corner_id, seeds)
-    center, ta, tb = _fillet_geometry(corner, ua, ub, radius, op)
+    if line_a["type"] == "line" and line_b["type"] == "line":
+        ua = _line_dir(line_a, corner_id, seeds)
+        ub = _line_dir(line_b, corner_id, seeds)
+        center, ta, tb = _fillet_geometry(corner, ua, ub, radius, op)
+    else:
+        center, ta, tb = _arc_corner_fillet(line_a, line_b, corner_id, radius,
+                                             entities, op)
     prefix = f"{corner_id}/fillet"
     new_points = [
         {"id": f"{prefix}/a", "type": "point", "at": [ta[0], ta[1]], "fixed": True},
@@ -189,11 +196,8 @@ def _m_chamfer(op: dict, entities: list[dict]) -> list[dict]:
     corner_id = op["at"]
     line_a, line_b = _corner_entities(corner_id, entities, op)
     seeds = _seeds(entities)
-    corner = seeds[corner_id]
-    ua = _line_dir(line_a, corner_id, seeds)
-    ub = _line_dir(line_b, corner_id, seeds)
-    pa = (corner[0] + ua[0] * setback, corner[1] + ua[1] * setback)
-    pb = (corner[0] + ub[0] * setback, corner[1] + ub[1] * setback)
+    pa = _setback_point(line_a, corner_id, setback, seeds)
+    pb = _setback_point(line_b, corner_id, setback, seeds)
     prefix = f"{corner_id}/chamfer"
     new_points = [
         {"id": f"{prefix}/a", "type": "point", "at": [pa[0], pa[1]], "fixed": True},
@@ -206,17 +210,131 @@ def _m_chamfer(op: dict, entities: list[dict]) -> list[dict]:
     return rewired + new_points + [seg]
 
 
+def _arc_corner_fillet(ent_a: dict, ent_b: dict, corner_id: str, radius: float,
+                       entities: list[dict], op: dict) -> tuple[tuple, tuple, tuple]:
+    """Fillet center + tangent points for a corner where at least one entity is an arc.
+
+    The center is equidistant (``radius``) from both entities; it is the intersection of
+    the two offset loci (a line offset to a parallel line, an arc/circle to a concentric
+    one) that lies on the corner's interior side. Tangent points are the nearest points on
+    each entity to that center.
+    """
+    seeds = _seeds(entities)
+    corner = seeds[corner_id]
+    interior = _interior_direction(ent_a, ent_b, corner_id, seeds)
+    interior_pt = (corner[0] + interior[0] * radius, corner[1] + interior[1] * radius)
+    candidates: list[tuple[float, float]] = []
+    for sign_a in (radius, -radius):
+        loc_a, seeds_a = _offset_locus(ent_a, seeds, sign_a, "la")
+        for sign_b in (radius, -radius):
+            loc_b, seeds_b = _offset_locus(ent_b, seeds, sign_b, "lb")
+            combined = {**seeds_a, **seeds_b}
+            candidates.extend(_INTERSECTOR.intersect(loc_a, loc_b, combined))
+    valid = [c for c in candidates
+             if abs(_dist_to_entity(ent_a, c, seeds) - radius) < 1e-6
+             and abs(_dist_to_entity(ent_b, c, seeds) - radius) < 1e-6]
+    if not valid:
+        raise TopologyError(f"fillet at {op.get('at')!r}: no tangent circle of radius "
+                            f"{radius}")
+    center = min(valid, key=lambda c: _dist_sq(c, interior_pt))
+    return center, _foot_on_entity(ent_a, center, seeds), _foot_on_entity(ent_b, center,
+                                                                          seeds)
+
+
+def _offset_locus(entity: dict, seeds: dict, signed: float,
+                  tag: str) -> tuple[dict, dict]:
+    """An intersector-ready locus of points at distance |signed| from ``entity``.
+
+    Returns (locus dict, seed map for its referenced points). A line >> a parallel line; a
+    circle/arc >> a concentric circle (arc range is not applied to the locus, so the full
+    circle is searched for candidate centers).
+    """
+    if entity["type"] == "line":
+        ax, ay = seeds[entity["p1"]]
+        bx, by = seeds[entity["p2"]]
+        dx, dy = bx - ax, by - ay
+        length = math.hypot(dx, dy)
+        nx, ny = -dy / length, dx / length
+        ox, oy = nx * signed, ny * signed
+        a_id, b_id = f"{tag}/a", f"{tag}/b"
+        loc_seeds = {a_id: (ax + ox, ay + oy), b_id: (bx + ox, by + oy)}
+        return {"type": "line", "p1": a_id, "p2": b_id}, loc_seeds
+    cx, cy = seeds[entity["center"]]
+    radius = _seed_radius_pt(entity, seeds)
+    c_id = f"{tag}/c"
+    return ({"type": "circle", "center": c_id, "radius": abs(radius + signed)},
+            {c_id: (cx, cy)})
+
+
+def _interior_direction(ent_a: dict, ent_b: dict, corner_id: str,
+                        seeds: dict) -> tuple[float, float]:
+    """A unit vector into the corner interior (bisector of the two outgoing tangents)."""
+    ua = _tangent_dir(ent_a, corner_id, seeds)
+    ub = _tangent_dir(ent_b, corner_id, seeds)
+    bx, by = ua[0] + ub[0], ua[1] + ub[1]
+    blen = math.hypot(bx, by)
+    if blen < 1e-9:
+        raise TopologyError(f"fillet at {corner_id!r}: entities are collinear")
+    return bx / blen, by / blen
+
+
+def _tangent_dir(entity: dict, from_id: str, seeds: dict) -> tuple[float, float]:
+    """Unit tangent of a line/arc at the corner, pointing away from the corner."""
+    if entity["type"] == "line":
+        return _line_dir(entity, from_id, seeds)
+    cx, cy = seeds[entity["center"]]
+    px, py = seeds[from_id]
+    tang = (-(py - cy), px - cx)
+    length = math.hypot(*tang)
+    other = entity["end"] if entity["start"] == from_id else entity["start"]
+    ox, oy = seeds[other]
+    if (ox - px) * tang[0] + (oy - py) * tang[1] < 0.0:
+        tang = (-tang[0], -tang[1])
+    return tang[0] / length, tang[1] / length
+
+
+def _dist_to_entity(entity: dict, point: tuple, seeds: dict) -> float:
+    """Distance from ``point`` to a line (perpendicular) or arc/circle (to the curve)."""
+    if entity["type"] == "line":
+        return _dist(point, _foot_on_line_seeds(entity, point, seeds))
+    cx, cy = seeds[entity["center"]]
+    r = _seed_radius_pt(entity, seeds)
+    return abs(_dist(point, (cx, cy)) - r)
+
+
+def _foot_on_entity(entity: dict, point: tuple, seeds: dict) -> tuple[float, float]:
+    """The nearest point on ``entity`` to ``point`` (the fillet tangent point)."""
+    if entity["type"] == "line":
+        return _foot_on_line_seeds(entity, point, seeds)
+    cx, cy = seeds[entity["center"]]
+    r = _seed_radius_pt(entity, seeds)
+    ang = math.atan2(point[1] - cy, point[0] - cx)
+    return (cx + r * math.cos(ang), cy + r * math.sin(ang))
+
+
+def _foot_on_line_seeds(line: dict, point: tuple, seeds: dict) -> tuple[float, float]:
+    """The perpendicular foot from ``point`` onto the infinite line through ``line``."""
+    ax, ay = seeds[line["p1"]]
+    bx, by = seeds[line["p2"]]
+    dx, dy = bx - ax, by - ay
+    seg_sq = dx * dx + dy * dy
+    t = ((point[0] - ax) * dx + (point[1] - ay) * dy) / seg_sq
+    return (ax + t * dx, ay + t * dy)
+
+
+def _dist(a: tuple, b: tuple) -> float:
+    """Euclidean distance."""
+    return math.hypot(a[0] - b[0], a[1] - b[1])
+
+
 def _corner_entities(corner_id: str, entities: list[dict], op: dict) -> tuple[dict, dict]:
     """The exactly-two line entities sharing ``corner_id``; else a TopologyError."""
     touching = [e for e in entities
-                if e.get("type") in ("line", "arc", "circle")
+                if e.get("type") in ("line", "arc")
                 and corner_id in _endpoint_ids(e)]
     if len(touching) != 2:
         raise TopologyError(f"corner {corner_id!r} must be shared by exactly two "
                             f"entities (found {len(touching)})")
-    if any(e["type"] != "line" for e in touching):
-        raise TopologyError(f"corner {corner_id!r}: fillet/chamfer supports line-line "
-                            f"corners only in this bucket")
     return touching[0], touching[1]
 
 
@@ -227,6 +345,24 @@ def _endpoint_ids(entity: dict) -> tuple:
     if entity["type"] == "arc":
         return entity["start"], entity["end"]
     return ()
+
+
+def _setback_point(entity: dict, corner_id: str, setback: float,
+                   seeds: dict) -> tuple[float, float]:
+    """The point ``setback`` back from the corner along ``entity`` (arc-length for arcs)."""
+    corner = seeds[corner_id]
+    if entity["type"] == "line":
+        u = _line_dir(entity, corner_id, seeds)
+        return (corner[0] + u[0] * setback, corner[1] + u[1] * setback)
+    cx, cy = seeds[entity["center"]]
+    radius = _seed_radius_pt(entity, seeds)
+    other = entity["end"] if entity["start"] == corner_id else entity["start"]
+    ox, oy = seeds[other]
+    start_ang = math.atan2(corner[1] - cy, corner[0] - cx)
+    other_ang = math.atan2(oy - cy, ox - cx)
+    direction = 1.0 if (other_ang - start_ang) % (2 * math.pi) < math.pi else -1.0
+    ang = start_ang + direction * (setback / radius)
+    return (cx + radius * math.cos(ang), cy + radius * math.sin(ang))
 
 
 def _line_dir(line: dict, from_id: str, seeds: dict) -> tuple[float, float]:
@@ -289,9 +425,322 @@ def _repoint_corner(entities: list[dict], line_a: dict, line_b: dict, corner_id:
         if new_id is None:
             out.append(entity)
             continue
-        end_key = "p1" if entity["p1"] == corner_id else "p2"
+        keys = ("p1", "p2") if entity["type"] == "line" else ("start", "end")
+        end_key = keys[0] if entity[keys[0]] == corner_id else keys[1]
         out.append({**entity, end_key: new_id, "fixed": True})
     return out
+
+
+def _m_split(op: dict, entities: list[dict]) -> list[dict]:
+    """Cut ``of`` into two entities at the projection of ``at`` onto it."""
+    by_id = {e["id"]: e for e in entities}
+    seeds = _seeds(entities)
+    entity = _require(by_id, op["of"], op)
+    target = _target_xy(op["at"], seeds)
+    cut = _project_onto(entity, target, by_id, seeds, op)
+    cut_id = f"{op['id']}/x"
+    cut_point = {"id": cut_id, "type": "point", "at": [cut[0], cut[1]], "fixed": True}
+    if entity["type"] == "line":
+        halves = [
+            {"id": f"{op['id']}/0", "type": "line", "p1": entity["p1"], "p2": cut_id,
+             "fixed": True},
+            {"id": f"{op['id']}/1", "type": "line", "p1": cut_id, "p2": entity["p2"],
+             "fixed": True},
+        ]
+    elif entity["type"] == "arc":
+        halves = [
+            {"id": f"{op['id']}/0", "type": "arc", "center": entity["center"],
+             "start": entity["start"], "end": cut_id, "fixed": True},
+            {"id": f"{op['id']}/1", "type": "arc", "center": entity["center"],
+             "start": cut_id, "end": entity["end"], "fixed": True},
+        ]
+    else:
+        raise TopologyError(f"cannot split a {entity['type']!r} (split {op.get('id')!r})")
+    kept = [e for e in entities if e["id"] != entity["id"]]
+    return kept + [cut_point] + halves
+
+
+def _project_onto(entity: dict, target: tuple, by_id: dict, seeds: dict,
+                  op: dict) -> tuple[float, float]:
+    """Project ``target`` onto ``entity``; raise if the foot is outside its span."""
+    if entity["type"] == "line":
+        ax, ay = seeds[entity["p1"]]
+        bx, by = seeds[entity["p2"]]
+        dx, dy = bx - ax, by - ay
+        seg_sq = dx * dx + dy * dy
+        if seg_sq < 1e-12:
+            raise TopologyError(f"split {op.get('id')!r}: zero-length target line")
+        t = ((target[0] - ax) * dx + (target[1] - ay) * dy) / seg_sq
+        if t <= 1e-9 or t >= 1.0 - 1e-9:
+            raise TopologyError(f"split {op.get('id')!r}: point not on segment")
+        return (ax + t * dx, ay + t * dy)
+    if entity["type"] == "arc":
+        cx, cy = seeds[entity["center"]]
+        radius = _seed_radius_pt(entity, seeds)
+        ang = math.atan2(target[1] - cy, target[0] - cx)
+        point = (cx + radius * math.cos(ang), cy + radius * math.sin(ang))
+        if not _arc_span_contains(entity, point, seeds):
+            raise TopologyError(f"split {op.get('id')!r}: point not on arc")
+        return point
+    raise TopologyError(f"cannot split a {entity['type']!r} (split {op.get('id')!r})")
+
+
+def _seed_radius_pt(curve: dict, seeds: dict) -> float:
+    """An arc's radius from seed points (center to start)."""
+    cx, cy = seeds[curve["center"]]
+    sx, sy = seeds[curve["start"]]
+    return math.hypot(sx - cx, sy - cy)
+
+
+def _arc_span_contains(arc: dict, point: tuple, seeds: dict) -> bool:
+    """Whether ``point`` lies within the arc's CCW span from start to end."""
+    cx, cy = seeds[arc["center"]]
+    sx, sy = seeds[arc["start"]]
+    ex, ey = seeds[arc["end"]]
+    a0 = math.atan2(sy - cy, sx - cx)
+    a1 = math.atan2(ey - cy, ex - cx)
+    ap = math.atan2(point[1] - cy, point[0] - cx)
+    span = (a1 - a0) % (2 * math.pi)
+    rel = (ap - a0) % (2 * math.pi)
+    return 1e-9 < rel < span - 1e-9
+
+
+def _m_loop_offset(op: dict, entities: list[dict]) -> list[dict]:
+    """Offset a closed loop's edges by a signed distance, replacing the source loop."""
+    by_id = {e["id"]: e for e in entities}
+    edge_ids = op.get("entities") or []
+    for eid in edge_ids:
+        _require(by_id, eid, op)
+    ordered = _order_loop(edge_ids, by_id, op)
+    distance = float(op.get("distance", 0.0))
+    corner_style = op.get("corner", "mitre")
+    prefix = op["id"]
+    count = len(ordered)
+    edge_names = PaddedNaming().child_ids(f"{prefix}/e", count)
+    corner_names = PaddedNaming().child_ids(f"{prefix}/c", count)
+    # Offset each edge along the loop-interior normal. The interior side is found once from
+    # the loop's signed area, so a negative distance always insets (shrinks) the loop
+    # regardless of the authored winding or each edge's p1/p2 direction.
+    inward_sign = -1.0 if _loop_signed_area(ordered, by_id) > 0.0 else 1.0
+    offsets = [_OFFSETTER.offset(by_id[eid], by_id, distance * inward_sign, name)
+               for eid, name in zip(ordered, edge_names)]
+    if corner_style == "round":
+        return _loop_offset_round(op, entities, ordered, offsets, edge_names,
+                                  corner_names, distance)
+    return _loop_offset_mitre(op, entities, ordered, offsets, edge_names, corner_names)
+
+
+def _loop_offset_mitre(op: dict, entities: list[dict], ordered: list[str],
+                       offsets: list, edge_names: list[str],
+                       corner_names: list[str]) -> list[dict]:
+    """Trim adjacent offset edges to their intersection (sharp mitred corners)."""
+    seeds = _seeds([e for grp in offsets for e in grp])
+    count = len(ordered)
+    corner_xy: list[tuple] = []
+    for i in range(count):
+        prev_line = _primitive(offsets[(i - 1) % count])
+        this_line = _primitive(offsets[i])
+        corner_xy.append(_mitre_corner(prev_line, this_line, seeds, op))
+    _check_not_collapsed(corner_xy, ordered, by_id_of(entities), op)
+    _check_edges_not_flipped(corner_xy, ordered, by_id_of(entities), op)
+    result = [e for e in entities if e["id"] not in set(ordered)
+              and not _is_loop_point(e, ordered, entities)]
+    corner_points = [{"id": corner_names[i], "type": "point",
+                      "at": [corner_xy[i][0], corner_xy[i][1]], "fixed": True}
+                     for i in range(count)]
+    edges = []
+    for i in range(count):
+        prim = _primitive(offsets[i])
+        edges.append({**prim, "id": edge_names[i], "p1": corner_names[i],
+                      "p2": corner_names[(i + 1) % count], "fixed": True})
+    return result + corner_points + edges
+
+
+def _loop_offset_round(op: dict, entities: list[dict], ordered: list[str],
+                       offsets: list, edge_names: list[str], corner_names: list[str],
+                       distance: float) -> list[dict]:
+    """Round each corner with a fillet arc between adjacent offset edges.
+
+    The arc center is the ORIGINAL shared vertex (each offset edge is |distance| from it),
+    and the tangent points are the perpendicular feet from that vertex onto the two offset
+    edges, so the arc radius is exactly |distance|. Straight edges only in this bucket.
+    """
+    if any(_primitive(grp)["type"] != "line" for grp in offsets):
+        raise TopologyError(f"loop_offset {op.get('id')!r}: round corners support "
+                            f"straight edges only")
+    off_seeds = _seeds([e for grp in offsets for e in grp])
+    src_by_id = by_id_of(entities)
+    src_ends = {eid: _endpoint_ids(src_by_id[eid]) for eid in ordered}
+    src_seeds = _seeds(entities)
+    radius = abs(distance)
+    count = len(ordered)
+    out_points: list[dict] = []
+    out_arcs: list[dict] = []
+    for i in range(count):
+        prev_id, this_id = ordered[(i - 1) % count], ordered[i]
+        shared = _shared_vertex(src_ends[prev_id], src_ends[this_id], op)
+        cx, cy = src_seeds[shared]
+        prev_line = _primitive(offsets[(i - 1) % count])
+        this_line = _primitive(offsets[i])
+        ta = _foot_on_line_seeds(prev_line, (cx, cy), off_seeds)
+        tb = _foot_on_line_seeds(this_line, (cx, cy), off_seeds)
+        ca, cb, cc = f"{corner_names[i]}/a", f"{corner_names[i]}/b", f"{corner_names[i]}/c"
+        out_points += [
+            {"id": ca, "type": "point", "at": [ta[0], ta[1]], "fixed": True},
+            {"id": cb, "type": "point", "at": [tb[0], tb[1]], "fixed": True},
+            {"id": cc, "type": "point", "at": [cx, cy], "fixed": True},
+        ]
+        arc = _oriented_arc(f"{op['id']}/arc{i}", cc, cb, ca, (cx, cy), tb, ta)
+        arc["radius"] = radius
+        out_arcs.append(arc)
+    out_edges: list[dict] = []
+    for i in range(count):
+        prim = _primitive(offsets[i])
+        out_edges.append({**prim, "id": edge_names[i],
+                          "p1": f"{corner_names[i]}/b",
+                          "p2": f"{corner_names[(i + 1) % count]}/a", "fixed": True})
+    result = [e for e in entities if e["id"] not in set(ordered)
+              and not _is_loop_point(e, ordered, entities)]
+    return result + out_points + out_edges + out_arcs
+
+
+def _shared_vertex(ends_a: tuple, ends_b: tuple, op: dict) -> str:
+    """The point id shared by two adjacent edges."""
+    common = set(ends_a) & set(ends_b)
+    if not common:
+        raise TopologyError(f"loop_offset {op.get('id')!r}: adjacent edges share no vertex")
+    return next(iter(common))
+
+
+def _order_loop(edge_ids: list[str], by_id: dict, op: dict) -> list[str]:
+    """Return the edge ids in cyclic loop order; raise if they are not a closed loop."""
+    if len(edge_ids) < 3:
+        raise TopologyError(f"loop_offset {op.get('id')!r}: need >= 3 edges")
+    ends = {eid: _endpoint_ids(by_id[eid]) for eid in edge_ids}
+    if any(len(v) != 2 for v in ends.values()):
+        raise TopologyError(f"loop_offset {op.get('id')!r}: edges must be lines/arcs")
+    remaining = list(edge_ids)
+    ordered = [remaining.pop(0)]
+    tail = ends[ordered[0]][1]
+    while remaining:
+        nxt = next((e for e in remaining if tail in ends[e]), None)
+        if nxt is None:
+            raise TopologyError(f"loop_offset {op.get('id')!r}: edges do not form a "
+                                f"closed loop")
+        a, b = ends[nxt]
+        tail = b if a == tail else a
+        ordered.append(nxt)
+        remaining.remove(nxt)
+    if tail != ends[ordered[0]][0]:
+        raise TopologyError(f"loop_offset {op.get('id')!r}: loop is not closed")
+    return ordered
+
+
+def by_id_of(entities: list[dict]) -> dict:
+    """An id -> entity map for the given entities."""
+    return {e["id"]: e for e in entities}
+
+
+def _check_not_collapsed(corner_xy: list[tuple], ordered: list[str], by_id: dict,
+                         op: dict) -> None:
+    """Raise if the offset corners no longer enclose area with the loop's orientation.
+
+    An inset larger than the loop's half-width folds the loop through itself; the offset
+    corner polygon then loses area or flips sign, which we reject as a collapse.
+    """
+    orig = _loop_signed_area(ordered, by_id)
+    n = len(corner_xy)
+    area = 0.0
+    for i in range(n):
+        x0, y0 = corner_xy[i]
+        x1, y1 = corner_xy[(i + 1) % n]
+        area += x0 * y1 - x1 * y0
+    area /= 2.0
+    if abs(area) < 1e-6 or (area > 0.0) != (orig > 0.0):
+        raise TopologyError(f"loop_offset {op.get('id')!r}: offset distance collapses "
+                            f"the loop")
+
+
+def _check_edges_not_flipped(corner_xy: list[tuple], ordered: list[str], by_id: dict,
+                             op: dict) -> None:
+    """Raise if any offset edge points opposite its source edge (inset past the centre).
+
+    An inset larger than the loop's half-width flips an edge's direction; the offset loop
+    then self-folds even when its area magnitude is preserved.
+    """
+    seeds = {pid: (float(by_id[pid]["at"][0]), float(by_id[pid]["at"][1]))
+             for eid in ordered for pid in _endpoint_ids(by_id[eid])}
+    ring = _loop_ring(ordered, by_id)
+    n = len(corner_xy)
+    for i in range(n):
+        sx, sy = seeds[ring[i]]
+        ex, ey = seeds[ring[(i + 1) % n]]
+        src = (ex - sx, ey - sy)
+        ox0, oy0 = corner_xy[i]
+        ox1, oy1 = corner_xy[(i + 1) % n]
+        off = (ox1 - ox0, oy1 - oy0)
+        if src[0] * off[0] + src[1] * off[1] <= 0.0:
+            raise TopologyError(f"loop_offset {op.get('id')!r}: offset distance collapses "
+                                f"the loop (an edge reversed direction)")
+
+
+def _loop_ring(ordered: list[str], by_id: dict) -> list[str]:
+    """The loop's vertex ids in traversal order (one per edge, at its tail)."""
+    ring: list[str] = []
+    tail = None
+    for eid in ordered:
+        a, b = _endpoint_ids(by_id[eid])
+        if tail is None or a == tail:
+            ring.append(a)
+            tail = b
+        else:
+            ring.append(b)
+            tail = a
+    return ring
+
+
+def _loop_signed_area(ordered: list[str], by_id: dict) -> float:
+    """Signed shoelace area over the loop's ordered edge endpoints (CCW positive)."""
+    seeds = {pid: (float(by_id[pid]["at"][0]), float(by_id[pid]["at"][1]))
+             for eid in ordered for pid in _endpoint_ids(by_id[eid])}
+    ring = _loop_ring(ordered, by_id)
+    total = 0.0
+    n = len(ring)
+    for i in range(n):
+        x0, y0 = seeds[ring[i]]
+        x1, y1 = seeds[ring[(i + 1) % n]]
+        total += x0 * y1 - x1 * y0
+    return total / 2.0
+
+
+def _mitre_corner(prev_line: dict, this_line: dict, seeds: dict,
+                  op: dict) -> tuple[float, float]:
+    """Intersection of two adjacent offset edges (their new shared corner)."""
+    hits = _INTERSECTOR.intersect(prev_line, this_line, seeds)
+    if not hits:
+        raise TopologyError(f"loop_offset {op.get('id')!r}: offset distance collapses "
+                            f"the loop (adjacent edges do not meet)")
+    return hits[0]
+
+
+def _primitive(offset_group: list[dict]) -> dict:
+    """The line/arc/circle primitive within an EntityOffsetter output group."""
+    return next(e for e in offset_group if e["type"] in ("line", "arc", "circle"))
+
+
+def _is_loop_point(entity: dict, ordered: list[str], entities: list[dict]) -> bool:
+    """Whether ``entity`` is a point used only by the loop edges being replaced."""
+    if entity.get("type") != "point":
+        return False
+    by_id = {e["id"]: e for e in entities}
+    loop_pts: set = set()
+    for eid in ordered:
+        loop_pts.update(_endpoint_ids(by_id[eid]))
+    if entity["id"] not in loop_pts:
+        return False
+    users = [e for e in entities if e["id"] not in ordered
+             and entity["id"] in _endpoint_ids(e)]
+    return not users
 
 
 _MODIFY_HANDLERS = {
@@ -299,4 +748,6 @@ _MODIFY_HANDLERS = {
     "extend": "_m_extend",
     "fillet": "_m_fillet",
     "chamfer": "_m_chamfer",
+    "split": "_m_split",
+    "loop_offset": "_m_loop_offset",
 }
