@@ -50,6 +50,13 @@ def test_arc_offset_changes_radius_keeps_span():
     out = EntityOffsetter().offset(by_id["arc"], by_id, 2.0, "o")
     arc = [e for e in out if e["type"] == "arc"][0]
     assert arc["radius"] == 7.0  # 5 (seed radius) + 2
+    # the offset arc's own start/end sit on the new radius (self-consistent standalone)
+    import math
+    pts = {e["id"]: e["at"] for e in out if e["type"] == "point"}
+    cx, cy = pts[arc["center"]]
+    for endpoint in (arc["start"], arc["end"]):
+        px, py = pts[endpoint]
+        assert round(math.hypot(px - cx, py - cy), 6) == 7.0
 
 
 def test_zero_length_line_raises():
