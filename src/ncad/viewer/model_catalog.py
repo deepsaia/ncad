@@ -22,9 +22,10 @@ _PLAN_SUFFIX = ".plan.svg"
 _META_SUFFIX = ".meta.json"
 _ELEMENTMAP_SUFFIX = ".elementmap.json"
 _HIERARCHY_SUFFIX = ".hierarchy.json"
+_STATUS_SUFFIX = ".status.json"
 # All sidecar suffixes removed alongside a model on delete.
 _SIDECAR_SUFFIXES = (_META_SUFFIX, _BOM_SUFFIX, _PLAN_SUFFIX, _ELEMENTMAP_SUFFIX,
-                     _HIERARCHY_SUFFIX)
+                     _HIERARCHY_SUFFIX, _STATUS_SUFFIX)
 
 
 class ModelCatalog:
@@ -89,6 +90,10 @@ class ModelCatalog:
     def resolve_hierarchy(self, model_name: str) -> str | None:
         """Resolve a model name to its hierarchy sidecar, or None."""
         return self._resolve_sidecar(model_name, _HIERARCHY_SUFFIX)
+
+    def resolve_status(self, model_name: str) -> str | None:
+        """Resolve a model name to its sketch-status sidecar, or None."""
+        return self._resolve_sidecar(model_name, _STATUS_SUFFIX)
 
     def models_with_sources(self) -> list[dict]:
         """List models with their recorded source spec (from meta), source None if absent."""

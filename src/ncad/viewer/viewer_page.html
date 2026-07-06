@@ -285,6 +285,26 @@
   .bom-row .v { font-weight: 600; font-variant-numeric: tabular-nums; }
   .bom-row .u { color: var(--muted); font-weight: 400; font-size: 11px; margin-left: 3px; }
   .panel-empty { font-size: 12px; color: var(--muted); padding: 8px 0; }
+  /* Sketch constraint-status badge: collapsible header + per-sketch rows. */
+  .sketch-status { margin-bottom: 8px; border: 1px solid var(--border);
+    border-radius: 8px; background: var(--panel-2); overflow: hidden; }
+  .sketch-status-head { display: flex; align-items: center; gap: 6px; width: 100%;
+    padding: 6px 9px; background: none; border: 0; color: var(--text);
+    font-size: 12px; font-weight: 600; cursor: pointer; text-align: left; }
+  .sketch-status-caret { display: inline-block; font-size: 9px; color: var(--muted);
+    transition: transform .12s; }
+  .sketch-status.open .sketch-status-caret { transform: rotate(90deg); }
+  .sketch-status-list { padding: 2px 9px 7px; }
+  .sketch-status-row { display: flex; align-items: center; gap: 6px; padding: 3px 0;
+    font-size: 12px; font-variant-numeric: tabular-nums; }
+  .sketch-status-row .sid { font-weight: 600; }
+  .sketch-status-row .dof { color: var(--muted); }
+  .sketch-status-row .fail { color: #e74c3c; margin-left: auto; }
+  .status-dot { width: 9px; height: 9px; border-radius: 50%; flex: none;
+    background: var(--muted); }
+  .status-dot.well { background: #2ecc71; }
+  .status-dot.under { background: #f2c14e; }
+  .status-dot.over, .status-dot.inconsistent { background: #e74c3c; }
   /* White backing only when a real plan SVG is present (see .has-plan on the tab). */
   #tab-plan.has-plan #plan-body { padding: 12px; background: #ffffff; }
   #plan-body svg { width: 100%; height: auto; display: block; }
@@ -495,6 +515,14 @@
       </button>
     </div>
     <div class="tab-panel active" id="tab-hierarchy" role="tabpanel">
+      <div id="sketch-status" class="sketch-status" hidden>
+        <button id="sketch-status-head" class="sketch-status-head" type="button">
+          <span class="sketch-status-caret">&#9654;</span>
+          <span>Sketches:</span>
+          <span id="sketch-status-badge" class="status-dot"></span>
+        </button>
+        <div id="sketch-status-list" class="sketch-status-list" hidden></div>
+      </div>
       <div id="hierarchy-body"><div class="panel-empty">select a model</div></div>
     </div>
     <div class="tab-panel" id="tab-bom" role="tabpanel">
@@ -826,7 +854,51 @@ function loadModel(name) {
   loadBom(name);
   loadPlan(name);
   loadHierarchy(name);
+  loadSketchStatus(name);
 }
+
+// ---- Sketch constraint-status badge ----
+const STATUS_RANK = { well: 0, under: 1, over: 2, inconsistent: 2 };
+
+function loadSketchStatus(name) {
+  const box = document.getElementById("sketch-status");
+  const list = document.getElementById("sketch-status-list");
+  const badge = document.getElementById("sketch-status-badge");
+  fetch(`/api/status/${name}`).then(r => r.ok ? r.json() : Promise.reject())
+    .then(data => {
+      const sketches = (data && data.sketches) || [];
+      if (!sketches.length) { box.hidden = true; return; }
+      box.hidden = false;
+      let worst = "well";
+      list.innerHTML = "";
+      sketches.forEach(s => {
+        if ((STATUS_RANK[s.status] || 0) > (STATUS_RANK[worst] || 0)) worst = s.status;
+        const row = document.createElement("div");
+        row.className = "sketch-status-row";
+        const dot = document.createElement("span");
+        dot.className = "status-dot " + s.status;
+        const sid = document.createElement("span");
+        sid.className = "sid"; sid.textContent = s.feature_id;
+        const dof = document.createElement("span");
+        dof.className = "dof"; dof.textContent = `(dof ${s.dof})`;
+        row.appendChild(dot); row.appendChild(sid); row.appendChild(dof);
+        if (s.failing_ids && s.failing_ids.length) {
+          const fail = document.createElement("span");
+          fail.className = "fail"; fail.textContent = `[${s.failing_ids.join(", ")}]`;
+          row.appendChild(fail);
+        }
+        list.appendChild(row);
+      });
+      badge.className = "status-dot " + worst;
+    }).catch(() => { box.hidden = true; });
+}
+
+document.getElementById("sketch-status-head").addEventListener("click", () => {
+  const box = document.getElementById("sketch-status");
+  const list = document.getElementById("sketch-status-list");
+  const open = box.classList.toggle("open");
+  list.hidden = !open;
+});
 
 // ---- Bill of materials panel ----
 const BOM_FIELDS = [

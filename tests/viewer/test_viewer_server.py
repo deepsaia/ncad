@@ -25,6 +25,9 @@ def server(tmp_path):
     (tmp_path / "box.hierarchy.json").write_text(
         '{"name": "box", "kind": "part", "op": "solid", "children": ['
         '{"id": "pad", "kind": "feature", "op": "extrude", "children": []}]}')
+    (tmp_path / "box.status.json").write_text(
+        '{"sketches": [{"feature_id": "sk", "status": "well", "dof": 0, '
+        '"failing_ids": []}]}')
     srv = ViewerServer(models_dir=str(tmp_path), host="127.0.0.1", port=0)
     srv.start()
     try:
@@ -158,6 +161,28 @@ def test_hierarchy_endpoint_404_when_no_sidecar(tmp_path) -> None:
     try:
         with pytest.raises(urllib.error.HTTPError) as exc:
             _get(f"{srv.base_url}/api/hierarchy/lonely.glb")
+        assert exc.value.code == 404
+    finally:
+        srv.stop()
+
+
+def test_status_endpoint_returns_sidecar_json(server) -> None:
+    status, body, headers = _get(f"{server.base_url}/api/status/box.gltf")
+
+    assert status == 200
+    assert "application/json" in headers["Content-Type"]
+    data = json.loads(body)
+    assert data["sketches"][0]["feature_id"] == "sk"
+    assert data["sketches"][0]["status"] == "well"
+
+
+def test_status_endpoint_404_when_no_sidecar(tmp_path) -> None:
+    (tmp_path / "lonely.glb").write_bytes(b"glTF\x02\x00\x00\x00")
+    srv = ViewerServer(models_dir=str(tmp_path), host="127.0.0.1", port=0)
+    srv.start()
+    try:
+        with pytest.raises(urllib.error.HTTPError) as exc:
+            _get(f"{srv.base_url}/api/status/lonely.glb")
         assert exc.value.code == 404
     finally:
         srv.stop()
