@@ -25,6 +25,7 @@ from build123d import (
     export_stl,
     extrude,
     offset,
+    revolve,
 )
 
 from ncad.kernel.kernel import Bounds, Kernel, Point2, Point3
@@ -77,6 +78,18 @@ class Build123dKernel(Kernel):
             # the FakeKernel model and the blind-vs-symmetric equal-volume test.
             return extrude(to_extrude, amount=amount / 2.0, both=True, taper=draft)
         return extrude(to_extrude, amount=amount, taper=draft)
+
+    def revolve(self, face: Any, axis_point: Point3, axis_dir: Point3, *,
+                angle: float = 360.0, symmetric: bool = False,
+                thin: float | None = None) -> Any:
+        profile = _thin_ring(face, thin) if thin is not None else face
+        axis = Axis(tuple(axis_point), tuple(axis_dir))  # pyrefly: ignore[no-matching-overload]
+        if symmetric and angle < 360.0:
+            # Center the arc on the profile plane by rotating the profile back by half the
+            # angle, then sweeping the full angle forward: the swept volume is identical to
+            # a plain partial revolve, just centered (verified by the equal-volume test).
+            profile = profile.rotate(axis, -angle / 2.0)
+        return revolve(profile, axis, revolution_arc=angle)
 
     def circle_face(self, center: Point2, diameter: float, plane: str) -> Any:
         if plane not in _PLANES:
