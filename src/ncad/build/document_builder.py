@@ -12,6 +12,7 @@ import os
 from ncad.build.builder import Builder
 from ncad.build.feature_cache import FeatureCache
 from ncad.build.hierarchy_builder import HierarchyBuilder
+from ncad.build.sketch_status_sidecar import SketchStatusSidecar
 from ncad.kernel.kernel import Kernel
 from ncad.ops.op_registry import OpRegistry
 from ncad.ops.op_result import OpResult
@@ -98,6 +99,11 @@ class DocumentBuilder:
             self._kernel.export(result.shape, glb_path)
             self._write_element_map(element_map, out_dir, name)
             self._write_hierarchy(part, out_dir, name)
+            SketchStatusSidecar(out_dir).write(name, statuses)
+            for status in statuses:
+                logger.info("sketch %s: %s-constrained (dof %d)%s", status.feature_id,
+                            status.status, status.dof,
+                            f" {status.failing_ids}" if status.failing_ids else "")
             artifacts[name] = glb_path
         return artifacts
 
