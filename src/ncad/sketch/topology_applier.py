@@ -11,6 +11,7 @@ TopologyError.
 import logging
 import math
 
+from ncad.sketch.arc_geometry import arc_contains, seed_radius
 from ncad.sketch.entity_offsetter import EntityOffsetter
 from ncad.sketch.geometry_intersector import GeometryIntersector
 from ncad.sketch.id_padding import PaddedNaming
@@ -260,7 +261,7 @@ def _offset_locus(entity: dict, seeds: dict, signed: float,
         loc_seeds = {a_id: (ax + ox, ay + oy), b_id: (bx + ox, by + oy)}
         return {"type": "line", "p1": a_id, "p2": b_id}, loc_seeds
     cx, cy = seeds[entity["center"]]
-    radius = _seed_radius_pt(entity, seeds)
+    radius = seed_radius(entity, seeds)
     c_id = f"{tag}/c"
     return ({"type": "circle", "center": c_id, "radius": abs(radius + signed)},
             {c_id: (cx, cy)})
@@ -298,7 +299,7 @@ def _dist_to_entity(entity: dict, point: tuple, seeds: dict) -> float:
     if entity["type"] == "line":
         return _dist(point, _foot_on_line_seeds(entity, point, seeds))
     cx, cy = seeds[entity["center"]]
-    r = _seed_radius_pt(entity, seeds)
+    r = seed_radius(entity, seeds)
     return abs(_dist(point, (cx, cy)) - r)
 
 
@@ -307,7 +308,7 @@ def _foot_on_entity(entity: dict, point: tuple, seeds: dict) -> tuple[float, flo
     if entity["type"] == "line":
         return _foot_on_line_seeds(entity, point, seeds)
     cx, cy = seeds[entity["center"]]
-    r = _seed_radius_pt(entity, seeds)
+    r = seed_radius(entity, seeds)
     ang = math.atan2(point[1] - cy, point[0] - cx)
     return (cx + r * math.cos(ang), cy + r * math.sin(ang))
 
@@ -355,7 +356,7 @@ def _setback_point(entity: dict, corner_id: str, setback: float,
         u = _line_dir(entity, corner_id, seeds)
         return (corner[0] + u[0] * setback, corner[1] + u[1] * setback)
     cx, cy = seeds[entity["center"]]
-    radius = _seed_radius_pt(entity, seeds)
+    radius = seed_radius(entity, seeds)
     other = entity["end"] if entity["start"] == corner_id else entity["start"]
     ox, oy = seeds[other]
     start_ang = math.atan2(corner[1] - cy, corner[0] - cx)
@@ -476,33 +477,13 @@ def _project_onto(entity: dict, target: tuple, by_id: dict, seeds: dict,
         return (ax + t * dx, ay + t * dy)
     if entity["type"] == "arc":
         cx, cy = seeds[entity["center"]]
-        radius = _seed_radius_pt(entity, seeds)
+        radius = seed_radius(entity, seeds)
         ang = math.atan2(target[1] - cy, target[0] - cx)
         point = (cx + radius * math.cos(ang), cy + radius * math.sin(ang))
-        if not _arc_span_contains(entity, point, seeds):
+        if not arc_contains(entity, point, seeds, inclusive=False):
             raise TopologyError(f"split {op.get('id')!r}: point not on arc")
         return point
     raise TopologyError(f"cannot split a {entity['type']!r} (split {op.get('id')!r})")
-
-
-def _seed_radius_pt(curve: dict, seeds: dict) -> float:
-    """An arc's radius from seed points (center to start)."""
-    cx, cy = seeds[curve["center"]]
-    sx, sy = seeds[curve["start"]]
-    return math.hypot(sx - cx, sy - cy)
-
-
-def _arc_span_contains(arc: dict, point: tuple, seeds: dict) -> bool:
-    """Whether ``point`` lies within the arc's CCW span from start to end."""
-    cx, cy = seeds[arc["center"]]
-    sx, sy = seeds[arc["start"]]
-    ex, ey = seeds[arc["end"]]
-    a0 = math.atan2(sy - cy, sx - cx)
-    a1 = math.atan2(ey - cy, ex - cx)
-    ap = math.atan2(point[1] - cy, point[0] - cx)
-    span = (a1 - a0) % (2 * math.pi)
-    rel = (ap - a0) % (2 * math.pi)
-    return 1e-9 < rel < span - 1e-9
 
 
 def _m_loop_offset(op: dict, entities: list[dict]) -> list[dict]:
