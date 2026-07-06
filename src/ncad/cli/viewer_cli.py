@@ -67,10 +67,12 @@ class ViewerCli:
             print("\nstopping...")
             server.stop()
 
-    def build_document(self, document: str, out: str | None) -> dict[str, str]:
-        """Build a feature-tree document to glTF; return the built artifacts by part.
+    def build_document(self, document: str, out: str | None,
+                       formats: tuple[str, ...] = ("glb",)) -> dict[str, str]:
+        """Build a feature-tree document; return the built artifacts by part.
 
         Imports the kernel lazily so the viewer commands never pay the OCP cost.
+        ``formats`` selects the export format(s) (``glb`` and/or ``step``).
         """
         from ncad.build.document_builder import DocumentBuilder
         from ncad.kernel.build123d_kernel import Build123dKernel
@@ -78,7 +80,8 @@ class ViewerCli:
         logging.basicConfig(level=logging.INFO, format="%(message)s")
         logging.getLogger("build123d").setLevel(logging.WARNING)
         out_dir = self.resolve_models_dir(out)
-        return DocumentBuilder(Build123dKernel()).build_file(document, str(out_dir))
+        return DocumentBuilder(Build123dKernel()).build_file(
+            document, str(out_dir), formats=formats)
 
 
 app = typer.Typer(

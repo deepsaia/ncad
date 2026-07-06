@@ -33,8 +33,8 @@ content-addressed cache, the §4a equality harness, delete/broken-ref handling +
 spike, and a Three.js viewer (pick-by-id, right data sidebar, orientation gizmo). The
 constraint solver (py-slvs/SolveSpace) is integrated with the full entity + constraint +
 dimension vocabulary (driven vs driving) and reference-into-sketch (project prior edges,
-offset). Sketch status in the viewer (1.5) done, **Phase 1 complete**. Next: Phase 2
-(core solid features, sketched + dress-up).
+offset). Sketch status in the viewer (1.5) done, **Phase 1 complete**. Phase 2 started:
+STEP export (2.0) done; next is 2.1 (extrude/pocket end-conditions).
 
 v1 proved the *pattern*: `spec >> build >> BOM >> view`, determinism, build123d/OCCT,
 HOCON+jsonschema, traversal BOM, the Three.js viewer, on the **building profile**
@@ -255,6 +255,22 @@ five buckets; the phase gate is the 1.5 gate.
 ## Phase 2: Core solid features (sketched + dress-up)
 
 **Goal:** the everyday mechanical-part vocabulary. **Depends on** Phase 1.
+
+**Buckets (by kernel mechanism):**
+- **2.0 STEP export** `[x]` , document-level STEP output + `--format` CLI flag + round-trip
+  gate. glb (mesh, viewer) vs STEP (exact B-rep, CAD interchange, design §14).
+- **2.1** extrude/pocket end-conditions (blind/symmetric/two-side/through-all/to-next/
+  to-face/to-surface) + draft + thin.
+- **2.2** revolve / groove.
+- **2.3** sweep (+ guide curves, variable section) + helical sweep / coil.
+- **2.4** loft / blend (multi-section, tangency/curvature).
+- **2.5** rib / web / stiffener.
+- **2.6** fillet/chamfer variants (variable-radius/face/full-round; distance-angle/
+  two-distance/vertex).
+- **2.7** shell + draft (dress-up ops).
+- **2.8** hole wizard (counterbore/countersink/tapped/thread) + wrap.
+- **2.9** Phase 2 gate part (bracket + holes + revolved boss + swept rib + variable
+  fillet) builds deterministically and exports clean STEP.
 
 **Sketched (additive/subtractive) features**
 - [ ] **Extrude / Pad**: blind, symmetric, two-side, through-all, to-next,

@@ -32,7 +32,7 @@ architecture and decisions, not enumeration.
 The shift from v1 is one of *generality*, not of philosophy. What genuinely
 carries over from the building-only v1 is narrower than "the substrate": the
 **spec/IO layer** (HOCON + `jsonschema` + `leaf-common`, returning plain dicts),
-the **viewer stack** (glTF tessellation + three.js `nv`), and the *patterns*: the
+the **viewer stack** (glTF tessellation + three.js, the `ncad view` viewer), and the *patterns*: the
 op-dispatch registry (`roof_builders[kind]` >> `feature_ops[op]`), the
 traversal-BOM discipline, and determinism-by-construction. What is effectively
 **greenfield**: the general geometry kernel interface (v1's `Kernel` is
@@ -875,7 +875,7 @@ the API, not part of the engine.)
 The engine ships a strong viewer and **no authoring GUI** (§17). The primary path
 reuses v1's stack: the server tessellates OCCT geometry
 (`BRepMesh_IncrementalMesh`) to **glTF/GLB**, and the browser renders with
-**three.js** (the existing `nv` viewer). An **element-map sidecar** (triangle >>
+**three.js** (the `ncad view` viewer). An **element-map sidecar** (triangle >>
 face/edge `id`) turns a passive render into an inspectable model: **picking,
 selection, hover-highlight by semantic id, and measurement**, without an editing
 UI and without the engine ceasing to be the source of truth. The viewer also
