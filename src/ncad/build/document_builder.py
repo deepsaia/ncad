@@ -28,6 +28,18 @@ logger = logging.getLogger(__name__)
 
 _ELEMENTMAP_SUFFIX = ".elementmap.json"
 _HIERARCHY_SUFFIX = ".hierarchy.json"
+# Export format -> file extension. glb is the display mesh (viewer); step is the exact
+# B-rep for CAD interchange (design §14).
+_FORMAT_EXTENSIONS = {"glb": "glb", "step": "step"}
+
+
+def _resolve_formats(formats: tuple[str, ...]) -> tuple[str, ...]:
+    """Validate requested export formats; raise ValueError listing supported ones."""
+    unknown = [f for f in formats if f not in _FORMAT_EXTENSIONS]
+    if unknown:
+        supported = ", ".join(sorted(_FORMAT_EXTENSIONS))
+        raise ValueError(f"unsupported export format(s) {unknown}; supported: {supported}")
+    return tuple(formats)
 
 
 class DocumentBuilder:
@@ -77,13 +89,18 @@ class DocumentBuilder:
         """Load the document at ``path`` and build it (no export)."""
         return self.build(self._loader.load(path))
 
-    def build_file(self, path: str, out_dir: str) -> dict[str, str]:
-        """Load, build, and export each part to ``<out_dir>/<part>.glb``.
+    def build_file(self, path: str, out_dir: str,
+                   formats: tuple[str, ...] = ("glb",)) -> dict[str, str]:
+        """Load, build, and export each part to ``<out_dir>/<part>.<ext>`` per format.
 
-        Also writes each part's ``<part>.elementmap.json`` sidecar beside the glb.
+        Also writes each part's element-map / hierarchy / status sidecars beside the
+        artifacts. ``formats`` selects the export format(s) (``glb`` and/or ``step``); the
+        default keeps the viewer's glb-only path unchanged. glb is the display mesh; step
+        is the exact B-rep for CAD interchange (design §14).
 
-        :return: Map from part name to the written ``.glb`` path.
+        :return: Map from part name to its primary artifact (the first requested format).
         """
+        resolved_formats = _resolve_formats(formats)
         os.makedirs(out_dir, exist_ok=True)
         resolved = self._resolve_and_validate(self._loader.load(path))
         artifacts: dict[str, str] = {}
@@ -95,8 +112,11 @@ class DocumentBuilder:
                 logger.warning("part %s did not build; skipping export. reason(s): %s",
                                name, reasons)
                 continue
-            glb_path = os.path.join(out_dir, f"{name}.glb")
-            self._kernel.export(result.shape, glb_path)
+            written: list[str] = []
+            for fmt in resolved_formats:
+                artifact_path = os.path.join(out_dir, f"{name}.{_FORMAT_EXTENSIONS[fmt]}")
+                self._kernel.export(result.shape, artifact_path)
+                written.append(artifact_path)
             self._write_element_map(element_map, out_dir, name)
             self._write_hierarchy(part, out_dir, name)
             SketchStatusSidecar(out_dir).write(name, statuses)
@@ -104,7 +124,7 @@ class DocumentBuilder:
                 logger.info("sketch %s: %s-constrained (dof %d)%s", status.feature_id,
                             status.status, status.dof,
                             f" {status.failing_ids}" if status.failing_ids else "")
-            artifacts[name] = glb_path
+            artifacts[name] = written[0]
         return artifacts
 
     def write_element_maps(self, document: dict, out_dir: str) -> dict[str, str]:
