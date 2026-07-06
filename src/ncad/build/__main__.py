@@ -14,10 +14,10 @@ logger = logging.getLogger(__name__)
 
 def _parse_formats(raw: str) -> tuple[str, ...]:
     """Parse a comma-separated ``--format`` string into a validated tuple."""
-    from ncad.build.document_builder import _resolve_formats
+    from ncad.build.document_builder import resolve_formats
 
     parts = tuple(p.strip().lower() for p in raw.split(",") if p.strip())
-    return _resolve_formats(parts or ("glb",))
+    return resolve_formats(parts or ("glb",))
 
 
 class BuildMain:
