@@ -33,8 +33,8 @@ content-addressed cache, the §4a equality harness, delete/broken-ref handling +
 spike, and a Three.js viewer (pick-by-id, right data sidebar, orientation gizmo). The
 constraint solver (py-slvs/SolveSpace) is integrated with the full entity + constraint +
 dimension vocabulary (driven vs driving) and reference-into-sketch (project prior edges,
-offset). Sketch status in the viewer (1.5) done, **Phase 1 complete**. Phase 2 started:
-STEP export (2.0) done; next is 2.1 (extrude/pocket end-conditions).
+offset). Sketch status in the viewer (1.5) done, **Phase 1 complete**. Phase 2: STEP
+export (2.0) and extrude/pocket end-conditions (2.1) done; next is 2.2 (revolve / groove).
 
 v1 proved the *pattern*: `spec >> build >> BOM >> view`, determinism, build123d/OCCT,
 HOCON+jsonschema, traversal BOM, the Three.js viewer, on the **building profile**
@@ -259,8 +259,9 @@ five buckets; the phase gate is the 1.5 gate.
 **Buckets (by kernel mechanism):**
 - **2.0 STEP export** `[x]` , document-level STEP output + `--format` CLI flag + round-trip
   gate. glb (mesh, viewer) vs STEP (exact B-rep, CAD interchange, design §14).
-- **2.1** extrude/pocket end-conditions (blind/symmetric/two-side/through-all/to-next/
-  to-face/to-surface) + draft + thin.
+- **2.1** `[x]` extrude/pocket end-conditions (blind/symmetric/two-side/through-all/
+  to-next/to-face/to-surface) + draft + thin. Widened `Kernel.extrude` contract; shared
+  `extrude_params` vocabulary; `to`-face ref via the ref model.
 - **2.2** revolve / groove.
 - **2.3** sweep (+ guide curves, variable section) + helical sweep / coil.
 - **2.4** loft / blend (multi-section, tangency/curvature).
