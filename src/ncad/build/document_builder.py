@@ -33,8 +33,12 @@ _HIERARCHY_SUFFIX = ".hierarchy.json"
 _FORMAT_EXTENSIONS = {"glb": "glb", "step": "step"}
 
 
-def _resolve_formats(formats: tuple[str, ...]) -> tuple[str, ...]:
-    """Validate requested export formats; raise ValueError listing supported ones."""
+def resolve_formats(formats: tuple[str, ...]) -> tuple[str, ...]:
+    """Validate requested export formats; raise ValueError listing supported ones.
+
+    Public because it is the shared format-validation contract: the CLI's --format parser
+    (build/__main__.py) reuses it so the supported set is single-sourced.
+    """
     unknown = [f for f in formats if f not in _FORMAT_EXTENSIONS]
     if unknown:
         supported = ", ".join(sorted(_FORMAT_EXTENSIONS))
@@ -100,7 +104,7 @@ class DocumentBuilder:
 
         :return: Map from part name to its primary artifact (the first requested format).
         """
-        resolved_formats = _resolve_formats(formats)
+        resolved_formats = resolve_formats(formats)
         os.makedirs(out_dir, exist_ok=True)
         resolved = self._resolve_and_validate(self._loader.load(path))
         artifacts: dict[str, str] = {}

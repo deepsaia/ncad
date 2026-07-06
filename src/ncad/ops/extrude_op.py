@@ -3,7 +3,9 @@
 from typing import Any
 
 from ncad.kernel.kernel import Kernel
+from ncad.kernel.kernel_op_error import KernelOpError
 from ncad.ops.build_issue import BuildIssue
+from ncad.ops.extrude_params import ExtrudeParamError, extrude_kwargs
 from ncad.ops.op_result import OpResult
 
 
@@ -29,5 +31,14 @@ class ExtrudeOp:
             )
             return OpResult(shape=None, provenance=dict(provenance_in), issues=[issue])
 
-        solid = kernel.extrude(shape_in, params["distance"])
+        try:
+            kwargs = extrude_kwargs(params, params.get("__refs__", {}))
+        except ExtrudeParamError as exc:
+            return OpResult(shape=None, provenance={},
+                            issues=[BuildIssue(node_id=feature_id, message=str(exc))])
+        try:
+            solid = kernel.extrude(shape_in, **kwargs)
+        except KernelOpError as exc:
+            return OpResult(shape=None, provenance={},
+                            issues=[BuildIssue(node_id=feature_id, message=str(exc))])
         return OpResult(shape=solid, provenance={}, issues=[])

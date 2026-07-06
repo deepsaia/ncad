@@ -29,8 +29,18 @@ class Kernel(ABC):
         """
 
     @abstractmethod
-    def extrude(self, face: Any, distance: float) -> Any:
-        """Extrude ``face`` along its normal by ``distance`` into a solid."""
+    def extrude(self, face: Any, distance: float | None = None, *,
+                symmetric: bool = False, second_distance: float | None = None,
+                draft: float = 0.0, thin: float | None = None,
+                until: str | None = None, target: Any = None) -> Any:
+        """Extrude ``face`` into a solid.
+
+        ``distance`` blind along the normal; ``symmetric`` centers that total distance on
+        the face plane; ``second_distance`` adds a second extrude the other way (fused);
+        ``draft`` tapers the walls (degrees); ``thin`` makes a wall of that thickness;
+        ``until``/``target`` extrude up to a boundary (``"last"`` = through everything,
+        ``"next"`` = to the next face, or a resolved ``target`` face/solid).
+        """
 
     @abstractmethod
     def circle_face(self, center: Point2, diameter: float, plane: str) -> Any:

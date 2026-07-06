@@ -195,13 +195,13 @@ def test_build_rejects_forward_reference() -> None:
         DocumentBuilder(FakeKernel()).build(doc)
 
 
-def test_resolve_formats_accepts_known():
-    from ncad.build.document_builder import _resolve_formats
-    assert _resolve_formats(("glb",)) == ("glb",)
-    assert _resolve_formats(("glb", "step")) == ("glb", "step")
+def testresolve_formats_accepts_known():
+    from ncad.build.document_builder import resolve_formats
+    assert resolve_formats(("glb",)) == ("glb",)
+    assert resolve_formats(("glb", "step")) == ("glb", "step")
 
 
-def test_resolve_formats_rejects_unknown():
-    from ncad.build.document_builder import _resolve_formats
+def testresolve_formats_rejects_unknown():
+    from ncad.build.document_builder import resolve_formats
     with pytest.raises(ValueError, match="glb"):
-        _resolve_formats(("iges",))
+        resolve_formats(("iges",))

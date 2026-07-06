@@ -5,6 +5,7 @@ from typing import Any
 from ncad.kernel.kernel import Kernel
 from ncad.kernel.kernel_op_error import KernelOpError
 from ncad.ops.build_issue import BuildIssue
+from ncad.ops.extrude_params import ExtrudeParamError, extrude_kwargs
 from ncad.ops.op_result import OpResult
 
 
@@ -30,7 +31,16 @@ class PocketOp:
             issue = BuildIssue(node_id=feature_id, message="pocket profile did not resolve")
             return OpResult(shape=None, provenance={}, issues=[issue])
         try:
-            tool = kernel.extrude(profile_face, params["distance"])
+            kwargs = extrude_kwargs(params, refs)
+        except ExtrudeParamError as exc:
+            return OpResult(shape=None, provenance={},
+                            issues=[BuildIssue(node_id=feature_id, message=str(exc))])
+        # A through/to-next pocket extrudes the tool up to the solid being cut, so the cut
+        # target doubles as the extrude target when the end-condition uses `until`.
+        if kwargs.get("until") is not None and "target" not in kwargs:
+            kwargs["target"] = target
+        try:
+            tool = kernel.extrude(profile_face, **kwargs)
             result = kernel.cut(target, [tool])
         except KernelOpError as exc:
             return OpResult(shape=None, provenance={},

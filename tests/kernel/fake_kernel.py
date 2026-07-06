@@ -10,6 +10,7 @@ import math
 from typing import Any
 
 from ncad.kernel.kernel import Bounds, Kernel, Point2, Point3
+from ncad.kernel.kernel_op_error import KernelOpError
 
 
 class _FakeFace:
@@ -35,11 +36,13 @@ class _FakeWireFace:
 
 
 class _FakeSolid:
-    """A face extruded by a distance along the plane normal."""
+    """A face extruded by an effective distance; a wall keeps only a rim area fraction."""
 
-    def __init__(self, face: _FakeFace, distance: float) -> None:
+    def __init__(self, face: _FakeFace, distance: float,
+                 wall_area: float | None = None) -> None:
         self.face = face
         self.distance = distance
+        self.wall_area = wall_area  # None = filled; else the ring area for a thin wall
 
 
 class _FakeCylinder:
@@ -77,8 +80,42 @@ class FakeKernel(Kernel):
         # FakeKernel edges in tests are already 2D descriptors; identity projection.
         return list(edges)
 
-    def extrude(self, face: Any, distance: float) -> Any:
-        return _FakeSolid(face, distance)
+    def extrude(self, face: Any, distance: float | None = None, *,
+                symmetric: bool = False, second_distance: float | None = None,
+                draft: float = 0.0, thin: float | None = None,
+                until: str | None = None, target: Any = None) -> Any:
+        # Effective +Z height carries the end-condition analytically: blind/symmetric use
+        # `distance` (symmetric only re-centers, so total height is unchanged); two_side
+        # sums both sides; until/target take the target's bbox height. draft is ignored in
+        # the analytic model (it barely changes volume and the fake has no side walls);
+        # thin keeps only a rim of the profile.
+        height = self._effective_height(distance, second_distance, until, target)
+        wall_area = self._wall_area(face, thin) if thin is not None else None
+        return _FakeSolid(face, height, wall_area)
+
+    def _effective_height(self, distance: float | None, second_distance: float | None,
+                          until: str | None, target: Any) -> float:
+        if until is not None or target is not None:
+            if target is None:
+                raise KernelOpError("until extrude needs a target in the fake kernel")
+            (_, _, zmin), (_, _, zmax) = self.bounding_box(target)
+            return abs(zmax - zmin)
+        base = float(distance) if distance is not None else 0.0
+        if second_distance is not None:
+            base += float(second_distance)
+        return base
+
+    def _wall_area(self, face: Any, thin: float) -> float:
+        # Outer profile area minus a uniform `thin` inset (a rectangular-bbox model, enough
+        # for the volume assertion): a ring of width `thin` around the profile.
+        pts = getattr(face, "points", None)
+        if pts is None:
+            raise KernelOpError("thin wall needs a polygonal profile in the fake kernel")
+        xs = [x for x, _ in pts]
+        ys = [y for _, y in pts]
+        w, h = max(xs) - min(xs), max(ys) - min(ys)
+        inner = max(0.0, w - 2 * thin) * max(0.0, h - 2 * thin)
+        return w * h - inner
 
     def circle_face(self, center: Point2, diameter: float, plane: str) -> Any:
         cx, cy = center
@@ -179,6 +216,8 @@ class FakeKernel(Kernel):
     def volume(self, solid: Any) -> float:
         if isinstance(solid, (_FakeCylinder, _FakeCombined)):
             return solid.volume_val
+        if getattr(solid, "wall_area", None) is not None:
+            return solid.wall_area * solid.distance
         if isinstance(solid.face, _FakeWireFace):
             return solid.face.area * solid.distance
         return _polygon_area(solid.face.points) * solid.distance
