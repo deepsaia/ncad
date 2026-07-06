@@ -10,6 +10,8 @@ downstream selection is stable. No randomness, no mutation of inputs.
 import logging
 import math
 
+from ncad.sketch.arc_geometry import arc_contains, seed_radius
+
 logger = logging.getLogger(__name__)
 
 _EPS = 1e-9
@@ -58,7 +60,7 @@ def _line_circle(line: dict, circle: dict, points: dict) -> list[tuple[float, fl
     """Intersections of an infinite line with a circle/arc (arc range filtered later)."""
     x1, y1, x2, y2 = _endpoints_xy(line, points)
     cx, cy = points[circle["center"]]
-    radius = _circle_radius(circle, points)
+    radius = seed_radius(circle, points)
     dx, dy = x2 - x1, y2 - y1
     seg_len_sq = dx * dx + dy * dy
     if seg_len_sq < _EPS:
@@ -78,20 +80,11 @@ def _line_circle(line: dict, circle: dict, points: dict) -> list[tuple[float, fl
     return _arc_filter(circle, hits, points)
 
 
-def _circle_radius(circle: dict, points: dict) -> float:
-    """A circle's radius (explicit), or an arc's radius (center-to-start distance)."""
-    if "radius" in circle:
-        return float(circle["radius"])
-    cx, cy = points[circle["center"]]
-    sx, sy = points[circle["start"]]
-    return math.hypot(sx - cx, sy - cy)
-
-
 def _circle_circle(a: dict, b: dict, points: dict) -> list[tuple[float, float]]:
     """Intersections of two circles/arcs (each operand's arc range filtered)."""
     ax, ay = points[a["center"]]
     bx, by = points[b["center"]]
-    ra, rb = _circle_radius(a, points), _circle_radius(b, points)
+    ra, rb = seed_radius(a, points), seed_radius(b, points)
     d = math.hypot(bx - ax, by - ay)
     if d < _EPS or d > ra + rb + _EPS or d < abs(ra - rb) - _EPS:
         return []
@@ -109,20 +102,10 @@ def _circle_circle(a: dict, b: dict, points: dict) -> list[tuple[float, float]]:
 
 def _arc_filter(entity: dict, hits: list[tuple[float, float]],
                 points: dict) -> list[tuple[float, float]]:
-    """Drop intersection points outside an arc's CCW span (circles keep all)."""
+    """Drop intersection points outside an arc's CCW span (circles keep all).
+
+    Endpoints are inclusive: an intersection exactly at an arc tip is a real hit.
+    """
     if entity["type"] != "arc":
         return hits
-    return [h for h in hits if _arc_contains(entity, h, points)]
-
-
-def _arc_contains(arc: dict, point: tuple[float, float], points: dict) -> bool:
-    """Whether ``point`` lies within the arc's CCW span from start to end."""
-    cx, cy = points[arc["center"]]
-    sx, sy = points[arc["start"]]
-    ex, ey = points[arc["end"]]
-    a0 = math.atan2(sy - cy, sx - cx)
-    a1 = math.atan2(ey - cy, ex - cx)
-    ap = math.atan2(point[1] - cy, point[0] - cx)
-    span = (a1 - a0) % (2 * math.pi)
-    rel = (ap - a0) % (2 * math.pi)
-    return rel <= span + _EPS
+    return [h for h in hits if arc_contains(entity, h, points, inclusive=True)]

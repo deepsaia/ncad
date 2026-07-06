@@ -10,6 +10,8 @@ caller-supplied prefix. Pure: no randomness, no mutation of inputs. Shared by lo
 import logging
 import math
 
+from ncad.sketch.arc_geometry import seed_radius
+
 logger = logging.getLogger(__name__)
 
 
@@ -48,26 +50,34 @@ def _offset_line(line: dict, by_id: dict, distance: float, prefix: str) -> list[
 
 
 def _offset_curve(curve: dict, by_id: dict, distance: float, prefix: str) -> list[dict]:
-    """A concentric circle/arc with radius +/- distance and a fresh center point."""
-    cx, cy = by_id[curve["center"]]["at"]
-    radius = _seed_radius(curve, by_id)
-    new_radius = radius + distance
+    """A concentric circle/arc with radius +/- distance and a fresh center point.
+
+    A circle keeps its explicit radius. An arc additionally gets fresh start/end points
+    on the new radius (same angles as the source), so the returned arc is self-consistent
+    (radius == center-to-endpoint distance) even when used standalone, rather than reusing
+    the source endpoints that still sit on the old radius.
+    """
+    seeds = {pid: (float(e["at"][0]), float(e["at"][1]))
+             for pid, e in by_id.items() if e.get("type") == "point"}
+    cx, cy = seeds[curve["center"]]
+    new_radius = seed_radius(curve, seeds) + distance
     if new_radius <= 1e-12:
         raise ValueError(f"offset collapses curve {curve['id']!r} (radius {new_radius})")
-    center = {"id": f"{prefix}/c", "type": "point", "at": [float(cx), float(cy)],
-              "fixed": True}
+    center = {"id": f"{prefix}/c", "type": "point", "at": [cx, cy], "fixed": True}
     result = {"id": prefix, "type": curve["type"], "center": f"{prefix}/c",
               "radius": new_radius, "fixed": True}
-    if curve["type"] == "arc":
-        result["start"] = curve["start"]
-        result["end"] = curve["end"]
-    return [center, result]
+    if curve["type"] != "arc":
+        return [center, result]
+    start = _radial_point(cx, cy, seeds[curve["start"]], new_radius, f"{prefix}/s")
+    end = _radial_point(cx, cy, seeds[curve["end"]], new_radius, f"{prefix}/e")
+    result["start"], result["end"] = start["id"], end["id"]
+    return [center, start, end, result]
 
 
-def _seed_radius(curve: dict, by_id: dict) -> float:
-    """A circle's explicit radius, or an arc's center-to-start seed distance."""
-    if "radius" in curve:
-        return float(curve["radius"])
-    cx, cy = by_id[curve["center"]]["at"]
-    sx, sy = by_id[curve["start"]]["at"]
-    return math.hypot(float(sx) - float(cx), float(sy) - float(cy))
+def _radial_point(cx: float, cy: float, source: tuple[float, float], radius: float,
+                  pid: str) -> dict:
+    """A fixed point at ``radius`` from (cx, cy) along the direction to ``source``."""
+    ang = math.atan2(source[1] - cy, source[0] - cx)
+    return {"id": pid, "type": "point", "at": [cx + radius * math.cos(ang),
+                                               cy + radius * math.sin(ang)],
+            "fixed": True}
