@@ -22,6 +22,11 @@ single biggest remaining unknown (which the phase spikes are designed to close).
 - [`occt-boolean-robustness.md`](./occt-boolean-robustness.md): solve OCCT's
   boolean/fillet fragility in a robustness layer we own (normalize, fuzzy retry
   ladder, unify, heal-and-retry), not by upstreaming. *(design §4, §19)*
+- [`infinigen-transferable-ideas.md`](./infinigen-transferable-ideas.md): a reading
+  of Infinigen (procedural generator) against ncad; parametric-by-default authoring,
+  a declarative constraint graph split into exact vs. soft, and why ncad's pure build
+  is a stronger determinism model. *(comparative study, not a §19 decision;
+  design §1, §4a, §5, §18)*
 
 The design-judgment questions (MBD depth, provenance-map budget, building-profile
 altitude) were reasoned directly and recorded in design §19 without a separate note.
