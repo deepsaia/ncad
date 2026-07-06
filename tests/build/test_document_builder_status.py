@@ -51,3 +51,15 @@ def test_build_file_logs_status_line(tmp_path, caplog):
     out = Path(tmp_path) / "out"
     DocumentBuilder(Build123dKernel()).build_file(_doc(tmp_path), str(out))
     assert any("sketch sk" in r.message and "well" in r.message for r in caplog.records)
+
+
+@pytest.mark.slow
+def test_underconstrained_example_reports_under(tmp_path):
+    from ncad.kernel.build123d_kernel import Build123dKernel
+
+    doc = "examples/gate-1.5/underconstrained_tab.hocon"
+    out = str(tmp_path)
+    DocumentBuilder(Build123dKernel()).build_file(doc, out)
+    data = json.loads((Path(out) / "underconstrained_tab.status.json").read_text())
+    sk = [s for s in data["sketches"] if s["feature_id"] == "sk"][0]
+    assert sk["status"] == "under" and sk["dof"] > 0
