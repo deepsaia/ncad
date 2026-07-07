@@ -7,6 +7,7 @@ the fast test path.
 
 import importlib.metadata
 import logging
+import math
 from typing import Any
 
 from build123d import (
@@ -42,6 +43,11 @@ _AXES = {"X": Axis.X, "Y": Axis.Y, "Z": Axis.Z}
 _UNTIL_TOKENS = {"last": Until.LAST, "next": Until.NEXT}
 _TRANSITIONS = {"transformed": Transition.TRANSFORMED, "round": Transition.ROUND,
                 "right": Transition.RIGHT}
+# glTF tessellation angular deflection (radians). build123d's default 0.1 over-refines
+# curvature-heavy surfaces (a helical coil meshed to ~3.8 MB / 2.4s); 0.5 keeps a viewer
+# render smooth while dropping that coil to ~190 KB / 0.07s. Paired with a bbox-relative
+# linear deflection (_deflection); together they are the pinned viewer tessellation.
+_ANGULAR_DEFLECTION = 0.5
 
 
 class Build123dKernel(Kernel):
@@ -295,9 +301,13 @@ class Build123dKernel(Kernel):
     def export(self, solid: Any, path: str) -> None:
         lowered = path.lower()
         if lowered.endswith(".glb"):
-            export_gltf(solid, path, unit=Unit.MM, binary=True)
+            export_gltf(solid, path, unit=Unit.MM, binary=True,
+                        linear_deflection=self._deflection(solid),
+                        angular_deflection=_ANGULAR_DEFLECTION)
         elif lowered.endswith(".gltf"):
-            export_gltf(solid, path, unit=Unit.MM, binary=False)
+            export_gltf(solid, path, unit=Unit.MM, binary=False,
+                        linear_deflection=self._deflection(solid),
+                        angular_deflection=_ANGULAR_DEFLECTION)
         elif lowered.endswith((".step", ".stp")):
             export_step(solid, path, unit=Unit.MM)
         elif lowered.endswith(".stl"):
@@ -307,6 +317,20 @@ class Build123dKernel(Kernel):
                 f"unsupported export format for {path!r}; expected .gltf/.glb/.step/.stp/.stl"
             )
         logger.debug("exported solid to %s", path)
+
+    def _deflection(self, solid: Any) -> float:
+        """Tessellation linear deflection scaled to the model size (design §4a, §13).
+
+        build123d's default (0.001 mm ABSOLUTE) is a relative ~1e-4 on a small curved
+        part, which explodes the triangle count on curved surfaces (a helical coil took
+        ~70s / 8 MB to tessellate). A deflection of 0.5% of the bounding-box diagonal keeps
+        the mesh smooth-looking while fast (that coil drops to ~2s / 4 MB), and is
+        size-relative so it is stable across model scales (the pinned tessellation
+        deflection the goldens assume).
+        """
+        (x0, y0, z0), (x1, y1, z1) = self.bounding_box(solid)
+        diagonal = math.sqrt((x1 - x0) ** 2 + (y1 - y0) ** 2 + (z1 - z0) ** 2)
+        return max(diagonal * 0.005, 1e-4)
 
 
 def _describe_face(face: Any) -> dict:

@@ -34,8 +34,9 @@ spike, and a Three.js viewer (pick-by-id, right data sidebar, orientation gizmo)
 constraint solver (py-slvs/SolveSpace) is integrated with the full entity + constraint +
 dimension vocabulary (driven vs driving) and reference-into-sketch (project prior edges,
 offset). Sketch status in the viewer (1.5) done, **Phase 1 complete**. Phase 2: STEP
-export (2.0), extrude/pocket end-conditions (2.1), and revolve/groove (2.2) done; next is
-2.3 (sweep + helical sweep).
+export (2.0), extrude/pocket (2.1), revolve/groove (2.2), sweep (2.3) done. NEXT: a spline
+/ curve entity bucket (bezier / interpolated / control-point / B-spline / fit, as sketch
+entities), after which sweep/loft paths gain smooth curves for free; then 2.4 (loft).
 
 v1 proved the *pattern*: `spec >> build >> BOM >> view`, determinism, build123d/OCCT,
 HOCON+jsonschema, traversal BOM, the Three.js viewer, on the **building profile**
@@ -265,7 +266,9 @@ five buckets; the phase gate is the 1.5 gate.
   `extrude_params` vocabulary; `to`-face ref via the ref model.
 - **2.2** `[x]` revolve / groove (angle / symmetric / thin; axis X/Y/Z or {point,dir};
   axis-by-reference deferred with datums). Pappus-volume FakeKernel model.
-- **2.3** sweep (+ guide curves, variable section) + helical sweep / coil.
+- **2.3** `[x]` sweep (single-path / helical / guide-curve / variable-section). Sketch
+  `open` mode yields a wire path; helix generated. Paths: line + arc + helix (smooth
+  spline paths follow with the spline entity bucket, sweep picks them up for free).
 - **2.4** loft / blend (multi-section, tangency/curvature).
 - **2.5** rib / web / stiffener.
 - **2.6** fillet/chamfer variants (variable-radius/face/full-round; distance-angle/

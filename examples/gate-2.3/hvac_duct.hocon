@@ -1,0 +1,31 @@
+schema_version = 2
+units = mm
+# An HVAC duct: a large rectangular cross-section swept along a run with a rounded 90-degree
+# elbow (rise, bend, horizontal run). Single-path sweep; the elbow radius exceeds half the
+# profile width so the inside of the bend does not self-intersect. Builds + STEP round-trips.
+parameters { w = 120, h = 80, elbow_r = 150 }
+parts {
+  hvac_duct {
+    profile = solid
+    features = [
+      { id = path_sk, op = sketch, plane = XZ, open = true,
+        entities = [
+          { id = a, type = point, at = [ 0, 0 ] }
+          { id = b, type = point, at = [ 0, 300 ] }
+          { id = ec, type = point, at = [ 150, 300 ] }
+          { id = c, type = point, at = [ 150, 450 ] }
+          { id = d, type = point, at = [ 500, 450 ] }
+          { id = rise, type = line, p1 = a, p2 = b }
+          # authored start=c end=b so the CCW minor (90-degree) elbow is taken, not the
+          # 270-degree major arc that CCW start=b, end=c would sweep.
+          { id = elbow, type = arc, center = ec, start = c, end = b }
+          { id = run, type = line, p1 = c, p2 = d }
+        ]
+        constraints = [ { type = fix, of = a }, { type = fix, of = b },
+          { type = fix, of = ec }, { type = fix, of = c }, { type = fix, of = d } ] }
+      { id = prof_sk, op = sketch, plane = XY,
+        elements = [ { id = r, type = rectangle, w = 120, h = 80 } ] }
+      { id = duct, op = sweep, profile = prof_sk, path = path_sk }
+    ]
+  }
+}
