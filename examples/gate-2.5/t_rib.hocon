@@ -1,0 +1,24 @@
+schema_version = 2
+units = mm
+# A stiffening rib on a base plate: a flat 60x40 plate (4 thick), then a straight open
+# profile on the XZ plane thickened to 4 and grown 20 normal to that plane into the plate.
+# The union absorbs the overlap. Round-trips to STEP (bucket 2.0).
+parts {
+  t_rib {
+    profile = solid
+    features = [
+      { id = plate, op = sketch, plane = XY,
+        elements = [ { id = rect, type = rectangle, w = 60, h = 40 } ] }
+      { id = base, op = extrude, profile = plate, distance = 4 }
+      { id = rib_sk, op = sketch, plane = XZ, open = true,
+        entities = [
+          { id = a, type = point, at = [ -25, 4 ] }
+          { id = b, type = point, at = [ 25, 4 ] }
+          { id = span, type = line, p1 = a, p2 = b }
+        ]
+        constraints = [ { type = fix, of = a }, { type = fix, of = b } ] }
+      { id = stiffener, op = rib, profile = rib_sk, target = base,
+        thickness = 4, depth = 20 }
+    ]
+  }
+}
