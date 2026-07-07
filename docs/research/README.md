@@ -36,6 +36,10 @@ single biggest remaining unknown (which the phase spikes are designed to close).
   (non-destructive tree), fields (lazy selectors), and library overrides (typed
   deltas). Mesh not B-rep, so patterns not geometry. *(comparative study;
   design §0, §2, §4, §7, §13)*
+- [`viewer-tessellation-lod.md`](./viewer-tessellation-lod.md): heavy-mesh rendering
+  and axis orientation; adaptive-budget tessellation (not retopology), glTF compression,
+  interaction LOD, and a Z-up scene fix; keep three.js, defer WASM tessellation / Nanite.
+  *(design §13; plan bucket 2.8a)*
 
 The design-judgment questions (MBD depth, provenance-map budget, building-profile
 altitude) were reasoned directly and recorded in design §19 without a separate note.
