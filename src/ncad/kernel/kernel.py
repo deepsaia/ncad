@@ -136,6 +136,15 @@ class Kernel(ABC):
         """A solid cylinder of ``diameter`` and ``length`` from ``center`` along ``axis``."""
 
     @abstractmethod
+    def cone(self, center: Point3, axis: str, bottom_diameter: float,
+             top_diameter: float, length: float) -> Any:
+        """A (possibly truncated) cone from ``center`` along ``axis``.
+
+        ``bottom_diameter`` at the base (``center``), ``top_diameter`` at ``length`` along
+        ``axis`` (0 = a pointed tip). Used as the countersink frustum tool.
+        """
+
+    @abstractmethod
     def cut(self, solid: Any, tools: list) -> Any:
         """Subtract each tool in ``tools`` from ``solid``."""
 
