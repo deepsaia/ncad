@@ -107,6 +107,27 @@ class FakeKernel(Kernel):
             area = self._face_area(profile)
         return _FakeCombined(area * path.length, self._sweep_bounds(path))
 
+    def loft(self, sections: list, *, ruled: bool = False,
+             start_point: Point3 | None = None,
+             end_point: Point3 | None = None) -> Any:
+        # Prismatoid (trapezoidal) volume: sum over adjacent section pairs of
+        # (A_i + A_{i+1})/2 * |offset gap|. A point cap contributes area 0 at its z.
+        # ruled is a blend-shape choice, not volume-defining, so it does not change this.
+        stack: list[tuple[float, float]] = []
+        if start_point is not None:
+            stack.append((0.0, start_point[2]))
+        for face in sections:
+            stack.append((self._face_area(face), face.offset))
+        if end_point is not None:
+            stack.append((0.0, end_point[2]))
+        volume = _prismatoid_volume(stack)
+        return _FakeCombined(volume, self._loft_bounds(stack))
+
+    def _loft_bounds(self, stack: list) -> Bounds:
+        """A bounds box spanning the section offset range (z), unit footprint in x/y."""
+        zs = [z for _, z in stack]
+        return ((0.0, 0.0, min(zs)), (1.0, 1.0, max(zs)))
+
     def helix_path(self, pitch: float, height: float, radius: float, *,
                    axis_point: Point3, axis_dir: Point3, lefthand: bool = False,
                    cone_angle: float = 0.0) -> Any:
@@ -332,6 +353,15 @@ def _wire_length(edges: list) -> float:
         for i in range(len(pts) - 1):
             (x0, y0), (x1, y1) = pts[i], pts[i + 1]
             total += math.hypot(x1 - x0, y1 - y0)
+    return total
+
+
+def _prismatoid_volume(stack: list[tuple[float, float]]) -> float:
+    """Trapezoidal volume through (area, offset) sections ordered along the stack axis."""
+    total = 0.0
+    for i in range(len(stack) - 1):
+        (a0, z0), (a1, z1) = stack[i], stack[i + 1]
+        total += (a0 + a1) / 2.0 * abs(z1 - z0)
     return total
 
 

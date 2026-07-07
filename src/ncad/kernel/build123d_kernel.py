@@ -22,11 +22,13 @@ from build123d import (
     Unit,
     Until,
     Vector,
+    Vertex,
     Wire,
     export_gltf,
     export_step,
     export_stl,
     extrude,
+    loft,
     offset,
     revolve,
     sweep,
@@ -121,6 +123,19 @@ class Build123dKernel(Kernel):
         return Helix(pitch, height, radius, center=tuple(axis_point),
                      direction=tuple(axis_dir), lefthand=lefthand,
                      cone_angle=cone_angle)  # pyrefly: ignore[no-matching-overload]
+
+    def loft(self, sections: list, *, ruled: bool = False,
+             start_point: Point3 | None = None,
+             end_point: Point3 | None = None) -> Any:
+        # A vertex cap is a zero-area point section: build123d loft accepts Vertex in the
+        # section list, giving a cone-like end. Order matters: caps bracket the faces.
+        ordered: list = []
+        if start_point is not None:
+            ordered.append(Vertex(*start_point))
+        ordered.extend(sections)
+        if end_point is not None:
+            ordered.append(Vertex(*end_point))
+        return loft(ordered, ruled=ruled)
 
     def circle_face(self, center: Point2, diameter: float, plane: str,
                     offset: float = 0.0) -> Any:

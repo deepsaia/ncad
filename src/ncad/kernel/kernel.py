@@ -72,6 +72,18 @@ class Kernel(ABC):
         """A helical path (a wire) for a coil/spring sweep."""
 
     @abstractmethod
+    def loft(self, sections: list, *, ruled: bool = False,
+             start_point: Point3 | None = None,
+             end_point: Point3 | None = None) -> Any:
+        """Blend a solid through the ordered ``sections`` (faces on different planes).
+
+        ``ruled`` blends with straight (ruled) transitions instead of a smooth surface.
+        ``start_point`` / ``end_point`` cap the ends with a vertex (a cone-like point
+        section) at that ``(x, y, z)``. Needs at least 2 total sections (counting caps).
+        Raises KernelOpError on failure.
+        """
+
+    @abstractmethod
     def circle_face(self, center: Point2, diameter: float, plane: str,
                     offset: float = 0.0) -> Any:
         """A circular planar face of ``diameter`` centred at ``center`` on ``plane``.

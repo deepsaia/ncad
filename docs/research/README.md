@@ -27,6 +27,10 @@ single biggest remaining unknown (which the phase spikes are designed to close).
   a declarative constraint graph split into exact vs. soft, and why ncad's pure build
   is a stronger determinism model. *(comparative study, not a §19 decision;
   design §1, §4a, §5, §18)*
+- [`assembly-constraints-3d.md`](./assembly-constraints-3d.md): the 3D assembly
+  constraint layer, the 21 element-pair primitives, DoF = 6n-6-rank diagnostics, and
+  nested-sparsity screening; py-slvs solves, this is the analysis layer on top.
+  *(design §7, §8; plan Phase 5)*
 
 The design-judgment questions (MBD depth, provenance-map budget, building-profile
 altitude) were reasoned directly and recorded in design §19 without a separate note.
