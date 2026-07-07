@@ -65,6 +65,8 @@ definitions {
       diameter { type = number, exclusiveMinimum = 0 }
       depth { type = number, exclusiveMinimum = 0 }
       thickness { type = number, exclusiveMinimum = 0 }
+      distance2 { type = number, exclusiveMinimum = 0 }
+      angle { type = number }
       through { type = boolean }
       radius { type = number, exclusiveMinimum = 0 }
       edges { type = string }

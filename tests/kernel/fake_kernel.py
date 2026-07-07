@@ -262,8 +262,17 @@ class FakeKernel(Kernel):
         return _FakeCombined(self.volume(solid) - radius * len(edges),
                              self.bounding_box(solid))
 
-    def chamfer_edges(self, solid: Any, edges: list, distance: float) -> Any:
-        return _FakeCombined(self.volume(solid) - distance * len(edges),
+    def chamfer_edges(self, solid: Any, edges: list, distance: float, *,
+                      distance2: float | None = None,
+                      angle: float | None = None) -> Any:
+        # Analytic volume-delta model. Two-distance uses the mean setback; distance-angle
+        # uses the first setback (the angle only reshapes the cut, it does not drive the
+        # removed volume in this rough deterministic model).
+        if distance2 is not None:
+            setback = (distance + distance2) / 2.0
+        else:
+            setback = distance
+        return _FakeCombined(self.volume(solid) - setback * len(edges),
                              self.bounding_box(solid))
 
     def _union_bounds(self, solids: list) -> Bounds:

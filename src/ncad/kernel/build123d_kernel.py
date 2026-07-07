@@ -35,6 +35,17 @@ from build123d import (
     trace,
 )
 
+# OCP ships incomplete stubs, so these raw-OCP names read as missing to the type checker;
+# they resolve at runtime (see the [tool.pyrefly] OCP-boundary note). Used for the per-edge
+# distance-angle chamfer that build123d cannot express.
+from OCP.BRepFilletAPI import BRepFilletAPI_MakeChamfer  # pyrefly: ignore[missing-module-attribute]
+from OCP.TopAbs import TopAbs_EDGE, TopAbs_FACE  # pyrefly: ignore[missing-module-attribute]
+from OCP.TopExp import TopExp  # pyrefly: ignore[missing-module-attribute]
+from OCP.TopoDS import TopoDS  # pyrefly: ignore[missing-module-attribute]
+from OCP.TopTools import (
+    TopTools_IndexedDataMapOfShapeListOfShape,  # pyrefly: ignore[missing-module-attribute]
+)
+
 from ncad.kernel.kernel import Bounds, Kernel, Point2, Point3
 from ncad.kernel.kernel_op_error import KernelOpError
 
@@ -198,8 +209,17 @@ class Build123dKernel(Kernel):
     def fillet_edges(self, solid: Any, edges: list, radius: float) -> Any:
         return self._robust(self._do_fillet, solid, edges, radius, name="fillet")
 
-    def chamfer_edges(self, solid: Any, edges: list, distance: float) -> Any:
-        return self._robust(self._do_chamfer, solid, edges, distance, name="chamfer")
+    def chamfer_edges(self, solid: Any, edges: list, distance: float, *,
+                      distance2: float | None = None,
+                      angle: float | None = None) -> Any:
+        if angle is not None:
+            # build123d's distance-angle chamfer requires ALL edges to share one reference
+            # face; raw OCP AddDA takes a per-edge face, so we auto-pick each edge's first
+            # adjacent face and build via BRepFilletAPI_MakeChamfer. Gated by _robust.
+            return self._robust(self._do_chamfer_angle, solid, edges, distance, angle,
+                                name="chamfer")
+        return self._robust(self._do_chamfer, solid, edges, distance, distance2,
+                            name="chamfer")
 
     def edges_of(self, solid: Any) -> list:
         infos = []
@@ -250,8 +270,27 @@ class Build123dKernel(Kernel):
         return solid.fillet(radius, edges)
 
     @staticmethod
-    def _do_chamfer(solid: Any, edges: list, distance: float) -> Any:
-        return solid.chamfer(distance, None, edges)
+    def _do_chamfer(solid: Any, edges: list, distance: float,
+                    distance2: float | None) -> Any:
+        # distance2 None >> symmetric; set >> two-distance. build123d-native either way.
+        return solid.chamfer(distance, distance2, edges)
+
+    @staticmethod
+    def _do_chamfer_angle(solid: Any, edges: list, distance: float, angle: float) -> Any:
+        # Per-edge distance-angle via raw OCP: each edge gets its own auto-picked adjacent
+        # face (the first face sharing the edge) as the angle reference. build123d's
+        # chamfer cannot do this (it requires all edges on one reference face).
+        occ_solid = solid.wrapped
+        edge_to_faces = TopTools_IndexedDataMapOfShapeListOfShape()
+        TopExp.MapShapesAndAncestors_s(occ_solid, TopAbs_EDGE, TopAbs_FACE, edge_to_faces)
+        maker = BRepFilletAPI_MakeChamfer(occ_solid)
+        for edge in edges:
+            faces = edge_to_faces.FindFromKey(edge.wrapped)
+            face = TopoDS.Face_s(faces.First())
+            maker.AddDA(distance, math.radians(angle), edge.wrapped, face)
+        maker.Build()
+        from build123d import Solid
+        return Solid(maker.Shape())
 
     def _robust(self, op, *args, name: str) -> Any:
         """Run a fragile OCCT op and validate the result; raise KernelOpError on failure.
