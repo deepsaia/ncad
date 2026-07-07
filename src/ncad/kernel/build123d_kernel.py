@@ -32,6 +32,7 @@ from build123d import (
     offset,
     revolve,
     sweep,
+    trace,
 )
 
 from ncad.kernel.kernel import Bounds, Kernel, Point2, Point3
@@ -136,6 +137,18 @@ class Build123dKernel(Kernel):
         if end_point is not None:
             ordered.append(Vertex(*end_point))
         return loft(ordered, ruled=ruled)
+
+    def rib(self, wire: Any, *, thickness: float, depth: float) -> Any:
+        # Planar-first (robust): thicken the open wire IN ITS OWN PLANE with trace into a
+        # closed ribbon face, then extrude that face by depth. This avoids OCCT's fragile
+        # offset/thicken-a-shell path (design.md: BRepOffsetAPI_MakeOffsetShape fails on C0
+        # splines and past the smallest concave radius). thickness is symmetric about the
+        # curve (trace); depth grows one direction normal to the sketch plane.
+        ribbon = trace(wire, line_width=thickness)
+        # A ribbon traced around a curved wire is planar but build123d cannot infer the
+        # extrude direction from it, so pass the ribbon face's normal explicitly.
+        normal = ribbon.faces()[0].normal_at()  # pyrefly: ignore[bad-argument-type]
+        return extrude(ribbon, amount=depth, dir=normal)
 
     def circle_face(self, center: Point2, diameter: float, plane: str,
                     offset: float = 0.0) -> Any:

@@ -31,6 +31,11 @@ single biggest remaining unknown (which the phase spikes are designed to close).
   constraint layer, the 21 element-pair primitives, DoF = 6n-6-rank diagnostics, and
   nested-sparsity screening; py-slvs solves, this is the analysis layer on top.
   *(design §7, §8; plan Phase 5)*
+- [`blender-transferable-ideas.md`](./blender-transferable-ideas.md): Blender's
+  architecture read against ncad; depsgraph (incremental DAG), modifier stack
+  (non-destructive tree), fields (lazy selectors), and library overrides (typed
+  deltas). Mesh not B-rep, so patterns not geometry. *(comparative study;
+  design §0, §2, §4, §7, §13)*
 
 The design-judgment questions (MBD depth, provenance-map budget, building-profile
 altitude) were reasoned directly and recorded in design §19 without a separate note.
