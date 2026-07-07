@@ -773,7 +773,11 @@ const MATERIALS = [
 ];
 let materialIndex = parseInt(localStorage.getItem("ncad.material") || "0", 10) || 0;
 
-const SOLID = new THREE.MeshStandardMaterial({ color: 0xc6d3e2, metalness: 0.05, roughness: 0.85, flatShading: true });
+// Smooth shading: use the per-vertex normals ncad exports in the glTF so curved surfaces
+// (a swept tube, a fillet) read as round rather than faceted. flatShading would discard
+// those normals and light each triangle flat. Geometry/mesh are unchanged, this is display
+// only (the tessellation density is set at export time, kernel side).
+const SOLID = new THREE.MeshStandardMaterial({ color: 0xc6d3e2, metalness: 0.05, roughness: 0.85, flatShading: false });
 const WIRE = new THREE.MeshBasicMaterial({ color: 0x5aa0ff, wireframe: true });
 const XRAY = new THREE.MeshStandardMaterial({ color: 0x5aa0ff, transparent: true, opacity: 0.26, depthWrite: false });
 function materialMat() {

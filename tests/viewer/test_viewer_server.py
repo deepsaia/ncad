@@ -288,11 +288,11 @@ def test_api_models_carries_source(tmp_path) -> None:
     assert json.loads(body)["models"] == [{"name": "block.glb", "source": "g/block.hocon"}]
 
 
-def _post(url: str, payload: dict | None):
+def _post(url: str, payload: dict | None, timeout: float = 5.0):
     data = json.dumps(payload).encode() if payload is not None else None
     headers = {"Content-Type": "application/json"} if payload is not None else {}
     req = urllib.request.Request(url, data=data, headers=headers, method="POST")
-    with urllib.request.urlopen(req, timeout=5) as response:
+    with urllib.request.urlopen(req, timeout=timeout) as response:
         return response.status, response.read()
 
 
@@ -375,8 +375,11 @@ def test_real_build_route_produces_model(tmp_path) -> None:
     srv = ViewerServer(str(models), port=0, examples_dir=str(examples))
     srv.start()
     try:
+        # A generous timeout: this is the first real-kernel build in the process, which
+        # pays the one-time ~90s OCP import cost before the trivial block builds.
         status, body = _post(
-            f"{srv.base_url}/api/build", {"spec": "gate-0.1-first-shape/block.hocon"}
+            f"{srv.base_url}/api/build", {"spec": "gate-0.1-first-shape/block.hocon"},
+            timeout=180.0,
         )
     finally:
         srv.stop()
