@@ -17,6 +17,7 @@ from ncad.ops.hole_op import HoleOp
 from ncad.ops.pocket_op import PocketOp
 from ncad.ops.revolve_op import RevolveOp
 from ncad.ops.sketch_op import SketchOp
+from ncad.ops.sweep_op import SweepOp
 
 
 class OpRegistry:
@@ -50,4 +51,5 @@ class OpRegistry:
         registry.register("boolean", BooleanOp().build)
         registry.register("revolve", RevolveOp().build)
         registry.register("groove", GrooveOp().build)
+        registry.register("sweep", SweepOp().build)
         return registry
