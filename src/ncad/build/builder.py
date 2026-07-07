@@ -18,6 +18,7 @@ from ncad.build.rebuild_graph import RebuildGraph
 from ncad.kernel.kernel import Kernel
 from ncad.ops.build_issue import BuildIssue
 from ncad.ops.edge_selector import EdgeSelector
+from ncad.ops.face_selector import FaceSelector
 from ncad.ops.op_registry import OpRegistry
 from ncad.ops.op_result import OpResult
 from ncad.ops.sketch_status import SketchStatus
@@ -42,12 +43,15 @@ _REF_FIELDS: dict[str, dict[str, str]] = {
               "guides": "shape_list"},
     "loft": {"sections": "shape_list"},
     "rib": {"profile": "shape", "target": "shape"},
+    "shell": {"openings": "face_list"},
+    "draft": {"faces": "face_list"},
     "hole": {"on": "face"},
     "fillet": {"edges": "edges"},
     "chamfer": {"edges": "edges"},
     "sketch": {"project": "edges"},
 }
 _EDGE_KEYWORDS = ("all", "top", "bottom", "vertical", "horizontal")
+_FACE_KEYWORDS = ("all", "top", "bottom", "vertical", "horizontal")
 # Ops whose output is not a model solid (a sketch produces an input face); the element
 # map tracks the working solid, so these do not rebuild it.
 _NON_SOLID_OPS = frozenset({"sketch"})
@@ -189,6 +193,9 @@ class Builder:
                 if role == "shape_list":
                     shapes, error = self._resolve_shape_list(
                         value, shape_by_id, element_map, resolver)
+                elif role == "face_list":
+                    shapes, error = self._resolve_face_list(
+                        value, shape_by_id, element_map, resolver)
                 else:
                     shapes, error = self._resolve_edge_list(
                         value, shape_by_id, element_map, resolver)
@@ -198,6 +205,9 @@ class Builder:
                 continue
             if role == "edges" and value in _EDGE_KEYWORDS:
                 refs[field] = self._resolve_keyword_edges(previous_shape, value)
+                continue
+            if role == "face_list" and value in _FACE_KEYWORDS:
+                refs[field] = self._resolve_keyword_faces(previous_shape, value)
                 continue
             resolution = resolver.resolve(
                 Reference.parse(str(value)), shape_by_id, element_map.elements())
@@ -239,6 +249,26 @@ class Builder:
         if shape_in is None:
             return []
         return EdgeSelector().select(self._kernel.edges_of(shape_in), keyword)
+
+    def _resolve_keyword_faces(self, shape_in: Any, keyword: str) -> list:
+        """Keyword sugar: resolve a face keyword to face handles via describe_elements."""
+        if shape_in is None:
+            return []
+        faces = [d for d in self._kernel.describe_elements(shape_in) if d["kind"] == "face"]
+        return FaceSelector().select(faces, keyword)
+
+    def _resolve_face_list(self, references: list, shape_by_id: dict,
+                           element_map: ElementMap,
+                           resolver: ReferenceResolver) -> tuple[list, str | None]:
+        """Resolve a list of references to a concatenated list of face handles."""
+        handles: list = []
+        for reference in references:
+            resolution = resolver.resolve(
+                Reference.parse(str(reference)), shape_by_id, element_map.elements())
+            if resolution.error is not None:
+                return handles, resolution.error
+            handles.extend(e.handle for e in resolution.elements)
+        return handles, None
 
     def _rebuild_map(self, element_map: ElementMap, feature: dict, shape: Any) -> list | None:
         """Rebuild the element map from a feature's output shape; return descriptors."""

@@ -10,6 +10,7 @@ from collections.abc import Callable
 
 from ncad.ops.boolean_op import BooleanOp
 from ncad.ops.chamfer_op import ChamferOp
+from ncad.ops.draft_op import DraftOp
 from ncad.ops.extrude_op import ExtrudeOp
 from ncad.ops.fillet_op import FilletOp
 from ncad.ops.groove_op import GrooveOp
@@ -18,6 +19,7 @@ from ncad.ops.loft_op import LoftOp
 from ncad.ops.pocket_op import PocketOp
 from ncad.ops.revolve_op import RevolveOp
 from ncad.ops.rib_op import RibOp
+from ncad.ops.shell_op import ShellOp
 from ncad.ops.sketch_op import SketchOp
 from ncad.ops.sweep_op import SweepOp
 
@@ -56,4 +58,6 @@ class OpRegistry:
         registry.register("sweep", SweepOp().build)
         registry.register("loft", LoftOp().build)
         registry.register("rib", RibOp().build)
+        registry.register("shell", ShellOp().build)
+        registry.register("draft", DraftOp().build)
         return registry

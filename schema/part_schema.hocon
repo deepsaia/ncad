@@ -67,6 +67,10 @@ definitions {
       thickness { type = number, exclusiveMinimum = 0 }
       distance2 { type = number, exclusiveMinimum = 0 }
       angle { type = number }
+      openings { type = string }
+      faces { type = string }
+      neutral { enum = ["XY", "XZ", "YZ"] }
+      neutral_offset { type = number }
       through { type = boolean }
       radius { type = number, exclusiveMinimum = 0 }
       edges { type = string }

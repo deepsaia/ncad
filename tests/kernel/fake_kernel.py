@@ -275,6 +275,26 @@ class FakeKernel(Kernel):
         return _FakeCombined(self.volume(solid) - setback * len(edges),
                              self.bounding_box(solid))
 
+    def shell(self, solid: Any, thickness: float, openings: list | None = None) -> Any:
+        # Analytic wall-shell volume: outer bbox minus the inner cavity, where the inner box
+        # is the outer shrunk by 2*thickness per axis (clamped at 0). Openings do not change
+        # the fake volume (a rough delta, consistent with the other fake dress-up models).
+        (minx, miny, minz), (maxx, maxy, maxz) = self.bounding_box(solid)
+        dx, dy, dz = maxx - minx, maxy - miny, maxz - minz
+        outer = dx * dy * dz
+        t2 = 2.0 * thickness
+        inner = max(dx - t2, 0.0) * max(dy - t2, 0.0) * max(dz - t2, 0.0)
+        return _FakeCombined(outer - inner, self.bounding_box(solid))
+
+    def draft(self, solid: Any, faces: list, *, angle: float, neutral: str,
+              neutral_offset: float = 0.0) -> Any:
+        # Draft only slightly changes volume; model it as a small deterministic delta
+        # proportional to sin(angle) and the number of drafted faces. neutral/neutral_offset
+        # do not change the fake volume. Deterministic, angle-monotonic, positive.
+        factor = 1.0 - math.sin(math.radians(angle)) * 0.01 * len(faces)
+        volume = max(self.volume(solid) * factor, 1e-9)
+        return _FakeCombined(volume, self.bounding_box(solid))
+
     def _union_bounds(self, solids: list) -> Bounds:
         """The bounding box enclosing all ``solids``."""
         boxes = [self.bounding_box(s) for s in solids]

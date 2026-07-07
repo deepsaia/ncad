@@ -42,8 +42,10 @@ heights via a new sketch `plane_offset`, with a ruled-vs-smooth toggle and optio
 end point (vertex) caps for cone-like ends. Rib / web / stiffener (2.5) is done: an open
 profile thickened into a blade and fused into the target body. Chamfer variants (2.6) are
 done: two-distance (build123d) and distance-angle (raw OCP per-edge `AddDA` with an
-auto-picked adjacent face). NEXT: 2.7 (shell + draft). The Phase 2 deferred backlog is
-gathered in one section below the bucket list, so nothing is lost.
+auto-picked adjacent face). Shell + draft (2.7) are done: shell hollows to a wall with
+optional openings, draft tapers faces about a neutral base plane, on a shared `FaceSelector`.
+NEXT: 2.8 (hole wizard + wrap). The Phase 2 deferred backlog is gathered in one section
+below the bucket list, so nothing is lost.
 
 v1 proved the *pattern*: `spec >> build >> BOM >> view`, determinism, build123d/OCCT,
 HOCON+jsonschema, traversal BOM, the Three.js viewer, on the **building profile**
@@ -283,7 +285,9 @@ five buckets; the phase gate is the 1.5 gate.
 - **2.6** `[x]` chamfer variants: two-distance (build123d) and distance-angle (raw OCP
   per-edge `AddDA`, auto-picked adjacent face). Fillet variants and vertex chamfer deferred
   (see Deferred backlog).
-- **2.7** shell + draft (dress-up ops).
+- **2.7** `[x]` shell + draft: shell hollows a solid to a wall (optional face openings);
+  draft tapers selected faces about a neutral base plane. Shared `FaceSelector`
+  (all/top/bottom/vertical/horizontal) + a `face_list` ref role.
 - **2.8** hole wizard (counterbore/countersink/tapped/thread) + wrap.
 - **2.9** Phase 2 gate part (bracket + holes + revolved boss + swept rib + variable
   fillet) builds deterministically and exports clean STEP.
@@ -300,6 +304,9 @@ five buckets; the phase gate is the 1.5 gate.
   superseding the sketch `plane_offset` shortcut.
 - **Rib (2.5):** until-material (to-face) rib extent; one-sided / parallel-to-sketch
   thickness modes; draft on rib walls; web (multi-blade) / networked ribs.
+- **Shell/draft (2.7):** multi-thickness shell (per-face wall); parting-line / step /
+  variable draft; shell/draft face selection driven by the general `Selector` predicates
+  once the attribute model is richer.
 
 **Sketched (additive/subtractive) features**
 - [ ] **Extrude / Pad**: blind, symmetric, two-side, through-all, to-next,
