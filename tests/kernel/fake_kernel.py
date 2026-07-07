@@ -35,6 +35,15 @@ class _FakeWireFace:
         self.area = _wire_face_area(edges)
 
 
+class _FakeWire:
+    """An open path: ordered edge descriptors on a plane, plus a computed length."""
+
+    def __init__(self, edges: list, plane: str) -> None:
+        self.edges = edges
+        self.plane = plane
+        self.length = _wire_length(edges)
+
+
 class _FakeSolid:
     """A face extruded by an effective distance; a wall keeps only a rim area fraction."""
 
@@ -75,6 +84,48 @@ class FakeKernel(Kernel):
 
     def wire_face(self, edges: list, plane: str) -> Any:
         return _FakeWireFace(edges, plane)
+
+    def wire(self, edges: list, plane: str) -> Any:
+        return _FakeWire(edges, plane)
+
+    def wire_length(self, wire: Any) -> float:
+        """Path length of a fake open wire (test helper)."""
+        return wire.length
+
+    def sweep(self, profile: Any, path: Any, *, sections: list | None = None,
+              guides: list | None = None, is_frenet: bool = False,
+              transition: str = "transformed") -> Any:
+        # Volume model: a swept solid ~ profile area x path length (a prism along the path).
+        # Variable-section uses the mean of the section areas. guides/is_frenet/transition
+        # do not change the analytic volume in the fake kernel. Enough for volume tests.
+        if sections:
+            area = sum(self._face_area(s) for s in sections) / len(sections)
+        else:
+            area = self._face_area(profile)
+        return _FakeCombined(area * path.length, self._sweep_bounds(path))
+
+    def helix_path(self, pitch: float, height: float, radius: float, *,
+                   axis_point: Point3, axis_dir: Point3, lefthand: bool = False,
+                   cone_angle: float = 0.0) -> Any:
+        # Analytic helix length: each turn is sqrt(circumference^2 + pitch^2); the number of
+        # turns is height/pitch. cone_angle/lefthand do not affect the length model here.
+        turns = height / pitch
+        wire = _FakeWire([], "XY")
+        wire.length = turns * math.sqrt((2.0 * math.pi * radius) ** 2 + pitch ** 2)
+        return wire
+
+    def _face_area(self, face: Any) -> float:
+        """Area of a fake face (polygon or wire-face)."""
+        if isinstance(face, _FakeWireFace):
+            return face.area
+        return _polygon_area(face.points)
+
+    def _sweep_bounds(self, path: Any) -> Bounds:
+        """A coarse envelope for a swept solid (the path's own 2D extent)."""
+        pts = [p for e in path.edges for p in e.get("points", [])] or [(0.0, 0.0)]
+        xs = [x for x, _ in pts]
+        ys = [y for _, y in pts]
+        return ((min(xs), min(ys), 0.0), (max(xs), max(ys), 0.0))
 
     def project_edges(self, edges: list, plane: str) -> list:
         # FakeKernel edges in tests are already 2D descriptors; identity projection.
@@ -266,6 +317,17 @@ def _box_face(cx: float, cy: float, cz: float, normal: Point3, area: float,
         "kind": "face", "handle": object(), "geom_type": "planar", "normal": normal,
         "area": area, "center": (cx, cy, cz), "min_z": z, "mid_z": z, "max_z": z,
     }
+
+
+def _wire_length(edges: list) -> float:
+    """Summed length of ordered edge descriptors (an arc approximated by its 3 points)."""
+    total = 0.0
+    for edge in edges:
+        pts = edge.get("points", [])
+        for i in range(len(pts) - 1):
+            (x0, y0), (x1, y1) = pts[i], pts[i + 1]
+            total += math.hypot(x1 - x0, y1 - y0)
+    return total
 
 
 def _polygon_area(points: list[Point2]) -> float:

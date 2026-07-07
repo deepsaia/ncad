@@ -7,6 +7,7 @@ the fast test path.
 
 import importlib.metadata
 import logging
+import math
 from typing import Any
 
 from build123d import (
@@ -14,8 +15,10 @@ from build123d import (
     CenterOf,
     Edge,
     Face,
+    Helix,
     Plane,
     Solid,
+    Transition,
     Unit,
     Until,
     Vector,
@@ -26,6 +29,7 @@ from build123d import (
     extrude,
     offset,
     revolve,
+    sweep,
 )
 
 from ncad.kernel.kernel import Bounds, Kernel, Point2, Point3
@@ -37,6 +41,14 @@ _PLANES = {"XY": Plane.XY, "XZ": Plane.XZ, "YZ": Plane.YZ}
 _AXES = {"X": Axis.X, "Y": Axis.Y, "Z": Axis.Z}
 # End-condition until-token -> build123d Until. "last" = through everything.
 _UNTIL_TOKENS = {"last": Until.LAST, "next": Until.NEXT}
+_TRANSITIONS = {"transformed": Transition.TRANSFORMED, "round": Transition.ROUND,
+                "right": Transition.RIGHT}
+# glTF tessellation angular deflection (radians): the cross-section smoothness lever.
+# build123d's default 0.1 over-refines a curvature-heavy helix; 0.2 (~11 degrees, a ~32-gon
+# tube) stays visibly smooth while fast. Higher values (0.5) visibly facet a thin swept
+# tube. Paired with a bbox-relative linear deflection (_deflection); together they are the
+# pinned viewer tessellation.
+_ANGULAR_DEFLECTION = 0.2
 
 
 class Build123dKernel(Kernel):
@@ -91,6 +103,24 @@ class Build123dKernel(Kernel):
             profile = profile.rotate(axis, -angle / 2.0)
         return revolve(profile, axis, revolution_arc=angle)
 
+    def sweep(self, profile: Any, path: Any, *, sections: list | None = None,
+              guides: list | None = None, is_frenet: bool = False,
+              transition: str = "transformed") -> Any:
+        # multisection sweeps the given section faces along the path (build123d places them
+        # by order); a single profile sweeps as a constant section. guides are accepted but
+        # build123d's binormal/guide support is narrow, so they are not passed in this
+        # bucket (the plan records guide curves as approximating a plain sweep).
+        to_sweep = sections if sections else profile
+        return sweep(to_sweep, path=path, multisection=sections is not None,
+                     is_frenet=is_frenet, transition=_TRANSITIONS[transition])
+
+    def helix_path(self, pitch: float, height: float, radius: float, *,
+                   axis_point: Point3, axis_dir: Point3, lefthand: bool = False,
+                   cone_angle: float = 0.0) -> Any:
+        return Helix(pitch, height, radius, center=tuple(axis_point),
+                     direction=tuple(axis_dir), lefthand=lefthand,
+                     cone_angle=cone_angle)  # pyrefly: ignore[no-matching-overload]
+
     def circle_face(self, center: Point2, diameter: float, plane: str) -> Any:
         if plane not in _PLANES:
             raise ValueError(f"plane must be one of {tuple(_PLANES)}, got {plane!r}")
@@ -107,6 +137,12 @@ class Build123dKernel(Kernel):
         basis = _PLANES[plane]
         occ_edges = [_build_edge(edge, basis) for edge in edges]
         return Face(Wire(occ_edges))
+
+    def wire(self, edges: list, plane: str) -> Any:
+        if plane not in _PLANES:
+            raise ValueError(f"plane must be one of {tuple(_PLANES)}, got {plane!r}")
+        basis = _PLANES[plane]
+        return Wire([_build_edge(edge, basis) for edge in edges])
 
     def project_edges(self, edges: list, plane: str) -> list:
         if plane not in _PLANES:
@@ -266,9 +302,13 @@ class Build123dKernel(Kernel):
     def export(self, solid: Any, path: str) -> None:
         lowered = path.lower()
         if lowered.endswith(".glb"):
-            export_gltf(solid, path, unit=Unit.MM, binary=True)
+            export_gltf(solid, path, unit=Unit.MM, binary=True,
+                        linear_deflection=self._deflection(solid),
+                        angular_deflection=_ANGULAR_DEFLECTION)
         elif lowered.endswith(".gltf"):
-            export_gltf(solid, path, unit=Unit.MM, binary=False)
+            export_gltf(solid, path, unit=Unit.MM, binary=False,
+                        linear_deflection=self._deflection(solid),
+                        angular_deflection=_ANGULAR_DEFLECTION)
         elif lowered.endswith((".step", ".stp")):
             export_step(solid, path, unit=Unit.MM)
         elif lowered.endswith(".stl"):
@@ -278,6 +318,20 @@ class Build123dKernel(Kernel):
                 f"unsupported export format for {path!r}; expected .gltf/.glb/.step/.stp/.stl"
             )
         logger.debug("exported solid to %s", path)
+
+    def _deflection(self, solid: Any) -> float:
+        """Tessellation linear deflection scaled to the model size (design §4a, §13).
+
+        build123d's default (0.001 mm ABSOLUTE) is a relative ~1e-4 on a small curved
+        part, which explodes the triangle count (a helical coil took ~70s / 8 MB). A
+        deflection of 0.2% of the bounding-box diagonal, paired with the angular deflection
+        that governs cross-section smoothness, keeps the mesh smooth while fast (that coil
+        drops to ~1s / 1.5 MB) and is size-relative so it is stable across model scales
+        (the pinned tessellation deflection the goldens assume).
+        """
+        (x0, y0, z0), (x1, y1, z1) = self.bounding_box(solid)
+        diagonal = math.sqrt((x1 - x0) ** 2 + (y1 - y0) ** 2 + (z1 - z0) ** 2)
+        return max(diagonal * 0.002, 1e-4)
 
 
 def _describe_face(face: Any) -> dict:

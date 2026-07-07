@@ -28,7 +28,7 @@ def revolve_kwargs(params: dict, refs: dict) -> dict:
     """Return the ``Kernel.revolve`` keyword args for a revolve/groove feature."""
     if "axis" not in params:
         raise RevolveParamError("revolve needs an 'axis' (X/Y/Z or {point, dir})")
-    axis_point, axis_dir = _resolve_axis(params["axis"])
+    axis_point, axis_dir = resolve_axis(params["axis"])
     angle = float(params.get("angle", 360.0))
     if not 0.0 < angle <= 360.0:
         raise RevolveParamError(f"revolve angle must be in (0, 360]; got {angle}")
@@ -42,7 +42,7 @@ def revolve_kwargs(params: dict, refs: dict) -> dict:
     return kwargs
 
 
-def _resolve_axis(axis) -> tuple[tuple, tuple]:
+def resolve_axis(axis) -> tuple[tuple, tuple]:
     """Resolve an axis spec to (point, unit-dir). Reference strings are deferred."""
     if isinstance(axis, str):
         if axis in _NAMED_AXES:

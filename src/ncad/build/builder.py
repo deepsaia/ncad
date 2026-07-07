@@ -38,6 +38,8 @@ _REF_FIELDS: dict[str, dict[str, str]] = {
     "pocket": {"profile": "shape", "target": "shape", "to": "face"},
     "boolean": {"target": "shape", "tool": "shape"},
     "groove": {"profile": "shape", "target": "shape"},
+    "sweep": {"profile": "input", "path": "shape", "sections": "shape_list",
+              "guides": "shape_list"},
     "hole": {"on": "face"},
     "fillet": {"edges": "edges"},
     "chamfer": {"edges": "edges"},
@@ -178,14 +180,19 @@ class Builder:
             if field not in feature:
                 continue
             value = feature[field]
-            # A list of references (e.g. a sketch's ``project``) resolves each to edge
-            # handles and concatenates them.
+            # A list-valued field resolves each reference: `shape_list` (sweep sections/
+            # guides) to a list of shape handles; otherwise (e.g. a sketch's ``project``)
+            # to concatenated edge handles.
             if isinstance(value, list):
-                handles, error = self._resolve_edge_list(
-                    value, shape_by_id, element_map, resolver)
+                if role == "shape_list":
+                    shapes, error = self._resolve_shape_list(
+                        value, shape_by_id, element_map, resolver)
+                else:
+                    shapes, error = self._resolve_edge_list(
+                        value, shape_by_id, element_map, resolver)
                 if error is not None:
                     return refs, shape_in, error
-                refs[field] = handles
+                refs[field] = shapes
                 continue
             if role == "edges" and value in _EDGE_KEYWORDS:
                 refs[field] = self._resolve_keyword_edges(previous_shape, value)
@@ -211,6 +218,19 @@ class Builder:
                 return handles, resolution.error
             handles.extend(e.handle for e in resolution.elements)
         return handles, None
+
+    def _resolve_shape_list(self, references: list, shape_by_id: dict,
+                            element_map: ElementMap,
+                            resolver: ReferenceResolver) -> tuple[list, str | None]:
+        """Resolve a list of references each to its shape handle (sweep sections/guides)."""
+        shapes: list = []
+        for reference in references:
+            resolution = resolver.resolve(
+                Reference.parse(str(reference)), shape_by_id, element_map.elements())
+            if resolution.error is not None:
+                return shapes, resolution.error
+            shapes.append(resolution.shapes[0] if resolution.shapes else None)
+        return shapes, None
 
     def _resolve_keyword_edges(self, shape_in: Any, keyword: str) -> list:
         """Keyword sugar: resolve one of the five edge keywords to edge handles."""
