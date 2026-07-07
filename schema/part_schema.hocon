@@ -64,6 +64,7 @@ definitions {
       positions { type = array, items = ${definitions.vec2} }
       diameter { type = number, exclusiveMinimum = 0 }
       depth { type = number, exclusiveMinimum = 0 }
+      thickness { type = number, exclusiveMinimum = 0 }
       through { type = boolean }
       radius { type = number, exclusiveMinimum = 0 }
       edges { type = string }
