@@ -1,0 +1,18 @@
+schema_version = 2
+units = mm
+# A washer revolved from an offset rectangular profile about the Y axis (a Pappus solid),
+# then a shallow groove revolved and cut around it. Exercises revolve (additive) + groove
+# (subtractive); builds deterministically and round-trips to STEP (bucket 2.0).
+parts {
+  revolved_washer {
+    profile = solid
+    features = [
+      { id = ring_sk, op = sketch, plane = XY,
+        elements = [ { id = r, type = polygon, points = [ [8, 0], [12, 0], [12, 6], [8, 6] ] } ] }
+      { id = washer, op = revolve, profile = ring_sk, axis = Y }
+      { id = groove_sk, op = sketch, plane = XY,
+        elements = [ { id = g, type = polygon, points = [ [9, 2], [11, 2], [11, 4], [9, 4] ] } ] }
+      { id = notch, op = groove, target = washer, profile = groove_sk, axis = Y }
+    ]
+  }
+}

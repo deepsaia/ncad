@@ -37,6 +37,7 @@ _REF_FIELDS: dict[str, dict[str, str]] = {
     "extrude": {"profile": "input", "to": "face"},
     "pocket": {"profile": "shape", "target": "shape", "to": "face"},
     "boolean": {"target": "shape", "tool": "shape"},
+    "groove": {"profile": "shape", "target": "shape"},
     "hole": {"on": "face"},
     "fillet": {"edges": "edges"},
     "chamfer": {"edges": "edges"},

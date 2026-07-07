@@ -43,6 +43,17 @@ class Kernel(ABC):
         """
 
     @abstractmethod
+    def revolve(self, face: Any, axis_point: Point3, axis_dir: Point3, *,
+                angle: float = 360.0, symmetric: bool = False,
+                thin: float | None = None) -> Any:
+        """Revolve ``face`` about the axis through ``axis_point`` along ``axis_dir``.
+
+        ``angle`` is the revolution arc in degrees (360 = full solid); ``symmetric``
+        centers that arc on the profile plane; ``thin`` makes a wall of that thickness.
+        Raises KernelOpError on failure (e.g. the profile crosses its axis).
+        """
+
+    @abstractmethod
     def circle_face(self, center: Point2, diameter: float, plane: str) -> Any:
         """A circular planar face of ``diameter`` centred at ``center`` on ``plane``."""
 
