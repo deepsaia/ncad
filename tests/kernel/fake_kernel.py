@@ -92,6 +92,41 @@ class FakeKernel(Kernel):
         """Path length of a fake open wire (test helper)."""
         return wire.length
 
+    def sweep(self, profile: Any, path: Any, *, sections: list | None = None,
+              guides: list | None = None, is_frenet: bool = False,
+              transition: str = "transformed") -> Any:
+        # Volume model: a swept solid ~ profile area x path length (a prism along the path).
+        # Variable-section uses the mean of the section areas. guides/is_frenet/transition
+        # do not change the analytic volume in the fake kernel. Enough for volume tests.
+        if sections:
+            area = sum(self._face_area(s) for s in sections) / len(sections)
+        else:
+            area = self._face_area(profile)
+        return _FakeCombined(area * path.length, self._sweep_bounds(path))
+
+    def helix_path(self, pitch: float, height: float, radius: float, *,
+                   axis_point: Point3, axis_dir: Point3, lefthand: bool = False,
+                   cone_angle: float = 0.0) -> Any:
+        # Analytic helix length: each turn is sqrt(circumference^2 + pitch^2); the number of
+        # turns is height/pitch. cone_angle/lefthand do not affect the length model here.
+        turns = height / pitch
+        wire = _FakeWire([], "XY")
+        wire.length = turns * math.sqrt((2.0 * math.pi * radius) ** 2 + pitch ** 2)
+        return wire
+
+    def _face_area(self, face: Any) -> float:
+        """Area of a fake face (polygon or wire-face)."""
+        if isinstance(face, _FakeWireFace):
+            return face.area
+        return _polygon_area(face.points)
+
+    def _sweep_bounds(self, path: Any) -> Bounds:
+        """A coarse envelope for a swept solid (the path's own 2D extent)."""
+        pts = [p for e in path.edges for p in e.get("points", [])] or [(0.0, 0.0)]
+        xs = [x for x, _ in pts]
+        ys = [y for _, y in pts]
+        return ((min(xs), min(ys), 0.0), (max(xs), max(ys), 0.0))
+
     def project_edges(self, edges: list, plane: str) -> list:
         # FakeKernel edges in tests are already 2D descriptors; identity projection.
         return list(edges)

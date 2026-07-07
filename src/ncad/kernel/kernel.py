@@ -54,6 +54,24 @@ class Kernel(ABC):
         """
 
     @abstractmethod
+    def sweep(self, profile: Any, path: Any, *, sections: list | None = None,
+              guides: list | None = None, is_frenet: bool = False,
+              transition: str = "transformed") -> Any:
+        """Sweep ``profile`` (or ``sections``) along ``path`` into a solid.
+
+        ``sections`` (>= 2) sweeps a variable section; ``guides`` constrain the sweep;
+        ``is_frenet`` follows the path curvature (else keep-orientation); ``transition``
+        is the corner style (``transformed``/``round``/``right``). Raises KernelOpError on
+        failure (e.g. a self-intersecting path).
+        """
+
+    @abstractmethod
+    def helix_path(self, pitch: float, height: float, radius: float, *,
+                   axis_point: Point3, axis_dir: Point3, lefthand: bool = False,
+                   cone_angle: float = 0.0) -> Any:
+        """A helical path (a wire) for a coil/spring sweep."""
+
+    @abstractmethod
     def circle_face(self, center: Point2, diameter: float, plane: str) -> Any:
         """A circular planar face of ``diameter`` centred at ``center`` on ``plane``."""
 
