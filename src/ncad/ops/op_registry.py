@@ -18,6 +18,7 @@ from ncad.ops.loft_op import LoftOp
 from ncad.ops.pocket_op import PocketOp
 from ncad.ops.revolve_op import RevolveOp
 from ncad.ops.rib_op import RibOp
+from ncad.ops.shell_op import ShellOp
 from ncad.ops.sketch_op import SketchOp
 from ncad.ops.sweep_op import SweepOp
 
@@ -56,4 +57,5 @@ class OpRegistry:
         registry.register("sweep", SweepOp().build)
         registry.register("loft", LoftOp().build)
         registry.register("rib", RibOp().build)
+        registry.register("shell", ShellOp().build)
         return registry

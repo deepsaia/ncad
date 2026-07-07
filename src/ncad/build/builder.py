@@ -43,6 +43,7 @@ _REF_FIELDS: dict[str, dict[str, str]] = {
               "guides": "shape_list"},
     "loft": {"sections": "shape_list"},
     "rib": {"profile": "shape", "target": "shape"},
+    "shell": {"openings": "face_list"},
     "hole": {"on": "face"},
     "fillet": {"edges": "edges"},
     "chamfer": {"edges": "edges"},
