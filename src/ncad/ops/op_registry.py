@@ -12,8 +12,10 @@ from ncad.ops.boolean_op import BooleanOp
 from ncad.ops.chamfer_op import ChamferOp
 from ncad.ops.extrude_op import ExtrudeOp
 from ncad.ops.fillet_op import FilletOp
+from ncad.ops.groove_op import GrooveOp
 from ncad.ops.hole_op import HoleOp
 from ncad.ops.pocket_op import PocketOp
+from ncad.ops.revolve_op import RevolveOp
 from ncad.ops.sketch_op import SketchOp
 
 
@@ -46,4 +48,6 @@ class OpRegistry:
         registry.register("fillet", FilletOp().build)
         registry.register("chamfer", ChamferOp().build)
         registry.register("boolean", BooleanOp().build)
+        registry.register("revolve", RevolveOp().build)
+        registry.register("groove", GrooveOp().build)
         return registry
