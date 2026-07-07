@@ -90,6 +90,8 @@ class SlvsSolver(SketchSolver):
                     workplane, point_handles[entity["center"]],
                     point_handles[entity["start"]], point_handles[entity["end"]],
                     group=_SKETCH_GROUP)
+            # bezier/interpolated are NOT registered as solver curves: their defining
+            # points (registered above) carry all DOF; the curve is derived downstream.
 
         # Construction (reference) and fixed (offset-derived) entities are dimensionally
         # locked: pin each defining point once (a point may back several such entities),
@@ -280,11 +282,20 @@ def _missing_reference(entities: list[dict], constraints: list[dict],
     """The first dangling entity reference, as an error message, or None."""
     ref_keys = {"line": ("p1", "p2"), "circle": ("center",),
                 "arc": ("center", "start", "end")}
+    # A spline/bezier references its defining points as a LIST under "points", not as
+    # scalar fields, so it is checked separately from the scalar ref_keys above.
+    list_ref_keys = {"bezier": ("points",), "interpolated": ("points",)}
     for entity in entities:
-        for key in ref_keys.get(entity.get("type", ""), ()):
+        etype = entity.get("type", "")
+        for key in ref_keys.get(etype, ()):
             if entity.get(key) not in by_id:
-                return (f"{entity.get('type')} {entity.get('id')!r} references unknown "
+                return (f"{etype} {entity.get('id')!r} references unknown "
                         f"point {entity.get(key)!r}")
+        for key in list_ref_keys.get(etype, ()):
+            for ref in entity.get(key, []):
+                if ref not in by_id:
+                    return (f"{etype} {entity.get('id')!r} references unknown "
+                            f"point {ref!r}")
     for constraint in constraints:
         for ref in _constraint_refs(constraint):
             if ref not in by_id:
@@ -323,6 +334,8 @@ def _defining_points(entity: dict) -> list[str]:
         return [entity["center"], entity["start"], entity["end"]]
     if kind == "circle":
         return [entity["center"]]
+    if kind in ("bezier", "interpolated"):
+        return list(entity["points"])
     return []
 
 
