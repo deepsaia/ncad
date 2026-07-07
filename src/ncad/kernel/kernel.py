@@ -172,6 +172,16 @@ class Kernel(ABC):
         """
 
     @abstractmethod
+    def draft(self, solid: Any, faces: list, *, angle: float, neutral: str,
+              neutral_offset: float = 0.0) -> Any:
+        """Taper ``faces`` of ``solid`` by ``angle`` degrees about a neutral plane.
+
+        ``neutral`` is one of ``"XY"``, ``"XZ"``, ``"YZ"``; ``neutral_offset`` shifts that
+        plane along its normal (the sketch plane_offset convention). The neutral
+        cross-section keeps its size while the faces taper. Raises KernelOpError on failure.
+        """
+
+    @abstractmethod
     def edges_of(self, solid: Any) -> list:
         """List edge descriptors ``{"edge", "orientation", "mid_z"}`` for ``solid``."""
 

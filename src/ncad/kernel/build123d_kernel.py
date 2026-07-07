@@ -24,6 +24,7 @@ from build123d import (
     Vector,
     Vertex,
     Wire,
+    draft,
     export_gltf,
     export_step,
     export_stl,
@@ -229,6 +230,22 @@ class Build123dKernel(Kernel):
     @staticmethod
     def _do_shell(solid: Any, thickness: float, openings: list | None) -> Any:
         return offset(solid, amount=-abs(thickness), openings=openings)
+
+    def draft(self, solid: Any, faces: list, *, angle: float, neutral: str,
+              neutral_offset: float = 0.0) -> Any:
+        if neutral not in _PLANES:
+            raise KernelOpError(
+                f"draft neutral must be one of {tuple(_PLANES)}, got {neutral!r}")
+        # The neutral plane reuses the plane_offset convention: a base plane shifted along
+        # its normal. draft() keeps that cross-section fixed while the faces taper. The
+        # module-level `draft` function (not the local `draft` taper param on extrude/
+        # revolve) does the work.
+        plane = _PLANES[neutral].offset(neutral_offset)
+        return self._robust(self._do_draft, faces, plane, angle, name="draft")
+
+    @staticmethod
+    def _do_draft(faces: list, plane: Any, angle: float) -> Any:
+        return draft(faces, neutral_plane=plane, angle=angle)
 
     def edges_of(self, solid: Any) -> list:
         infos = []

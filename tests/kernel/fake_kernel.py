@@ -286,6 +286,15 @@ class FakeKernel(Kernel):
         inner = max(dx - t2, 0.0) * max(dy - t2, 0.0) * max(dz - t2, 0.0)
         return _FakeCombined(outer - inner, self.bounding_box(solid))
 
+    def draft(self, solid: Any, faces: list, *, angle: float, neutral: str,
+              neutral_offset: float = 0.0) -> Any:
+        # Draft only slightly changes volume; model it as a small deterministic delta
+        # proportional to sin(angle) and the number of drafted faces. neutral/neutral_offset
+        # do not change the fake volume. Deterministic, angle-monotonic, positive.
+        factor = 1.0 - math.sin(math.radians(angle)) * 0.01 * len(faces)
+        volume = max(self.volume(solid) * factor, 1e-9)
+        return _FakeCombined(volume, self.bounding_box(solid))
+
     def _union_bounds(self, solids: list) -> Bounds:
         """The bounding box enclosing all ``solids``."""
         boxes = [self.bounding_box(s) for s in solids]
