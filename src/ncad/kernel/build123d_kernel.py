@@ -14,8 +14,10 @@ from build123d import (
     CenterOf,
     Edge,
     Face,
+    Helix,
     Plane,
     Solid,
+    Transition,
     Unit,
     Until,
     Vector,
@@ -26,6 +28,7 @@ from build123d import (
     extrude,
     offset,
     revolve,
+    sweep,
 )
 
 from ncad.kernel.kernel import Bounds, Kernel, Point2, Point3
@@ -37,6 +40,8 @@ _PLANES = {"XY": Plane.XY, "XZ": Plane.XZ, "YZ": Plane.YZ}
 _AXES = {"X": Axis.X, "Y": Axis.Y, "Z": Axis.Z}
 # End-condition until-token -> build123d Until. "last" = through everything.
 _UNTIL_TOKENS = {"last": Until.LAST, "next": Until.NEXT}
+_TRANSITIONS = {"transformed": Transition.TRANSFORMED, "round": Transition.ROUND,
+                "right": Transition.RIGHT}
 
 
 class Build123dKernel(Kernel):
@@ -90,6 +95,24 @@ class Build123dKernel(Kernel):
             # a plain partial revolve, just centered (verified by the equal-volume test).
             profile = profile.rotate(axis, -angle / 2.0)
         return revolve(profile, axis, revolution_arc=angle)
+
+    def sweep(self, profile: Any, path: Any, *, sections: list | None = None,
+              guides: list | None = None, is_frenet: bool = False,
+              transition: str = "transformed") -> Any:
+        # multisection sweeps the given section faces along the path (build123d places them
+        # by order); a single profile sweeps as a constant section. guides are accepted but
+        # build123d's binormal/guide support is narrow, so they are not passed in this
+        # bucket (the plan records guide curves as approximating a plain sweep).
+        to_sweep = sections if sections else profile
+        return sweep(to_sweep, path=path, multisection=sections is not None,
+                     is_frenet=is_frenet, transition=_TRANSITIONS[transition])
+
+    def helix_path(self, pitch: float, height: float, radius: float, *,
+                   axis_point: Point3, axis_dir: Point3, lefthand: bool = False,
+                   cone_angle: float = 0.0) -> Any:
+        return Helix(pitch, height, radius, center=tuple(axis_point),
+                     direction=tuple(axis_dir), lefthand=lefthand,
+                     cone_angle=cone_angle)  # pyrefly: ignore[no-matching-overload]
 
     def circle_face(self, center: Point2, diameter: float, plane: str) -> Any:
         if plane not in _PLANES:
