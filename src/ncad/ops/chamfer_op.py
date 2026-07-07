@@ -5,6 +5,7 @@ from typing import Any
 from ncad.kernel.kernel import Kernel
 from ncad.kernel.kernel_op_error import KernelOpError
 from ncad.ops.build_issue import BuildIssue
+from ncad.ops.chamfer_params import ChamferParamError, chamfer_kwargs
 from ncad.ops.edge_selector import EdgeSelector
 from ncad.ops.op_result import OpResult
 
@@ -33,7 +34,14 @@ class ChamferOp:
                             issues=[BuildIssue(node_id=feature_id,
                                                message="chamfer: no edges to bevel")])
         try:
-            result = kernel.chamfer_edges(shape_in, edges, params["distance"])
+            kwargs = chamfer_kwargs(params)
+        except ChamferParamError as exc:
+            return OpResult(shape=None, provenance={},
+                            issues=[BuildIssue(node_id=feature_id, message=str(exc))])
+        try:
+            result = kernel.chamfer_edges(shape_in, edges, kwargs["distance"],
+                                          distance2=kwargs["distance2"],
+                                          angle=kwargs["angle"])
         except KernelOpError as exc:
             return OpResult(shape=None, provenance={},
                             issues=[BuildIssue(node_id=feature_id, message=str(exc))])
