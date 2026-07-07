@@ -164,6 +164,14 @@ class Kernel(ABC):
         """
 
     @abstractmethod
+    def shell(self, solid: Any, thickness: float, openings: list | None = None) -> Any:
+        """Hollow ``solid`` to a wall of ``thickness`` (inward).
+
+        ``openings`` is a list of face handles to remove (an open shell); None keeps a
+        closed shell. Raises KernelOpError on failure.
+        """
+
+    @abstractmethod
     def edges_of(self, solid: Any) -> list:
         """List edge descriptors ``{"edge", "orientation", "mid_z"}`` for ``solid``."""
 

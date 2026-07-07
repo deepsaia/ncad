@@ -221,6 +221,15 @@ class Build123dKernel(Kernel):
         return self._robust(self._do_chamfer, solid, edges, distance, distance2,
                             name="chamfer")
 
+    def shell(self, solid: Any, thickness: float, openings: list | None = None) -> Any:
+        # build123d offset hollows inward with a negative amount; openings (a list of face
+        # handles) are the faces to remove for an open shell. Gated by _robust.
+        return self._robust(self._do_shell, solid, thickness, openings, name="shell")
+
+    @staticmethod
+    def _do_shell(solid: Any, thickness: float, openings: list | None) -> Any:
+        return offset(solid, amount=-abs(thickness), openings=openings)
+
     def edges_of(self, solid: Any) -> list:
         infos = []
         for e in solid.edges():
