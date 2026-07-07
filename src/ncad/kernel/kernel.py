@@ -152,8 +152,16 @@ class Kernel(ABC):
         """Round the given ``edges`` of ``solid`` with ``radius``."""
 
     @abstractmethod
-    def chamfer_edges(self, solid: Any, edges: list, distance: float) -> Any:
-        """Bevel the given ``edges`` of ``solid`` by ``distance``."""
+    def chamfer_edges(self, solid: Any, edges: list, distance: float, *,
+                      distance2: float | None = None,
+                      angle: float | None = None) -> Any:
+        """Bevel ``edges`` of ``solid`` by ``distance``.
+
+        ``distance2`` (a second setback) makes a two-distance chamfer; ``angle`` (degrees)
+        makes a distance-angle chamfer measured from an auto-picked adjacent face. At most
+        one of ``distance2``/``angle`` may be given; both None is a symmetric chamfer.
+        Raises KernelOpError on failure.
+        """
 
     @abstractmethod
     def edges_of(self, solid: Any) -> list:
