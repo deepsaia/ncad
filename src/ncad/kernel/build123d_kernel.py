@@ -393,6 +393,13 @@ def _build_edge(edge: dict, basis: Any) -> Any:
         origin = basis.from_local_coords(Vector(cx, cy, 0))
         face_plane = Plane(origin=origin, z_dir=basis.z_dir)  # pyrefly: ignore[no-matching-overload]
         return Edge.make_circle(edge["radius"], face_plane)
+    if kind in ("bezier", "spline"):
+        pts = [basis.from_local_coords(Vector(x, y, 0)) for (x, y) in edge["points"]]
+        # bezier: control points (curve passes through first/last, pulled toward interior).
+        # spline (the interpolated entity): the curve passes through every point.
+        if kind == "bezier":
+            return Edge.make_bezier(*pts)  # pyrefly: ignore[bad-argument-type]
+        return Edge.make_spline(pts)  # pyrefly: ignore[bad-argument-type]
     raise ValueError(f"unknown sketch edge kind {kind!r}")
 
 
@@ -403,6 +410,12 @@ def _project_edge(edge: Any, basis: Any) -> dict:
         center = basis.to_local_coords(edge.arc_center)
         return {"kind": "circle", "center": (center.X, center.Y),
                 "radius": float(edge.radius)}
+    if name in ("bspline", "bezier"):
+        # Projecting a curved (spline/bezier) edge into a 2D descriptor is deferred: OCCT
+        # hands back a BSpline we do not decompose, and no current feature projects a
+        # spline. Fail loudly rather than silently mangling the curve into a line.
+        raise NotImplementedError(
+            "projecting spline/bezier edges onto a sketch plane is not yet supported")
     a = basis.to_local_coords(edge.position_at(0))
     b = basis.to_local_coords(edge.position_at(1))
     pa, pb = (a.X, a.Y), (b.X, b.Y)

@@ -374,12 +374,22 @@ def _distance_point_to_axis(point: Point3, axis_point: Point3, axis_dir: Point3)
 
 
 def _wire_ring(edges: list) -> list[Point2]:
-    """Ordered endpoint ring for a wire's bounds (circle -> its bbox corners)."""
+    """Ordered endpoint ring for a wire's bounds (circle -> its bbox corners).
+
+    A spline/bezier contributes all its defining points so the bbox spans the control
+    polygon, not just the chord endpoints.
+    """
     if len(edges) == 1 and edges[0]["kind"] == "circle":
         cx, cy = edges[0]["center"]
         r = edges[0]["radius"]
         return [(cx - r, cy - r), (cx + r, cy - r), (cx + r, cy + r), (cx - r, cy + r)]
-    return [edge["points"][0] for edge in edges]
+    ring: list[Point2] = []
+    for edge in edges:
+        if edge["kind"] in ("bezier", "spline"):
+            ring.extend(edge["points"])
+        else:
+            ring.append(edge["points"][0])
+    return ring
 
 
 def _wire_face_area(edges: list) -> float:
@@ -390,6 +400,12 @@ def _wire_face_area(edges: list) -> float:
     for edge in edges:
         if edge["kind"] == "arc":
             dense.extend(_arc_samples(edge["points"], 24)[:-1])
+        elif edge["kind"] in ("bezier", "spline"):
+            # Defining-polygon approximation: the fake kernel does not evaluate the true
+            # curve, so a spline's contribution to the loop area is its control/through
+            # points. Deterministic and non-zero for a bulging curve; exact area is the
+            # real kernel's job.
+            dense.extend(edge["points"][:-1])
         else:
             dense.append(edge["points"][0])
     return _polygon_area(dense)
