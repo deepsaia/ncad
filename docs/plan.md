@@ -40,14 +40,10 @@ curve derived) is done, so sweep/loft paths and profiles now carry smooth curves
 (2.4) is done: a solid blended through referenced section profiles placed at distinct
 heights via a new sketch `plane_offset`, with a ruled-vs-smooth toggle and optional start/
 end point (vertex) caps for cone-like ends. Rib / web / stiffener (2.5) is done: an open
-profile thickened into a blade and fused into the target body. NEXT: 2.6 (fillet/chamfer
-variants). Deferred
-curve follow-ups: a solver-capability bucket for true curve constraints (tangent-to-spline,
-point-on-spline, G2 smooth); general B-spline / NURBS with weights / endpoint tangents /
-periodic splines; and spline edge projection in `_project_edge`. Deferred loft follow-ups:
-loft guide/rail curves; open/surface loft; closed/periodic loft; and general datum planes
-(offset / angled / on-face / 3-point) as a first-class referenceable entity superseding the
-sketch `plane_offset` shortcut.
+profile thickened into a blade and fused into the target body. Chamfer variants (2.6) are
+done: two-distance (build123d) and distance-angle (raw OCP per-edge `AddDA` with an
+auto-picked adjacent face). NEXT: 2.7 (shell + draft). The Phase 2 deferred backlog is
+gathered in one section below the bucket list, so nothing is lost.
 
 v1 proved the *pattern*: `spec >> build >> BOM >> view`, determinism, build123d/OCCT,
 HOCON+jsonschema, traversal BOM, the Three.js viewer, on the **building profile**
@@ -280,17 +276,30 @@ five buckets; the phase gate is the 1.5 gate.
 - **2.3** `[x]` sweep (single-path / helical / guide-curve / variable-section). Sketch
   `open` mode yields a wire path; helix generated. Paths: line + arc + helix (smooth
   spline paths follow with the spline entity bucket, sweep picks them up for free).
-- **2.4** loft / blend (multi-section, tangency/curvature).
+- **2.4** `[x]` loft / blend: a solid blended through referenced section profiles at
+  distinct `plane_offset` heights; ruled vs smooth; optional start/end point (vertex) caps.
 - **2.5** `[x]` rib / web / stiffener: an open profile thickened (`trace`) into a blade,
-  grown a fixed depth normal to the sketch plane, and fused into the target body. Deferred:
-  until-material (to-face) rib extent; one-sided / parallel-to-sketch thickness modes;
-  draft on rib walls; web (multi-blade) / networked ribs.
-- **2.6** fillet/chamfer variants (variable-radius/face/full-round; distance-angle/
-  two-distance/vertex).
+  grown a fixed depth normal to the sketch plane, and fused into the target body.
+- **2.6** `[x]` chamfer variants: two-distance (build123d) and distance-angle (raw OCP
+  per-edge `AddDA`, auto-picked adjacent face). Fillet variants and vertex chamfer deferred
+  (see Deferred backlog).
 - **2.7** shell + draft (dress-up ops).
 - **2.8** hole wizard (counterbore/countersink/tapped/thread) + wrap.
 - **2.9** Phase 2 gate part (bracket + holes + revolved boss + swept rib + variable
   fillet) builds deterministically and exports clean STEP.
+
+**Deferred backlog (Phase 2 buckets, gather here so nothing is lost):**
+- **Fillet/chamfer (2.6):** variable-radius / face / full-round fillets (raw OCP
+  `BRepFilletAPI_MakeFillet`); vertex chamfer; named-face reference for distance-angle
+  (needs a face selector).
+- **Curve/spline (2.3.5):** solver-capability bucket for true curve constraints
+  (tangent-to-spline, point-on-spline, G2 smooth); general B-spline / NURBS with weights /
+  endpoint tangents / periodic splines; spline edge projection in `_project_edge`.
+- **Loft (2.4):** loft guide/rail curves; open/surface loft; closed/periodic loft; general
+  datum planes (offset / angled / on-face / 3-point) as a first-class referenceable entity
+  superseding the sketch `plane_offset` shortcut.
+- **Rib (2.5):** until-material (to-face) rib extent; one-sided / parallel-to-sketch
+  thickness modes; draft on rib walls; web (multi-blade) / networked ribs.
 
 **Sketched (additive/subtractive) features**
 - [ ] **Extrude / Pad**: blind, symmetric, two-side, through-all, to-next,
