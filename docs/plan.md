@@ -36,11 +36,16 @@ dimension vocabulary (driven vs driving) and reference-into-sketch (project prio
 offset). Sketch status in the viewer (1.5) done, **Phase 1 complete**. Phase 2: STEP
 export (2.0), extrude/pocket (2.1), revolve/groove (2.2), sweep (2.3) done. The spline /
 curve entity bucket (2.3.5: `bezier` + `interpolated` sketch entities, points solved /
-curve derived) is done, so sweep/loft paths and profiles now carry smooth curves. NEXT:
-2.4 (loft), which consumes spline profiles/guides. Deferred curve follow-ups: a
-solver-capability bucket for true curve constraints (tangent-to-spline, point-on-spline,
-G2 smooth); general B-spline / NURBS with weights / endpoint tangents / periodic splines;
-and spline edge projection in `_project_edge`.
+curve derived) is done, so sweep/loft paths and profiles now carry smooth curves. Loft
+(2.4) is done: a solid blended through referenced section profiles placed at distinct
+heights via a new sketch `plane_offset`, with a ruled-vs-smooth toggle and optional start/
+end point (vertex) caps for cone-like ends. NEXT: the subsequent phase-2 bucket. Deferred
+curve follow-ups: a solver-capability bucket for true curve constraints (tangent-to-spline,
+point-on-spline, G2 smooth); general B-spline / NURBS with weights / endpoint tangents /
+periodic splines; and spline edge projection in `_project_edge`. Deferred loft follow-ups:
+loft guide/rail curves; open/surface loft; closed/periodic loft; and general datum planes
+(offset / angled / on-face / 3-point) as a first-class referenceable entity superseding the
+sketch `plane_offset` shortcut.
 
 v1 proved the *pattern*: `spec >> build >> BOM >> view`, determinism, build123d/OCCT,
 HOCON+jsonschema, traversal BOM, the Three.js viewer, on the **building profile**
