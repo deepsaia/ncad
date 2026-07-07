@@ -1,0 +1,14 @@
+schema_version = 2
+units = mm
+# A cone: a circular base section lofted to a single apex point 30 above it (end_point
+# vertex cap). Proves the point-cap loft path. Round-trips to STEP (bucket 2.0).
+parts {
+  lofted_cone {
+    profile = solid
+    features = [
+      { id = base, op = sketch, plane = XY, plane_offset = 0,
+        elements = [ { id = ci, type = circle, d = 24 } ] }
+      { id = cone, op = loft, sections = [ base ], end_point = [ 0, 0, 30 ] }
+    ]
+  }
+}

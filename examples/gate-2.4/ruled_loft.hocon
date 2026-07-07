@@ -1,0 +1,17 @@
+schema_version = 2
+units = mm
+# A ruled (straight-blend) loft between two square sections at different heights. Same
+# sections as a smooth loft would use, but ruled = true gives flat side facets. Proves the
+# ruled code path. Round-trips to STEP (bucket 2.0).
+parts {
+  ruled_loft {
+    profile = solid
+    features = [
+      { id = base, op = sketch, plane = XY, plane_offset = 0,
+        elements = [ { id = big, type = rectangle, w = 20, h = 20 } ] }
+      { id = top, op = sketch, plane = XY, plane_offset = 25,
+        elements = [ { id = small, type = rectangle, w = 8, h = 8 } ] }
+      { id = body, op = loft, sections = [ base, top ], ruled = true }
+    ]
+  }
+}
