@@ -39,6 +39,52 @@ class WireOrderer:
             return [], "sketch has no entities to form a loop"
         return self._order_connective(connective, positions)
 
+    def order_open(self, entities: list[dict], positions: dict[str, tuple[float, float]],
+                   radii: dict[str, float]) -> tuple[list[dict], str | None]:
+        """Order an OPEN chain of lines/arcs into edge descriptors (a path, not a loop).
+
+        Unlike ``order``, this expects exactly two degree-1 endpoints (the path ends) and
+        does not close the chain or reorient it: an open path has no inside, so the CCW
+        winding rule does not apply.
+        """
+        entities = [e for e in entities if not e.get("construction")]
+        connective = [e for e in entities if e.get("type") in _CONNECTIVE]
+        if not connective:
+            return [], "open sketch has no line/arc entities to form a path"
+        if any(e.get("type") == "circle" for e in entities):
+            return [], "an open sketch path cannot contain a circle"
+        endpoints = {e["id"]: _endpoints(e) for e in connective}
+        adjacency: dict[str, list[str]] = {}
+        for eid, (a, b) in endpoints.items():
+            adjacency.setdefault(a, []).append(eid)
+            adjacency.setdefault(b, []).append(eid)
+        ends = [p for p, es in adjacency.items() if len(es) == 1]
+        if len(ends) != 2 or any(len(es) > 2 for es in adjacency.values()):
+            return [], "open sketch entities do not form a single open path"
+        by_id = {e["id"]: e for e in connective}
+        start_point = ends[0]
+        current_edge: str | None = adjacency[start_point][0]
+        prev_point, current_point = start_point, _other_end(
+            endpoints[current_edge], start_point)
+        ordered: list[dict] = []
+        used: set[str] = set()
+        while current_edge is not None and current_edge not in used:
+            used.add(current_edge)
+            descriptor, err = self._descriptor(by_id[current_edge], prev_point,
+                                               current_point, positions)
+            if err is not None:
+                return [], err
+            ordered.append(descriptor)
+            nxt = next((e for e in adjacency[current_point] if e != current_edge), None)
+            if nxt is None:
+                break
+            prev_point, current_point = current_point, _other_end(
+                endpoints[nxt], current_point)
+            current_edge = nxt
+        if len(used) != len(connective):
+            return [], "open sketch entities do not form a single open path"
+        return ordered, None
+
     def _order_connective(self, edges: list[dict],
                           positions: dict[str, tuple[float, float]]) -> tuple[list, str | None]:
         """Walk a connected loop of lines/arcs into ordered edge descriptors."""
@@ -112,6 +158,12 @@ def _reverse_loop(edges: list[dict]) -> list[dict]:
         pts = list(reversed(edge["points"]))
         reversed_edges.append({**edge, "points": pts})
     return reversed_edges
+
+
+def _other_end(ends: tuple[str, str], point: str) -> str:
+    """The endpoint of ``ends`` that is not ``point``."""
+    a, b = ends
+    return b if a == point else a
 
 
 def _endpoints(edge: dict) -> tuple[str, str]:

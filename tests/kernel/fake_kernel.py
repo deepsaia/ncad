@@ -35,6 +35,15 @@ class _FakeWireFace:
         self.area = _wire_face_area(edges)
 
 
+class _FakeWire:
+    """An open path: ordered edge descriptors on a plane, plus a computed length."""
+
+    def __init__(self, edges: list, plane: str) -> None:
+        self.edges = edges
+        self.plane = plane
+        self.length = _wire_length(edges)
+
+
 class _FakeSolid:
     """A face extruded by an effective distance; a wall keeps only a rim area fraction."""
 
@@ -75,6 +84,13 @@ class FakeKernel(Kernel):
 
     def wire_face(self, edges: list, plane: str) -> Any:
         return _FakeWireFace(edges, plane)
+
+    def wire(self, edges: list, plane: str) -> Any:
+        return _FakeWire(edges, plane)
+
+    def wire_length(self, wire: Any) -> float:
+        """Path length of a fake open wire (test helper)."""
+        return wire.length
 
     def project_edges(self, edges: list, plane: str) -> list:
         # FakeKernel edges in tests are already 2D descriptors; identity projection.
@@ -266,6 +282,17 @@ def _box_face(cx: float, cy: float, cz: float, normal: Point3, area: float,
         "kind": "face", "handle": object(), "geom_type": "planar", "normal": normal,
         "area": area, "center": (cx, cy, cz), "min_z": z, "mid_z": z, "max_z": z,
     }
+
+
+def _wire_length(edges: list) -> float:
+    """Summed length of ordered edge descriptors (an arc approximated by its 3 points)."""
+    total = 0.0
+    for edge in edges:
+        pts = edge.get("points", [])
+        for i in range(len(pts) - 1):
+            (x0, y0), (x1, y1) = pts[i], pts[i + 1]
+            total += math.hypot(x1 - x0, y1 - y0)
+    return total
 
 
 def _polygon_area(points: list[Point2]) -> float:

@@ -108,6 +108,12 @@ class Build123dKernel(Kernel):
         occ_edges = [_build_edge(edge, basis) for edge in edges]
         return Face(Wire(occ_edges))
 
+    def wire(self, edges: list, plane: str) -> Any:
+        if plane not in _PLANES:
+            raise ValueError(f"plane must be one of {tuple(_PLANES)}, got {plane!r}")
+        basis = _PLANES[plane]
+        return Wire([_build_edge(edge, basis) for edge in edges])
+
     def project_edges(self, edges: list, plane: str) -> list:
         if plane not in _PLANES:
             raise ValueError(f"plane must be one of {tuple(_PLANES)}, got {plane!r}")

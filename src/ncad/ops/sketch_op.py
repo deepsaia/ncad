@@ -125,6 +125,18 @@ class SketchOp:
         if any(issue.level == "error" for issue in issues):
             return OpResult(shape=None, provenance={}, issues=issues,
                             status_report=status)
+        if params.get("open"):
+            # Open mode: emit an ordered OPEN wire (a sweep path) instead of a face.
+            edges, path_error = WireOrderer().order_open(
+                entities, result.positions, result.radii)
+            if path_error is not None:
+                return OpResult(shape=None, provenance={},
+                                issues=[BuildIssue(node_id=feature_id,
+                                                   message=path_error)],
+                                status_report=status)
+            wire = kernel.wire(edges, plane)
+            return OpResult(shape=wire, provenance={}, issues=issues,
+                            status_report=status)
         edges, ring_error = WireOrderer().order(entities, result.positions, result.radii)
         if ring_error is not None:
             return OpResult(shape=None, provenance={},

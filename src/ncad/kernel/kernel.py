@@ -68,6 +68,14 @@ class Kernel(ABC):
         """
 
     @abstractmethod
+    def wire(self, edges: list, plane: str) -> Any:
+        """An OPEN wire (a path) from ordered edge descriptors on ``plane``.
+
+        Same descriptor shape as ``wire_face`` but not closed into a face; used as a sweep
+        path (an open sketch, ``open = true``).
+        """
+
+    @abstractmethod
     def project_edges(self, edges: list, plane: str) -> list:
         """Project ``edges`` (kernel edge handles) onto ``plane``, returning 2D descriptors.
 
