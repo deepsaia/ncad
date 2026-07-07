@@ -34,9 +34,13 @@ spike, and a Three.js viewer (pick-by-id, right data sidebar, orientation gizmo)
 constraint solver (py-slvs/SolveSpace) is integrated with the full entity + constraint +
 dimension vocabulary (driven vs driving) and reference-into-sketch (project prior edges,
 offset). Sketch status in the viewer (1.5) done, **Phase 1 complete**. Phase 2: STEP
-export (2.0), extrude/pocket (2.1), revolve/groove (2.2), sweep (2.3) done. NEXT: a spline
-/ curve entity bucket (bezier / interpolated / control-point / B-spline / fit, as sketch
-entities), after which sweep/loft paths gain smooth curves for free; then 2.4 (loft).
+export (2.0), extrude/pocket (2.1), revolve/groove (2.2), sweep (2.3) done. The spline /
+curve entity bucket (2.3.5: `bezier` + `interpolated` sketch entities, points solved /
+curve derived) is done, so sweep/loft paths and profiles now carry smooth curves. NEXT:
+2.4 (loft), which consumes spline profiles/guides. Deferred curve follow-ups: a
+solver-capability bucket for true curve constraints (tangent-to-spline, point-on-spline,
+G2 smooth); general B-spline / NURBS with weights / endpoint tangents / periodic splines;
+and spline edge projection in `_project_edge`.
 
 v1 proved the *pattern*: `spec >> build >> BOM >> view`, determinism, build123d/OCCT,
 HOCON+jsonschema, traversal BOM, the Three.js viewer, on the **building profile**
