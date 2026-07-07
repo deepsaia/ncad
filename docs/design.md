@@ -450,6 +450,17 @@ params)` subtree is hashed; on a CRUD edit only the dirty suffix and its
 dependents re-execute. Incremental rebuild is load-bearing: OCP is
 single-threaded, and large parts/assemblies (§7) make recompute the dominant cost.
 
+> **Note (prior art; `docs/research/blender-transferable-ideas.md`).** Blender's
+> **depsgraph** is this exact pattern proven at scale, a DAG of data-blocks with
+> **dirty-flag incremental evaluation** and dependencies (including parametric
+> drivers) recorded as explicit graph edges, and its **modifier stack** is a
+> non-destructive feature tree with an *original vs evaluated* split mirroring our
+> document-vs-geometry boundary (§0). Blender is mesh, not B-rep, so no geometry
+> transfers; but its depsgraph (precise edge-based invalidation), fields (lazy
+> per-element functions >> our selectors, §2), and library-override model
+> (typed deltas >> in-context/variants, §7) are the architecture patterns worth
+> studying as we harden incremental rebuild and reach assemblies.
+
 **Failure is a first-class outcome.** OCCT booleans/fillets/lofts/sweeps fail on
 real inputs (self-intersection, over-large radii, thin walls, tangency). The
 executor validates after *every* feature (§10) and attributes failure to the

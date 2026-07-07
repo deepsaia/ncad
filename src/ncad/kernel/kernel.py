@@ -84,6 +84,15 @@ class Kernel(ABC):
         """
 
     @abstractmethod
+    def rib(self, wire: Any, *, thickness: float, depth: float) -> Any:
+        """A thin structural blade from an OPEN sketch ``wire``.
+
+        The wire is thickened by ``thickness`` symmetrically about its curve into a thin
+        planar profile, then grown ``depth`` normal to the sketch plane into a blade solid.
+        The caller fuses the blade into the target body. Raises KernelOpError on failure.
+        """
+
+    @abstractmethod
     def circle_face(self, center: Point2, diameter: float, plane: str,
                     offset: float = 0.0) -> Any:
         """A circular planar face of ``diameter`` centred at ``center`` on ``plane``.

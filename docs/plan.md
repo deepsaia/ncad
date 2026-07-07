@@ -39,7 +39,9 @@ curve entity bucket (2.3.5: `bezier` + `interpolated` sketch entities, points so
 curve derived) is done, so sweep/loft paths and profiles now carry smooth curves. Loft
 (2.4) is done: a solid blended through referenced section profiles placed at distinct
 heights via a new sketch `plane_offset`, with a ruled-vs-smooth toggle and optional start/
-end point (vertex) caps for cone-like ends. NEXT: the subsequent phase-2 bucket. Deferred
+end point (vertex) caps for cone-like ends. Rib / web / stiffener (2.5) is done: an open
+profile thickened into a blade and fused into the target body. NEXT: 2.6 (fillet/chamfer
+variants). Deferred
 curve follow-ups: a solver-capability bucket for true curve constraints (tangent-to-spline,
 point-on-spline, G2 smooth); general B-spline / NURBS with weights / endpoint tangents /
 periodic splines; and spline edge projection in `_project_edge`. Deferred loft follow-ups:
@@ -279,7 +281,10 @@ five buckets; the phase gate is the 1.5 gate.
   `open` mode yields a wire path; helix generated. Paths: line + arc + helix (smooth
   spline paths follow with the spline entity bucket, sweep picks them up for free).
 - **2.4** loft / blend (multi-section, tangency/curvature).
-- **2.5** rib / web / stiffener.
+- **2.5** `[x]` rib / web / stiffener: an open profile thickened (`trace`) into a blade,
+  grown a fixed depth normal to the sketch plane, and fused into the target body. Deferred:
+  until-material (to-face) rib extent; one-sided / parallel-to-sketch thickness modes;
+  draft on rib walls; web (multi-blade) / networked ribs.
 - **2.6** fillet/chamfer variants (variable-radius/face/full-round; distance-angle/
   two-distance/vertex).
 - **2.7** shell + draft (dress-up ops).

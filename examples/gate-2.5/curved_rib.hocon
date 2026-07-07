@@ -1,0 +1,25 @@
+schema_version = 2
+units = mm
+# A curved rib: an arc open profile on the XZ plane, thickened and grown into the base
+# plate. Proves trace handles curved wires and the blade fuses cleanly. Round-trips to STEP.
+parts {
+  curved_rib {
+    profile = solid
+    features = [
+      { id = plate, op = sketch, plane = XY,
+        elements = [ { id = rect, type = rectangle, w = 60, h = 40 } ] }
+      { id = base, op = extrude, profile = plate, distance = 4 }
+      { id = rib_sk, op = sketch, plane = XZ, open = true,
+        entities = [
+          { id = c, type = point, at = [ 0, 4 ] }
+          { id = s, type = point, at = [ -22, 6 ] }
+          { id = e, type = point, at = [ 22, 6 ] }
+          { id = curve, type = arc, center = c, start = s, end = e }
+        ]
+        constraints = [ { type = fix, of = c }, { type = fix, of = s },
+          { type = fix, of = e } ] }
+      { id = stiffener, op = rib, profile = rib_sk, target = base,
+        thickness = 4, depth = 20 }
+    ]
+  }
+}

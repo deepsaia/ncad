@@ -128,6 +128,22 @@ class FakeKernel(Kernel):
         zs = [z for _, z in stack]
         return ((0.0, 0.0, min(zs)), (1.0, 1.0, max(zs)))
 
+    def rib(self, wire: Any, *, thickness: float, depth: float) -> Any:
+        # Straight-ribbon volume model: length x thickness x depth. thickness is applied
+        # symmetrically about the curve (via the real kernel's trace); depth grows one way.
+        # Curve-corner overlap is ignored (consistent with the fake sweep/loft style).
+        volume = wire.length * thickness * depth
+        return _FakeCombined(volume, self._rib_bounds(wire, thickness, depth))
+
+    def _rib_bounds(self, wire: Any, thickness: float, depth: float) -> Bounds:
+        """A coarse envelope: the wire's 2D extent grown by thickness/2 and depth."""
+        pts = [p for e in wire.edges for p in e.get("points", [])] or [(0.0, 0.0)]
+        xs = [x for x, _ in pts]
+        ys = [y for _, y in pts]
+        half = thickness / 2.0
+        return ((min(xs) - half, min(ys) - half, 0.0),
+                (max(xs) + half, max(ys) + half, depth))
+
     def helix_path(self, pitch: float, height: float, radius: float, *,
                    axis_point: Point3, axis_dir: Point3, lefthand: bool = False,
                    cone_angle: float = 0.0) -> Any:
