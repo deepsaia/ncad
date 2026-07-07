@@ -12,7 +12,7 @@ import math
 
 logger = logging.getLogger(__name__)
 
-_CONNECTIVE = frozenset({"line", "arc"})
+_CONNECTIVE = frozenset({"line", "arc", "bezier", "interpolated"})
 
 
 class WireOrderer:
@@ -128,6 +128,16 @@ class WireOrderer:
         end = positions[to_point]
         if edge["type"] == "line":
             return {"kind": "line", "points": [start, end]}, None
+        if edge["type"] in ("bezier", "interpolated"):
+            # The interpolated entity type maps to the geometry-level descriptor kind
+            # "spline"; bezier stays "bezier". Defining points are emitted in traversal
+            # order: if the walk enters from the curve's last point, reverse them so the
+            # built curve direction matches the loop/path direction (as arcs do).
+            kind = "bezier" if edge["type"] == "bezier" else "spline"
+            point_ids = edge["points"]
+            if point_ids[0] == to_point:
+                point_ids = list(reversed(point_ids))
+            return {"kind": kind, "points": [positions[p] for p in point_ids]}, None
         center = positions[edge["center"]]
         mid, err = _arc_mid(center, positions[edge["start"]], positions[edge["end"]])
         if err is not None:
@@ -137,6 +147,11 @@ class WireOrderer:
 
 def _signed_area(edges: list[dict]) -> float:
     """Signed shoelace area over the loop's ordered edge start points (CCW positive)."""
+    # A spline bulges off the chord between its endpoints, so this endpoint-polygon area
+    # only approximates the true enclosed area. It is used SOLELY to choose CCW-vs-CW
+    # reorientation, and the endpoint polygon carries the same orientation sign as the real
+    # curve for any non-self-intersecting loop, so it is correct for that purpose without
+    # integrating the curve.
     ring = [edge["points"][0] for edge in edges]
     total = 0.0
     n = len(ring)
@@ -167,10 +182,18 @@ def _other_end(ends: tuple[str, str], point: str) -> str:
 
 
 def _endpoints(edge: dict) -> tuple[str, str]:
-    """The two connecting point ids of a line or arc, in authored order."""
-    if edge["type"] == "line":
+    """The two connecting point ids of an edge, in authored order.
+
+    A spline/bezier connects only at its first and last defining point; interior
+    control/through points shape the curve but are not connection nodes.
+    """
+    kind = edge["type"]
+    if kind == "line":
         return edge["p1"], edge["p2"]
-    return edge["start"], edge["end"]
+    if kind == "arc":
+        return edge["start"], edge["end"]
+    points = edge["points"]
+    return points[0], points[-1]
 
 
 def _arc_mid(center: tuple[float, float], start: tuple[float, float],
