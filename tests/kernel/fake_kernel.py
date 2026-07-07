@@ -14,11 +14,12 @@ from ncad.kernel.kernel_op_error import KernelOpError
 
 
 class _FakeFace:
-    """A planar polygon: its 2D point ring and the plane it lives on."""
+    """A planar polygon: its 2D point ring, the plane it lives on, and its plane offset."""
 
-    def __init__(self, points: list[Point2], plane: str) -> None:
+    def __init__(self, points: list[Point2], plane: str, offset: float = 0.0) -> None:
         self.points = points
         self.plane = plane
+        self.offset = offset
 
 
 class _FakeWireFace:
@@ -28,20 +29,22 @@ class _FakeWireFace:
     endpoints plus each arc's circular-segment bulge; a lone circle is pi r^2).
     """
 
-    def __init__(self, edges: list, plane: str) -> None:
+    def __init__(self, edges: list, plane: str, offset: float = 0.0) -> None:
         self.edges = edges
         self.plane = plane
         self.points = _wire_ring(edges)
         self.area = _wire_face_area(edges)
+        self.offset = offset
 
 
 class _FakeWire:
     """An open path: ordered edge descriptors on a plane, plus a computed length."""
 
-    def __init__(self, edges: list, plane: str) -> None:
+    def __init__(self, edges: list, plane: str, offset: float = 0.0) -> None:
         self.edges = edges
         self.plane = plane
         self.length = _wire_length(edges)
+        self.offset = offset
 
 
 class _FakeSolid:
@@ -79,14 +82,14 @@ class _FakeCombined:
 class FakeKernel(Kernel):
     """In-memory kernel: analytic volume/bounds for axis-aligned extrusions."""
 
-    def polygon_face(self, points: list[Point2], plane: str) -> Any:
-        return _FakeFace(points, plane)
+    def polygon_face(self, points: list[Point2], plane: str, offset: float = 0.0) -> Any:
+        return _FakeFace(points, plane, offset)
 
-    def wire_face(self, edges: list, plane: str) -> Any:
-        return _FakeWireFace(edges, plane)
+    def wire_face(self, edges: list, plane: str, offset: float = 0.0) -> Any:
+        return _FakeWireFace(edges, plane, offset)
 
-    def wire(self, edges: list, plane: str) -> Any:
-        return _FakeWire(edges, plane)
+    def wire(self, edges: list, plane: str, offset: float = 0.0) -> Any:
+        return _FakeWire(edges, plane, offset)
 
     def wire_length(self, wire: Any) -> float:
         """Path length of a fake open wire (test helper)."""
@@ -127,8 +130,9 @@ class FakeKernel(Kernel):
         ys = [y for _, y in pts]
         return ((min(xs), min(ys), 0.0), (max(xs), max(ys), 0.0))
 
-    def project_edges(self, edges: list, plane: str) -> list:
-        # FakeKernel edges in tests are already 2D descriptors; identity projection.
+    def project_edges(self, edges: list, plane: str, offset: float = 0.0) -> list:
+        # FakeKernel edges in tests are already 2D descriptors; identity projection. The
+        # fake projection is offset-agnostic (it does not model the plane's world placement).
         return list(edges)
 
     def extrude(self, face: Any, distance: float | None = None, *,
@@ -193,12 +197,13 @@ class FakeKernel(Kernel):
         inner = max(0.0, w - 2 * thin) * max(0.0, h - 2 * thin)
         return w * h - inner
 
-    def circle_face(self, center: Point2, diameter: float, plane: str) -> Any:
+    def circle_face(self, center: Point2, diameter: float, plane: str,
+                    offset: float = 0.0) -> Any:
         cx, cy = center
         r = diameter / 2.0
         pts = [(cx + r * math.cos(2 * math.pi * i / 48), cy + r * math.sin(2 * math.pi * i / 48))
                for i in range(48)]
-        return _FakeFace(pts, plane)
+        return _FakeFace(pts, plane, offset)
 
     def cylinder(self, center: Point3, axis: str, diameter: float, length: float) -> Any:
         return _FakeCylinder(center, axis, diameter, length)

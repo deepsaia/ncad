@@ -50,6 +50,7 @@ class SketchOp:
             return self._build_from_entities(params, kernel)
         feature_id = params["id"]
         plane = params.get("plane", "XY")
+        offset = float(params.get("plane_offset", 0.0))
         elements = params.get("elements", [])
         if len(elements) != 1:
             issue = BuildIssue(
@@ -64,14 +65,16 @@ class SketchOp:
         well = SketchStatus(feature_id, "well", 0)
         if kind == "rectangle":
             points = self._rectangle_points(element["w"], element["h"])
-            return OpResult(shape=kernel.polygon_face(points, plane),
+            return OpResult(shape=kernel.polygon_face(points, plane, offset=offset),
                             provenance={}, issues=[], status_report=well)
         if kind == "circle":
             diameter = element["d"] if "d" in element else element["r"] * 2.0
-            return OpResult(shape=kernel.circle_face((0.0, 0.0), diameter, plane),
+            return OpResult(shape=kernel.circle_face((0.0, 0.0), diameter, plane,
+                                                     offset=offset),
                             provenance={}, issues=[], status_report=well)
         if kind == "polygon":
-            return OpResult(shape=kernel.polygon_face(self._polygon_points(element), plane),
+            return OpResult(shape=kernel.polygon_face(self._polygon_points(element), plane,
+                                                      offset=offset),
                             provenance={}, issues=[], status_report=well)
         issue = BuildIssue(node_id=feature_id, message=f"unknown sketch element type: {kind!r}")
         return OpResult(shape=None, provenance={}, issues=[issue])
@@ -84,11 +87,12 @@ class SketchOp:
         """
         feature_id = params["id"]
         plane = params.get("plane", "XY")
+        offset = float(params.get("plane_offset", 0.0))
         entities = list(params.get("entities", []))
         projected_issue = None
         project_edges = params.get("__refs__", {}).get("project")
         if project_edges:
-            descriptors = kernel.project_edges(project_edges, plane)
+            descriptors = kernel.project_edges(project_edges, plane, offset=offset)
             reference_entities, degenerate = EdgeProjector().project(descriptors)
             entities = reference_entities + entities
             if degenerate and not reference_entities:
@@ -134,7 +138,7 @@ class SketchOp:
                                 issues=[BuildIssue(node_id=feature_id,
                                                    message=path_error)],
                                 status_report=status)
-            wire = kernel.wire(edges, plane)
+            wire = kernel.wire(edges, plane, offset=offset)
             return OpResult(shape=wire, provenance={}, issues=issues,
                             status_report=status)
         edges, ring_error = WireOrderer().order(entities, result.positions, result.radii)
@@ -142,7 +146,7 @@ class SketchOp:
             return OpResult(shape=None, provenance={},
                             issues=[BuildIssue(node_id=feature_id, message=ring_error)],
                             status_report=status)
-        face = kernel.wire_face(edges, plane)
+        face = kernel.wire_face(edges, plane, offset=offset)
         return OpResult(shape=face, provenance={}, issues=issues, status_report=status)
 
     @staticmethod

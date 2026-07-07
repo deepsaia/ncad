@@ -20,12 +20,12 @@ class Kernel(ABC):
     """Operations a geometry backend must provide for the general feature spine."""
 
     @abstractmethod
-    def polygon_face(self, points: list[Point2], plane: str) -> Any:
+    def polygon_face(self, points: list[Point2], plane: str, offset: float = 0.0) -> Any:
         """A closed planar face from ordered 2D ``points`` (not closed: first != last).
 
-        ``plane`` is one of ``"XY"``, ``"XZ"``, ``"YZ"``; the 2D coordinates are placed
-        on that plane through the world origin. Used to turn a solved sketch profile
-        into a face for extrusion.
+        ``plane`` is one of ``"XY"``, ``"XZ"``, ``"YZ"``; ``offset`` shifts that plane along
+        its normal by that signed distance (default 0.0 = through the world origin). Used to
+        turn a solved sketch profile into a face for extrusion or a loft section.
         """
 
     @abstractmethod
@@ -72,35 +72,42 @@ class Kernel(ABC):
         """A helical path (a wire) for a coil/spring sweep."""
 
     @abstractmethod
-    def circle_face(self, center: Point2, diameter: float, plane: str) -> Any:
-        """A circular planar face of ``diameter`` centred at ``center`` on ``plane``."""
+    def circle_face(self, center: Point2, diameter: float, plane: str,
+                    offset: float = 0.0) -> Any:
+        """A circular planar face of ``diameter`` centred at ``center`` on ``plane``.
+
+        ``offset`` shifts the plane along its normal by that signed distance (default 0.0).
+        """
 
     @abstractmethod
-    def wire_face(self, edges: list, plane: str) -> Any:
+    def wire_face(self, edges: list, plane: str, offset: float = 0.0) -> Any:
         """A planar face from an ordered list of edge descriptors on ``plane``.
 
         Each edge is ``{"kind":"line","points":[a,b]}``,
         ``{"kind":"arc","points":[start,mid,end]}`` (a 3-point arc), or
         ``{"kind":"circle","center":c,"radius":r}`` (a full closed circle, its own loop).
+        ``offset`` shifts the plane along its normal by that signed distance (default 0.0).
         Used by constrained sketches whose profiles mix straight and curved edges.
         """
 
     @abstractmethod
-    def wire(self, edges: list, plane: str) -> Any:
+    def wire(self, edges: list, plane: str, offset: float = 0.0) -> Any:
         """An OPEN wire (a path) from ordered edge descriptors on ``plane``.
 
         Same descriptor shape as ``wire_face`` but not closed into a face; used as a sweep
-        path (an open sketch, ``open = true``).
+        path (an open sketch, ``open = true``). ``offset`` shifts the plane along its normal
+        by that signed distance (default 0.0).
         """
 
     @abstractmethod
-    def project_edges(self, edges: list, plane: str) -> list:
+    def project_edges(self, edges: list, plane: str, offset: float = 0.0) -> list:
         """Project ``edges`` (kernel edge handles) onto ``plane``, returning 2D descriptors.
 
         Each descriptor is ``{"kind":"line","points":[a,b]}``,
         ``{"kind":"arc","points":[start,mid,end]}``,
         ``{"kind":"circle","center":c,"radius":r}``, or ``{"kind":"degenerate"}`` for an
         edge that projects to zero length. Coordinates are in the plane's 2D (u, v) frame.
+        ``offset`` shifts the plane along its normal by that signed distance (default 0.0).
         """
 
     @abstractmethod

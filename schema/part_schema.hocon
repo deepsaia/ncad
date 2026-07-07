@@ -44,6 +44,7 @@ definitions {
       id { type = string }
       op { type = string }
       plane { enum = ["XY", "XZ", "YZ"] }
+      plane_offset { type = number }
       elements {
         type = array
         items = ${definitions.sketch_element}
