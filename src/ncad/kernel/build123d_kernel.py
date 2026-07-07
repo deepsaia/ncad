@@ -43,11 +43,12 @@ _AXES = {"X": Axis.X, "Y": Axis.Y, "Z": Axis.Z}
 _UNTIL_TOKENS = {"last": Until.LAST, "next": Until.NEXT}
 _TRANSITIONS = {"transformed": Transition.TRANSFORMED, "round": Transition.ROUND,
                 "right": Transition.RIGHT}
-# glTF tessellation angular deflection (radians). build123d's default 0.1 over-refines
-# curvature-heavy surfaces (a helical coil meshed to ~3.8 MB / 2.4s); 0.5 keeps a viewer
-# render smooth while dropping that coil to ~190 KB / 0.07s. Paired with a bbox-relative
-# linear deflection (_deflection); together they are the pinned viewer tessellation.
-_ANGULAR_DEFLECTION = 0.5
+# glTF tessellation angular deflection (radians): the cross-section smoothness lever.
+# build123d's default 0.1 over-refines a curvature-heavy helix; 0.2 (~11 degrees, a ~32-gon
+# tube) stays visibly smooth while fast. Higher values (0.5) visibly facet a thin swept
+# tube. Paired with a bbox-relative linear deflection (_deflection); together they are the
+# pinned viewer tessellation.
+_ANGULAR_DEFLECTION = 0.2
 
 
 class Build123dKernel(Kernel):
@@ -322,15 +323,15 @@ class Build123dKernel(Kernel):
         """Tessellation linear deflection scaled to the model size (design §4a, §13).
 
         build123d's default (0.001 mm ABSOLUTE) is a relative ~1e-4 on a small curved
-        part, which explodes the triangle count on curved surfaces (a helical coil took
-        ~70s / 8 MB to tessellate). A deflection of 0.5% of the bounding-box diagonal keeps
-        the mesh smooth-looking while fast (that coil drops to ~2s / 4 MB), and is
-        size-relative so it is stable across model scales (the pinned tessellation
-        deflection the goldens assume).
+        part, which explodes the triangle count (a helical coil took ~70s / 8 MB). A
+        deflection of 0.2% of the bounding-box diagonal, paired with the angular deflection
+        that governs cross-section smoothness, keeps the mesh smooth while fast (that coil
+        drops to ~1s / 1.5 MB) and is size-relative so it is stable across model scales
+        (the pinned tessellation deflection the goldens assume).
         """
         (x0, y0, z0), (x1, y1, z1) = self.bounding_box(solid)
         diagonal = math.sqrt((x1 - x0) ** 2 + (y1 - y0) ** 2 + (z1 - z0) ** 2)
-        return max(diagonal * 0.005, 1e-4)
+        return max(diagonal * 0.002, 1e-4)
 
 
 def _describe_face(face: Any) -> dict:
