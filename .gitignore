@@ -36,3 +36,6 @@ out/
 
 # Superpowers workflow specs/plans (kept local, not committed)
 docs/superpowers/
+
+# Reference PDFs downloaded into research/ (kept local, not committed)
+docs/research/*.pdf

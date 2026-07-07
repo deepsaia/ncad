@@ -19,6 +19,14 @@ definitions {
     maxItems = 2
   }
 
+  # A 3D point (x, y, z).
+  vec3 {
+    type = array
+    items { type = number }
+    minItems = 3
+    maxItems = 3
+  }
+
   # A sketch element. Bucket 0.1 supports the rectangle only; the enum grows later.
   sketch_element {
     type = object
@@ -44,6 +52,7 @@ definitions {
       id { type = string }
       op { type = string }
       plane { enum = ["XY", "XZ", "YZ"] }
+      plane_offset { type = number }
       elements {
         type = array
         items = ${definitions.sketch_element}
@@ -62,6 +71,10 @@ definitions {
       operation { enum = ["cut", "union", "intersect"] }
       target { type = string }
       tool { type = string }
+      sections { type = array, items { type = string } }
+      ruled { type = boolean }
+      start_point = ${definitions.vec3}
+      end_point = ${definitions.vec3}
     }
   }
 

@@ -688,6 +688,15 @@ signature. This is build123d's Joint model, PartCAD's interfaces/ports, and
 Onshape's mate-connectors, the execution target for the declarative blocks. The
 joint family is what motion (§8) drives.
 
+> **Note (constraint taxonomy & DoF diagnostics; `docs/research/assembly-constraints-3d.md`).**
+> The mate/joint vocabulary lowers to a closed set of **21 element-pair primitives**
+> (point/line/plane × coincidence/distance/angular; Haller et al., *body-and-cad*), so the
+> internal core stays small and testable. Assembly constraint status is the 3D analogue of
+> sketch DoF (§8): **free DoF = 6n - 6 - rank** of the constraint Jacobian, with redundant
+> constraints attributed by `id`. A **nested-sparsity** pebble-game check can *reject*
+> over-constrained inputs cheaply (necessary, not sufficient). The numeric solve stays
+> `py-slvs`; this is the diagnostics layer on top.
+
 We also support **top-down / in-context** design: a **skeleton / master model**
 publishes geometry (datums, curves, surfaces) that parts reference, so changing
 the skeleton propagates. **Interference / clearance** detection (static here;

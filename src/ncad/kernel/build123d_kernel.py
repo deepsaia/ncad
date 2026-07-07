@@ -22,11 +22,13 @@ from build123d import (
     Unit,
     Until,
     Vector,
+    Vertex,
     Wire,
     export_gltf,
     export_step,
     export_stl,
     extrude,
+    loft,
     offset,
     revolve,
     sweep,
@@ -54,10 +56,11 @@ _ANGULAR_DEFLECTION = 0.2
 class Build123dKernel(Kernel):
     """build123d-backed kernel. Shapes are build123d ``Face``/``Solid`` objects."""
 
-    def polygon_face(self, points: list[Point2], plane: str) -> Any:
+    def polygon_face(self, points: list[Point2], plane: str, offset: float = 0.0) -> Any:
         if plane not in _PLANES:
             raise ValueError(f"plane must be one of {tuple(_PLANES)}, got {plane!r}")
-        basis = _PLANES[plane]
+        # offset shifts the base plane along its normal; default 0.0 keeps prior behavior.
+        basis = _PLANES[plane].offset(offset)
         world = [basis.from_local_coords(Vector(x, y, 0)) for x, y in points]
         closed = world + [world[0]]
         # build123d's from_local_coords is stubbed as a wide union; at runtime these are
@@ -121,33 +124,47 @@ class Build123dKernel(Kernel):
                      direction=tuple(axis_dir), lefthand=lefthand,
                      cone_angle=cone_angle)  # pyrefly: ignore[no-matching-overload]
 
-    def circle_face(self, center: Point2, diameter: float, plane: str) -> Any:
+    def loft(self, sections: list, *, ruled: bool = False,
+             start_point: Point3 | None = None,
+             end_point: Point3 | None = None) -> Any:
+        # A vertex cap is a zero-area point section: build123d loft accepts Vertex in the
+        # section list, giving a cone-like end. Order matters: caps bracket the faces.
+        ordered: list = []
+        if start_point is not None:
+            ordered.append(Vertex(*start_point))
+        ordered.extend(sections)
+        if end_point is not None:
+            ordered.append(Vertex(*end_point))
+        return loft(ordered, ruled=ruled)
+
+    def circle_face(self, center: Point2, diameter: float, plane: str,
+                    offset: float = 0.0) -> Any:
         if plane not in _PLANES:
             raise ValueError(f"plane must be one of {tuple(_PLANES)}, got {plane!r}")
-        basis = _PLANES[plane]
+        basis = _PLANES[plane].offset(offset)
         # from_local_coords is stubbed as a wide union but returns a Vector at runtime;
         # this is the untyped-OCP boundary (see the [tool.pyrefly] note in pyproject).
         origin = basis.from_local_coords(Vector(center[0], center[1], 0))
         face_plane = Plane(origin=origin, z_dir=basis.z_dir)  # pyrefly: ignore[no-matching-overload]
         return Face(Wire(Edge.make_circle(diameter / 2.0, face_plane)))
 
-    def wire_face(self, edges: list, plane: str) -> Any:
+    def wire_face(self, edges: list, plane: str, offset: float = 0.0) -> Any:
         if plane not in _PLANES:
             raise ValueError(f"plane must be one of {tuple(_PLANES)}, got {plane!r}")
-        basis = _PLANES[plane]
+        basis = _PLANES[plane].offset(offset)
         occ_edges = [_build_edge(edge, basis) for edge in edges]
         return Face(Wire(occ_edges))
 
-    def wire(self, edges: list, plane: str) -> Any:
+    def wire(self, edges: list, plane: str, offset: float = 0.0) -> Any:
         if plane not in _PLANES:
             raise ValueError(f"plane must be one of {tuple(_PLANES)}, got {plane!r}")
-        basis = _PLANES[plane]
+        basis = _PLANES[plane].offset(offset)
         return Wire([_build_edge(edge, basis) for edge in edges])
 
-    def project_edges(self, edges: list, plane: str) -> list:
+    def project_edges(self, edges: list, plane: str, offset: float = 0.0) -> list:
         if plane not in _PLANES:
             raise ValueError(f"plane must be one of {tuple(_PLANES)}, got {plane!r}")
-        basis = _PLANES[plane]
+        basis = _PLANES[plane].offset(offset)
         return [_project_edge(edge, basis) for edge in edges]
 
     def cylinder(self, center: Point3, axis: str, diameter: float, length: float) -> Any:
