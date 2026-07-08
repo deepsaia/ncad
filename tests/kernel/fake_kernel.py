@@ -311,6 +311,22 @@ class FakeKernel(Kernel):
         volume = max(self.volume(solid) * factor, 1e-9)
         return _FakeCombined(volume, self.bounding_box(solid))
 
+    def wrap(self, solid: Any, face: Any, *, text: str | None = None,
+             profile: Any = None, font_size: float = 5.0, font: str = "Arial",
+             font_style: str = "regular", depth: float = 1.0, mode: str = "emboss",
+             offset: Point2 = (0.0, 0.0), rotation: float = 0.0) -> Any:
+        # Nominal-area model: text stands in as font_size^2 * len(text); a profile uses its
+        # face area. emboss adds nominal_area*depth, engrave subtracts it. Mode-signed and
+        # deterministic; the real kernel does the true text/extrude/boolean. Clamp > 0.
+        if text is not None:
+            nominal_area = font_size * font_size * max(len(text), 1)
+        else:
+            nominal_area = self._face_area(profile)
+        delta = nominal_area * depth
+        signed = delta if mode == "emboss" else -delta
+        volume = max(self.volume(solid) + signed, 1e-9)
+        return _FakeCombined(volume, self.bounding_box(solid))
+
     def _union_bounds(self, solids: list) -> Bounds:
         """The bounding box enclosing all ``solids``."""
         boxes = [self.bounding_box(s) for s in solids]
