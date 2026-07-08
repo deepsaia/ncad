@@ -191,6 +191,20 @@ class Kernel(ABC):
         """
 
     @abstractmethod
+    def wrap(self, solid: Any, face: Any, *, text: str | None = None,
+             profile: Any = None, font_size: float = 5.0, font: str = "Arial",
+             font_style: str = "regular", depth: float = 1.0, mode: str = "emboss",
+             offset: Point2 = (0.0, 0.0), rotation: float = 0.0) -> Any:
+        """Emboss or engrave a 2D profile onto a flat ``face`` of ``solid``.
+
+        Exactly one of ``text`` (built as glyphs at ``font_size``/``font``/``font_style``)
+        or ``profile`` (a face handle) is the shape. It is placed on ``face``'s plane,
+        shifted by ``offset`` (u, v) and rotated ``rotation`` degrees, then extruded
+        ``depth`` and added (``mode="emboss"``) or cut (``mode="engrave"``). Raises
+        KernelOpError on failure.
+        """
+
+    @abstractmethod
     def edges_of(self, solid: Any) -> list:
         """List edge descriptors ``{"edge", "orientation", "mid_z"}`` for ``solid``."""
 

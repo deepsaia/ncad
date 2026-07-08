@@ -76,6 +76,13 @@ definitions {
       counterbore { type = object }
       countersink { type = object }
       thread { type = string }
+      text { type = string }
+      font_size { type = number, exclusiveMinimum = 0 }
+      font { type = string }
+      font_style { enum = ["regular", "bold", "italic"] }
+      mode { enum = ["emboss", "engrave"] }
+      offset { type = array, items { type = number }, minItems = 2, maxItems = 2 }
+      rotation { type = number }
       through { type = boolean }
       radius { type = number, exclusiveMinimum = 0 }
       edges { type = string }

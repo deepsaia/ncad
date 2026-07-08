@@ -45,6 +45,7 @@ _REF_FIELDS: dict[str, dict[str, str]] = {
     "rib": {"profile": "shape", "target": "shape"},
     "shell": {"openings": "face_list"},
     "draft": {"faces": "face_list"},
+    "wrap": {"on": "face", "profile": "shape"},
     "hole": {"on": "face"},
     "fillet": {"edges": "edges"},
     "chamfer": {"edges": "edges"},

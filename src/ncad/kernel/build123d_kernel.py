@@ -15,9 +15,13 @@ from build123d import (
     CenterOf,
     Edge,
     Face,
+    FontStyle,
     Helix,
     Plane,
+    Pos,
+    Rot,
     Solid,
+    Text,
     Transition,
     Unit,
     Until,
@@ -54,6 +58,8 @@ logger = logging.getLogger(__name__)
 
 _PLANES = {"XY": Plane.XY, "XZ": Plane.XZ, "YZ": Plane.YZ}
 _AXES = {"X": Axis.X, "Y": Axis.Y, "Z": Axis.Z}
+_FONT_STYLES = {"regular": FontStyle.REGULAR, "bold": FontStyle.BOLD,
+                "italic": FontStyle.ITALIC}
 # End-condition until-token -> build123d Until. "last" = through everything.
 _UNTIL_TOKENS = {"last": Until.LAST, "next": Until.NEXT}
 _TRANSITIONS = {"transformed": Transition.TRANSFORMED, "round": Transition.ROUND,
@@ -254,6 +260,31 @@ class Build123dKernel(Kernel):
     @staticmethod
     def _do_draft(faces: list, plane: Any, angle: float) -> Any:
         return draft(faces, neutral_plane=plane, angle=angle)
+
+    def wrap(self, solid: Any, face: Any, *, text: str | None = None,
+             profile: Any = None, font_size: float = 5.0, font: str = "Arial",
+             font_style: str = "regular", depth: float = 1.0, mode: str = "emboss",
+             offset: Point2 = (0.0, 0.0), rotation: float = 0.0) -> Any:
+        return self._robust(self._do_wrap, solid, face, text, profile, font_size, font,
+                            font_style, depth, mode, offset, rotation, name="wrap")
+
+    @staticmethod
+    def _do_wrap(solid: Any, face: Any, text: str | None, profile: Any, font_size: float,
+                 font: str, font_style: str, depth: float, mode: str,
+                 offset: Point2, rotation: float) -> Any:
+        # text builds glyphs; otherwise the profile is a prewrapped 2D face. Place it on the
+        # target face's plane (offset u/v, in-plane rotation). emboss extrudes OUTWARD along
+        # the face normal (+depth) and adds; engrave extrudes INWARD (-depth) and cuts, so
+        # the tool lands inside the material rather than floating above the surface.
+        style = _FONT_STYLES.get(font_style, FontStyle.REGULAR)
+        shape2d = (Text(text, font_size=font_size, font=font, font_style=style)
+                   if text is not None else profile)
+        # The Plane * Pos * Rot * sketch placement and extrude are the untyped build123d/OCP
+        # boundary (see the [tool.pyrefly] note): correct at runtime, wide in the stubs.
+        placed = Plane(face) * Pos(offset[0], offset[1]) * Rot(0, 0, rotation) * shape2d  # pyrefly: ignore[unsupported-operation]
+        if mode == "emboss":
+            return solid + extrude(placed, amount=abs(depth))  # pyrefly: ignore[bad-argument-type]
+        return solid - extrude(placed, amount=-abs(depth))  # pyrefly: ignore[bad-argument-type]
 
     def edges_of(self, solid: Any) -> list:
         infos = []
