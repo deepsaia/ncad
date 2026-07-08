@@ -44,7 +44,9 @@ profile thickened into a blade and fused into the target body. Chamfer variants 
 done: two-distance (build123d) and distance-angle (raw OCP per-edge `AddDA` with an
 auto-picked adjacent face). Shell + draft (2.7) are done: shell hollows to a wall with
 optional openings, draft tapers faces about a neutral base plane, on a shared `FaceSelector`.
-NEXT: 2.8 (hole wizard + wrap).
+Hole wizard (2.8) is done: counterbore, countersink, ISO-metric sizing (`size` + `fit`), and
+a cosmetic thread tag; wrap is split to 2.8b. NEXT: 2.8b (wrap) then 2.9 (the Phase 2 gate
+part).
 NEXT (viewer track, pickable in parallel): 2.8a viewer upgrades, adaptive-budget
 tessellation + Z-up axis fix; see `docs/research/viewer-tessellation-lod.md`.
 The Phase 2 deferred backlog is gathered in one section below the bucket list, so nothing
@@ -291,7 +293,9 @@ five buckets; the phase gate is the 1.5 gate.
 - **2.7** `[x]` shell + draft: shell hollows a solid to a wall (optional face openings);
   draft tapers selected faces about a neutral base plane. Shared `FaceSelector`
   (all/top/bottom/vertical/horizontal) + a `face_list` ref role.
-- **2.8** hole wizard (counterbore/countersink/tapped/thread) + wrap.
+- **2.8** `[x]` hole wizard: counterbore (main + wider top cylinder), countersink (main +
+  cone frustum), ISO-metric sizing (`size` + `fit`), cosmetic thread tag. Wrap split to 2.8b
+  (see Deferred backlog).
 - **2.8a** viewer upgrades (cross-cutting viewer track): fix the two viewer issues,
   heavy-mesh tessellation and axis orientation, without retopology or a renderer swap.
   See [`docs/research/viewer-tessellation-lod.md`](./research/viewer-tessellation-lod.md)
@@ -331,6 +335,9 @@ five buckets; the phase gate is the 1.5 gate.
 - **Shell/draft (2.7):** multi-thickness shell (per-face wall); parting-line / step /
   variable draft; shell/draft face selection driven by the general `Selector` predicates
   once the attribute model is richer.
+- **Hole wizard (2.8):** wrap (emboss/engrave text or sketch onto a face) as bucket 2.8b;
+  modeled (real helical) threads; ANSI/imperial sizing and full fit-class tables;
+  thread-callout rendering in the viewer / drawings.
 
 **Sketched (additive/subtractive) features**
 - [ ] **Extrude / Pad**: blind, symmetric, two-side, through-all, to-next,
