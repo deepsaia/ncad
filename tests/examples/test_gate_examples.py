@@ -169,3 +169,41 @@ def test_gate_2_9_bracket_step_round_trips(tmp_path) -> None:
     assert step_path.is_file()
     # Validity is by measure magnitude (design section 4a), not orientation sign.
     assert abs(import_step(str(step_path)).volume) > 0
+
+
+@pytest.mark.slow
+def test_gate_2_9_bracket_composes_additively_step_by_step() -> None:
+    """Every prefix of the feature stack builds to a valid single solid.
+
+    The feature tree is a stateful pipeline (like a Blender modifier stack): each op
+    consumes the previous op's result. This truncates the bracket to the first N features
+    and asserts each cumulative stack is a valid solid, proving the ops compose additively
+    in sequence (not just in isolation). A fresh load per prefix avoids shared-state
+    mutation. A `sketch` feature originates no solid, so it carries the prior solid forward;
+    every feature that outputs a solid must yield exactly one valid solid.
+    """
+    from ncad.kernel.build123d_kernel import Build123dKernel
+
+    doc = str(_EXAMPLES_DIR / "gate-2.9" / "mounting_bracket.hocon")
+    builder = DocumentBuilder(Build123dKernel())
+    feature_count = len(
+        builder._resolve_and_validate(builder._loader.load(doc))
+        ["parts"]["mounting_bracket"]["features"])
+
+    prev_shape = None
+    for n in range(1, feature_count + 1):
+        resolved = builder._resolve_and_validate(builder._loader.load(doc))
+        part = resolved["parts"]["mounting_bracket"]
+        last_op = part["features"][n - 1].get("op", "")
+        part["features"] = part["features"][:n]
+        result, _, _ = builder._builder.build_part_mapped(part)
+        errors = [i for i in result.issues if i.level == "error"]
+        assert errors == [], f"prefix of {n} features (last op {last_op!r}) errored: {errors}"
+        if last_op == "sketch":
+            continue  # a sketch originates no solid; the running solid is unchanged
+        assert result.shape is not None, f"prefix of {n} features produced no shape"
+        solids = result.shape.solids()
+        assert len(solids) == 1, f"prefix of {n} features is {len(solids)} solids, not one"
+        assert result.shape.is_valid, f"prefix of {n} features is an invalid B-rep"
+        prev_shape = result.shape
+    assert prev_shape is not None
