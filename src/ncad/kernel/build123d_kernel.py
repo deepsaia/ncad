@@ -52,6 +52,8 @@ from OCP.TopTools import (
     TopTools_IndexedDataMapOfShapeListOfShape,  # pyrefly: ignore[missing-module-attribute]
 )
 
+from ncad.kernel.body import Body
+from ncad.kernel.body_set import BodySet
 from ncad.kernel.kernel import Bounds, Kernel, Point2, Point3
 from ncad.kernel.kernel_op_error import KernelOpError
 
@@ -435,10 +437,26 @@ class Build123dKernel(Kernel):
             "cog": (cog.X, cog.Y, cog.Z),
         }
 
+    def bodies(self, shape: Any) -> list:
+        # A BodySet exposes its bodies; any other shape is a single implicit solid body.
+        if isinstance(shape, BodySet):
+            return shape.bodies
+        return [Body(id="body/0", kind="solid", shape=shape, created_by="")]
+
     def volume(self, solid: Any) -> float:
+        if isinstance(solid, BodySet):
+            return sum(self.volume(b.shape) for b in solid.bodies)
         return solid.volume
 
     def bounding_box(self, solid: Any) -> Bounds:
+        if isinstance(solid, BodySet):
+            boxes = [self.bounding_box(b.shape) for b in solid.bodies]
+            lows = [b[0] for b in boxes]
+            highs = [b[1] for b in boxes]
+            return ((min(x for x, _, _ in lows), min(y for _, y, _ in lows),
+                     min(z for _, _, z in lows)),
+                    (max(x for x, _, _ in highs), max(y for _, y, _ in highs),
+                     max(z for _, _, z in highs)))
         box = solid.bounding_box()
         return (tuple(box.min), tuple(box.max))
 
