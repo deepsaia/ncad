@@ -388,20 +388,54 @@ variable fillet) builds deterministically and exports clean STEP.
 
 ## Phase 3: Patterns, transforms, booleans, multibody
 
-**Goal:** replication and body algebra. **Depends on** Phase 2.
+**Goal:** replication and body algebra. **Depends on** Phase 2. Decomposed into gated
+buckets 3.0-3.6 (see `docs/superpowers/specs/2026-07-08-phase3-decomposition-design.md`);
+each bucket runs its own brainstorm >> spec >> plan >> build cycle.
 
-- [ ] **Patterns:** linear, circular/polar, **curve-driven**, sketch-driven,
-      table-driven, fill, geometry-pattern, pattern-of-pattern (build123d
-      `GridLocations`/`PolarLocations` + fuse)
-- [ ] **Mirror:** feature, body, face
-- [ ] **Transforms:** move/copy body, rotate, scale (uniform & non-uniform via
-      `gp_GTrsf`)
-- [ ] **Booleans:** union/add, subtract/cut, intersect/common, split body,
-      combine; **multibody** management (merge scope, local operations)
-- [ ] Body list / show-hide / per-body material (feeds BOM & mass props)
+**Design principles (professional-grade guardrails, hold across every bucket):** body
+identity is first-class (persistent body ids in the element map, never positional, design
+§2); every op is body-scoped (a merge scope, even when defaulting to all bodies); pattern
+instances are addressable (`pattern.instance(3)`), so deferred pattern drivers reuse one
+instance model; transforms are parametric and exact (`gp_Trsf` / `gp_GTrsf`, validity-gated);
+§4a determinism + golden-signature + additive-composition preserved. Shipping scope is lean,
+but the *model* is designed to full generality so no later bucket is a breaking retrofit.
 
-**Gate:** a multibody part with a circular pattern of cut features and a
-mirror rebuilds correctly and reports per-body mass properties.
+> **Note:** the sketch-entity pattern/mirror in gate-1.4b/1.4c is 2D geometry replicated
+> *inside a sketch*; Phase 3 is **feature/body-level** replication (whole 3D bodies), a
+> different mechanism. A single-target `boolean` op already exists; Phase 3 adds the
+> multibody model, split, and body algebra on top.
+
+**Buckets (by dependency):**
+- **3.0** multibody foundation: the full body-identity + merge-scope + per-body-provenance
+  model, thinly implemented (running shape becomes a named-body collection; element-map
+  gains a stable body id; ops gain a `scope`, default all; per-body volume queryable). Gate:
+  a 2-body part round-trips, each body addressable with its own volume.
+- **3.1** transforms: `transform` op - move/copy/rotate a body (rigid `gp_Trsf`), scale
+  (uniform + non-uniform `gp_GTrsf`, validity-gated). The shared placement primitive.
+- **3.2** patterns (linear + circular): `pattern` op producing addressable instances via
+  build123d `GridLocations`/`PolarLocations` + 3.1 placement, combined per merge-scope.
+  Curve/sketch/table/fill/geometry/pattern-of-pattern deferred as future *drivers* on the
+  same instance model.
+- **3.3** mirror: feature / body across a plane, reusing transform + instance model.
+- **3.4** boolean upgrades + multibody algebra: split a body, multi-tool cut/union, explicit
+  merge-scope (keep-as-bodies vs merge), body-scoped.
+- **3.5** per-body material data + derived properties: materials are **HOCON-defined** (a
+  material-library document loaded via `leaf-common`, reusable/version-controllable) and
+  **referenced from the part** - each body names its material (`material = "steel_1018"`),
+  with an optional inline `mat_data` override. The record is an extensible grouped property
+  bag (NX/Creo/Fusion-modeled: `physical` density/sp.gr., `structural`, `thermal`, custom
+  keys), physical-vs-`appearance` separated; mass/COG/assembly-total **derived** (mass =
+  density x volume), feeding BOM, mass props, CAE, and domain profiles.
+- **3.6** Phase-3 gate capstone: a multibody part with a circular pattern of cut features
+  and a mirror rebuilds correctly and reports per-body mass properties; determinism + STEP
+  round-trip (like the 2.9 capstone).
+
+**Deferred within Phase 3** (logged, not lost): pattern drivers (curve/sketch/table/fill/
+geometry/pattern-of-pattern); mirror of a face; instance suppress/skip; general datum
+planes/axes as pattern/mirror references (shares the datum work deferred from Phase 2).
+
+**Gate:** a multibody part with a circular pattern of cut features and a mirror rebuilds
+correctly and reports per-body mass properties (bucket 3.6).
 
 ---
 
