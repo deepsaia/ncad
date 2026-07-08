@@ -568,6 +568,9 @@ scene.background = cssColor("--scene-bg");
 scene.fog = new THREE.Fog(cssColor("--scene-bg"), 40, 120);
 
 const camera = new THREE.PerspectiveCamera(45, stage.clientWidth / stage.clientHeight, 0.01, 1000);
+// Z-up world: models are authored Z-up (design §0) and the loaded glTF is rotated into a
+// Z-up scene (see loadModel), so scene coordinates equal modeled coordinates.
+camera.up.set(0, 0, 1);
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(window.devicePixelRatio);
 renderer.setSize(stage.clientWidth, stage.clientHeight);
@@ -602,10 +605,9 @@ function setOrientationMode(mode) {
   if (controls) controls.dispose();
   orientationMode = mode;
   // TrackballControls tilts camera.up while tumbling; axis mode must restore world-up
-  // so OrbitControls behaves exactly as it did originally (revolve around vertical,
-  // still able to look up at the underside). Without this the locked-in view stays
-  // tilted after a free-look session.
-  if (mode === "axis") camera.up.set(0, 1, 0);
+  // (Z-up) so OrbitControls revolves around the vertical, still able to look up at the
+  // underside. Without this the locked-in view stays tilted after a free-look session.
+  if (mode === "axis") camera.up.set(0, 0, 1);
   controls = makeControls(mode);
   controls.target.copy(target);
   // OrbitControls honors autoRotate; TrackballControls has no such option.
@@ -616,10 +618,9 @@ function setOrientationMode(mode) {
 setOrientationMode("axis");
 
 // --- Orientation gizmo (Blender-style ViewHelper), labeled in CAD Z-up ---
-// Models are authored Z-up but the glTF export lands them Y-up in the scene (a -90 deg
-// rotation about X: part Z -> viewport +Y, part X -> +X, part Y -> -Z). The ViewHelper
-// labels world axes X/Y/Z, so we feed it a proxy camera rotated by the inverse of that
-// export transform; its labels then read as the part's authored X/Y/Z (Z up).
+// The scene is now Z-up (the loaded model is rotated into part space), so the ViewHelper's
+// world-axis labels X/Y/Z read as the part's authored axes directly, no proxy-camera
+// compensation. The gizmo camera simply mirrors the main camera.
 const gizmoDiv = document.getElementById("gizmo");
 const gizmoRenderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
 gizmoRenderer.setPixelRatio(window.devicePixelRatio);
@@ -627,20 +628,13 @@ gizmoRenderer.setSize(128, 128);
 gizmoRenderer.setClearColor(0x000000, 0);
 gizmoDiv.appendChild(gizmoRenderer.domElement);
 const gizmoCamera = new THREE.PerspectiveCamera(45, 1, 0.1, 10);
-// Inverse of the export tilt (+90 deg about X) maps viewport frame back to part frame.
-const PART_FROM_VIEWPORT = new THREE.Quaternion().setFromAxisAngle(
-  new THREE.Vector3(1, 0, 0), Math.PI / 2);
-// ViewHelper's labels are the fixed X/Y/Z (red/green/blue); our proxy camera remaps
-// the viewport frame to the part frame, so those labels read as the authored axes.
 const viewHelper = new ViewHelper(gizmoCamera, gizmoRenderer.domElement);
 
 function renderGizmo() {
-  // Proxy camera shares the main camera's distance/orientation, re-expressed in the
-  // part's authored frame, so the gizmo tumbles with the view and reads Z-up.
-  gizmoCamera.position.copy(camera.position).sub(controls.target)
-    .applyQuaternion(PART_FROM_VIEWPORT).setLength(3);
-  gizmoCamera.quaternion.copy(PART_FROM_VIEWPORT).multiply(camera.quaternion);
-  gizmoCamera.up.copy(camera.up).applyQuaternion(PART_FROM_VIEWPORT);
+  // Mirror the main camera's direction/orientation so the gizmo tumbles with the view.
+  gizmoCamera.position.copy(camera.position).sub(controls.target).setLength(3);
+  gizmoCamera.quaternion.copy(camera.quaternion);
+  gizmoCamera.up.copy(camera.up);
   viewHelper.render(gizmoRenderer);
 }
 
@@ -735,9 +729,13 @@ const ground = new THREE.Mesh(
   new THREE.PlaneGeometry(400, 400),
   new THREE.ShadowMaterial({ opacity: 0.32 })
 );
-ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
+// Z-up world: PlaneGeometry lies in XY by default, which is already the floor, so no
+// rotation is needed (the old -90deg-about-X tilt was for a Y-up scene).
+ground.receiveShadow = true; scene.add(ground);
 
+// GridHelper is built in the XZ plane (Y-up); rotate it into XY for the Z-up floor.
 let grid = new THREE.GridHelper(80, 80, cssColor("--grid-major"), cssColor("--grid-minor"));
+grid.rotation.x = Math.PI / 2;
 scene.add(grid);
 
 // Recolor the 3D scene from the current theme's CSS variables. Called on theme change.
@@ -815,21 +813,26 @@ function frameModel() {
   const center = box.getCenter(new THREE.Vector3());
   modelRoot.position.sub(center);
   edges.forEach(e => e.position.sub(center));
-  // Drop the model onto the ground plane (y=0 at its base).
-  const half = size.y / 2;
-  modelRoot.position.y += half; edges.forEach(e => e.position.y += half);
+  // Z-up scene: drop the model onto the ground plane (z=0 at its base) along +Z.
+  const half = size.z / 2;
+  modelRoot.position.z += half; edges.forEach(e => e.position.z += half);
   const radius = Math.max(size.x, size.y, size.z);
-  camera.position.set(radius * 1.4, radius * 1.05, radius * 1.6);
+  camera.position.set(radius * 1.4, -radius * 1.6, radius * 1.05);
   camera.near = radius / 100; camera.far = radius * 50; camera.updateProjectionMatrix();
-  controls.target.set(0, half, 0); controls.update();
+  controls.target.set(0, 0, half); controls.update();
+  // Scene axes now equal part axes (X, Y, Z), so the size readout is direct.
   document.getElementById("i-size").textContent =
-    `${size.x.toFixed(1)} × ${size.z.toFixed(1)} × ${size.y.toFixed(1)} m`;
+    `${size.x.toFixed(1)} × ${size.y.toFixed(1)} × ${size.z.toFixed(1)} m`;
 }
 
 function loadModel(name) {
   spinner.style.display = "flex";
   loader.load(`/models/${name}`, gltf => {
     clearModel();
+    // glTF lands the authored Z-up model Y-up; rotate +90deg about X so scene space equals
+    // part space (a face authored +Z reads +Z in the viewport). Everything downstream
+    // (framing, edges, picking) then operates in the part's own frame.
+    gltf.scene.rotation.x = Math.PI / 2;
     modelRoot = gltf.scene;
     let tris = 0, meshes = 0;
     modelRoot.traverse(o => {
@@ -838,6 +841,12 @@ function loadModel(name) {
         pickParts.push(o);
         const geo = o.geometry;
         tris += (geo.index ? geo.index.count : geo.attributes.position.count) / 3;
+        // Edge overlay: draw a line only where adjacent faces meet above this angle.
+        // It must sit ABOVE the tessellation's angular deflection (~17deg/facet at the
+        // pinned 0.3 rad, build123d_kernel._ANGULAR_DEFLECTION) or facet SEAMS get drawn
+        // and a smooth curve reads "cracked"; 25deg clears the facet angle while still
+        // catching real geometric edges (~90deg corners/rims). If the angular deflection
+        // is ever raised past ~22deg, raise this threshold in step.
         const line = new THREE.LineSegments(
           new THREE.EdgesGeometry(geo, 25),
           new THREE.LineBasicMaterial({ color: cssColor("--edge") }));
