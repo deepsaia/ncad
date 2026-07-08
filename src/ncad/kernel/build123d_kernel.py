@@ -198,6 +198,14 @@ class Build123dKernel(Kernel):
         base = Plane(origin=Vector(*center), z_dir=_AXES[axis].direction)
         return Solid.make_cylinder(diameter / 2.0, length, base)
 
+    def cone(self, center: Point3, axis: str, bottom_diameter: float,
+             top_diameter: float, length: float) -> Any:
+        if axis not in _AXES:
+            raise ValueError(f"axis must be one of {tuple(_AXES)}, got {axis!r}")
+        # Same placement as cylinder: a base plane at center oriented along axis.
+        base = Plane(origin=Vector(*center), z_dir=_AXES[axis].direction)
+        return Solid.make_cone(bottom_diameter / 2.0, top_diameter / 2.0, length, base)
+
     def cut(self, solid: Any, tools: list) -> Any:
         return self._robust(self._do_cut, solid, tools, name="cut")
 

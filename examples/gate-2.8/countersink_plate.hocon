@@ -1,0 +1,16 @@
+schema_version = 2
+units = mm
+# A plate with a countersunk hole: a 6mm hole with a 12mm countersink at 82 degrees
+# (flat-head screw). Round-trips to STEP (bucket 2.0).
+parts {
+  countersink_plate {
+    profile = solid
+    features = [
+      { id = plate_sk, op = sketch, plane = XY,
+        elements = [ { id = sq, type = rectangle, w = 40, h = 40 } ] }
+      { id = plate, op = extrude, profile = plate_sk, distance = 20 }
+      { id = csk, op = hole, plane = XY, positions = [ [ 20, 20 ] ],
+        diameter = 6, depth = 20, countersink = { diameter = 12, angle = 82 } }
+    ]
+  }
+}

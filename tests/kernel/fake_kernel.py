@@ -66,6 +66,18 @@ class _FakeCylinder:
         self.volume_val = math.pi * (diameter / 2.0) ** 2 * length
 
 
+class _FakeCone:
+    """A (truncated) cone tool: frustum volume pi/3 * h * (R^2 + R*r + r^2)."""
+
+    def __init__(self, center: Point3, axis: str, bottom_diameter: float,
+                 top_diameter: float, length: float) -> None:
+        self.center = center
+        self.axis = axis
+        r = bottom_diameter / 2.0
+        top_r = top_diameter / 2.0
+        self.volume_val = math.pi / 3.0 * length * (r * r + r * top_r + top_r * top_r)
+
+
 class _FakeCombined:
     """Result of a boolean or dress-up op: carries a computed volume and bounds.
 
@@ -245,6 +257,10 @@ class FakeKernel(Kernel):
     def cylinder(self, center: Point3, axis: str, diameter: float, length: float) -> Any:
         return _FakeCylinder(center, axis, diameter, length)
 
+    def cone(self, center: Point3, axis: str, bottom_diameter: float,
+             top_diameter: float, length: float) -> Any:
+        return _FakeCone(center, axis, bottom_diameter, top_diameter, length)
+
     def cut(self, solid: Any, tools: list) -> Any:
         # Cutting keeps the outer bounds of the solid being drilled/pocketed.
         return _FakeCombined(self.volume(solid) - sum(self.volume(t) for t in tools),
@@ -361,7 +377,7 @@ class FakeKernel(Kernel):
         }
 
     def volume(self, solid: Any) -> float:
-        if isinstance(solid, (_FakeCylinder, _FakeCombined)):
+        if isinstance(solid, (_FakeCylinder, _FakeCone, _FakeCombined)):
             return solid.volume_val
         if getattr(solid, "wall_area", None) is not None:
             return solid.wall_area * solid.distance

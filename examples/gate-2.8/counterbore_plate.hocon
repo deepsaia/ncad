@@ -1,0 +1,16 @@
+schema_version = 2
+units = mm
+# A plate with a counterbored through-hole: a 6mm hole with a 12mm x 5mm counterbore at the
+# top (socket-cap-screw clearance). Round-trips to STEP (bucket 2.0).
+parts {
+  counterbore_plate {
+    profile = solid
+    features = [
+      { id = plate_sk, op = sketch, plane = XY,
+        elements = [ { id = sq, type = rectangle, w = 40, h = 40 } ] }
+      { id = plate, op = extrude, profile = plate_sk, distance = 20 }
+      { id = bore, op = hole, plane = XY, positions = [ [ 20, 20 ] ],
+        diameter = 6, depth = 20, counterbore = { diameter = 12, depth = 5 } }
+    ]
+  }
+}
