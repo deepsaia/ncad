@@ -45,8 +45,8 @@ done: two-distance (build123d) and distance-angle (raw OCP per-edge `AddDA` with
 auto-picked adjacent face). Shell + draft (2.7) are done: shell hollows to a wall with
 optional openings, draft tapers faces about a neutral base plane, on a shared `FaceSelector`.
 Hole wizard (2.8) is done: counterbore, countersink, ISO-metric sizing (`size` + `fit`), and
-a cosmetic thread tag; wrap is split to 2.8b. NEXT: 2.8b (wrap) then 2.9 (the Phase 2 gate
-part).
+a cosmetic thread tag; wrap is split to 2.8b. Wrap (2.8b) is done: emboss/engrave text or a
+referenced sketch profile onto a flat face. NEXT: 2.9 (the Phase 2 gate part).
 NEXT (viewer track, pickable in parallel): 2.8a viewer upgrades, adaptive-budget
 tessellation + Z-up axis fix; see `docs/research/viewer-tessellation-lod.md`.
 The Phase 2 deferred backlog is gathered in one section below the bucket list, so nothing
@@ -296,6 +296,8 @@ five buckets; the phase gate is the 1.5 gate.
 - **2.8** `[x]` hole wizard: counterbore (main + wider top cylinder), countersink (main +
   cone frustum), ISO-metric sizing (`size` + `fit`), cosmetic thread tag. Wrap split to 2.8b
   (see Deferred backlog).
+- **2.8b** `[x]` wrap: emboss/engrave a `text` or referenced `profile` sketch onto a flat
+  face (`on`), placed by `offset` + `rotation`. Flat-face only (curved wrap deferred).
 - **2.8a** viewer upgrades (cross-cutting viewer track): fix the two viewer issues,
   heavy-mesh tessellation and axis orientation, without retopology or a renderer swap.
   See [`docs/research/viewer-tessellation-lod.md`](./research/viewer-tessellation-lod.md)
@@ -335,9 +337,10 @@ five buckets; the phase gate is the 1.5 gate.
 - **Shell/draft (2.7):** multi-thickness shell (per-face wall); parting-line / step /
   variable draft; shell/draft face selection driven by the general `Selector` predicates
   once the attribute model is richer.
-- **Hole wizard (2.8):** wrap (emboss/engrave text or sketch onto a face) as bucket 2.8b;
-  modeled (real helical) threads; ANSI/imperial sizing and full fit-class tables;
-  thread-callout rendering in the viewer / drawings.
+- **Hole wizard (2.8):** modeled (real helical) threads; ANSI/imperial sizing and full
+  fit-class tables; thread-callout rendering in the viewer / drawings.
+- **Wrap (2.8b):** curved-surface wrap (project onto a cylinder/cone); rich text layout
+  (multi-line, path-follow, alignment); UV-following wrap on a general surface.
 
 **Sketched (additive/subtractive) features**
 - [ ] **Extrude / Pad**: blind, symmetric, two-side, through-all, to-next,
