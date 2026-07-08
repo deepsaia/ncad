@@ -1,10 +1,12 @@
 """The ``hole`` feature op: drill cylinders at explicit positions and subtract them."""
 
+import math
 from typing import Any
 
 from ncad.kernel.kernel import Kernel
 from ncad.kernel.kernel_op_error import KernelOpError
 from ncad.ops.build_issue import BuildIssue
+from ncad.ops.hole_params import HoleParamError, hole_kwargs
 from ncad.ops.op_result import OpResult
 
 _PLANE_AXIS = {"XY": "Z", "XZ": "Y", "YZ": "X"}
@@ -26,16 +28,44 @@ class HoleOp:
         else:
             axis = _PLANE_AXIS[params.get("plane", "XY")]
             origin_on_axis = 0.0
-        diameter = params["diameter"]
+        try:
+            kwargs = hole_kwargs(params)
+        except HoleParamError as exc:
+            return OpResult(shape=None, provenance={},
+                            issues=[BuildIssue(node_id=feature_id, message=str(exc))])
+        diameter = kwargs["diameter"]
         length = self._depth(params, shape_in, kernel)
         try:
-            tools = [kernel.cylinder(_center(x, y, axis, origin_on_axis), axis, diameter, length)
-                     for x, y in params["positions"]]
+            tools: list = []
+            for x, y in params["positions"]:
+                center = _center(x, y, axis, origin_on_axis)
+                tools.append(kernel.cylinder(center, axis, diameter, length))
+                tools.extend(self._top_tools(kwargs, center, axis, diameter, kernel))
             result = kernel.cut(shape_in, tools)
         except KernelOpError as exc:
             return OpResult(shape=None, provenance={},
                             issues=[BuildIssue(node_id=feature_id, message=str(exc))])
-        return OpResult(shape=result, provenance={}, issues=[])
+        # A cosmetic thread is metadata only (no geometry change): record it on provenance
+        # for downstream callouts; the drilled geometry is a plain/sized hole.
+        provenance = {feature_id: f"thread={kwargs['thread']}"} if kwargs["thread"] else {}
+        return OpResult(shape=result, provenance=provenance, issues=[])
+
+    @staticmethod
+    def _top_tools(kwargs: dict, center: tuple, axis: str, diameter: float,
+                   kernel: Kernel) -> list:
+        """The counterbore cylinder or countersink cone at the hole mouth (else nothing)."""
+        cbore = kwargs["counterbore"]
+        if cbore is not None:
+            return [kernel.cylinder(center, axis, cbore["diameter"], cbore["depth"])]
+        csink = kwargs["countersink"]
+        if csink is not None:
+            # A frustum from the counter-sink diameter at the surface down to the hole
+            # diameter, its height set by the (default 82-degree) included angle. math is
+            # imported at module top (no nested import).
+            half_angle = math.radians(csink["angle"] / 2.0)
+            depth = (csink["diameter"] - diameter) / 2.0 / math.tan(half_angle)
+            return [kernel.cone(center, axis, csink["diameter"], diameter, depth)]
+        return []
 
     @staticmethod
     def _depth(params: dict, solid: Any, kernel: Kernel) -> float:

@@ -71,6 +71,11 @@ definitions {
       faces { type = string }
       neutral { enum = ["XY", "XZ", "YZ"] }
       neutral_offset { type = number }
+      size { type = string }
+      fit { enum = ["close", "normal", "loose", "tapped"] }
+      counterbore { type = object }
+      countersink { type = object }
+      thread { type = string }
       through { type = boolean }
       radius { type = number, exclusiveMinimum = 0 }
       edges { type = string }
