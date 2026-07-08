@@ -57,3 +57,20 @@ def test_two_side_missing_second_distance_raises():
 def test_to_face_missing_target_raises():
     with pytest.raises(ExtrudeParamError, match="to"):
         extrude_kwargs({"end": "to_face"}, {})
+
+
+def test_bare_symmetric_flag_without_end_raises():
+    # `symmetric` is selected by end = symmetric, not a bare boolean; a stray flag must fail
+    # loudly rather than be silently dropped (which would build a one-sided blind extrude).
+    with pytest.raises(ExtrudeParamError, match="symmetric"):
+        extrude_kwargs({"distance": 6, "symmetric": True}, {})
+
+
+def test_bare_second_distance_without_two_side_raises():
+    with pytest.raises(ExtrudeParamError, match="second_distance"):
+        extrude_kwargs({"distance": 6, "second_distance": 3}, {})
+
+
+def test_end_symmetric_sets_symmetric_kwarg():
+    kw = extrude_kwargs({"end": "symmetric", "distance": 6}, {})
+    assert kw["symmetric"] is True and kw["distance"] == 6.0

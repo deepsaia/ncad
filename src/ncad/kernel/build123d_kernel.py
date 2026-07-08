@@ -16,6 +16,7 @@ from build123d import (
     Edge,
     Face,
     FontStyle,
+    GeomType,
     Helix,
     Plane,
     Pos,
@@ -255,7 +256,15 @@ class Build123dKernel(Kernel):
         # module-level `draft` function (not the local `draft` taper param on extrude/
         # revolve) does the work.
         plane = _PLANES[neutral].offset(neutral_offset)
-        return self._robust(self._do_draft, faces, plane, angle, name="draft")
+        # Draft is only defined for PLANAR faces (a taper angle about a neutral plane has no
+        # meaning on a cylinder/sphere, and OCCT DraftAngle rejects them). A face-keyword
+        # like `vertical` can select cylindrical walls (fillet rounds, boss, hole bores)
+        # alongside planar ones, so filter to planar faces here rather than letting the whole
+        # op fail. This matches CAD tools, which draft planar walls only.
+        planar = [f for f in faces if getattr(f, "geom_type", None) == GeomType.PLANE]
+        if not planar:
+            raise KernelOpError("draft found no planar faces among the selected faces")
+        return self._robust(self._do_draft, planar, plane, angle, name="draft")
 
     @staticmethod
     def _do_draft(faces: list, plane: Any, angle: float) -> Any:

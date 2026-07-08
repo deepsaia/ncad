@@ -111,3 +111,99 @@ def test_gate_0_3_signature_matches_golden() -> None:
 
     comparator = EqualityComparator()
     assert comparator.equal(live, golden), comparator.explain(live, golden)
+
+
+@pytest.mark.slow
+def test_gate_2_9_bracket_builds_twice_deterministically() -> None:
+    from ncad.build.equality_comparator import EqualityComparator
+    from ncad.kernel.build123d_kernel import Build123dKernel
+
+    doc = _EXAMPLES_DIR / "gate-2.9" / "mounting_bracket.hocon"
+
+    def _signature() -> dict:
+        kernel = Build123dKernel()
+        builder = DocumentBuilder(kernel)
+        resolved = builder._resolve_and_validate(builder._loader.load(str(doc)))
+        result, _, _ = builder._builder.build_part_mapped(
+            resolved["parts"]["mounting_bracket"])
+        assert result.shape is not None
+        return kernel.signature(result.shape)
+
+    sig1, sig2 = _signature(), _signature()
+    comparator = EqualityComparator()
+    assert comparator.equal(sig1, sig2), comparator.explain(sig1, sig2)
+
+
+@pytest.mark.slow
+def test_gate_2_9_bracket_signature_matches_golden() -> None:
+    import json
+
+    from ncad.build.equality_comparator import EqualityComparator
+    from ncad.kernel.build123d_kernel import Build123dKernel
+
+    golden_path = Path(__file__).resolve().parents[1] / "build" / "golden" / \
+        "mounting_bracket.signature.json"
+    golden = json.loads(golden_path.read_text())
+
+    kernel = Build123dKernel()
+    builder = DocumentBuilder(kernel)
+    resolved = builder._resolve_and_validate(builder._loader.load(
+        str(_EXAMPLES_DIR / "gate-2.9" / "mounting_bracket.hocon")))
+    result, _, _ = builder._builder.build_part_mapped(resolved["parts"]["mounting_bracket"])
+    live = kernel.signature(result.shape)
+
+    comparator = EqualityComparator()
+    assert comparator.equal(live, golden), comparator.explain(live, golden)
+
+
+@pytest.mark.slow
+def test_gate_2_9_bracket_step_round_trips(tmp_path) -> None:
+    from build123d import import_step
+
+    from ncad.kernel.build123d_kernel import Build123dKernel
+
+    doc = _EXAMPLES_DIR / "gate-2.9" / "mounting_bracket.hocon"
+    artifacts = DocumentBuilder(Build123dKernel()).build_file(
+        str(doc), str(tmp_path), formats=("step",))
+    step_path = Path(artifacts["mounting_bracket"])
+    assert step_path.is_file()
+    # Validity is by measure magnitude (design section 4a), not orientation sign.
+    assert abs(import_step(str(step_path)).volume) > 0
+
+
+@pytest.mark.slow
+def test_gate_2_9_bracket_composes_additively_step_by_step() -> None:
+    """Every prefix of the feature stack builds to a valid single solid.
+
+    The feature tree is a stateful pipeline (like a Blender modifier stack): each op
+    consumes the previous op's result. This truncates the bracket to the first N features
+    and asserts each cumulative stack is a valid solid, proving the ops compose additively
+    in sequence (not just in isolation). A fresh load per prefix avoids shared-state
+    mutation. A `sketch` feature originates no solid, so it carries the prior solid forward;
+    every feature that outputs a solid must yield exactly one valid solid.
+    """
+    from ncad.kernel.build123d_kernel import Build123dKernel
+
+    doc = str(_EXAMPLES_DIR / "gate-2.9" / "mounting_bracket.hocon")
+    builder = DocumentBuilder(Build123dKernel())
+    feature_count = len(
+        builder._resolve_and_validate(builder._loader.load(doc))
+        ["parts"]["mounting_bracket"]["features"])
+
+    prev_shape = None
+    for n in range(1, feature_count + 1):
+        resolved = builder._resolve_and_validate(builder._loader.load(doc))
+        part = resolved["parts"]["mounting_bracket"]
+        last_op = part["features"][n - 1].get("op", "")
+        part["features"] = part["features"][:n]
+        result, _, _ = builder._builder.build_part_mapped(part)
+        errors = [i for i in result.issues if i.level == "error"]
+        assert errors == [], f"prefix of {n} features (last op {last_op!r}) errored: {errors}"
+        if last_op == "sketch":
+            continue  # a sketch originates no solid; the running solid is unchanged
+        assert result.shape is not None, f"prefix of {n} features produced no shape"
+        solids = result.shape.solids()
+        assert len(solids) == 1, f"prefix of {n} features is {len(solids)} solids, not one"
+        assert result.shape.is_valid, f"prefix of {n} features is an invalid B-rep"
+        prev_shape = result.shape
+    assert prev_shape is not None
