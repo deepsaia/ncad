@@ -28,6 +28,15 @@ def extrude_kwargs(params: dict, refs: dict) -> dict:
     if end not in _KNOWN_ENDS:
         raise ExtrudeParamError(
             f"unknown extrude end {end!r}; expected one of {sorted(_KNOWN_ENDS)}")
+    # The end-condition is chosen by `end` (e.g. end = symmetric), not by bare boolean
+    # flags. Reject a `symmetric`/`two_side` field that does not match `end` so an intuitive
+    # but wrong `symmetric = true` fails loudly instead of silently building a blind extrude.
+    if "symmetric" in params and end != "symmetric":
+        raise ExtrudeParamError(
+            "extrude 'symmetric' is selected by end = symmetric, not a 'symmetric' field")
+    if "second_distance" in params and end != "two_side":
+        raise ExtrudeParamError(
+            "extrude 'second_distance' requires end = two_side")
     kwargs: dict = {"draft": float(params.get("draft", 0.0))}
     if "thin" in params:
         kwargs["thin"] = float(params["thin"])
