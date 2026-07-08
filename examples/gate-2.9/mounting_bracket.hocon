@@ -1,0 +1,59 @@
+schema_version = 2
+units = mm
+# Phase 2 capstone: a mounting bracket composing ~10 ops - an extruded base plate shelled to
+# a wall, its outer corners filleted, a revolved cylindrical boss unioned on top, a
+# stiffening rib, a counterbored M6 mounting-hole pair, a chamfered boss rim, and a drafted
+# side. Builds deterministically and exports clean STEP (bucket 2.0).
+#
+# Feature order follows CAD best practice: SHELL the thin-wall base FIRST and FILLET its
+# corners while the plate is still clean, BEFORE it is pierced by holes or stacked with the
+# boss. Doing dress-up on the simple base avoids OCCT fillet/offset instability on the
+# complex fused+drilled solid (a late fillet on this stack segfaults OCCT). "variable fillet"
+# from the plan is substituted by a constant fillet + a chamfer variant (variable-radius
+# fillet was deferred in bucket 2.6).
+parts {
+  mounting_bracket {
+    profile = solid
+    features = [
+      # 1-2: base plate.
+      { id = base_sk, op = sketch, plane = XY,
+        elements = [ { id = rect, type = rectangle, w = 80, h = 50 } ] }
+      { id = base, op = extrude, profile = base_sk, distance = 8 }
+
+      # 3: shell the base to a wall, opening the bottom (early, on the clean plate).
+      { id = hollow, op = shell, thickness = 3, openings = bottom }
+
+      # 4: fillet the base's vertical outer corners (while the solid is still the plate).
+      { id = rounded, op = fillet, edges = vertical, radius = 4 }
+
+      # 5: cylindrical boss - the revolve resolves its profile ref (bucket 2.9 builder fix)
+      # and returns a standalone solid; a boolean union recombines it with the shelled base.
+      # The profile is an offset rectangle revolved about Z (a cylinder).
+      { id = boss_sk, op = sketch, plane = XZ,
+        elements = [ { id = ring, type = polygon,
+                       points = [ [ 0, 8 ], [ 10, 8 ], [ 10, 30 ], [ 0, 30 ] ] } ] }
+      { id = boss_solid, op = revolve, profile = boss_sk, axis = Z }
+      { id = boss, op = boolean, operation = union, target = rounded, tool = boss_solid }
+
+      # 6: stiffening rib across the plate (fuses into the running solid `boss`).
+      { id = rib_sk, op = sketch, plane = XZ, open = true,
+        entities = [
+          { id = ra, type = point, at = [ 0, 8 ] }
+          { id = rb, type = point, at = [ 30, 8 ] }
+          { id = rspan, type = line, p1 = ra, p2 = rb }
+        ]
+        constraints = [ { type = fix, of = ra }, { type = fix, of = rb } ] }
+      { id = braced, op = rib, profile = rib_sk, target = boss, thickness = 5, depth = 20 }
+
+      # 7: counterbored M6 mounting holes (a pair) drilled along the XY plane's +Z axis.
+      { id = mounts, op = hole, plane = XY, positions = [ [ -30, -15 ], [ -30, 15 ] ],
+        size = M6, fit = normal, depth = 8, counterbore = { diameter = 12, depth = 3 } }
+
+      # 8: chamfer the boss rim (a two-distance variant; stands in for variable fillet).
+      { id = beveled, op = chamfer, edges = top, distance = 1.5, distance2 = 1 }
+
+      # 9: draft the vertical side faces for mold pull.
+      { id = pulled, op = draft, faces = vertical, angle = 3, neutral = XY }
+    ]
+  }
+}
