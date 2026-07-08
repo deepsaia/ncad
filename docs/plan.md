@@ -46,7 +46,10 @@ auto-picked adjacent face). Shell + draft (2.7) are done: shell hollows to a wal
 optional openings, draft tapers faces about a neutral base plane, on a shared `FaceSelector`.
 Hole wizard (2.8) is done: counterbore, countersink, ISO-metric sizing (`size` + `fit`), and
 a cosmetic thread tag; wrap is split to 2.8b. Wrap (2.8b) is done: emboss/engrave text or a
-referenced sketch profile onto a flat face. NEXT: 2.9 (the Phase 2 gate part).
+referenced sketch profile onto a flat face. The Phase 2 gate part (2.9) is done:
+`mounting_bracket` composes 9 ops, builds deterministically, and exports clean STEP - the
+Phase 2 solid-feature buckets are COMPLETE. NEXT: Phase 3 (patterns, transforms, booleans,
+multibody).
 NEXT (viewer track, pickable in parallel): 2.8a viewer upgrades, adaptive-budget
 tessellation + Z-up axis fix; see `docs/research/viewer-tessellation-lod.md`.
 The Phase 2 deferred backlog is gathered in one section below the bucket list, so nothing
@@ -319,8 +322,17 @@ five buckets; the phase gate is the 1.5 gate.
   - **Gate:** a coil/threaded example renders responsively within the tri-budget without
     visible faceting; a +Z-authored face reads +Z in the viewport with the gizmo removed
     of its compensation.
-- **2.9** Phase 2 gate part (bracket + holes + revolved boss + swept rib + variable
-  fillet) builds deterministically and exports clean STEP.
+- **2.9** `[x]` Phase 2 gate part: `mounting_bracket` composes 10 ops (extrude base +
+  fillet corners + draft walls + shell + revolved boss + boolean union + rib +
+  counterbored M6 four-hole pattern + chamfer + pocket-trim the rib into a triangular
+  gusset), builds deterministically (build-twice + golden signature) and exports clean
+  STEP. Feature order follows CAD best practice - all base dress-up (fillet, draft, shell)
+  on the clean prism before the boss/holes; see `docs/feature-ordering.md`. Surfaced three
+  fixes: `revolve` now resolves its `profile` ref; `draft` filters to planar faces; and
+  `extrude_kwargs` rejects a bare `symmetric`/`second_distance` flag (silently dropped
+  before, which half-trimmed the rib). Variable fillet substituted by constant fillet + a
+  chamfer variant (variable-radius deferred in 2.6); wrap omitted (needs a stable
+  post-boolean face selector, deferred).
 
 **Deferred backlog (Phase 2 buckets, gather here so nothing is lost):**
 - **Fillet/chamfer (2.6):** variable-radius / face / full-round fillets (raw OCP
@@ -332,8 +344,11 @@ five buckets; the phase gate is the 1.5 gate.
 - **Loft (2.4):** loft guide/rail curves; open/surface loft; closed/periodic loft; general
   datum planes (offset / angled / on-face / 3-point) as a first-class referenceable entity
   superseding the sketch `plane_offset` shortcut.
-- **Rib (2.5):** until-material (to-face) rib extent; one-sided / parallel-to-sketch
-  thickness modes; draft on rib walls; web (multi-blade) / networked ribs.
+- **Rib (2.5):** until-material (to-face) rib extent - a native rib that grows and is
+  auto-trimmed to the adjacent faces, so a gusset needs no manual boolean-trim (gate-2.9
+  trims a rectangular rib into a triangular gusset with a pocket; the native trim is the
+  proper fix); one-sided / parallel-to-sketch thickness modes; draft on rib walls; web
+  (multi-blade) / networked ribs.
 - **Shell/draft (2.7):** multi-thickness shell (per-face wall); parting-line / step /
   variable draft; shell/draft face selection driven by the general `Selector` predicates
   once the attribute model is richer.

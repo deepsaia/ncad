@@ -82,6 +82,21 @@ reason to change, split it into another module.
   **golden plan images**. These are regression nets, not afterthoughts.
 - A bug fix starts with a failing test that reproduces it.
 
+## Feature ordering (the op pipeline)
+
+A part is an **ordered feature tree**: each op consumes the previous op's result and its
+topology, like a Blender modifier stack. Order is part of the model's meaning, and OCCT is
+order-sensitive (a late shell can produce an invalid B-rep; a late fillet can segfault).
+
+- [`docs/feature-ordering.md`](./docs/feature-ordering.md) is the living guide to these
+  rules (safe order + failure mode for each). **When a bucket discovers a new ordering
+  constraint** (an op that must precede/follow another, a selector that breaks after a
+  transform, an OCCT fragility tied to sequence), **add the rule to that doc in the same
+  PR.**
+- Validate op composition on the **real kernel**, not just in isolation: build the part
+  truncated to the first N features and assert each cumulative prefix is a valid single
+  solid (see the additive-composition test in `tests/examples/test_gate_examples.py`).
+
 ---
 
 ## Libraries & Reuse
