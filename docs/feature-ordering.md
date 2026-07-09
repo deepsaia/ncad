@@ -93,6 +93,21 @@ An extrude/pocket end-condition is selected by `end` (`end = symmetric`, `end = 
   not what you asked for). Now it raises `ExtrudeParamError`.
 - **Seen in:** gate-2.9 `mounting_bracket` (the gusset trim).
 
+### 7. `pattern` replicates the running result, so place it after the geometry it copies
+
+`pattern` (feature-level, linear/circular) copies the whole running body/bodies at each
+placement. Put it AFTER the feature(s) whose geometry you want replicated. It can change the
+running shape's cardinality: `merge = false` emits a multi-body `BodySet`, so every op after
+it sees several bodies (per-body dispatch is the `scope` field's job, 3.4).
+
+- **Why:** body pattern copies POSITIVE material well; it does NOT reproduce a cut/hole
+  array (fusing rotated copies fills the holes back in) - that is feature pattern, deferred.
+- **Failure mode:** a `merge = true` pattern of disjoint copies fuses to a multi-solid
+  compound, not one solid; if a single solid is required, ensure the copies overlap (or keep
+  `merge = false` and treat the result as a multibody part).
+- **Seen in:** gate-3.2 `patterned_bodies` (`spoke_hub` overlaps at the axis to fuse to one
+  solid; `pattern_studs` keeps 12 separate bodies).
+
 ---
 
 ## How to work when order bites you
