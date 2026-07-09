@@ -16,6 +16,7 @@ from ncad.ops.fillet_op import FilletOp
 from ncad.ops.groove_op import GrooveOp
 from ncad.ops.hole_op import HoleOp
 from ncad.ops.loft_op import LoftOp
+from ncad.ops.pattern_op import PatternOp
 from ncad.ops.pocket_op import PocketOp
 from ncad.ops.revolve_op import RevolveOp
 from ncad.ops.rib_op import RibOp
@@ -59,6 +60,7 @@ class OpRegistry:
         registry.register("groove", GrooveOp().build)
         registry.register("sweep", SweepOp().build)
         registry.register("loft", LoftOp().build)
+        registry.register("pattern", PatternOp().build)
         registry.register("rib", RibOp().build)
         registry.register("shell", ShellOp().build)
         registry.register("draft", DraftOp().build)
