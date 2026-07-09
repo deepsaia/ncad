@@ -52,6 +52,8 @@ from OCP.TopTools import (
     TopTools_IndexedDataMapOfShapeListOfShape,  # pyrefly: ignore[missing-module-attribute]
 )
 
+from ncad.kernel.body import Body
+from ncad.kernel.body_set import BodySet, union_bodies
 from ncad.kernel.kernel import Bounds, Kernel, Point2, Point3
 from ncad.kernel.kernel_op_error import KernelOpError
 
@@ -311,6 +313,19 @@ class Build123dKernel(Kernel):
         return infos
 
     def describe_elements(self, solid: Any) -> list:
+        # Describe per body and tag each descriptor with its body_id: a single shape is one
+        # implicit body ("body/0"); a BodySet's descriptors carry each body's own id, so a
+        # face reference resolves within its body (per-body addressability).
+        described: list = []
+        for body in self.bodies(solid):
+            for descriptor in self._describe_one(body.shape):
+                descriptor["body_id"] = body.id
+                described.append(descriptor)
+        return described
+
+    @staticmethod
+    def _describe_one(solid: Any) -> list:
+        """Face then edge descriptors for one body's shape (no body_id yet)."""
         described: list = []
         for face in solid.faces():
             described.append(_describe_face(face))
@@ -420,6 +435,13 @@ class Build123dKernel(Kernel):
         return f"build123d={b123d};ocp={ocp}"
 
     def signature(self, solid: Any) -> dict:
+        if isinstance(solid, BodySet):
+            # Per-body signatures, ordered by a deterministic key (body id, then volume, then
+            # bbox) so the multibody signature is independent of kernel body ordering. A
+            # single-body part never reaches here, so its signature is the flat dict, as before.
+            per_body = [(b.id, self.signature(b.shape)) for b in solid.bodies]
+            per_body.sort(key=lambda p: (p[0], p[1]["volume"], p[1]["bbox"]))
+            return {"bodies": [sig for _, sig in per_body]}
         faces = solid.faces()
         edges = solid.edges()
         vertices = solid.vertices()
@@ -435,14 +457,39 @@ class Build123dKernel(Kernel):
             "cog": (cog.X, cog.Y, cog.Z),
         }
 
+    def bodies(self, shape: Any) -> list:
+        # A BodySet exposes its bodies; any other shape is a single implicit solid body.
+        if isinstance(shape, BodySet):
+            return shape.bodies
+        return [Body(id="body/0", kind="solid", shape=shape, created_by="")]
+
+    def union_bodies(self, shapes: list, *, origin: str) -> Any:
+        return union_bodies(shapes, origin)
+
     def volume(self, solid: Any) -> float:
+        if isinstance(solid, BodySet):
+            return sum(self.volume(b.shape) for b in solid.bodies)
         return solid.volume
 
     def bounding_box(self, solid: Any) -> Bounds:
+        if isinstance(solid, BodySet):
+            boxes = [self.bounding_box(b.shape) for b in solid.bodies]
+            lows = [b[0] for b in boxes]
+            highs = [b[1] for b in boxes]
+            return ((min(x for x, _, _ in lows), min(y for _, y, _ in lows),
+                     min(z for _, _, z in lows)),
+                    (max(x for x, _, _ in highs), max(y for _, y, _ in highs),
+                     max(z for _, _, z in highs)))
         box = solid.bounding_box()
         return (tuple(box.min), tuple(box.max))
 
     def export(self, solid: Any, path: str) -> None:
+        if isinstance(solid, BodySet):
+            # A multibody part exports as a compound: STEP as a multi-solid assembly, glTF as
+            # one mesh part per body (so the viewer can pick/color per body). Single-shape
+            # export is unchanged.
+            from build123d import Compound
+            solid = Compound(children=[b.shape for b in solid.bodies])
         lowered = path.lower()
         if lowered.endswith(".glb"):
             export_gltf(solid, path, unit=Unit.MM, binary=True,

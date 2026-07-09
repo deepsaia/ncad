@@ -9,6 +9,8 @@ enough to assert op and Builder behaviour without OCP.
 import math
 from typing import Any
 
+from ncad.kernel.body import Body
+from ncad.kernel.body_set import BodySet, union_bodies
 from ncad.kernel.kernel import Bounds, Kernel, Point2, Point3
 from ncad.kernel.kernel_op_error import KernelOpError
 
@@ -350,6 +352,15 @@ class FakeKernel(Kernel):
         return infos
 
     def describe_elements(self, solid: Any) -> list:
+        # Per body, tagging each descriptor with its body_id (single shape = "body/0").
+        described: list = []
+        for body in self.bodies(solid):
+            for descriptor in self._describe_one(body.shape):
+                descriptor["body_id"] = body.id
+                described.append(descriptor)
+        return described
+
+    def _describe_one(self, solid: Any) -> list:
         (minx, miny, minz), (maxx, maxy, maxz) = self.bounding_box(solid)
         faces = [
             _box_face((minx + maxx) / 2, (miny + maxy) / 2, maxz, (0.0, 0.0, 1.0),
@@ -379,6 +390,12 @@ class FakeKernel(Kernel):
         return "fake-1"
 
     def signature(self, solid: Any) -> dict:
+        if isinstance(solid, BodySet):
+            # Per-body signatures ordered by a deterministic key (id, volume, bbox), so the
+            # multibody signature is independent of body order. Single-body path unchanged.
+            per_body = [(b.id, self.signature(b.shape)) for b in solid.bodies]
+            per_body.sort(key=lambda p: (p[0], p[1]["volume"], p[1]["bbox"]))
+            return {"bodies": [sig for _, sig in per_body]}
         (minx, miny, minz), (maxx, maxy, maxz) = self.bounding_box(solid)
         dx, dy, dz = maxx - minx, maxy - miny, maxz - minz
         area = 2.0 * (dx * dy + dy * dz + dx * dz)
@@ -392,7 +409,18 @@ class FakeKernel(Kernel):
             "cog": ((minx + maxx) / 2, (miny + maxy) / 2, (minz + maxz) / 2),
         }
 
+    def bodies(self, shape: Any) -> list:
+        # A BodySet exposes its bodies; any other shape is a single implicit solid body.
+        if isinstance(shape, BodySet):
+            return shape.bodies
+        return [Body(id="body/0", kind="solid", shape=shape, created_by="")]
+
+    def union_bodies(self, shapes: list, *, origin: str) -> Any:
+        return union_bodies(shapes, origin)
+
     def volume(self, solid: Any) -> float:
+        if isinstance(solid, BodySet):
+            return sum(self.volume(b.shape) for b in solid.bodies)
         if isinstance(solid, (_FakeCylinder, _FakeCone, _FakeCombined)):
             return solid.volume_val
         if getattr(solid, "wall_area", None) is not None:
@@ -402,6 +430,14 @@ class FakeKernel(Kernel):
         return _polygon_area(solid.face.points) * solid.distance
 
     def bounding_box(self, solid: Any) -> Bounds:
+        if isinstance(solid, BodySet):
+            boxes = [self.bounding_box(b.shape) for b in solid.bodies]
+            lows = [b[0] for b in boxes]
+            highs = [b[1] for b in boxes]
+            return ((min(x for x, _, _ in lows), min(y for _, y, _ in lows),
+                     min(z for _, _, z in lows)),
+                    (max(x for x, _, _ in highs), max(y for _, y, _ in highs),
+                     max(z for _, _, z in highs)))
         if isinstance(solid, _FakeCombined):
             return solid.bounds
         xs = [x for x, _ in solid.face.points]

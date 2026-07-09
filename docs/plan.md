@@ -406,10 +406,13 @@ but the *model* is designed to full generality so no later bucket is a breaking 
 > multibody model, split, and body algebra on top.
 
 **Buckets (by dependency):**
-- **3.0** multibody foundation: the full body-identity + merge-scope + per-body-provenance
-  model, thinly implemented (running shape becomes a named-body collection; element-map
-  gains a stable body id; ops gain a `scope`, default all; per-body volume queryable). Gate:
-  a 2-body part round-trips, each body addressable with its own volume.
+- **3.0** `[x]` multibody foundation: `BodySet` of `Body{id,kind,shape,created_by}` with
+  first-class persistent (born-once) body ids and body kind (solid; surface/sheet/wire
+  reserved); `boolean merge=false` keep-separate producer; per-body volume/deterministic
+  signature; element descriptors carry `body_id`; multibody STEP-assembly / glTF-per-body
+  export; `scope` field threaded (default all, reserved for 3.4). Gate: `two_body_bracket`
+  (2 disjoint blocks, merge=false) round-trips to STEP as a 2-solid assembly. Additive:
+  every single-body test/golden unchanged.
 - **3.1** transforms: `transform` op - move/copy/rotate a body (rigid `gp_Trsf`), scale
   (uniform + non-uniform `gp_GTrsf`, validity-gated). The shared placement primitive.
 - **3.2** patterns (linear + circular): `pattern` op producing addressable instances via

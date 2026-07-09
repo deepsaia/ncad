@@ -136,6 +136,9 @@ class Builder:
                                   status_report=entry.status_report)
                 self._rebuild_map_from_descriptors(element_map, feature, entry.descriptors)
             else:
+                # A feature's `scope` (merge scope: which bodies it targets/produces) rides
+                # in the feature dict to the op. In bucket 3.0 it defaults to all bodies and
+                # no op dispatches per-body yet; it is reserved for per-body dispatch in 3.4.
                 feature_with_refs = dict(feature)
                 feature_with_refs["__refs__"] = refs
                 builder_fn = self._registry.get(feature["op"])
