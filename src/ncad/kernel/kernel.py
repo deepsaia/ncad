@@ -255,5 +255,14 @@ class Kernel(ABC):
         """
 
     @abstractmethod
+    def union_bodies(self, shapes: list, *, origin: str) -> Any:
+        """Collect ``shapes`` as separate bodies in one BodySet (a keep-separate union).
+
+        A plain shape becomes a new body with id ``<origin>/body/<n>`` (minted at birth); a
+        shape that is already a BodySet keeps its bodies' existing ids (a body is born once,
+        not re-minted per feature). Used by ``boolean merge=false``.
+        """
+
+    @abstractmethod
     def export(self, solid: Any, path: str) -> None:
         """Write ``solid`` to ``path``; format inferred from the extension."""

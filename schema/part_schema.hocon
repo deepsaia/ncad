@@ -88,6 +88,7 @@ definitions {
       edges { type = string }
       on { type = string }
       operation { enum = ["cut", "union", "intersect"] }
+      merge { type = boolean }
       target { type = string }
       tool { type = string }
       sections { type = array, items { type = string } }

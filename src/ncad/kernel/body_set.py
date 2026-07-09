@@ -41,3 +41,20 @@ class BodySet:
 
     def __len__(self) -> int:
         return len(self._bodies)
+
+
+def union_bodies(shapes: list, origin: str) -> "BodySet":
+    """Collect ``shapes`` into one BodySet as separate bodies (a keep-separate union).
+
+    A plain shape becomes a new body ``<origin>/body/<n>`` (id minted at BIRTH); a shape that
+    is already a BodySet contributes its bodies WITH THEIR EXISTING ids (a body is born once,
+    not re-minted per feature - the persistent-identity rule).
+    """
+    bodies: list[Body] = []
+    for shape in shapes:
+        if isinstance(shape, BodySet):
+            bodies.extend(shape.bodies)
+        else:
+            bodies.append(Body(id=f"{origin}/body/{len(bodies)}", kind="solid",
+                               shape=shape, created_by=origin))
+    return BodySet(bodies)

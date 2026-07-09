@@ -22,7 +22,13 @@ class BooleanOp:
                 node_id=feature_id, message="boolean needs resolved target and tool")])
         operation = params.get("operation", "cut")
         try:
-            result = self._apply(kernel, operation, target, tool)
+            # merge defaults to True (today's behavior: fuse to one body). merge=false on a
+            # union keeps the operands as separate bodies (a multi-body BodySet), preserving
+            # their identities - the keep-separate producer for the multibody model.
+            if operation == "union" and params.get("merge", True) is False:
+                result = kernel.union_bodies([target, tool], origin=feature_id)
+            else:
+                result = self._apply(kernel, operation, target, tool)
         except (KernelOpError, ValueError) as exc:
             return OpResult(shape=None, provenance={},
                             issues=[BuildIssue(node_id=feature_id, message=str(exc))])

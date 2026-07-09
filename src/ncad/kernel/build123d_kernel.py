@@ -53,7 +53,7 @@ from OCP.TopTools import (
 )
 
 from ncad.kernel.body import Body
-from ncad.kernel.body_set import BodySet
+from ncad.kernel.body_set import BodySet, union_bodies
 from ncad.kernel.kernel import Bounds, Kernel, Point2, Point3
 from ncad.kernel.kernel_op_error import KernelOpError
 
@@ -442,6 +442,9 @@ class Build123dKernel(Kernel):
         if isinstance(shape, BodySet):
             return shape.bodies
         return [Body(id="body/0", kind="solid", shape=shape, created_by="")]
+
+    def union_bodies(self, shapes: list, *, origin: str) -> Any:
+        return union_bodies(shapes, origin)
 
     def volume(self, solid: Any) -> float:
         if isinstance(solid, BodySet):
