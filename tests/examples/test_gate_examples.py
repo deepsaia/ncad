@@ -269,3 +269,64 @@ def test_gate_3_0_two_body_step_round_trips_as_two_solids(tmp_path) -> None:
     resolved = builder._resolve_and_validate(builder._loader.load(str(doc)))
     result, _, _ = builder._builder.build_part_mapped(resolved["parts"]["two_body_bracket"])
     assert len(kernel.bodies(result.shape)) == 2
+
+
+@pytest.mark.slow
+def test_gate_3_1_transformed_builds_twice_deterministically() -> None:
+    from ncad.build.equality_comparator import EqualityComparator
+    from ncad.kernel.build123d_kernel import Build123dKernel
+
+    doc = _EXAMPLES_DIR / "gate-3.1" / "transformed_blocks.hocon"
+
+    def _signature() -> dict:
+        kernel = Build123dKernel()
+        builder = DocumentBuilder(kernel)
+        resolved = builder._resolve_and_validate(builder._loader.load(str(doc)))
+        result, _, _ = builder._builder.build_part_mapped(
+            resolved["parts"]["transformed_blocks"])
+        assert result.shape is not None
+        return kernel.signature(result.shape)
+
+    sig1, sig2 = _signature(), _signature()
+    comparator = EqualityComparator()
+    assert comparator.equal(sig1, sig2), comparator.explain(sig1, sig2)
+
+
+@pytest.mark.slow
+def test_gate_3_1_transformed_signature_matches_golden() -> None:
+    import json
+
+    from ncad.build.equality_comparator import EqualityComparator
+    from ncad.kernel.build123d_kernel import Build123dKernel
+
+    golden_path = Path(__file__).resolve().parents[1] / "build" / "golden" / \
+        "transformed_blocks.signature.json"
+    golden = json.loads(golden_path.read_text())
+
+    kernel = Build123dKernel()
+    builder = DocumentBuilder(kernel)
+    resolved = builder._resolve_and_validate(builder._loader.load(
+        str(_EXAMPLES_DIR / "gate-3.1" / "transformed_blocks.hocon")))
+    result, _, _ = builder._builder.build_part_mapped(resolved["parts"]["transformed_blocks"])
+    live = kernel.signature(result.shape)
+
+    comparator = EqualityComparator()
+    assert comparator.equal(live, golden), comparator.explain(live, golden)
+
+
+@pytest.mark.slow
+def test_gate_3_1_transformed_step_round_trips_as_two_solids(tmp_path) -> None:
+    from build123d import import_step
+
+    from ncad.kernel.build123d_kernel import Build123dKernel
+
+    doc = _EXAMPLES_DIR / "gate-3.1" / "transformed_blocks.hocon"
+    kernel = Build123dKernel()
+    artifacts = DocumentBuilder(kernel).build_file(str(doc), str(tmp_path), formats=("step",))
+    step_path = Path(artifacts["transformed_blocks"])
+    assert step_path.is_file()
+    assert abs(import_step(str(step_path)).volume) > 0
+    builder = DocumentBuilder(kernel)
+    resolved = builder._resolve_and_validate(builder._loader.load(str(doc)))
+    result, _, _ = builder._builder.build_part_mapped(resolved["parts"]["transformed_blocks"])
+    assert len(kernel.bodies(result.shape)) == 2

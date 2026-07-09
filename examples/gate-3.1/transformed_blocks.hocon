@@ -1,0 +1,19 @@
+schema_version = 2
+units = mm
+# Transforms on a body: a base block is moved+rotated in place, then a scaled COPY is added
+# (copy = true) as a second body via the multibody producer. Result is a 2-body part -
+# the placed original and its scaled copy - round-tripping to STEP as a 2-solid assembly.
+parts {
+  transformed_blocks {
+    profile = solid
+    features = [
+      { id = base_sk, op = sketch, plane = XY,
+        elements = [ { id = r, type = rectangle, w = 20, h = 20 } ] }
+      { id = block, op = extrude, profile = base_sk, distance = 10 }
+      # Rotate the block in place (its identity is preserved; no copy).
+      { id = placed, op = transform, rotate = { axis = Z, angle = 30 } }
+      # Add a scaled copy shifted clear of the original: a second body.
+      { id = twin, op = transform, move = [ 40, 0, 0 ], scale = 1.5, copy = true }
+    ]
+  }
+}
