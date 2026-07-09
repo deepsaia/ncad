@@ -1,0 +1,33 @@
+schema_version = 2
+units = mm
+# Two feature-level body patterns. `pattern_studs`: a small stud replicated on a 4x3 grid,
+# kept separate (merge = false) -> 12 addressable bodies with born-once ordinal ids. `spoke_hub`:
+# a spoke crossing the axis, replicated 6 times about Z and fused (merge = true) -> one valid
+# solid (a 6-spoke star; the spokes overlap at the center so the union stays a single solid).
+parts {
+  pattern_studs {
+    profile = solid
+    features = [
+      { id = stud_sk, op = sketch, plane = XY,
+        elements = [ { id = r, type = rectangle, w = 6, h = 6 } ] }
+      { id = stud, op = extrude, profile = stud_sk, distance = 10 }
+      { id = grid, op = pattern, kind = linear, merge = false,
+        x = { dir = [ 1, 0, 0 ], spacing = 20, count = 4 },
+        y = { dir = [ 0, 1, 0 ], spacing = 20, count = 3 } }
+    ]
+  }
+  spoke_hub {
+    profile = solid
+    features = [
+      # A bar spanning the origin (x from -4 to 20, y from -2 to 2) via explicit polygon
+      # points, so 6 rotated copies all overlap at the center and fuse into one solid.
+      # (`rectangle` centers on the origin with no offset field, so a polygon is used to
+      # place the bar across the axis; confirmed against sketch_op._rectangle_points.)
+      { id = spoke_sk, op = sketch, plane = XY,
+        elements = [ { id = r, type = polygon,
+          points = [ [ -4, -2 ], [ 20, -2 ], [ 20, 2 ], [ -4, 2 ] ] } ] }
+      { id = spoke, op = extrude, profile = spoke_sk, distance = 6 }
+      { id = ring, op = pattern, kind = circular, count = 6, angle = 360, merge = true }
+    ]
+  }
+}

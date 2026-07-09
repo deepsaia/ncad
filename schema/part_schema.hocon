@@ -103,7 +103,9 @@ definitions {
       kind { type = string }
       x { type = object }
       y { type = object }
-      axis { type = object }
+      # axis is a string (revolve/groove: X/Y/Z) or an object (revolve {point,dir},
+      # circular pattern {point,dir}); accept both so both ops validate.
+      axis { type = ["string", "object"] }
       count { type = integer, minimum = 1 }
     }
   }

@@ -16,9 +16,11 @@ _EXAMPLES_DIR = Path(__file__).resolve().parents[2] / "examples"
 _EXAMPLE_DOCS = sorted(_EXAMPLES_DIR.glob("gate-*/*.hocon"))
 # Examples that do not build a single closed face on the dependency-free FakeKernel are
 # excluded from this sweep and covered by their own targeted tests: `project` examples
-# (analytic edges have no circle/curve type) and multi-loop `pattern` examples (disjoint
-# loops; a multi-loop face is deferred until WireOrderer supports multiple loops).
-_FAKE_KERNEL_SKIP = ("project", "op = pattern")
+# (analytic edges have no circle/curve type) and multi-loop SKETCH `pattern` transforms
+# (discriminated by `sources =`; disjoint loops need multi-loop faces, deferred until
+# WireOrderer supports multiple loops). The feature-level `pattern` op (gate-3.2) is NOT
+# a sketch transform and builds fine on the FakeKernel, so it stays in the sweep.
+_FAKE_KERNEL_SKIP = ("project", "sources =")
 _FAKE_KERNEL_DOCS = [p for p in _EXAMPLE_DOCS
                      if not any(token in p.read_text() for token in _FAKE_KERNEL_SKIP)]
 
@@ -36,6 +38,22 @@ def test_example_builds_without_issues(doc_path: Path) -> None:
         errors = [i for i in result.issues if i.level == "error"]
         assert errors == [], f"{doc_path} part {name} had errors: {errors}"
         assert result.shape is not None
+
+
+def test_gate_3_2_pattern_volumes_on_fake_kernel() -> None:
+    doc = _EXAMPLES_DIR / "gate-3.2" / "patterned_bodies.hocon"
+    results = DocumentBuilder(FakeKernel()).build_file_document(str(doc))
+
+    studs = results["pattern_studs"]
+    assert [i for i in studs.issues if i.level == "error"] == []
+    # 12 studs of 6*6*10 = 360 each, kept separate.
+    assert FakeKernel().volume(studs.shape) == pytest.approx(12 * 360.0)
+    assert len(FakeKernel().bodies(studs.shape)) == 12
+
+    hub = results["spoke_hub"]
+    assert [i for i in hub.issues if i.level == "error"] == []
+    # 6 spokes of 24*4*6 = 576 each; FakeKernel fuse sums (no overlap subtraction).
+    assert FakeKernel().volume(hub.shape) == pytest.approx(6 * 576.0)
 
 
 @pytest.mark.slow
@@ -330,3 +348,107 @@ def test_gate_3_1_transformed_step_round_trips_as_two_solids(tmp_path) -> None:
     resolved = builder._resolve_and_validate(builder._loader.load(str(doc)))
     result, _, _ = builder._builder.build_part_mapped(resolved["parts"]["transformed_blocks"])
     assert len(kernel.bodies(result.shape)) == 2
+
+
+@pytest.mark.slow
+def test_gate_3_2_studs_signature_matches_golden() -> None:
+    import json
+
+    from ncad.build.equality_comparator import EqualityComparator
+    from ncad.kernel.build123d_kernel import Build123dKernel
+
+    golden = json.loads((Path(__file__).resolve().parents[1] / "build" / "golden" /
+                         "pattern_studs.signature.json").read_text())
+    kernel = Build123dKernel()
+    builder = DocumentBuilder(kernel)
+    resolved = builder._resolve_and_validate(builder._loader.load(
+        str(_EXAMPLES_DIR / "gate-3.2" / "patterned_bodies.hocon")))
+    result, _, _ = builder._builder.build_part_mapped(resolved["parts"]["pattern_studs"])
+    live = kernel.signature(result.shape)
+    comparator = EqualityComparator()
+    assert comparator.equal(live, golden), comparator.explain(live, golden)
+    assert len(kernel.bodies(result.shape)) == 12
+
+
+@pytest.mark.slow
+def test_gate_3_2_spoke_hub_signature_matches_golden() -> None:
+    import json
+
+    from ncad.build.equality_comparator import EqualityComparator
+    from ncad.kernel.build123d_kernel import Build123dKernel
+
+    golden = json.loads((Path(__file__).resolve().parents[1] / "build" / "golden" /
+                         "spoke_hub.signature.json").read_text())
+    kernel = Build123dKernel()
+    builder = DocumentBuilder(kernel)
+    resolved = builder._resolve_and_validate(builder._loader.load(
+        str(_EXAMPLES_DIR / "gate-3.2" / "patterned_bodies.hocon")))
+    result, _, _ = builder._builder.build_part_mapped(resolved["parts"]["spoke_hub"])
+    live = kernel.signature(result.shape)
+    comparator = EqualityComparator()
+    assert comparator.equal(live, golden), comparator.explain(live, golden)
+
+
+@pytest.mark.slow
+def test_gate_3_2_builds_twice_deterministically() -> None:
+    from ncad.build.equality_comparator import EqualityComparator
+    from ncad.kernel.build123d_kernel import Build123dKernel
+
+    doc = _EXAMPLES_DIR / "gate-3.2" / "patterned_bodies.hocon"
+
+    def _sig(part_name: str) -> dict:
+        kernel = Build123dKernel()
+        builder = DocumentBuilder(kernel)
+        resolved = builder._resolve_and_validate(builder._loader.load(str(doc)))
+        result, _, _ = builder._builder.build_part_mapped(resolved["parts"][part_name])
+        assert result.shape is not None
+        return kernel.signature(result.shape)
+
+    comparator = EqualityComparator()
+    for part_name in ("pattern_studs", "spoke_hub"):
+        s1, s2 = _sig(part_name), _sig(part_name)
+        assert comparator.equal(s1, s2), comparator.explain(s1, s2)
+
+
+@pytest.mark.slow
+def test_gate_3_2_studs_step_round_trips_as_twelve_solids(tmp_path) -> None:
+    from build123d import import_step
+
+    from ncad.kernel.build123d_kernel import Build123dKernel
+
+    doc = _EXAMPLES_DIR / "gate-3.2" / "patterned_bodies.hocon"
+    kernel = Build123dKernel()
+    artifacts = DocumentBuilder(kernel).build_file(str(doc), str(tmp_path), formats=("step",))
+    step_path = Path(artifacts["pattern_studs"])
+    assert step_path.is_file()
+    assert abs(import_step(str(step_path)).volume) > 0
+    builder = DocumentBuilder(kernel)
+    resolved = builder._resolve_and_validate(builder._loader.load(str(doc)))
+    result, _, _ = builder._builder.build_part_mapped(resolved["parts"]["pattern_studs"])
+    assert len(kernel.bodies(result.shape)) == 12
+
+
+@pytest.mark.slow
+def test_gate_3_2_spoke_hub_composes_additively() -> None:
+    """Each feature prefix of the fused spoke_hub builds to a single valid solid."""
+    from ncad.kernel.build123d_kernel import Build123dKernel
+
+    doc = str(_EXAMPLES_DIR / "gate-3.2" / "patterned_bodies.hocon")
+    builder = DocumentBuilder(Build123dKernel())
+    feature_count = len(
+        builder._resolve_and_validate(builder._loader.load(doc))
+        ["parts"]["spoke_hub"]["features"])
+    for n in range(1, feature_count + 1):
+        resolved = builder._resolve_and_validate(builder._loader.load(doc))
+        part = resolved["parts"]["spoke_hub"]
+        last_op = part["features"][n - 1].get("op", "")
+        part["features"] = part["features"][:n]
+        result, _, _ = builder._builder.build_part_mapped(part)
+        errors = [i for i in result.issues if i.level == "error"]
+        assert errors == [], f"prefix {n} (op {last_op!r}) errored: {errors}"
+        if last_op == "sketch":
+            continue
+        assert result.shape is not None
+        solids = result.shape.solids()
+        assert len(solids) == 1, f"prefix {n} is {len(solids)} solids, not one"
+        assert result.shape.is_valid
