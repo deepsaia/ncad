@@ -90,6 +90,10 @@ definitions {
       operation { enum = ["cut", "union", "intersect"] }
       merge { type = boolean }
       scope { type = string }
+      move = ${definitions.vec3}
+      rotate { type = object }
+      scale { type = ["number", "array"] }
+      copy { type = boolean }
       target { type = string }
       tool { type = string }
       sections { type = array, items { type = string } }
