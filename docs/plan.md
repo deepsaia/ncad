@@ -418,10 +418,14 @@ but the *model* is designed to full generality so no later bucket is a breaking 
   `copy=false` transforms in place preserving the body id, `copy=true` adds a new body via
   the 3.0 `union_bodies` producer. The shared placement primitive for patterns/mirror. Gate:
   `transformed_blocks` (rotate in place + scaled copy >> 2-body, STEP round-trip).
-- **3.2** patterns (linear + circular): `pattern` op producing addressable instances via
-  build123d `GridLocations`/`PolarLocations` + 3.1 placement, combined per merge-scope.
-  Curve/sketch/table/fill/geometry/pattern-of-pattern deferred as future *drivers* on the
-  same instance model.
+- **3.2** `[x]` patterns (linear + circular): one `pattern` op replicating the running
+  body/bodies via pure-trig placements (`PatternPlacements`) + the 3.1 `transform` and 3.0
+  `union_bodies`, combined per merge-scope (fuse vs keep-separate). Instances are addressable
+  by **born-once ordinal body ids** (`<feature>/body/<n>`); `ElementMap.instance` resolves by
+  that stable ordinal, so suppressing one instance no longer renumbers the rest - this closes
+  foundational-risk **R2**. Gate: `patterned_bodies` (a 4x3 linear grid kept separate = 12
+  bodies; a 6-spoke circular pattern fused to one solid) with per-body/single-body golden
+  signatures, STEP round-trip, determinism, and additive composition.
 - **3.3** mirror: feature / body across a plane, reusing transform + instance model.
 - **3.4** boolean upgrades + multibody algebra: split a body, multi-tool cut/union, explicit
   merge-scope (keep-as-bodies vs merge), body-scoped.
@@ -436,9 +440,13 @@ but the *model* is designed to full generality so no later bucket is a breaking 
   and a mirror rebuilds correctly and reports per-body mass properties; determinism + STEP
   round-trip (like the 2.9 capstone).
 
-**Deferred within Phase 3** (logged, not lost): pattern drivers (curve/sketch/table/fill/
-geometry/pattern-of-pattern); mirror of a face; instance suppress/skip; general datum
-planes/axes as pattern/mirror references (shares the datum work deferred from Phase 2).
+**Deferred within Phase 3** (logged, not lost): **feature pattern** (re-apply the last
+feature's cut/boss at each location, distinct from the body pattern shipped in 3.2); pattern
+drivers (curve/sketch/table/fill/geometry/pattern-of-pattern); per-instance suppress/skip
+(now cheap given the stable ordinal ids from 3.2); spacing modes (spacing vs extent); mirror
+of a face; general datum planes/axes as pattern/mirror references (shares the datum work
+deferred from Phase 2). Circular `rotate = false` (translate-only) ships in 3.2; all of the
+above are additive on the pattern instance model.
 
 **Gate:** a multibody part with a circular pattern of cut features and a mirror rebuilds
 correctly and reports per-body mass properties (bucket 3.6).

@@ -64,8 +64,21 @@ class ElementMap:
         return [e for e in self._elements if e.tag == tag]
 
     def instance(self, feature_id: str, index: int) -> Element | None:
-        """The ``index``-th element created by ``feature_id`` in canonical order."""
+        """The ``index``-th instance created by ``feature_id``.
+
+        When the feature's elements carry born-once body ids (``<feature>/body/<n>``, minted
+        by a pattern), resolution is by that stable ordinal (n == index), NOT a geometric
+        sort: suppressing one instance never renumbers the others (foundational-risk R2).
+        A feature with no body-id ordinals is a single-body feature and keeps the legacy
+        centroid-ordered behavior.
+        """
         members = self.by_feature(feature_id)
+        ordinals = _body_ordinals(members)
+        if ordinals:
+            for element in members:
+                if ordinals.get(element.id) == index:
+                    return element
+            return None
         ordered = sorted(members, key=lambda e: _canonical_sort_key(e.attrs, e.kind))
         return ordered[index] if 0 <= index < len(ordered) else None
 
@@ -119,6 +132,22 @@ def _size_of(source: dict) -> float:
     if raw is None:
         raw = source.get("length")
     return float(raw) if raw is not None else 0.0
+
+
+def _body_ordinals(members: list[Element]) -> dict[str, int]:
+    """Map element id -> its body ordinal n for members whose body_id is ``.../body/<n>``.
+
+    Empty when no member carries a parseable body-id ordinal (a single-body feature).
+    """
+    ordinals: dict[str, int] = {}
+    for element in members:
+        body_id = element.attrs.get("body_id")
+        if not isinstance(body_id, str) or "/body/" not in body_id:
+            continue
+        suffix = body_id.rsplit("/body/", 1)[1]
+        if suffix.isdigit():
+            ordinals[element.id] = int(suffix)
+    return ordinals
 
 
 def _attrs_from(descriptor: dict, feature_id: str, tag: str | None) -> dict:
