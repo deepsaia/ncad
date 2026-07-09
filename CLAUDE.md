@@ -6,6 +6,16 @@ system design and [`docs/plan.md`](./docs/plan.md) for the phased build order.
 
 ---
 
+## Professional-Grade Bar
+
+Anything we build here must be **professional grade**, with features equivalent to
+those in **Siemens NX, Autodesk Fusion, PTC Creo, or Blender**. When designing or
+implementing a feature, benchmark it against how those tools model it: the vocabulary,
+the data model, and the guarantees (stable identities, robust geometry, deterministic
+rebuilds). No decision should foreclose scaling up to that level.
+
+---
+
 ## General Principles
 
 - Write clear, maintainable, and modular code.
@@ -71,6 +81,17 @@ reason to change, split it into another module.
 - Prefer raising typed, domain-specific exceptions over returning sentinel values.
   Validation issues are data (the validators return structured `Issue`s), but
   *programmer/contract* errors should raise.
+
+## Commits & PRs
+
+- **One commit per single task or single file.** Keep each commit tightly scoped;
+  never bundle unrelated changes.
+- **Single-line, simple commit messages.** No body paragraphs unless truly needed.
+- **No co-authored / "Co-Authored-By" trailer.** Ever.
+- **No "Generated with Claude Code" footer** (or any tool-attribution footer) in
+  commit messages or PR bodies.
+- **Absolutely no em-dashes anywhere** in commit messages, PR text, code comments,
+  or docs.
 
 ## Testing
 

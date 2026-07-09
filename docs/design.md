@@ -23,6 +23,12 @@ stackup) and lowers only its board *shape* to the solid substrate. Structural/
 thermal/fluid **FEA/CFD stays out of scope**, an export/integration concern, never
 a solver we write (§17).
 
+**Professional-grade bar.** Anything built here must be *professional grade*, with
+features equivalent to those in **Siemens NX, Autodesk Fusion, PTC Creo, or Blender**.
+Every feature is benchmarked against how those tools model it, the vocabulary, the data
+model, and the guarantees (stable identities, robust geometry, deterministic rebuilds).
+No decision should foreclose scaling up to that level.
+
 This document is the design for the **target engine**. It describes *what* the
 engine is and *why* it is shaped this way. The build-vs-leverage study this
 distills lives under [`docs/`](./docs/); the full **feature/operations catalogue
