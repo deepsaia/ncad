@@ -30,3 +30,20 @@ def test_build123d_bodies_of_single_shape_is_one_body():
 def test_build123d_bodyset_volume_is_sum():
     k = _kernel()
     assert k.volume(_bodyset(k)) == pytest.approx(8 + 27, rel=1e-6)
+
+
+def test_bodyset_step_round_trips(tmp_path):
+    from build123d import import_step
+
+    from ncad.kernel.body import Body
+    from ncad.kernel.body_set import BodySet
+    k = _kernel()
+    a = k.extrude(k.polygon_face([(0, 0), (2, 0), (2, 2), (0, 2)], "XY"), distance=2)
+    b = k.extrude(k.polygon_face([(9, 0), (13, 0), (13, 4), (9, 4)], "XY"), distance=4)
+    bs = BodySet([Body(id="u/body/0", kind="solid", shape=a, created_by="u"),
+                  Body(id="u/body/1", kind="solid", shape=b, created_by="u")])
+    out = tmp_path / "two_body.step"
+    k.export(bs, str(out))
+    assert out.is_file()
+    reimported = import_step(str(out))
+    assert abs(reimported.volume) == pytest.approx(8 + 64, rel=1e-3)

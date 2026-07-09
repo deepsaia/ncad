@@ -484,6 +484,12 @@ class Build123dKernel(Kernel):
         return (tuple(box.min), tuple(box.max))
 
     def export(self, solid: Any, path: str) -> None:
+        if isinstance(solid, BodySet):
+            # A multibody part exports as a compound: STEP as a multi-solid assembly, glTF as
+            # one mesh part per body (so the viewer can pick/color per body). Single-shape
+            # export is unchanged.
+            from build123d import Compound
+            solid = Compound(children=[b.shape for b in solid.bodies])
         lowered = path.lower()
         if lowered.endswith(".glb"):
             export_gltf(solid, path, unit=Unit.MM, binary=True,
