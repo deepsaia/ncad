@@ -413,8 +413,11 @@ but the *model* is designed to full generality so no later bucket is a breaking 
   export; `scope` field threaded (default all, reserved for 3.4). Gate: `two_body_bracket`
   (2 disjoint blocks, merge=false) round-trips to STEP as a 2-solid assembly. Additive:
   every single-body test/golden unchanged.
-- **3.1** transforms: `transform` op - move/copy/rotate a body (rigid `gp_Trsf`), scale
-  (uniform + non-uniform `gp_GTrsf`, validity-gated). The shared placement primitive.
+- **3.1** `[x]` transforms: one composable `transform` op (move/rotate/scale, order
+  scale >> rotate >> move; rigid `gp_Trsf`, uniform + non-uniform `gp_GTrsf` validity-gated);
+  `copy=false` transforms in place preserving the body id, `copy=true` adds a new body via
+  the 3.0 `union_bodies` producer. The shared placement primitive for patterns/mirror. Gate:
+  `transformed_blocks` (rotate in place + scaled copy >> 2-body, STEP round-trip).
 - **3.2** patterns (linear + circular): `pattern` op producing addressable instances via
   build123d `GridLocations`/`PolarLocations` + 3.1 placement, combined per merge-scope.
   Curve/sketch/table/fill/geometry/pattern-of-pattern deferred as future *drivers* on the

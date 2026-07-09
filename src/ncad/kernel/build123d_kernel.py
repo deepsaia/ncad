@@ -18,6 +18,7 @@ from build123d import (
     FontStyle,
     GeomType,
     Helix,
+    Location,
     Plane,
     Pos,
     Rot,
@@ -44,7 +45,11 @@ from build123d import (
 # OCP ships incomplete stubs, so these raw-OCP names read as missing to the type checker;
 # they resolve at runtime (see the [tool.pyrefly] OCP-boundary note). Used for the per-edge
 # distance-angle chamfer that build123d cannot express.
+from OCP.BRepBuilderAPI import (
+    BRepBuilderAPI_GTransform,  # pyrefly: ignore[missing-module-attribute]
+)
 from OCP.BRepFilletAPI import BRepFilletAPI_MakeChamfer  # pyrefly: ignore[missing-module-attribute]
+from OCP.gp import gp_GTrsf  # pyrefly: ignore[missing-module-attribute]
 from OCP.TopAbs import TopAbs_EDGE, TopAbs_FACE  # pyrefly: ignore[missing-module-attribute]
 from OCP.TopExp import TopExp  # pyrefly: ignore[missing-module-attribute]
 from OCP.TopoDS import TopoDS  # pyrefly: ignore[missing-module-attribute]
@@ -465,6 +470,34 @@ class Build123dKernel(Kernel):
 
     def union_bodies(self, shapes: list, *, origin: str) -> Any:
         return union_bodies(shapes, origin)
+
+    def transform(self, shape: Any, *, move: Point3 = (0.0, 0.0, 0.0),
+                  rotate: dict | None = None, scale: Any = None) -> Any:
+        # Apply scale >> rotate >> move in that fixed order (deterministic and unambiguous).
+        # Rigid move/rotate are exact; non-uniform scale can produce an invalid B-rep, so it
+        # is gated by _robust. Uniform scale and the rigid stages are not gated.
+        result = shape
+        if scale is not None:
+            if isinstance(scale, (int, float)):
+                result = result.scale(float(scale))
+            else:
+                result = self._robust(self._do_gscale, result, scale, name="scale")
+        if rotate is not None:
+            axis = Axis(tuple(rotate.get("about", (0.0, 0.0, 0.0))),
+                        tuple(rotate["axis"]))  # pyrefly: ignore[no-matching-overload]
+            result = result.rotate(axis, float(rotate["angle"]))
+        if tuple(move) != (0.0, 0.0, 0.0):
+            result = result.moved(Location(tuple(move)))  # pyrefly: ignore[no-matching-overload]
+        return result
+
+    @staticmethod
+    def _do_gscale(shape: Any, scale: Any) -> Any:
+        # Non-uniform scale via raw OCP gp_GTrsf (build123d scale is uniform only).
+        g = gp_GTrsf()
+        g.SetValue(1, 1, float(scale[0]))
+        g.SetValue(2, 2, float(scale[1]))
+        g.SetValue(3, 3, float(scale[2]))
+        return Solid(BRepBuilderAPI_GTransform(shape.wrapped, g, True).Shape())
 
     def volume(self, solid: Any) -> float:
         if isinstance(solid, BodySet):

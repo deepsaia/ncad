@@ -22,6 +22,7 @@ from ncad.ops.rib_op import RibOp
 from ncad.ops.shell_op import ShellOp
 from ncad.ops.sketch_op import SketchOp
 from ncad.ops.sweep_op import SweepOp
+from ncad.ops.transform_op import TransformOp
 from ncad.ops.wrap_op import WrapOp
 
 
@@ -62,4 +63,5 @@ class OpRegistry:
         registry.register("shell", ShellOp().build)
         registry.register("draft", DraftOp().build)
         registry.register("wrap", WrapOp().build)
+        registry.register("transform", TransformOp().build)
         return registry
