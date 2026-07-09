@@ -390,6 +390,12 @@ class FakeKernel(Kernel):
         return "fake-1"
 
     def signature(self, solid: Any) -> dict:
+        if isinstance(solid, BodySet):
+            # Per-body signatures ordered by a deterministic key (id, volume, bbox), so the
+            # multibody signature is independent of body order. Single-body path unchanged.
+            per_body = [(b.id, self.signature(b.shape)) for b in solid.bodies]
+            per_body.sort(key=lambda p: (p[0], p[1]["volume"], p[1]["bbox"]))
+            return {"bodies": [sig for _, sig in per_body]}
         (minx, miny, minz), (maxx, maxy, maxz) = self.bounding_box(solid)
         dx, dy, dz = maxx - minx, maxy - miny, maxz - minz
         area = 2.0 * (dx * dy + dy * dz + dx * dz)

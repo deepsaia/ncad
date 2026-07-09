@@ -435,6 +435,13 @@ class Build123dKernel(Kernel):
         return f"build123d={b123d};ocp={ocp}"
 
     def signature(self, solid: Any) -> dict:
+        if isinstance(solid, BodySet):
+            # Per-body signatures, ordered by a deterministic key (body id, then volume, then
+            # bbox) so the multibody signature is independent of kernel body ordering. A
+            # single-body part never reaches here, so its signature is the flat dict, as before.
+            per_body = [(b.id, self.signature(b.shape)) for b in solid.bodies]
+            per_body.sort(key=lambda p: (p[0], p[1]["volume"], p[1]["bbox"]))
+            return {"bodies": [sig for _, sig in per_body]}
         faces = solid.faces()
         edges = solid.edges()
         vertices = solid.vertices()
