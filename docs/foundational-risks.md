@@ -42,7 +42,10 @@ instance a stable identity (suppress/skip/reference by instance).
 geometric-sort positions. The Phase 3 design principle "instances are addressable" already
 commits to this.
 
-**Status:** open, scheduled for 3.2.
+**Status:** closed in 3.2. Pattern instances are addressable by born-once ordinal body
+ids (`<feature>/body/<n>`); `ElementMap.instance` resolves by that stable ordinal, so
+suppressing one instance no longer renumbers the rest. Single-body features keep the
+legacy centroid order.
 
 ## R3 - Kernel has no mass-properties / material abstraction
 
