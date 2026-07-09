@@ -313,6 +313,19 @@ class Build123dKernel(Kernel):
         return infos
 
     def describe_elements(self, solid: Any) -> list:
+        # Describe per body and tag each descriptor with its body_id: a single shape is one
+        # implicit body ("body/0"); a BodySet's descriptors carry each body's own id, so a
+        # face reference resolves within its body (per-body addressability).
+        described: list = []
+        for body in self.bodies(solid):
+            for descriptor in self._describe_one(body.shape):
+                descriptor["body_id"] = body.id
+                described.append(descriptor)
+        return described
+
+    @staticmethod
+    def _describe_one(solid: Any) -> list:
+        """Face then edge descriptors for one body's shape (no body_id yet)."""
         described: list = []
         for face in solid.faces():
             described.append(_describe_face(face))

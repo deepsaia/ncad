@@ -352,6 +352,15 @@ class FakeKernel(Kernel):
         return infos
 
     def describe_elements(self, solid: Any) -> list:
+        # Per body, tagging each descriptor with its body_id (single shape = "body/0").
+        described: list = []
+        for body in self.bodies(solid):
+            for descriptor in self._describe_one(body.shape):
+                descriptor["body_id"] = body.id
+                described.append(descriptor)
+        return described
+
+    def _describe_one(self, solid: Any) -> list:
         (minx, miny, minz), (maxx, maxy, maxz) = self.bounding_box(solid)
         faces = [
             _box_face((minx + maxx) / 2, (miny + maxy) / 2, maxz, (0.0, 0.0, 1.0),
