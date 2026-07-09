@@ -264,5 +264,16 @@ class Kernel(ABC):
         """
 
     @abstractmethod
+    def transform(self, shape: Any, *, move: Point3 = (0.0, 0.0, 0.0),
+                  rotate: dict | None = None, scale: Any = None) -> Any:
+        """Return ``shape`` transformed by scale >> rotate >> move (in that order).
+
+        ``move`` is a translation ``(dx,dy,dz)``. ``rotate`` is ``{"axis": (x,y,z),
+        "angle": degrees, "about": (x,y,z)}`` or None. ``scale`` is a float (uniform) or a
+        ``(sx,sy,sz)`` tuple (non-uniform), or None. Rigid transforms are exact; non-uniform
+        scale is validity-gated. Raises KernelOpError on failure.
+        """
+
+    @abstractmethod
     def export(self, solid: Any, path: str) -> None:
         """Write ``solid`` to ``path``; format inferred from the extension."""

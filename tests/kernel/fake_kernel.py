@@ -418,6 +418,27 @@ class FakeKernel(Kernel):
     def union_bodies(self, shapes: list, *, origin: str) -> Any:
         return union_bodies(shapes, origin)
 
+    def transform(self, shape: Any, *, move: Point3 = (0.0, 0.0, 0.0),
+                  rotate: dict | None = None, scale: Any = None) -> Any:
+        # Analytic: move/rotate preserve volume; uniform scale k**3; non-uniform sx*sy*sz.
+        # Bounds are scaled then shifted (a coarse axis-aligned envelope; rotation is not
+        # applied to the fake bbox). Exact enough for volume/signature tests.
+        volume = self.volume(shape)
+        (minx, miny, minz), (maxx, maxy, maxz) = self.bounding_box(shape)
+        if scale is not None:
+            if isinstance(scale, (int, float)):
+                sx = sy = sz = float(scale)
+            else:
+                sx, sy, sz = float(scale[0]), float(scale[1]), float(scale[2])
+            volume *= abs(sx * sy * sz)
+            minx, maxx = minx * sx, maxx * sx
+            miny, maxy = miny * sy, maxy * sy
+            minz, maxz = minz * sz, maxz * sz
+        dx, dy, dz = float(move[0]), float(move[1]), float(move[2])
+        bounds = ((min(minx, maxx) + dx, min(miny, maxy) + dy, min(minz, maxz) + dz),
+                  (max(minx, maxx) + dx, max(miny, maxy) + dy, max(minz, maxz) + dz))
+        return _FakeCombined(volume, bounds)
+
     def volume(self, solid: Any) -> float:
         if isinstance(solid, BodySet):
             return sum(self.volume(b.shape) for b in solid.bodies)
