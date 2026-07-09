@@ -89,6 +89,7 @@ definitions {
       on { type = string }
       operation { enum = ["cut", "union", "intersect"] }
       merge { type = boolean }
+      scope { type = string }
       target { type = string }
       tool { type = string }
       sections { type = array, items { type = string } }
