@@ -23,3 +23,25 @@ def test_bodyset_unknown_id_raises():
     bs = BodySet([Body(id="x/body/0", kind="solid", shape="A", created_by="x")])
     with pytest.raises(KeyError):
         bs.by_id("nope")
+
+
+def _three():
+    return BodySet([Body(id=f"p/body/{i}", kind="solid", shape=object(), created_by="p")
+                    for i in range(3)])
+
+
+def test_partition_splits_in_and_out_preserving_order():
+    ins, out = _three().partition(["p/body/0", "p/body/2"])
+    assert [b.id for b in ins] == ["p/body/0", "p/body/2"]
+    assert [b.id for b in out] == ["p/body/1"]
+
+
+def test_partition_in_scope_follows_ids_argument_order():
+    ins, _ = _three().partition(["p/body/2", "p/body/0"])
+    assert [b.id for b in ins] == ["p/body/2", "p/body/0"]  # target-first for cut
+
+
+def test_partition_unknown_id_absent_from_in_scope():
+    ins, out = _three().partition(["p/body/9"])
+    assert ins == []
+    assert [b.id for b in out] == ["p/body/0", "p/body/1", "p/body/2"]
