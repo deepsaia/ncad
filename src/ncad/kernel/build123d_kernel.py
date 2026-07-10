@@ -18,6 +18,7 @@ from build123d import (
     FontStyle,
     GeomType,
     Helix,
+    Keep,
     Location,
     Plane,
     Pos,
@@ -65,6 +66,7 @@ from ncad.kernel.kernel_op_error import KernelOpError
 logger = logging.getLogger(__name__)
 
 _PLANES = {"XY": Plane.XY, "XZ": Plane.XZ, "YZ": Plane.YZ}
+_KEEP = {"top": Keep.TOP, "bottom": Keep.BOTTOM}
 _AXES = {"X": Axis.X, "Y": Axis.Y, "Z": Axis.Z}
 _FONT_STYLES = {"regular": FontStyle.REGULAR, "bold": FontStyle.BOLD,
                 "italic": FontStyle.ITALIC}
@@ -515,6 +517,23 @@ class Build123dKernel(Kernel):
     def _do_mirror(shape: Any, mirror_plane: Any) -> Any:
         """The raw reflection (wrapped by _robust)."""
         return shape.mirror(mirror_plane)
+
+    def split(self, shape: Any, *, plane: dict, keep: str) -> list:
+        # build123d Shape.split(plane, keep=Keep.BOTH) returns a (top, bottom) tuple; TOP is
+        # the +normal side. TOP/BOTTOM return one solid. _robust validates a SINGLE shape and
+        # cannot check a tuple, so the both-case splits directly (build123d returns valid
+        # solids, verified) and only the single-side path is _robust-gated.
+        split_plane = self._mirror_plane(plane)
+        if keep == "both":
+            top, bottom = shape.split(split_plane, keep=Keep.BOTH)
+            return [top, bottom]
+        result = self._robust(self._do_split, shape, split_plane, _KEEP[keep], name="split")
+        return [result]
+
+    @staticmethod
+    def _do_split(shape: Any, split_plane: Any, keep_enum: Any) -> Any:
+        """The raw single-side split (wrapped by _robust)."""
+        return shape.split(split_plane, keep=keep_enum)
 
     @staticmethod
     def _do_gscale(shape: Any, scale: Any) -> Any:
