@@ -23,6 +23,7 @@ from ncad.ops.revolve_op import RevolveOp
 from ncad.ops.rib_op import RibOp
 from ncad.ops.shell_op import ShellOp
 from ncad.ops.sketch_op import SketchOp
+from ncad.ops.split_op import SplitOp
 from ncad.ops.sweep_op import SweepOp
 from ncad.ops.transform_op import TransformOp
 from ncad.ops.wrap_op import WrapOp
@@ -63,6 +64,7 @@ class OpRegistry:
         registry.register("loft", LoftOp().build)
         registry.register("mirror", MirrorOp().build)
         registry.register("pattern", PatternOp().build)
+        registry.register("split", SplitOp().build)
         registry.register("rib", RibOp().build)
         registry.register("shell", ShellOp().build)
         registry.register("draft", DraftOp().build)

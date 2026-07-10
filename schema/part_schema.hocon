@@ -92,7 +92,9 @@ definitions {
       on { type = string }
       operation { enum = ["cut", "union", "intersect"] }
       merge { type = boolean }
-      keep { type = boolean }
+      # keep is a boolean for mirror (keep original + reflection) and a string enum for split
+      # (both/top/bottom); accept either.
+      keep { type = ["boolean", "string"] }
       scope { type = string }
       move = ${definitions.vec3}
       rotate { type = object }
