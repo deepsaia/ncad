@@ -73,6 +73,29 @@ def test_gate_3_3_mirror_volumes_on_fake_kernel() -> None:
     assert FakeKernel().bodies(pair.shape)[0].id == "pair/body/0"
 
 
+def test_gate_3_4_multibody_algebra_on_fake_kernel() -> None:
+    doc = _EXAMPLES_DIR / "gate-3.4" / "multibody_algebra.hocon"
+    results = DocumentBuilder(FakeKernel()).build_file_document(str(doc))
+
+    halves = results["split_block"]
+    assert [i for i in halves.issues if i.level == "error"] == []
+    assert len(FakeKernel().bodies(halves.shape)) == 2
+    assert FakeKernel().volume(halves.shape) == pytest.approx(20 * 10 * 8)
+
+    drilled = results["multi_cut"]
+    assert [i for i in drilled.issues if i.level == "error"] == []
+    # plate 40*20*6 = 4800 minus three 4*4*6 = 96 tools -> 4512; single body.
+    assert len(FakeKernel().bodies(drilled.shape)) == 1
+    assert FakeKernel().volume(drilled.shape) == pytest.approx(4800.0 - 3 * 96.0)
+
+    merged = results["scoped_merge"]
+    assert [i for i in merged.issues if i.level == "error"] == []
+    ids = {b.id for b in FakeKernel().bodies(merged.shape)}
+    assert ids == {"merged/body/0", "row/body/1"}
+    # 3 studs of 6*6*10 = 360; union of 0+2 = 720, plus passthrough 360 -> 1080 total.
+    assert FakeKernel().volume(merged.shape) == pytest.approx(3 * 360.0)
+
+
 @pytest.mark.slow
 def test_gate_0_1_exports_glb(tmp_path) -> None:
     from ncad.kernel.build123d_kernel import Build123dKernel
@@ -571,3 +594,71 @@ def test_gate_3_3_bracket_composes_additively() -> None:
         solids = result.shape.solids()
         assert len(solids) == 1, f"prefix {n} is {len(solids)} solids, not one"
         assert result.shape.is_valid
+
+
+@pytest.mark.slow
+def test_gate_3_4_signatures_match_golden() -> None:
+    import json
+
+    from ncad.build.equality_comparator import EqualityComparator
+    from ncad.kernel.build123d_kernel import Build123dKernel
+
+    kernel = Build123dKernel()
+    builder = DocumentBuilder(kernel)
+    resolved = builder._resolve_and_validate(builder._loader.load(
+        str(_EXAMPLES_DIR / "gate-3.4" / "multibody_algebra.hocon")))
+    comparator = EqualityComparator()
+    for name in ("split_block", "multi_cut", "scoped_merge"):
+        golden = json.loads((Path(__file__).resolve().parents[1] / "build" / "golden" /
+                             f"{name}.signature.json").read_text())
+        result, _, _ = builder._builder.build_part_mapped(resolved["parts"][name])
+        live = kernel.signature(result.shape)
+        assert comparator.equal(live, golden), f"{name}: {comparator.explain(live, golden)}"
+
+
+@pytest.mark.slow
+def test_gate_3_4_builds_twice_deterministically() -> None:
+    from ncad.build.equality_comparator import EqualityComparator
+    from ncad.kernel.build123d_kernel import Build123dKernel
+
+    doc = _EXAMPLES_DIR / "gate-3.4" / "multibody_algebra.hocon"
+
+    def _sig(name: str) -> dict:
+        kernel = Build123dKernel()
+        builder = DocumentBuilder(kernel)
+        resolved = builder._resolve_and_validate(builder._loader.load(str(doc)))
+        result, _, _ = builder._builder.build_part_mapped(resolved["parts"][name])
+        assert result.shape is not None
+        return kernel.signature(result.shape)
+
+    comparator = EqualityComparator()
+    for name in ("split_block", "multi_cut", "scoped_merge"):
+        s1, s2 = _sig(name), _sig(name)
+        assert comparator.equal(s1, s2), comparator.explain(s1, s2)
+
+
+@pytest.mark.slow
+def test_gate_3_4_split_block_step_round_trips(tmp_path) -> None:
+    from build123d import import_step
+
+    from ncad.kernel.build123d_kernel import Build123dKernel
+
+    doc = _EXAMPLES_DIR / "gate-3.4" / "multibody_algebra.hocon"
+    kernel = Build123dKernel()
+    artifacts = DocumentBuilder(kernel).build_file(str(doc), str(tmp_path), formats=("step",))
+    step_path = Path(artifacts["split_block"])
+    assert step_path.is_file()
+    assert abs(import_step(str(step_path)).volume) > 0
+
+
+@pytest.mark.slow
+def test_gate_3_4_scoped_merge_bodies() -> None:
+    from ncad.kernel.build123d_kernel import Build123dKernel
+
+    kernel = Build123dKernel()
+    builder = DocumentBuilder(kernel)
+    resolved = builder._resolve_and_validate(builder._loader.load(
+        str(_EXAMPLES_DIR / "gate-3.4" / "multibody_algebra.hocon")))
+    result, _, _ = builder._builder.build_part_mapped(resolved["parts"]["scoped_merge"])
+    ids = {b.id for b in kernel.bodies(result.shape)}
+    assert ids == {"merged/body/0", "row/body/1"}
