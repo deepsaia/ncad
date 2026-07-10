@@ -56,6 +56,23 @@ def test_gate_3_2_pattern_volumes_on_fake_kernel() -> None:
     assert FakeKernel().volume(hub.shape) == pytest.approx(6 * 576.0)
 
 
+def test_gate_3_3_mirror_volumes_on_fake_kernel() -> None:
+    doc = _EXAMPLES_DIR / "gate-3.3" / "mirrored_bodies.hocon"
+    results = DocumentBuilder(FakeKernel()).build_file_document(str(doc))
+
+    bracket = results["symmetric_bracket"]
+    assert [i for i in bracket.issues if i.level == "error"] == []
+    # L-area = 20*6 + 6*14 = 204; extruded 8 -> 1632 per side; fused fake-volume = 2 * 1632.
+    assert FakeKernel().volume(bracket.shape) == pytest.approx(2 * 1632.0)
+
+    pair = results["mirror_pair"]
+    assert [i for i in pair.issues if i.level == "error"] == []
+    # boss 10*8*6 = 480 each; kept separate -> 2 bodies, total 960.
+    assert FakeKernel().volume(pair.shape) == pytest.approx(2 * 480.0)
+    assert len(FakeKernel().bodies(pair.shape)) == 2
+    assert FakeKernel().bodies(pair.shape)[0].id == "pair/body/0"
+
+
 @pytest.mark.slow
 def test_gate_0_1_exports_glb(tmp_path) -> None:
     from ncad.kernel.build123d_kernel import Build123dKernel
@@ -441,6 +458,108 @@ def test_gate_3_2_spoke_hub_composes_additively() -> None:
     for n in range(1, feature_count + 1):
         resolved = builder._resolve_and_validate(builder._loader.load(doc))
         part = resolved["parts"]["spoke_hub"]
+        last_op = part["features"][n - 1].get("op", "")
+        part["features"] = part["features"][:n]
+        result, _, _ = builder._builder.build_part_mapped(part)
+        errors = [i for i in result.issues if i.level == "error"]
+        assert errors == [], f"prefix {n} (op {last_op!r}) errored: {errors}"
+        if last_op == "sketch":
+            continue
+        assert result.shape is not None
+        solids = result.shape.solids()
+        assert len(solids) == 1, f"prefix {n} is {len(solids)} solids, not one"
+        assert result.shape.is_valid
+
+
+@pytest.mark.slow
+def test_gate_3_3_bracket_signature_matches_golden() -> None:
+    import json
+
+    from ncad.build.equality_comparator import EqualityComparator
+    from ncad.kernel.build123d_kernel import Build123dKernel
+
+    golden = json.loads((Path(__file__).resolve().parents[1] / "build" / "golden" /
+                         "symmetric_bracket.signature.json").read_text())
+    kernel = Build123dKernel()
+    builder = DocumentBuilder(kernel)
+    resolved = builder._resolve_and_validate(builder._loader.load(
+        str(_EXAMPLES_DIR / "gate-3.3" / "mirrored_bodies.hocon")))
+    result, _, _ = builder._builder.build_part_mapped(resolved["parts"]["symmetric_bracket"])
+    live = kernel.signature(result.shape)
+    comparator = EqualityComparator()
+    assert comparator.equal(live, golden), comparator.explain(live, golden)
+    # A fused half-model touching the plane is a single solid.
+    assert len(result.shape.solids()) == 1
+
+
+@pytest.mark.slow
+def test_gate_3_3_pair_signature_matches_golden() -> None:
+    import json
+
+    from ncad.build.equality_comparator import EqualityComparator
+    from ncad.kernel.build123d_kernel import Build123dKernel
+
+    golden = json.loads((Path(__file__).resolve().parents[1] / "build" / "golden" /
+                         "mirror_pair.signature.json").read_text())
+    kernel = Build123dKernel()
+    builder = DocumentBuilder(kernel)
+    resolved = builder._resolve_and_validate(builder._loader.load(
+        str(_EXAMPLES_DIR / "gate-3.3" / "mirrored_bodies.hocon")))
+    result, _, _ = builder._builder.build_part_mapped(resolved["parts"]["mirror_pair"])
+    live = kernel.signature(result.shape)
+    comparator = EqualityComparator()
+    assert comparator.equal(live, golden), comparator.explain(live, golden)
+    assert len(kernel.bodies(result.shape)) == 2
+
+
+@pytest.mark.slow
+def test_gate_3_3_builds_twice_deterministically() -> None:
+    from ncad.build.equality_comparator import EqualityComparator
+    from ncad.kernel.build123d_kernel import Build123dKernel
+
+    doc = _EXAMPLES_DIR / "gate-3.3" / "mirrored_bodies.hocon"
+
+    def _sig(part_name: str) -> dict:
+        kernel = Build123dKernel()
+        builder = DocumentBuilder(kernel)
+        resolved = builder._resolve_and_validate(builder._loader.load(str(doc)))
+        result, _, _ = builder._builder.build_part_mapped(resolved["parts"][part_name])
+        assert result.shape is not None
+        return kernel.signature(result.shape)
+
+    comparator = EqualityComparator()
+    for part_name in ("symmetric_bracket", "mirror_pair"):
+        s1, s2 = _sig(part_name), _sig(part_name)
+        assert comparator.equal(s1, s2), comparator.explain(s1, s2)
+
+
+@pytest.mark.slow
+def test_gate_3_3_bracket_step_round_trips(tmp_path) -> None:
+    from build123d import import_step
+
+    from ncad.kernel.build123d_kernel import Build123dKernel
+
+    doc = _EXAMPLES_DIR / "gate-3.3" / "mirrored_bodies.hocon"
+    kernel = Build123dKernel()
+    artifacts = DocumentBuilder(kernel).build_file(str(doc), str(tmp_path), formats=("step",))
+    step_path = Path(artifacts["symmetric_bracket"])
+    assert step_path.is_file()
+    assert abs(import_step(str(step_path)).volume) > 0
+
+
+@pytest.mark.slow
+def test_gate_3_3_bracket_composes_additively() -> None:
+    """Each feature prefix of the fused symmetric_bracket builds to a single valid solid."""
+    from ncad.kernel.build123d_kernel import Build123dKernel
+
+    doc = str(_EXAMPLES_DIR / "gate-3.3" / "mirrored_bodies.hocon")
+    builder = DocumentBuilder(Build123dKernel())
+    feature_count = len(
+        builder._resolve_and_validate(builder._loader.load(doc))
+        ["parts"]["symmetric_bracket"]["features"])
+    for n in range(1, feature_count + 1):
+        resolved = builder._resolve_and_validate(builder._loader.load(doc))
+        part = resolved["parts"]["symmetric_bracket"]
         last_op = part["features"][n - 1].get("op", "")
         part["features"] = part["features"][:n]
         result, _, _ = builder._builder.build_part_mapped(part)
