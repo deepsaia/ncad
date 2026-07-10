@@ -426,7 +426,13 @@ but the *model* is designed to full generality so no later bucket is a breaking 
   foundational-risk **R2**. Gate: `patterned_bodies` (a 4x3 linear grid kept separate = 12
   bodies; a 6-spoke circular pattern fused to one solid) with per-body/single-body golden
   signatures, STEP round-trip, determinism, and additive composition.
-- **3.3** mirror: feature / body across a plane, reusing transform + instance model.
+- **3.3** `[x]` mirror: one `mirror` op reflecting the running body/bodies across a plane via
+  a new orientation-correct `kernel.mirror` (build123d `Shape.mirror`), combined per
+  `keep`/`merge` (keep+merge = one symmetric solid; keep + no merge = 2 addressable bodies
+  `<id>/body/0`+`/1`; keep=false = reflect in place). Plane is a base plane (`XY`/`XZ`/`YZ` +
+  `plane_offset`) or a `{point, normal}` object. Reuses the 3.0 identity model; no new
+  identity mechanism. Gate: `mirrored_bodies` (a fused symmetric L-bracket + a kept-separate
+  mirror pair) with single-solid/per-body goldens, STEP, determinism, additive composition.
 - **3.4** boolean upgrades + multibody algebra: split a body, multi-tool cut/union, explicit
   merge-scope (keep-as-bodies vs merge), body-scoped.
 - **3.5** per-body material data + derived properties: materials are **HOCON-defined** (a
