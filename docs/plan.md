@@ -440,13 +440,19 @@ but the *model* is designed to full generality so no later bucket is a breaking 
   and a mirror rebuilds correctly and reports per-body mass properties; determinism + STEP
   round-trip (like the 2.9 capstone).
 
-**Deferred within Phase 3** (logged, not lost): **feature pattern** (re-apply the last
-feature's cut/boss at each location, distinct from the body pattern shipped in 3.2); pattern
-drivers (curve/sketch/table/fill/geometry/pattern-of-pattern); per-instance suppress/skip
-(now cheap given the stable ordinal ids from 3.2); spacing modes (spacing vs extent); mirror
-of a face; general datum planes/axes as pattern/mirror references (shares the datum work
-deferred from Phase 2). Circular `rotate = false` (translate-only) ships in 3.2; all of the
-above are additive on the pattern instance model.
+**Deferred backlog (Phase 3 buckets, gather here so nothing is lost):**
+- **Patterns (3.2):** **feature pattern** (re-apply the last feature's cut/boss at each
+  location, distinct from the body pattern shipped in 3.2); pattern *drivers*
+  (curve-driven / sketch-driven / table-driven / fill / geometry-pattern /
+  pattern-of-pattern) on the same instance model; per-instance suppress/skip (now cheap
+  given the stable ordinal ids from 3.2); spacing modes (spacing vs extent). Circular
+  `rotate = false` (translate-only) already ships; all of the above are additive.
+- **Mirror (3.3):** **feature mirror** (re-apply a feature's cut/boss reflected, shares the
+  feature-replay limitation that deferred feature pattern); mirror across a **face** (vs a
+  plane).
+- **Cross-cutting (3.2 + 3.3):** general **datum planes / axes** as first-class
+  referenceable entities for pattern/mirror references (shares the datum work deferred from
+  Phase 2, and from loft in 2.4).
 
 **Gate:** a multibody part with a circular pattern of cut features and a mirror rebuilds
 correctly and reports per-body mass properties (bucket 3.6).
