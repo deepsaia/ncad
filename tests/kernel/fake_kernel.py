@@ -439,6 +439,21 @@ class FakeKernel(Kernel):
                   (max(minx, maxx) + dx, max(miny, maxy) + dy, max(minz, maxz) + dz))
         return _FakeCombined(volume, bounds)
 
+    def mirror(self, shape: Any, *, plane: dict) -> Any:
+        # Analytic reflection: volume is preserved; the bbox is reflected across the plane.
+        # A BodySet reflects per body, each body keeping its born-once id.
+        if isinstance(shape, BodySet):
+            reflected = [Body(id=b.id, kind=b.kind, shape=self.mirror(b.shape, plane=plane),
+                              created_by=b.created_by) for b in shape.bodies]
+            return BodySet(reflected)
+        volume = self.volume(shape)
+        (minx, miny, minz), (maxx, maxy, maxz) = self.bounding_box(shape)
+        rlo = _reflect_point((minx, miny, minz), plane)
+        rhi = _reflect_point((maxx, maxy, maxz), plane)
+        bounds = ((min(rlo[0], rhi[0]), min(rlo[1], rhi[1]), min(rlo[2], rhi[2])),
+                  (max(rlo[0], rhi[0]), max(rlo[1], rhi[1]), max(rlo[2], rhi[2])))
+        return _FakeCombined(volume, bounds)
+
     def volume(self, solid: Any) -> float:
         if isinstance(solid, BodySet):
             return sum(self.volume(b.shape) for b in solid.bodies)
@@ -468,6 +483,24 @@ class FakeKernel(Kernel):
 
     def export(self, solid: Any, path: str) -> None:
         raise NotImplementedError("FakeKernel does not export geometry")
+
+
+def _reflect_point(point: Point3, plane: dict) -> Point3:
+    """Reflect ``point`` across the normalized ``plane`` (base or custom)."""
+    if plane["kind"] == "base":
+        # A base plane's normal is its axis; the plane sits at coordinate = offset. Reflecting
+        # across x=offset maps c -> 2*offset - c (sign-independent at offset=0: c -> -c).
+        axis = {"YZ": 0, "XZ": 1, "XY": 2}[plane["plane"]]
+        result = list(point)
+        result[axis] = 2.0 * plane["offset"] - point[axis]
+        return (result[0], result[1], result[2])
+    # Custom plane through p0 with normal n: p' = p - 2*((p-p0).n / n.n) * n
+    p0 = plane["point"]
+    n = plane["z_dir"]
+    d = (point[0] - p0[0]) * n[0] + (point[1] - p0[1]) * n[1] + (point[2] - p0[2]) * n[2]
+    nn = n[0] * n[0] + n[1] * n[1] + n[2] * n[2]
+    factor = 2.0 * d / nn
+    return (point[0] - factor * n[0], point[1] - factor * n[1], point[2] - factor * n[2])
 
 
 def _box_face(cx: float, cy: float, cz: float, normal: Point3, area: float,
