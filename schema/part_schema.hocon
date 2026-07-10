@@ -51,7 +51,10 @@ definitions {
     properties {
       id { type = string }
       op { type = string }
-      plane { enum = ["XY", "XZ", "YZ"] }
+      # plane is a base-plane string (sketch/shell/draft/mirror) or a {point, normal}
+      # object (mirror across an arbitrary plane). oneOf keeps the base-plane string valid
+      # for every existing op that names a plane.
+      plane { oneOf = [ { enum = ["XY", "XZ", "YZ"] }, { type = object } ] }
       plane_offset { type = number }
       elements {
         type = array
@@ -89,6 +92,7 @@ definitions {
       on { type = string }
       operation { enum = ["cut", "union", "intersect"] }
       merge { type = boolean }
+      keep { type = boolean }
       scope { type = string }
       move = ${definitions.vec3}
       rotate { type = object }

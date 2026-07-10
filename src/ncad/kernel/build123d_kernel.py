@@ -490,6 +490,32 @@ class Build123dKernel(Kernel):
             result = result.moved(Location(tuple(move)))  # pyrefly: ignore[no-matching-overload]
         return result
 
+    def mirror(self, shape: Any, *, plane: dict) -> Any:
+        # A reflection flips handedness and inverts face orientation; build123d's Shape.mirror
+        # corrects orientation and returns a valid solid, so it is preferred over a negative
+        # scale through transform. Gated by _robust like the other B-rep-mutating ops.
+        if isinstance(shape, BodySet):
+            reflected = [Body(id=b.id, kind=b.kind,
+                              shape=self.mirror(b.shape, plane=plane),
+                              created_by=b.created_by) for b in shape.bodies]
+            return BodySet(reflected)
+        mirror_plane = self._mirror_plane(plane)
+        return self._robust(self._do_mirror, shape, mirror_plane, name="mirror")
+
+    @staticmethod
+    def _mirror_plane(plane: dict) -> Any:
+        """Resolve the normalized plane description to a build123d Plane."""
+        if plane["kind"] == "base":
+            return _PLANES[plane["plane"]].offset(float(plane["offset"]))
+        # build123d Plane names the normal `z_dir` (not `normal`).
+        return Plane(origin=tuple(plane["point"]),
+                     z_dir=tuple(plane["z_dir"]))  # pyrefly: ignore[no-matching-overload]
+
+    @staticmethod
+    def _do_mirror(shape: Any, mirror_plane: Any) -> Any:
+        """The raw reflection (wrapped by _robust)."""
+        return shape.mirror(mirror_plane)
+
     @staticmethod
     def _do_gscale(shape: Any, scale: Any) -> Any:
         # Non-uniform scale via raw OCP gp_GTrsf (build123d scale is uniform only).

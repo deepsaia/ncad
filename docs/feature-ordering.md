@@ -108,6 +108,23 @@ it sees several bodies (per-body dispatch is the `scope` field's job, 3.4).
 - **Seen in:** gate-3.2 `patterned_bodies` (`spoke_hub` overlaps at the axis to fuse to one
   solid; `pattern_studs` keeps 12 separate bodies).
 
+### 8. `mirror` reflects the running result, so place it after the geometry to reflect
+
+`mirror` reflects the whole running body/bodies across a plane. Put it AFTER the feature(s)
+whose geometry you want reflected. Like `pattern`, it can change cardinality: `merge = false`
+emits a multi-body `BodySet` (original + reflection), so every op after it sees two bodies
+(per-body dispatch is the `scope` field's job, 3.4).
+
+- **Why:** the default (`keep = true, merge = true`) fuses the original with its reflection.
+  If the original TOUCHES the mirror plane (a true half-model), the fused result is one clean
+  solid; if it is offset from the plane, fusing yields two disjoint lumps in one compound -
+  the same caveat as pattern's fuse-of-disjoint-copies.
+- **Failure mode:** a `merge = true` mirror of a plane-offset body is a multi-solid compound,
+  not one solid. Put the body on the plane for a fused symmetric part, or use `merge = false`
+  and treat the result as a multibody part.
+- **Seen in:** gate-3.3 `mirrored_bodies` (`symmetric_bracket` touches YZ and fuses to one
+  solid; `mirror_pair` is offset and kept separate as 2 bodies).
+
 ---
 
 ## How to work when order bites you

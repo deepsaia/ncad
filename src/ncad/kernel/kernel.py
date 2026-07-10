@@ -275,5 +275,17 @@ class Kernel(ABC):
         """
 
     @abstractmethod
+    def mirror(self, shape: Any, *, plane: dict) -> Any:
+        """Return ``shape`` reflected across ``plane`` (orientation-corrected).
+
+        ``plane`` is a normalized description: ``{"kind":"base","plane":"XY"/"XZ"/"YZ",
+        "offset": float}`` (a base plane shifted along its normal) or ``{"kind":"custom",
+        "point": (x,y,z), "z_dir": (x,y,z)}`` (an arbitrary plane through ``point`` with
+        normal ``z_dir``). A reflection is a negative-determinant transform, so the backend
+        must correct face orientation (return a valid solid). A ``BodySet`` is reflected per
+        body, ids preserved. Raises KernelOpError on failure.
+        """
+
+    @abstractmethod
     def export(self, solid: Any, path: str) -> None:
         """Write ``solid`` to ``path``; format inferred from the extension."""
