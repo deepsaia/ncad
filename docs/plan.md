@@ -433,8 +433,14 @@ but the *model* is designed to full generality so no later bucket is a breaking 
   `plane_offset`) or a `{point, normal}` object. Reuses the 3.0 identity model; no new
   identity mechanism. Gate: `mirrored_bodies` (a fused symmetric L-bracket + a kept-separate
   mirror pair) with single-solid/per-body goldens, STEP, determinism, additive composition.
-- **3.4** boolean upgrades + multibody algebra: split a body, multi-tool cut/union, explicit
-  merge-scope (keep-as-bodies vs merge), body-scoped.
+- **3.4** `[x]` boolean upgrades + multibody algebra: a new `split` op (divide the running
+  body by a plane into 2 addressable bodies or keep one side, via a new orientation-safe
+  `kernel.split`); `boolean` extended to **multi-tool** ref mode (`tools = [...]`) and a new
+  **scope mode** (`scope = [body_id, ...]`) that combines named bodies of the running
+  multibody shape and passes the rest through with ids preserved - this makes the threaded
+  `scope` field real, addressed by born-once id (ties to R2). New `BodySet.partition`; shared
+  `plane_spec` factored from mirror. Gate: `multibody_algebra` (a split block, a multi-tool
+  cut, a scoped union) with multibody/single goldens, STEP, determinism.
 - **3.5** per-body material data + derived properties: materials are **HOCON-defined** (a
   material-library document loaded via `leaf-common`, reusable/version-controllable) and
   **referenced from the part** - each body names its material (`material = "steel_1018"`),
@@ -456,9 +462,12 @@ but the *model* is designed to full generality so no later bucket is a breaking 
 - **Mirror (3.3):** **feature mirror** (re-apply a feature's cut/boss reflected, shares the
   feature-replay limitation that deferred feature pattern); mirror across a **face** (vs a
   plane).
-- **Cross-cutting (3.2 + 3.3):** general **datum planes / axes** as first-class
-  referenceable entities for pattern/mirror references (shares the datum work deferred from
-  Phase 2, and from loft in 2.4).
+- **Boolean / split (3.4):** split by a **tool body / face / sketch** (vs a plane) and
+  region-select of the resulting pieces; a body **Selector** for `scope` (by tag / material /
+  bbox) instead of an explicit id list.
+- **Cross-cutting (3.2 + 3.3 + 3.4):** general **datum planes / axes** as first-class
+  referenceable entities for pattern/mirror/split references (shares the datum work deferred
+  from Phase 2, and from loft in 2.4).
 
 **Gate:** a multibody part with a circular pattern of cut features and a mirror rebuilds
 correctly and reports per-body mass properties (bucket 3.6).
