@@ -454,6 +454,28 @@ class FakeKernel(Kernel):
                   (max(rlo[0], rhi[0]), max(rlo[1], rhi[1]), max(rlo[2], rhi[2])))
         return _FakeCombined(volume, bounds)
 
+    def split(self, shape: Any, *, plane: dict, keep: str) -> list:
+        # Analytic partition: split the bbox at the plane along its normal; each side's volume
+        # is the original scaled by its bbox-length fraction on that side of the plane. TOP is
+        # the positive side of the plane normal, BOTTOM the negative. Two sides sum to original.
+        volume = self.volume(shape)
+        (minx, miny, minz), (maxx, maxy, maxz) = self.bounding_box(shape)
+        axis, coord = _split_axis_coord(plane)
+        lo = (minx, miny, minz)[axis]
+        hi = (maxx, maxy, maxz)[axis]
+        span = hi - lo
+        cut = min(max(coord, lo), hi)  # clamp the cut inside the bbox
+        top_frac = (hi - cut) / span if span else 0.0
+        top = _clip_side(volume * top_frac, (minx, miny, minz), (maxx, maxy, maxz),
+                         axis, cut, hi)
+        bottom = _clip_side(volume * (1.0 - top_frac), (minx, miny, minz),
+                            (maxx, maxy, maxz), axis, lo, cut)
+        if keep == "top":
+            return [top]
+        if keep == "bottom":
+            return [bottom]
+        return [top, bottom]
+
     def volume(self, solid: Any) -> float:
         if isinstance(solid, BodySet):
             return sum(self.volume(b.shape) for b in solid.bodies)
@@ -483,6 +505,29 @@ class FakeKernel(Kernel):
 
     def export(self, solid: Any, path: str) -> None:
         raise NotImplementedError("FakeKernel does not export geometry")
+
+
+def _split_axis_coord(plane: dict) -> tuple:
+    """The world axis index and the plane's coordinate along it."""
+    if plane["kind"] == "base":
+        axis = {"YZ": 0, "XZ": 1, "XY": 2}[plane["plane"]]
+        return axis, plane["offset"]
+    # A custom plane's dominant axis is the largest normal component; its coordinate is the
+    # projection of the point onto that axis. Good enough for the analytic Fake bbox split.
+    n = plane["z_dir"]
+    axis = max(range(3), key=lambda i: abs(n[i]))
+    return axis, plane["point"][axis]
+
+
+def _clip_side(volume: float, low: Point3, high: Point3, axis: int, lo: float,
+               hi: float) -> "_FakeCombined":
+    """A _FakeCombined for one side: the bbox with ``axis`` clipped to [lo, hi]."""
+    new_low = list(low)
+    new_high = list(high)
+    new_low[axis] = lo
+    new_high[axis] = hi
+    return _FakeCombined(volume, ((new_low[0], new_low[1], new_low[2]),
+                                  (new_high[0], new_high[1], new_high[2])))
 
 
 def _reflect_point(point: Point3, plane: dict) -> Point3:

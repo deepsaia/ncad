@@ -1,0 +1,53 @@
+schema_version = 2
+units = mm
+# Boolean upgrades + multibody algebra. `split_block`: a block split by a plane into 2
+# addressable bodies. `multi_cut`: a plate cut by three disjoint tool bodies in one boolean.
+# `scoped_merge`: a 3-body linear pattern with a scope-mode union that merges bodies 0 and 2,
+# leaving body 1 addressable.
+parts {
+  split_block {
+    profile = solid
+    features = [
+      { id = blk_sk, op = sketch, plane = XY,
+        elements = [ { id = r, type = rectangle, w = 20, h = 10 } ] }
+      { id = blk, op = extrude, profile = blk_sk, distance = 8 }
+      { id = halves, op = split, plane = YZ, plane_offset = 0, keep = both }
+    ]
+  }
+  multi_cut {
+    profile = solid
+    features = [
+      # A 40x20 plate (x in [-20,20], y in [-10,10]) cut by three disjoint 4x4 tool bodies
+      # placed along the plate via explicit polygon points (rectangles would center on origin
+      # and overlap). Multi-tool ref mode: one target minus three tools in a single boolean.
+      { id = plate_sk, op = sketch, plane = XY,
+        elements = [ { id = r, type = polygon,
+          points = [ [ -20, -10 ], [ 20, -10 ], [ 20, 10 ], [ -20, 10 ] ] } ] }
+      { id = plate, op = extrude, profile = plate_sk, distance = 6 }
+      { id = h1_sk, op = sketch, plane = XY,
+        elements = [ { id = c, type = polygon,
+          points = [ [ -14, -2 ], [ -10, -2 ], [ -10, 2 ], [ -14, 2 ] ] } ] }
+      { id = h1, op = extrude, profile = h1_sk, distance = 6 }
+      { id = h2_sk, op = sketch, plane = XY,
+        elements = [ { id = c, type = polygon,
+          points = [ [ -2, -2 ], [ 2, -2 ], [ 2, 2 ], [ -2, 2 ] ] } ] }
+      { id = h2, op = extrude, profile = h2_sk, distance = 6 }
+      { id = h3_sk, op = sketch, plane = XY,
+        elements = [ { id = c, type = polygon,
+          points = [ [ 10, -2 ], [ 14, -2 ], [ 14, 2 ], [ 10, 2 ] ] } ] }
+      { id = h3, op = extrude, profile = h3_sk, distance = 6 }
+      { id = drilled, op = boolean, operation = cut, target = plate, tools = [ h1, h2, h3 ] }
+    ]
+  }
+  scoped_merge {
+    profile = solid
+    features = [
+      { id = stud_sk, op = sketch, plane = XY,
+        elements = [ { id = r, type = rectangle, w = 6, h = 6 } ] }
+      { id = stud, op = extrude, profile = stud_sk, distance = 10 }
+      { id = row, op = pattern, kind = linear, merge = false,
+        x = { dir = [ 1, 0, 0 ], spacing = 20, count = 3 } }
+      { id = merged, op = boolean, operation = union, scope = [ "row/body/0", "row/body/2" ] }
+    ]
+  }
+}

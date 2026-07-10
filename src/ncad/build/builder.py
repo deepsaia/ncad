@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 _REF_FIELDS: dict[str, dict[str, str]] = {
     "extrude": {"profile": "input", "to": "face"},
     "pocket": {"profile": "shape", "target": "shape", "to": "face"},
-    "boolean": {"target": "shape", "tool": "shape"},
+    "boolean": {"target": "shape", "tool": "shape", "tools": "shape_list"},
     "revolve": {"profile": "input"},
     "groove": {"profile": "shape", "target": "shape"},
     "sweep": {"profile": "input", "path": "shape", "sections": "shape_list",

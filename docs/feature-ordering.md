@@ -125,6 +125,21 @@ emits a multi-body `BodySet` (original + reflection), so every op after it sees 
 - **Seen in:** gate-3.3 `mirrored_bodies` (`symmetric_bracket` touches YZ and fuses to one
   solid; `mirror_pair` is offset and kept separate as 2 bodies).
 
+### 9. `split` raises body cardinality; `boolean` scope mode needs a prior multibody producer
+
+`split` (keep=both) turns one running body into two; `boolean` scope mode operates on the
+bodies of the running multibody shape, addressed by born-once id.
+
+- **Why:** scope mode references bodies by id (`row/body/0`), so it MUST follow a feature that
+  minted those ids (a pattern/mirror/split with merge=false, or a prior scoped op). A scope id
+  that does not exist in the running shape is a hard error, not a silent no-op, so a typo or a
+  stale id after a tree edit is caught.
+- **Failure mode:** placing a scope-mode `boolean` before any multibody producer (running
+  shape is a single body) errors if more than one id is named; a scope id absent from the
+  running BodySet errors. Fix the order or the id, do not drop the op.
+- **Seen in:** gate-3.4 `multibody_algebra` (`scoped_merge` unions `row/body/0`+`row/body/2`
+  after the pattern mints them; `split_block` splits one body into two).
+
 ---
 
 ## How to work when order bites you

@@ -92,8 +92,12 @@ definitions {
       on { type = string }
       operation { enum = ["cut", "union", "intersect"] }
       merge { type = boolean }
-      keep { type = boolean }
-      scope { type = string }
+      # keep is a boolean for mirror (keep original + reflection) and a string enum for split
+      # (both/top/bottom); accept either.
+      keep { type = ["boolean", "string"] }
+      # scope is a body-id string or an ordered list of body ids (boolean scope mode).
+      scope { type = ["string", "array"] }
+      tools { type = array, items { type = string } }
       move = ${definitions.vec3}
       rotate { type = object }
       scale { type = ["number", "array"] }

@@ -287,5 +287,15 @@ class Kernel(ABC):
         """
 
     @abstractmethod
+    def split(self, shape: Any, *, plane: dict, keep: str) -> list:
+        """Split ``shape`` by ``plane``; return the kept side(s) as raw shapes.
+
+        ``plane`` is the normalized description (see mirror). ``keep`` is ``"both"`` (return
+        ``[top, bottom]`` - the positive then the negative side of the plane normal),
+        ``"top"`` (return ``[top]``), or ``"bottom"`` (return ``[bottom]``). The op wraps a
+        2-shape result into an addressable BodySet. Raises KernelOpError on failure.
+        """
+
+    @abstractmethod
     def export(self, solid: Any, path: str) -> None:
         """Write ``solid`` to ``path``; format inferred from the extension."""

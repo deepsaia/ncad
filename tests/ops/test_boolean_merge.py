@@ -11,8 +11,8 @@ def _box(k, x0, w):
 def test_union_merge_true_fuses_to_one_shape():
     k = FakeKernel()
     a, b = _box(k, 0, 4), _box(k, 10, 4)  # disjoint
-    result = BooleanOp().build(None, {"id": "u", "operation": "union",
-                                      "__refs__": {"target": a, "tool": b}}, {}, k)
+    result = BooleanOp().build(None, {"id": "u", "operation": "union", "target": "a",
+                                      "tool": "b", "__refs__": {"target": a, "tool": b}}, {}, k)
     assert result.shape is not None
     assert not isinstance(result.shape, BodySet)  # fused: a plain shape
 
@@ -21,6 +21,7 @@ def test_union_merge_false_keeps_two_bodies_with_ids():
     k = FakeKernel()
     a, b = _box(k, 0, 4), _box(k, 10, 4)
     result = BooleanOp().build(None, {"id": "u", "operation": "union", "merge": False,
+                                      "target": "a", "tool": "b",
                                       "__refs__": {"target": a, "tool": b}}, {}, k)
     assert isinstance(result.shape, BodySet)
     assert len(result.shape) == 2

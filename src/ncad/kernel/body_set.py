@@ -39,6 +39,19 @@ class BodySet:
         """The kernel shape handle of each body, in order."""
         return [b.shape for b in self._bodies]
 
+    def partition(self, ids: list[str]) -> tuple[list[Body], list[Body]]:
+        """Split into (in_scope, out_of_scope) by body id.
+
+        ``in_scope`` follows the ORDER of ``ids`` (so a scope-mode cut can use in_scope[0] as
+        the target); ``out_of_scope`` keeps this set's order. Ids not present are simply
+        omitted from in_scope (the caller checks completeness).
+        """
+        by_id = {b.id: b for b in self._bodies}
+        in_scope = [by_id[i] for i in ids if i in by_id]
+        wanted = set(ids)
+        out_of_scope = [b for b in self._bodies if b.id not in wanted]
+        return in_scope, out_of_scope
+
     def __len__(self) -> int:
         return len(self._bodies)
 
