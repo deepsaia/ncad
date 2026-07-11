@@ -441,13 +441,17 @@ but the *model* is designed to full generality so no later bucket is a breaking 
   `scope` field real, addressed by born-once id (ties to R2). New `BodySet.partition`; shared
   `plane_spec` factored from mirror. Gate: `multibody_algebra` (a split block, a multi-tool
   cut, a scoped union) with multibody/single goldens, STEP, determinism.
-- **3.5** per-body material data + derived properties: materials are **HOCON-defined** (a
-  material-library document loaded via `leaf-common`, reusable/version-controllable) and
-  **referenced from the part** - each body names its material (`material = "steel_1018"`),
-  with an optional inline `mat_data` override. The record is an extensible grouped property
-  bag (NX/Creo/Fusion-modeled: `physical` density/sp.gr., `structural`, `thermal`, custom
-  keys), physical-vs-`appearance` separated; mass/COG/assembly-total **derived** (mass =
-  density x volume), feeding BOM, mass props, CAE, and domain profiles.
+- **3.5** `[x]` per-body material data + derived properties: materials are HOCON-defined and
+  library-referenced (built-in seed + document-inline `materials` + external
+  `materials_library` file, resolved by name; inline `mat_data` deep-merges onto the
+  referenced record). A part names a default `material`; a feature overrides it; a body
+  inherits via `Body.created_by`. `mat_data` is an open grouped bag (physical/structural/
+  thermal/appearance + custom); only `physical.density` drives mass; `appearance` is separated
+  and never in mass math. Mass is DERIVED on demand (`mass_kg = density_kg_m3 * volume_mm3 *
+  1e-9`), never stored: `MassCalculator` reports per-body volume/density/mass/COG + mass-
+  weighted assembly totals over the geometry-only kernel (closes R3). Gate: `materials_part`
+  (aluminium halves + a steel boss) with a golden mass-props JSON. (Also fixed a 3.1 gap:
+  `kernel.transform` now handles a multibody `BodySet` per body.)
 - **3.6** Phase-3 gate capstone: a multibody part with a circular pattern of cut features
   and a mirror rebuilds correctly and reports per-body mass properties; determinism + STEP
   round-trip (like the 2.9 capstone).
@@ -465,6 +469,9 @@ but the *model* is designed to full generality so no later bucket is a breaking 
 - **Boolean / split (3.4):** split by a **tool body / face / sketch** (vs a plane) and
   region-select of the resulting pieces; a body **Selector** for `scope` (by tag / material /
   bbox) instead of an explicit id list.
+- **Materials / mass (3.5):** CAE solving from `structural`/`thermal` (stored + queryable now,
+  computed nothing yet); temperature-dependent properties; `appearance` rendering in the
+  viewer; full MatML / Creo `.mtl` import; moments of inertia / inertia tensor.
 - **Cross-cutting (3.2 + 3.3 + 3.4):** general **datum planes / axes** as first-class
   referenceable entities for pattern/mirror/split references (shares the datum work deferred
   from Phase 2, and from loft in 2.4).
