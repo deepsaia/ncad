@@ -43,6 +43,26 @@ def test_boolean_depends_on_target_and_tool():
     assert sorted(RebuildGraph(features).deps("bool")) == ["pa", "pb"]
 
 
+def test_implicit_input_op_keeps_authored_order_after_its_predecessor():
+    # A pattern consumes the authored-previous solid implicitly (no ref). An independent
+    # later solid (boss) must NOT be scheduled before the pattern: a feature stack runs in
+    # authored order except where an explicit dependency forces something earlier. Otherwise
+    # the pattern would replicate the boss instead of the stud (the running-shape it inherits).
+    features = [
+        {"id": "stud_sk", "op": "sketch"},
+        {"id": "stud", "op": "extrude", "profile": "stud_sk"},
+        {"id": "row", "op": "pattern"},
+        {"id": "boss_sk", "op": "sketch"},
+        {"id": "boss", "op": "extrude", "profile": "boss_sk"},
+        {"id": "grp", "op": "boolean", "target": "row", "tool": "boss"},
+    ]
+    order = RebuildGraph(features).order()
+    # row must come before boss (authored order preserved for independent solids)
+    assert order.index("row") < order.index("boss")
+    # and the running-shape chain is stud -> row (not boss -> row)
+    assert order.index("stud") < order.index("row")
+
+
 def test_cycle_raises():
     features = [
         {"id": "x", "op": "extrude", "profile": "y"},
