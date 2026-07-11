@@ -24,10 +24,11 @@ parts {
       { id = boss_sk, op = sketch, plane = XY,
         elements = [ { id = b, type = polygon,
           points = [ [ 48, -4 ], [ 56, -4 ], [ 56, 4 ], [ 48, 4 ] ] } ] }
-      { id = boss, op = extrude, profile = boss_sk, distance = 26 }
-      # Add the boss as its own steel body (kept separate) -> grp/body/2.
-      { id = grp, op = boolean, operation = union, merge = false, target = row, tool = boss,
-        material = "steel_1018" }
+      # The boss is steel: material rides on the feature that CREATES the body (the extrude),
+      # and survives the keep-separate union (which preserves each operand's provenance).
+      { id = boss, op = extrude, profile = boss_sk, distance = 26, material = "steel_1018" }
+      # Add the boss as its own body kept separate -> grp/body/2 (steel, via boss provenance).
+      { id = grp, op = boolean, operation = union, merge = false, target = row, tool = boss }
     ]
   }
 }
