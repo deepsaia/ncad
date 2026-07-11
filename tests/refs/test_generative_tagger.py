@@ -19,6 +19,30 @@ def test_extrude_xy_tags_caps_and_sides():
     assert tags[2] == "side" and tags[3] == "side"
 
 
-def test_non_extrude_op_has_no_tags():
+def test_untagged_op_has_no_tags():
+    # An op with no generative-tag rule (e.g. a plain boolean) tags nothing.
     faces = [_face(0, 0, 1, 5)]
-    assert GenerativeTagger().tags_for("hole", "XY", faces) == {}
+    assert GenerativeTagger().tags_for("boolean", "XY", faces) == {}
+
+
+def _curved_face(geom_type: str) -> dict:
+    return {"kind": "face", "geom_type": geom_type, "normal": (1.0, 0.0, 0.0),
+            "center": (0.0, 0.0, 0.0), "area": 5.0}
+
+
+def test_fillet_faces_tagged_fillet():
+    faces = [_curved_face("cylindrical")]
+    tags = GenerativeTagger().tags_for("fillet", "XY", faces)
+    assert tags.get(0) == "fillet"
+
+
+def test_chamfer_faces_tagged_chamfer():
+    faces = [_curved_face("conical")]
+    tags = GenerativeTagger().tags_for("chamfer", "XY", faces)
+    assert tags.get(0) == "chamfer"
+
+
+def test_hole_walls_tagged():
+    faces = [_curved_face("cylindrical")]
+    tags = GenerativeTagger().tags_for("hole", "XY", faces)
+    assert tags.get(0) == "hole_wall"
