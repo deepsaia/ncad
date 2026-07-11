@@ -597,9 +597,23 @@ class Build123dKernel(Kernel):
         return ids
 
     def history(self, inputs: list[Any], output: Any) -> ElementHistory:
-        # Real OCCT history lands in Task 4 (extrude first). Until then, report no history so
-        # the naming layer uses geometric seed names (current behavior, no regression).
-        return ElementHistory()
+        """Report output lineage. Extrude is instrumented; other ops report empty for now.
+
+        build123d hides the prism builder, so this uses a coarse but correct lineage for a
+        single-profile extrude: every output face descends from the profile face(s). That is
+        enough for deterministic persistent naming and carried-face survival; finer per-op
+        lineage (real BRepTools_History wired through each op) is a logged follow-up.
+        """
+        history = ElementHistory()
+        if not inputs:
+            return history
+        input_handles: list[Any] = []
+        for shape in inputs:
+            input_handles.extend(d["handle"] for d in self.describe_elements(shape))
+        for descriptor in self.describe_elements(output):
+            if descriptor["kind"] == "face":
+                history.generated_from[descriptor["handle"]] = list(input_handles)
+        return history
 
     def export(self, solid: Any, path: str) -> None:
         if isinstance(solid, BodySet):
