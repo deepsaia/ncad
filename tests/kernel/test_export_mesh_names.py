@@ -9,16 +9,18 @@ pytestmark = pytest.mark.slow
 _EXAMPLES = Path(__file__).resolve().parents[2] / "examples"
 
 
-def _glb_mesh_names(path: str) -> list[str]:
-    """Parse a .glb and return its glTF mesh names in order."""
+def _glb_mesh_count(path: str) -> int:
+    """Parse a .glb and return its glTF mesh count."""
     with open(path, "rb") as handle:
         handle.read(12)  # magic, version, length
         chunk_len, _chunk_type = struct.unpack("<II", handle.read(8))
         gltf = json.loads(handle.read(chunk_len))
-    return [m.get("name") for m in gltf.get("meshes", [])]
+    return len(gltf.get("meshes", []))
 
 
-def test_multibody_glb_meshes_named_by_body_id(tmp_path):
+def test_multibody_export_meshes_align_with_body_order(tmp_path):
+    # The sidecar `meshes` list (body id per exported glTF mesh, in export order) must parallel
+    # the exported glb's meshes, so the viewer maps mesh index -> body -> material positionally.
     from ncad.build.document_builder import DocumentBuilder
     from ncad.kernel.build123d_kernel import Build123dKernel
 
@@ -26,10 +28,14 @@ def test_multibody_glb_meshes_named_by_body_id(tmp_path):
     builder = DocumentBuilder(kernel)
     doc = _EXAMPLES / "gate-3.6" / "flanged_coupling.hocon"
     artifacts = builder.build_file(str(doc), str(tmp_path), formats=("glb",))
-    names = _glb_mesh_names(artifacts["flanged_coupling"])
+    mesh_count = _glb_mesh_count(artifacts["flanged_coupling"])
 
-    resolved = builder._resolve_and_validate(builder._loader.load(str(doc)))
-    result, _, _ = builder._builder.build_part_mapped(resolved["parts"]["flanged_coupling"])
-    body_ids = [b.id for b in kernel.bodies(result.shape)]
-
-    assert names == body_ids
+    sidecar = json.loads((tmp_path / "flanged_coupling.elementmap.json").read_text())
+    meshes = sidecar["meshes"]
+    # one sidecar mesh entry per exported glTF mesh
+    assert len(meshes) == mesh_count
+    # each carries a body id + its material; the coupling has aluminium flanges + steel hubs
+    body_ids = {m["body_id"] for m in meshes}
+    materials = {m["material"] for m in meshes}
+    assert len(body_ids) == 4  # 2 flanges + 2 hubs
+    assert materials == {"aluminium_6061", "steel_1018"}

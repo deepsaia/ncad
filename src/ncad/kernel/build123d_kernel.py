@@ -568,23 +568,27 @@ class Build123dKernel(Kernel):
         box = solid.bounding_box()
         return (tuple(box.min), tuple(box.max))
 
+    def mesh_body_ids(self, shape: Any) -> list:
+        # Parallel to the export flatten below: one entry per exported mesh (body solid), in
+        # body order. The viewer maps pickParts[i] -> this[i] -> body -> material (positional,
+        # since glTF mesh NAMES do not survive GLTFLoader reliably).
+        ids: list = []
+        for body in self.bodies(shape):
+            solids = body.shape.solids() if hasattr(body.shape, "solids") else [body.shape]
+            ids.extend(body.id for _ in (solids or [body.shape]))
+        return ids
+
     def export(self, solid: Any, path: str) -> None:
         if isinstance(solid, BodySet):
             # A multibody part exports as a compound: STEP as a multi-solid assembly, glTF as
-            # one mesh part per body. Naming each body's shape (its label) names that body's
-            # glTF mesh with its body id, so the viewer colors/picks PER BODY by mesh name -
-            # not by a global face index, which does not match the glTF face order. Labeling is
-            # display metadata only; it does not affect the signature or STEP. Single-shape
+            # one mesh per body solid, in body order (parallel to mesh_body_ids). Single-shape
             # export is unchanged.
             from build123d import Compound
             children = []
             for body in solid.bodies:
                 # A body's shape is often a Compound (a boolean/mirror result); the glTF mesh is
-                # built from its SOLID, so label the solid(s) (not the wrapping Compound) to name
-                # each body's mesh with its body id. Flatten to solids so the export compound is
-                # one named mesh per body's solid.
+                # built from its SOLID, so flatten to solids (one mesh per solid, body order).
                 for one in body.shape.solids():
-                    one.label = body.id
                     children.append(one)
             solid = Compound(children=children)
         lowered = path.lower()

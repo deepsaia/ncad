@@ -415,6 +415,11 @@ class FakeKernel(Kernel):
             return shape.bodies
         return [Body(id="body/0", kind="solid", shape=shape, created_by="")]
 
+    def mesh_body_ids(self, shape: Any) -> list:
+        # One entry per body (the analytic fake has one solid per body); parallels the real
+        # kernel's export mesh order for the viewer's per-body mapping.
+        return [body.id for body in self.bodies(shape)]
+
     def union_bodies(self, shapes: list, *, origin: str, sources: list | None = None) -> Any:
         return union_bodies(shapes, origin, sources)
 

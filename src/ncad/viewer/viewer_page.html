@@ -677,17 +677,15 @@ renderer.domElement.addEventListener("click", ev => {
   const hits = raycaster.intersectObjects(pickParts, false);
   const out = document.getElementById("i-picked");
   if (!hits.length) { out.textContent = "-"; return; }
-  const hit = hits[0].object;
-  // Prefer the body-id mesh name (body-correct for multibody; the flat pickParts index does not
-  // match the element-map order for multibody parts). Fall back to the flat element lookup for a
-  // single-body / unnamed mesh (correct there, one body).
-  const bid = meshBodyId(hit);
-  if (bid != null) {
-    const bm = bodyMaterials[bid];
-    const mat = bm && bm.material ? bm.material : "no material";
-    out.textContent = `${bid} (${mat})`;
+  const idx = pickParts.indexOf(hits[0].object);
+  // Report the clicked mesh's BODY id + material via the sidecar `meshes` list (mesh index ->
+  // body), which is body-correct for multibody. If there is no mesh entry (older sidecar) fall
+  // back to the flat element lookup (correct for a single body).
+  const meshes = (elementMap && elementMap.meshes) || [];
+  if (meshes[idx]) {
+    const info = meshes[idx];
+    out.textContent = `${info.body_id} (${info.material || "no material"})`;
   } else {
-    const idx = pickParts.indexOf(hit);
     const el = (elementMap.elements || [])[idx];
     out.textContent = el ? `${el.id} (by ${el.created_by})` : "-";
   }
@@ -847,42 +845,13 @@ function colorFor(name, appearanceColor) {
   return paletteColor(name);
 }
 
-// Per-body material map (body_id -> {material, appearance}). All of a body's faces share one
-// material; we group the element-map records by body_id, NOT by global index (which does not
-// match the glTF face order for multibody parts). The viewer colors/picks per body (per mesh).
-let bodyMaterials = {};
-function buildBodyMaterials() {
-  bodyMaterials = {};
-  const els = (elementMap && elementMap.elements) || [];
-  els.forEach(e => {
-    const bid = e.body_id;
-    if (bid == null) return;
-    if (!(bid in bodyMaterials)) {
-      bodyMaterials[bid] = { material: e.material || null,
-                             appearance: e.appearance_color || null };
-    } else if (!bodyMaterials[bid].material && e.material) {
-      bodyMaterials[bid].material = e.material;
-      bodyMaterials[bid].appearance = e.appearance_color || null;
-    }
-  });
-}
-// The body id a mesh belongs to: the glTF mesh name (set at export = "<feature>/body/<n>"),
-// else walk up parents (GLTFLoader may put the name on the mesh or a parent node), else null
-// (single-body / older glb -> whole-part fallback).
-function meshBodyId(mesh) {
-  let o = mesh;
-  while (o) {
-    if (o.name && o.name.indexOf("/body/") !== -1) return o.name;
-    o = o.parent;
-  }
-  return null;
-}
-// Single-body / unnamed-mesh fallback: the sole body's material if there is exactly one, else
-// null (colorFor then yields the neutral "(no material)" color).
-function fallbackBodyMaterial() {
-  const keys = Object.keys(bodyMaterials);
-  if (keys.length === 1) return bodyMaterials[keys[0]];
-  return { material: null, appearance: null };
+// Per-exported-mesh body/material, from the sidecar `meshes` list (one entry per glTF mesh, in
+// export order). pickParts is collected in that same glb mesh order, so meshInfo(i) maps mesh i
+// -> its body id + material. This is positional, not name-based: glTF mesh names do not survive
+// GLTFLoader reliably, and a global face index does not match the multibody glTF face order.
+function meshInfo(i) {
+  const meshes = (elementMap && elementMap.meshes) || [];
+  return meshes[i] || { body_id: null, material: null, appearance_color: null };
 }
 
 let modelRoot = null, edges = [], mode = "solid", showEdges = true, castShadows = true;
@@ -900,19 +869,16 @@ function clearModel() {
 function applyMode() {
   if (!modelRoot) return;
   if (mode === "bymaterial") {
-    // Color each mesh by ITS BODY's material. The glb has one mesh per body (named with the
-    // body id at export), so we look up the body's material by the mesh's body-id name - NOT a
-    // global face index, which does not match the glTF face order for multibody parts. A mesh
-    // with no body-id name (single-body part / older glb) falls back to the whole-part material.
-    // Color only; metalness/roughness stay the neutral solid defaults.
-    modelRoot.traverse(o => {
-      if (!o.isMesh) return;
-      const bid = meshBodyId(o);
-      const bm = (bid != null && bodyMaterials[bid]) || fallbackBodyMaterial();
-      o.material = new THREE.MeshStandardMaterial({
-        color: new THREE.Color(colorFor(bm.material, bm.appearance)),
+    // Color each mesh by ITS BODY's material via the sidecar `meshes` list (mesh index i ->
+    // body/material), since pickParts is in glb mesh (export) order. A mesh with no sidecar
+    // entry falls back to the "(no material)" color. Color only; metalness/roughness stay the
+    // neutral solid defaults.
+    pickParts.forEach((mesh, i) => {
+      const info = meshInfo(i);
+      mesh.material = new THREE.MeshStandardMaterial({
+        color: new THREE.Color(colorFor(info.material, info.appearance_color)),
         metalness: 0.05, roughness: 0.85 });
-      o.castShadow = castShadows;
+      mesh.castShadow = castShadows;
     });
     edges.forEach(e => { e.visible = showEdges; });
     return;
@@ -979,7 +945,6 @@ function syncMaterialBlock() {
 // By-material mode only if this model has materials, re-render the panel, and re-apply the
 // mode so a by-material recolor now has both the meshes and the material data.
 function onElementMapReady() {
-  buildBodyMaterials();  // group faces by body_id -> per-body material (coloring/picking key)
   const byBtn = document.querySelector('#vc-modes .vc-btn[data-mode="bymaterial"]');
   if (byBtn) byBtn.hidden = !hasMaterials();
   if (mode === "bymaterial" && !hasMaterials()) { setMode("solid"); return; }
