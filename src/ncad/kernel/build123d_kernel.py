@@ -602,6 +602,19 @@ class Build123dKernel(Kernel):
 
         return import_step(path)
 
+    def face_neighbours(self, solid: Any, face: Any) -> list[Any]:
+        # Real OCCT adjacency lands in Task 2.
+        return []
+
+    def is_tangent_adjacent(self, solid: Any, face: Any) -> bool:
+        # Real OCCT continuity check lands in Task 2. Fail safe: assume tangent (refuse) until
+        # implemented, so no un-instrumented defeature slips through.
+        return True
+
+    def min_wall_thickness(self, solid: Any) -> float | None:
+        # Real estimate lands in Task 2; None makes the guard fail safe (refuse inward offset).
+        return None
+
     def history(self, inputs: list[Any], output: Any) -> ElementHistory:
         """Report output lineage. Extrude is instrumented; other ops report empty for now.
 
