@@ -39,3 +39,6 @@ docs/superpowers/
 
 # Reference PDFs downloaded into research/ (kept local, not committed)
 docs/research/*.pdf
+
+# spike transient run logs
+spikes/**/_run.log
