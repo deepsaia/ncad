@@ -46,14 +46,24 @@ class BooleanOp:
             return BuildIssue(node_id=feature_id,
                               message="boolean needs a resolved target and tool(s)")
         operation = kwargs["operation"]
-        # union + merge=false keeps the operands as separate bodies (3.0 keep-separate).
+        # union + merge=false keeps the operands as separate bodies (3.0 keep-separate);
+        # union_bodies flattens a BodySet operand. Pass each operand's SOURCE feature id so a
+        # kept-separate body keeps its provenance (and material) instead of taking the union's
+        # id: the target's source is params["target"], the tools' is params["tool"]/["tools"].
         if operation == "union" and not kwargs["merge"]:
-            return kernel.union_bodies([target, *tools], origin=feature_id)
+            tool_names = params["tools"] if "tools" in params else [params.get("tool")]
+            sources = [params.get("target"), *tool_names]
+            return kernel.union_bodies([target, *tools], origin=feature_id, sources=sources)
+        # A ref (target or tool) may itself be a BodySet (e.g. a pattern's output used as the
+        # cut tools). The kernel booleans take flat shape lists, so expand BodySets into their
+        # member shapes first. A cut removes every flattened tool from the (flattened) target.
+        target_shapes = _flatten(target)
+        tool_shapes = [s for t in tools for s in _flatten(t)]
         if operation == "cut":
-            return kernel.cut(target, tools)
+            return kernel.cut(_single(target_shapes), tool_shapes)
         if operation == "union":
-            return kernel.fuse([target, *tools])
-        return kernel.intersect([target, *tools])
+            return kernel.fuse([*target_shapes, *tool_shapes])
+        return kernel.intersect([*target_shapes, *tool_shapes])
 
     def _scope_mode(self, shape_in: Any, kwargs: dict, feature_id: str,
                     kernel: Kernel) -> Any:
@@ -89,3 +99,27 @@ class BooleanOp:
         if operation == "union":
             return kernel.fuse(shapes)
         return kernel.intersect(shapes)
+
+
+def _flatten(shape: Any) -> list:
+    """Expand a BodySet into its member shapes; a plain shape becomes a one-element list.
+
+    The kernel booleans (cut/fuse/intersect) take flat shape lists, but a boolean operand can
+    be a multibody BodySet (e.g. a pattern's output used as cut tools), so callers flatten first.
+    """
+    if isinstance(shape, BodySet):
+        return list(shape.shapes())
+    return [shape]
+
+
+def _single(shapes: list) -> Any:
+    """The single cut target. A cut target must be one solid.
+
+    A cut removes tools from ONE target; a multibody cut target is ambiguous (which body?),
+    so raise rather than guess. Use scope mode or a per-body op for multibody targets.
+    """
+    if len(shapes) != 1:
+        raise ValueError(
+            "boolean cut target must be a single body; got a multibody target "
+            "(cut per body or use scope mode)")
+    return shapes[0]

@@ -56,18 +56,25 @@ class BodySet:
         return len(self._bodies)
 
 
-def union_bodies(shapes: list, origin: str) -> "BodySet":
+def union_bodies(shapes: list, origin: str, sources: list | None = None) -> "BodySet":
     """Collect ``shapes`` into one BodySet as separate bodies (a keep-separate union).
 
-    A plain shape becomes a new body ``<origin>/body/<n>`` (id minted at BIRTH); a shape that
-    is already a BodySet contributes its bodies WITH THEIR EXISTING ids (a body is born once,
-    not re-minted per feature - the persistent-identity rule).
+    A plain shape becomes a new body ``<origin>/body/<n>`` (id minted at BIRTH, born-once); a
+    shape that is already a BodySet contributes its bodies WITH THEIR EXISTING ids (a body is
+    born once, not re-minted per feature - the persistent-identity rule).
+
+    ``sources`` (optional, aligned with ``shapes``) gives each plain-shape operand its SOURCE
+    feature id as ``created_by``, so per-body provenance (and thus its material) survives a
+    keep-separate assembly. Without it, a plain shape's created_by is ``origin`` (today's
+    default). A ``sources`` entry of None (or a BodySet operand) falls back to ``origin`` /
+    the existing bodies. The id namespace stays ``origin`` regardless, so ids remain stable.
     """
     bodies: list[Body] = []
-    for shape in shapes:
+    for i, shape in enumerate(shapes):
         if isinstance(shape, BodySet):
             bodies.extend(shape.bodies)
         else:
+            source = sources[i] if sources is not None and sources[i] is not None else origin
             bodies.append(Body(id=f"{origin}/body/{len(bodies)}", kind="solid",
-                               shape=shape, created_by=origin))
+                               shape=shape, created_by=source))
     return BodySet(bodies)

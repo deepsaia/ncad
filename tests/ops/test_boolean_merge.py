@@ -26,4 +26,6 @@ def test_union_merge_false_keeps_two_bodies_with_ids():
     assert isinstance(result.shape, BodySet)
     assert len(result.shape) == 2
     assert result.shape.ids() == ["u/body/0", "u/body/1"]
-    assert all(bd.created_by == "u" for bd in result.shape.bodies)
+    # ids are born under the union origin, but each body keeps its SOURCE feature as created_by
+    # (so per-body provenance/material survives the keep-separate union).
+    assert [bd.created_by for bd in result.shape.bodies] == ["a", "b"]

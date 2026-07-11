@@ -1,12 +1,34 @@
 import pytest
 
 from ncad.kernel.body import Body
-from ncad.kernel.body_set import BodySet
+from ncad.kernel.body_set import BodySet, union_bodies
 
 
 def test_body_fields():
     b = Body(id="base/body/0", kind="solid", shape=object(), created_by="base")
     assert b.id == "base/body/0" and b.kind == "solid" and b.created_by == "base"
+
+
+def test_union_bodies_default_created_by_is_origin():
+    bs = union_bodies(["A", "B"], origin="u")
+    assert bs.ids() == ["u/body/0", "u/body/1"]
+    assert [b.created_by for b in bs.bodies] == ["u", "u"]
+
+
+def test_union_bodies_sources_preserve_per_operand_created_by():
+    # A kept-separate union of two prior single-body features keeps each operand's SOURCE
+    # feature as created_by (so per-body material overrides survive assembly), while ids are
+    # still born under the union origin (born-once, stable).
+    bs = union_bodies(["A", "B"], origin="coupling", sources=["drilled", "hub"])
+    assert bs.ids() == ["coupling/body/0", "coupling/body/1"]
+    assert [b.created_by for b in bs.bodies] == ["drilled", "hub"]
+
+
+def test_union_bodies_bodyset_operand_keeps_its_bodies():
+    inner = BodySet([Body(id="p/body/0", kind="solid", shape="X", created_by="p")])
+    bs = union_bodies([inner, "B"], origin="u", sources=[None, "hub"])
+    assert bs.ids() == ["p/body/0", "u/body/1"]
+    assert [b.created_by for b in bs.bodies] == ["p", "hub"]
 
 
 def test_bodyset_ordered_ids_and_lookup():
