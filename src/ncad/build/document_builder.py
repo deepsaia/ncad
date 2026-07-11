@@ -8,6 +8,7 @@ problems are returned as issues on each part's OpResult (design §10).
 import json
 import logging
 import os
+from typing import Any
 
 from ncad.build.builder import Builder
 from ncad.build.feature_cache import FeatureCache
@@ -122,7 +123,7 @@ class DocumentBuilder:
                 self._kernel.export(result.shape, artifact_path)
                 written.append(artifact_path)
             self._write_element_map(element_map, out_dir, name)
-            self._write_hierarchy(part, out_dir, name)
+            self._write_hierarchy(part, out_dir, name, statuses)
             SketchStatusSidecar(out_dir).write(name, statuses)
             for status in statuses:
                 logger.info("sketch %s: %s-constrained (dof %d)%s", status.feature_id,
@@ -174,9 +175,13 @@ class DocumentBuilder:
             json.dump(payload, handle)
         return path
 
-    def _write_hierarchy(self, part: dict, out_dir: str, name: str) -> str:
-        """Write ``<name>.hierarchy.json`` (the display feature tree) and return its path."""
+    def _write_hierarchy(self, part: dict, out_dir: str, name: str,
+                         statuses: Any = None) -> str:
+        """Write ``<name>.hierarchy.json`` (the display feature tree) and return its path.
+
+        ``statuses`` are stamped onto sketch nodes so the tree shows constraint status inline.
+        """
         path = os.path.join(out_dir, f"{name}{_HIERARCHY_SUFFIX}")
         with open(path, "w", encoding="utf-8") as handle:
-            json.dump(self._hierarchy.hierarchy(name, part), handle)
+            json.dump(self._hierarchy.hierarchy(name, part, statuses=statuses), handle)
         return path

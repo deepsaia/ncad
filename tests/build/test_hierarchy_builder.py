@@ -1,4 +1,5 @@
 from ncad.build.hierarchy_builder import HierarchyBuilder
+from ncad.ops.sketch_status import SketchStatus
 
 
 def _part():
@@ -36,3 +37,25 @@ def test_non_sketch_feature_has_no_children():
 
     pad_node = tree["children"][1]
     assert pad_node["children"] == []
+
+
+def test_part_and_feature_carry_material_when_present():
+    part = {"profile": "solid", "material": "aluminium_6061", "features": [
+        {"id": "pad", "op": "extrude", "material": "steel_1018"},
+        {"id": "rnd", "op": "fillet"},
+    ]}
+    tree = HierarchyBuilder().hierarchy("p", part)
+    assert tree["material"] == "aluminium_6061"
+    assert tree["children"][0]["material"] == "steel_1018"  # feature override shown
+    assert "material" not in tree["children"][1]  # no material -> no chip
+
+
+def test_sketch_feature_carries_its_constraint_status():
+    statuses = [SketchStatus(feature_id="sk", status="under", dof=2, failing_ids=["c1"])]
+    tree = HierarchyBuilder().hierarchy("p", _part(), statuses=statuses)
+    sketch_node = tree["children"][0]
+    assert sketch_node["status"] == "under"
+    assert sketch_node["dof"] == 2
+    assert sketch_node["failing_ids"] == ["c1"]
+    # a non-sketch feature carries no status
+    assert "status" not in tree["children"][1]
