@@ -238,6 +238,18 @@
     color: var(--muted); }
   #vc-material .swatches { grid-template-columns: repeat(8, 14px); }
   #vc-material .swatch { width: 14px; }
+  /* By-material color panel: one row per distinct material, a color dot + name + hidden
+     native color input (clicking the row opens the picker). */
+  #material-colors { display: flex; flex-direction: column; gap: 5px; }
+  .matrow { display: flex; align-items: center; gap: 8px; font-size: 12px; cursor: pointer;
+    position: relative; }
+  .matrow .dot { width: 14px; height: 14px; border-radius: 50%; flex: none;
+    border: 1.5px solid var(--border); }
+  .matrow .mname { color: var(--text); overflow: hidden; text-overflow: ellipsis;
+    white-space: nowrap; }
+  .matrow input[type=color] { position: absolute; left: 0; width: 16px; height: 16px;
+    opacity: 0; cursor: pointer; }
+  #vc-modes .vc-btn[hidden] { display: none; }
   /* Show-text mode: reveal labels, stack groups vertically for readability */
   #viewport-controls.show-text .vc-label { max-width: 140px; opacity: 1; margin-left: 0; }
   #viewport-controls.show-text .vc-group { flex-direction: column; }
@@ -444,11 +456,20 @@
           <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z"/></svg>
           <span class="vc-label">X-ray</span>
         </button>
+        <button class="vc-btn" data-mode="bymaterial" title="By material" hidden>
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M12 3 20 7.5v9L12 21 4 16.5v-9L12 3Z"/><circle cx="8.5" cy="10" r="1.5" fill="currentColor" stroke="none"/><circle cx="15" cy="13" r="1.5" fill="currentColor" stroke="none"/></svg>
+          <span class="vc-label">By material</span>
+        </button>
       </div>
 
       <div class="vc-sub" id="vc-material" hidden>
         <span class="vc-sub-label">Material</span>
         <div class="swatches" id="swatches"></div>
+      </div>
+
+      <div class="vc-sub" id="vc-bymaterial" hidden>
+        <span class="vc-sub-label">Materials</span>
+        <div id="material-colors"></div>
       </div>
 
       <div class="vc-sep"></div>
@@ -787,6 +808,34 @@ function materialMat() {
   return new THREE.MeshStandardMaterial({ color: m.color, metalness: m.metalness, roughness: m.roughness });
 }
 
+// ---- By-material coloring (color each body by its document material) ----
+// The mapping is GLOBAL by material name and lives in localStorage, so a material means the
+// same color across every model. "__none__" is the reserved bucket for bodies with no material.
+const MAT_COLORS_KEY = "ncad.materialColors";
+const NO_MATERIAL = "__none__";
+// A stable distinct palette so a fresh multi-material model is legible; the index is chosen by
+// a deterministic hash of the material name, so a material keeps its color between loads.
+const MAT_PALETTE = ["#c9ccd1", "#b87333", "#9aa6b4", "#b9824f", "#8fd4bf", "#c06a4b",
+                     "#8fb8d8", "#d8c9a3", "#a8533a", "#6a7b8c"];
+let matColors = (() => {
+  try { return JSON.parse(localStorage.getItem(MAT_COLORS_KEY)) || {}; }
+  catch (e) { return {}; }
+})();
+function paletteColor(name) {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  return MAT_PALETTE[h % MAT_PALETTE.length];
+}
+// Resolution order: user-assigned (localStorage) > authored appearance color > stable palette.
+// Unassigned bodies default to the neutral solid gray until the user colors the "(no material)".
+function colorFor(name, appearanceColor) {
+  const key = name || NO_MATERIAL;
+  if (matColors[key]) return matColors[key];
+  if (name && appearanceColor) return appearanceColor;
+  if (!name) return "#c6d3e2";
+  return paletteColor(name);
+}
+
 let modelRoot = null, edges = [], mode = "solid", showEdges = true, castShadows = true;
 let pickParts = [], elementMap = null;
 const loader = new GLTFLoader();
@@ -801,14 +850,88 @@ function clearModel() {
 
 function applyMode() {
   if (!modelRoot) return;
+  if (mode === "bymaterial") {
+    // Color each face-primitive by its body's material. pickParts[i] is 1:1 with
+    // elementMap.elements[i] (one glTF primitive per face); a face with no material uses the
+    // "(no material)" color. Color only; metalness/roughness stay the neutral solid defaults.
+    const els = (elementMap && elementMap.elements) || [];
+    pickParts.forEach((mesh, i) => {
+      const el = els[i] || {};
+      mesh.material = new THREE.MeshStandardMaterial({
+        color: new THREE.Color(colorFor(el.material, el.appearance_color)),
+        metalness: 0.05, roughness: 0.85 });
+      mesh.castShadow = castShadows;
+    });
+    edges.forEach(e => { e.visible = showEdges; });
+    return;
+  }
   const mat = { solid: SOLID, material: materialMat(), wireframe: WIRE, xray: XRAY }[mode];
   modelRoot.traverse(o => { if (o.isMesh) { o.material = mat; o.castShadow = castShadows && mode !== "wireframe"; } });
   edges.forEach(e => { e.visible = showEdges && mode !== "wireframe"; });
 }
 
+function hasMaterials() {
+  const els = (elementMap && elementMap.elements) || [];
+  return els.some(e => e.material);
+}
+
+// Materials present in the loaded model, first-seen order, plus a trailing "(no material)"
+// entry when any face is unassigned. Each entry carries the authored appearance color (if any).
+function distinctMaterials() {
+  const els = (elementMap && elementMap.elements) || [];
+  const seen = new Map();
+  let hasNone = false;
+  els.forEach(e => {
+    if (e.material) { if (!seen.has(e.material)) seen.set(e.material, e.appearance_color); }
+    else hasNone = true;
+  });
+  const out = [...seen.entries()].map(([name, appearance]) => ({ name, appearance }));
+  if (hasNone) out.push({ name: null, appearance: null });
+  return out;
+}
+
+function renderMaterialColors() {
+  const wrap = document.getElementById("material-colors");
+  wrap.innerHTML = "";
+  distinctMaterials().forEach(m => {
+    const key = m.name || NO_MATERIAL;
+    const row = document.createElement("label");
+    row.className = "matrow";
+    const dot = document.createElement("span");
+    dot.className = "dot"; dot.style.background = colorFor(m.name, m.appearance);
+    const label = document.createElement("span");
+    label.className = "mname"; label.textContent = m.name || "(no material)";
+    const input = document.createElement("input");
+    input.type = "color"; input.value = colorFor(m.name, m.appearance);
+    input.addEventListener("input", () => {
+      matColors[key] = input.value;
+      localStorage.setItem(MAT_COLORS_KEY, JSON.stringify(matColors));
+      dot.style.background = input.value;
+      if (mode === "bymaterial") applyMode();   // live recolor
+    });
+    row.appendChild(dot); row.appendChild(label); row.appendChild(input);
+    wrap.appendChild(row);
+  });
+}
+
 function syncMaterialBlock() {
-  // Material swatches stay hidden until the user picks "Material" display mode.
+  // The 16-preset appearance panel shows in "material" mode; the per-material color panel
+  // shows in "bymaterial" mode.
   document.getElementById("vc-material").hidden = mode !== "material";
+  const byPanel = document.getElementById("vc-bymaterial");
+  byPanel.hidden = mode !== "bymaterial";
+  if (mode === "bymaterial") renderMaterialColors();
+}
+
+// Called when the element map arrives (a separate promise from the glb): reveal the
+// By-material mode only if this model has materials, re-render the panel, and re-apply the
+// mode so a by-material recolor now has both the meshes and the material data.
+function onElementMapReady() {
+  const byBtn = document.querySelector('#vc-modes .vc-btn[data-mode="bymaterial"]');
+  if (byBtn) byBtn.hidden = !hasMaterials();
+  if (mode === "bymaterial" && !hasMaterials()) { setMode("solid"); return; }
+  syncMaterialBlock();
+  applyMode();
 }
 
 function frameModel() {
@@ -866,8 +989,8 @@ function loadModel(name) {
   }, undefined, err => { spinner.textContent = "failed to load model"; console.error(err); });
   fetch(`/api/elementmap/${name}`)
     .then(r => r.ok ? r.json() : null)
-    .then(j => { elementMap = j; })
-    .catch(() => { elementMap = null; });
+    .then(j => { elementMap = j; onElementMapReady(); })
+    .catch(() => { elementMap = null; onElementMapReady(); });
   loadBom(name);
   loadPlan(name);
   loadHierarchy(name);
