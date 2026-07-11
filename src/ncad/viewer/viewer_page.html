@@ -320,11 +320,18 @@
     display: inline-flex; align-items: center; justify-content: center; }
   .tree-ico.part { color: var(--accent-2); }
   .tree-ico.feature { color: var(--accent); }
+  .tree-ico.group { color: var(--muted); }
+  .tree-ico.body { color: var(--accent-2); }
   .tree-name { overflow: hidden; text-overflow: ellipsis; }
   .tree-op { color: var(--muted); font-size: 11px; margin-left: 4px; }
   .tree-ico.sketch { color: var(--accent); }
   /* inline sketch-status dot sits just after the op label */
   .tree-status { margin-left: 5px; }
+  /* the dof readout is muted and only reveals on row hover, so the tree stays clean */
+  .tree-dof { color: var(--muted); font-size: 10px; margin-left: 5px; opacity: 0;
+    transition: opacity .12s; font-variant-numeric: tabular-nums; }
+  .tree-row:hover .tree-dof { opacity: 1; }
+  #tab-hierarchy.hide-text .tree-dof { display: none; }
   /* material chip: pushed to the row's end, muted pill */
   .tree-mat { margin-left: auto; padding: 0 6px; border-radius: 8px; font-size: 10px;
     color: var(--muted); background: var(--panel-2); border: 1px solid var(--border);
@@ -914,6 +921,10 @@ const TREE_ICONS = {
   boolean: SVG('<circle cx="9" cy="12" r="6"/><circle cx="15" cy="12" r="6"/>'),
   // placement (pattern/mirror/transform): a small square copied across a grid
   placement: SVG('<rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/>'),
+  // group (Bodies folder): a folder
+  group: SVG('<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/>'),
+  // body: a solid cube (a built body)
+  body: SVG('<path d="M12 3 20 7.5v9L12 21 4 16.5v-9L12 3Z"/><path d="M4 7.5 12 12l8-4.5M12 12v9"/>'),
 };
 const OP_CATEGORY = {
   sketch: "sketch",
@@ -927,6 +938,8 @@ const OP_CATEGORY = {
 function iconKey(node) {
   if (node.kind === "part") return "part";
   if (node.kind === "element") return "element";
+  if (node.kind === "group") return "group";   // the Bodies folder
+  if (node.kind === "body") return "body";      // a built body (cube)
   return OP_CATEGORY[node.op] || "feature";  // feature: category by op, else generic gear
 }
 
@@ -965,17 +978,20 @@ function treeNode(node) {
     opEl.className = "tree-op"; opEl.textContent = node.op;
     row.appendChild(opEl);
   }
-  // A sketch feature shows its constraint status inline: a colored dot (green/amber/red).
-  // The dof + failing constraint ids appear on hover over the whole row (not just the 9px
-  // dot), so the constraint state is easy to inspect. Replaces the old separate status box.
+  // A sketch feature shows its constraint status inline: a colored dot (green/amber/red),
+  // plus a muted "dof N" label that reveals on row hover (a native title as a fallback), so
+  // the constraint state is easy to read. Replaces the old separate status box.
   if (node.status) {
     const fail = (node.failing_ids && node.failing_ids.length)
       ? ` [${node.failing_ids.join(", ")}]` : "";
-    const tip = `${node.status}-constrained (dof ${node.dof})${fail}`;
     const dot = document.createElement("span");
     dot.className = "status-dot tree-status " + node.status;
     row.appendChild(dot);
-    row.title = tip;              // hover anywhere on the sketch row shows the dof
+    const dof = document.createElement("span");
+    dof.className = "tree-dof";
+    dof.textContent = `${node.status}, dof ${node.dof}${fail}`;
+    row.appendChild(dof);
+    row.title = dof.textContent;
   }
   // A material chip (part default or a feature override) rides at the row's end.
   if (node.material) {
@@ -1393,7 +1409,9 @@ function regenerate(model) {
 }
 
 function removeModel(name) {
-  if (!window.confirm("Delete " + name + "?")) return;
+  // No confirmation prompt: delete is cheap and reversible (rebuild from the spec), and the
+  // toast reports what happened. The delete action only appears on row hover, so it is hard
+  // to trigger by accident.
   fetch("/api/models/" + encodeURIComponent(name) + "/delete", { method: "POST" })
     .then(r => r.json())
     .then(d => { if (activeModel === name) { activeModel = null; clearModel(); } renderModelList(d.models); toast("deleted " + name); })
