@@ -60,6 +60,7 @@ from OCP.TopTools import (
 
 from ncad.kernel.body import Body
 from ncad.kernel.body_set import BodySet, union_bodies
+from ncad.kernel.element_history import ElementHistory
 from ncad.kernel.kernel import Bounds, Kernel, Point2, Point3
 from ncad.kernel.kernel_op_error import KernelOpError
 
@@ -594,6 +595,11 @@ class Build123dKernel(Kernel):
             faces = one.faces() if hasattr(one, "faces") else [one]
             ids.extend(body_id for _ in faces)
         return ids
+
+    def history(self, inputs: list[Any], output: Any) -> ElementHistory:
+        # Real OCCT history lands in Task 4 (extrude first). Until then, report no history so
+        # the naming layer uses geometric seed names (current behavior, no regression).
+        return ElementHistory()
 
     def export(self, solid: Any, path: str) -> None:
         if isinstance(solid, BodySet):

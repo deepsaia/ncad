@@ -11,6 +11,8 @@ Coordinates and distances are in the document's canonical internal unit (millime
 from abc import ABC, abstractmethod
 from typing import Any
 
+from ncad.kernel.element_history import ElementHistory
+
 Point3 = tuple[float, float, float]
 Point2 = tuple[float, float]
 Bounds = tuple[Point3, Point3]
@@ -307,6 +309,17 @@ class Kernel(ABC):
         ``[top, bottom]`` - the positive then the negative side of the plane normal),
         ``"top"`` (return ``[top]``), or ``"bottom"`` (return ``[bottom]``). The op wraps a
         2-shape result into an addressable BodySet. Raises KernelOpError on failure.
+        """
+
+    @abstractmethod
+    def history(self, inputs: list[Any], output: Any) -> ElementHistory:
+        """Report the lineage of ``output`` relative to ``inputs`` (design section 2).
+
+        Returns an ElementHistory mapping output sub-shape handles to the input handles they
+        were generated from / modified from, plus the inputs that were deleted. Output handles
+        in neither map are carried unchanged. Backends without usable history for an op may
+        return an empty ElementHistory; the naming layer then falls back to geometric seed
+        names for that op's output.
         """
 
     @abstractmethod

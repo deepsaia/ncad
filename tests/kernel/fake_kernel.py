@@ -11,6 +11,7 @@ from typing import Any
 
 from ncad.kernel.body import Body
 from ncad.kernel.body_set import BodySet, union_bodies
+from ncad.kernel.element_history import ElementHistory
 from ncad.kernel.kernel import Bounds, Kernel, Point2, Point3
 from ncad.kernel.kernel_op_error import KernelOpError
 
@@ -359,6 +360,26 @@ class FakeKernel(Kernel):
                 descriptor["body_id"] = body.id
                 described.append(descriptor)
         return described
+
+    def history(self, inputs: list[Any], output: Any) -> ElementHistory:
+        # The Fake has no real topology graph, so it returns a coarse analytic lineage that is
+        # enough to exercise the naming layer: every output face descriptor is treated as
+        # GENERATED from the inputs' handles. Only solid-like inputs are describable, so
+        # non-solid inputs (a bare profile face) contribute no handles (skipped defensively).
+        # Deterministic (descriptor order is stable), no randomness.
+        hist = ElementHistory()
+        out_descriptors = self.describe_elements(output)
+        input_handles: list[Any] = []
+        for shape in inputs:
+            try:
+                described = self.describe_elements(shape)
+            except AttributeError:
+                # Not a solid (e.g. a profile face): it has no describable sub-shapes here.
+                continue
+            input_handles.extend(d["handle"] for d in described)
+        for descriptor in out_descriptors:
+            hist.generated_from[descriptor["handle"]] = list(input_handles)
+        return hist
 
     def _describe_one(self, solid: Any) -> list:
         (minx, miny, minz), (maxx, maxy, maxz) = self.bounding_box(solid)
