@@ -361,6 +361,11 @@ class FakeKernel(Kernel):
                 described.append(descriptor)
         return described
 
+    def import_solid(self, path: str) -> Any:
+        # The Fake ignores the path and returns a unit box stand-in so import_op is testable
+        # without a real STEP file on disk.
+        return _FakeSolid(_FakeFace([(0, 0), (10, 0), (10, 10), (0, 10)], "XY"), 10.0)
+
     def history(self, inputs: list[Any], output: Any) -> ElementHistory:
         # The Fake has no real topology graph, so it returns a coarse analytic lineage that is
         # enough to exercise the naming layer: every output face descriptor is treated as

@@ -596,6 +596,12 @@ class Build123dKernel(Kernel):
             ids.extend(body_id for _ in faces)
         return ids
 
+    def import_solid(self, path: str) -> Any:
+        """Import a STEP/IGES solid via build123d."""
+        from build123d import import_step  # pyrefly: ignore[import-error]
+
+        return import_step(path)
+
     def history(self, inputs: list[Any], output: Any) -> ElementHistory:
         """Report output lineage. Extrude is instrumented; other ops report empty for now.
 

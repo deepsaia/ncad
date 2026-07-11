@@ -312,6 +312,10 @@ class Kernel(ABC):
         """
 
     @abstractmethod
+    def import_solid(self, path: str) -> Any:
+        """Read a solid B-rep from ``path`` (STEP/IGES); the base of an imported document."""
+
+    @abstractmethod
     def history(self, inputs: list[Any], output: Any) -> ElementHistory:
         """Report the lineage of ``output`` relative to ``inputs`` (design section 2).
 
