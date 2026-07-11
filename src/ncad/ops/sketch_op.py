@@ -69,8 +69,11 @@ class SketchOp:
                             provenance={}, issues=[], status_report=well)
         if kind == "circle":
             diameter = element["d"] if "d" in element else element["r"] * 2.0
-            return OpResult(shape=kernel.circle_face((0.0, 0.0), diameter, plane,
-                                                     offset=offset),
+            # A circle may be authored off-origin via `at` (e.g. a bolt hole at its bolt-circle
+            # position); default to the origin. The kernel's circle_face already takes a center.
+            at = element.get("at", (0.0, 0.0))
+            center = (float(at[0]), float(at[1]))
+            return OpResult(shape=kernel.circle_face(center, diameter, plane, offset=offset),
                             provenance={}, issues=[], status_report=well)
         if kind == "polygon":
             return OpResult(shape=kernel.polygon_face(self._polygon_points(element), plane,

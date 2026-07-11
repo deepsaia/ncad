@@ -48,12 +48,16 @@ Hole wizard (2.8) is done: counterbore, countersink, ISO-metric sizing (`size` +
 a cosmetic thread tag; wrap is split to 2.8b. Wrap (2.8b) is done: emboss/engrave text or a
 referenced sketch profile onto a flat face. The Phase 2 gate part (2.9) is done:
 `mounting_bracket` composes 9 ops, builds deterministically, and exports clean STEP - the
-Phase 2 solid-feature buckets are COMPLETE. NEXT: Phase 3 (patterns, transforms, booleans,
-multibody).
-NEXT (viewer track, pickable in parallel): 2.8a viewer upgrades, adaptive-budget
-tessellation + Z-up axis fix; see `docs/research/viewer-tessellation-lod.md`.
-The Phase 2 deferred backlog is gathered in one section below the bucket list, so nothing
-is lost.
+Phase 2 solid-feature buckets are COMPLETE.
+**Phase 3 is COMPLETE:** multibody (`BodySet`, born-once body ids), transforms, patterns
+(linear/circular, addressable instances), mirror, boolean upgrades (split, multi-tool,
+scope-mode multibody algebra), and per-body materials + derived mass - capped by the
+`flanged_coupling` capstone (bolt-circle + mirror + a 2-material multibody, per-body mass
+properties). Viewer polish landed alongside: hierarchy Bodies group, per-category icons,
+inline sketch status, and by-material coloring. NEXT: Phase 4 (persistent-name layer +
+direct/synchronous modeling); a near-term viewer bucket fixes multibody face -> element ->
+glTF-primitive alignment (coloring + picking). The Phase 2/3 deferred items are gathered in
+sections below the bucket lists, so nothing is lost.
 
 v1 proved the *pattern*: `spec >> build >> BOM >> view`, determinism, build123d/OCCT,
 HOCON+jsonschema, traversal BOM, the Three.js viewer, on the **building profile**
@@ -88,7 +92,7 @@ modeling, the domain profiles, CAM/PCB seams, and a plugin layer.
 | 0 | The general spine (sketch>>extrude>>hole>>fillet, refs+provenance) | core | `[x]` |
 | 1 | 2D sketching & the constraint solver | core | `[~]` |
 | 2 | Core solid features (sketched + dress-up) | solid | `[ ]` |
-| 3 | Patterns, transforms, booleans, multibody | solid | `[ ]` |
+| 3 | Patterns, transforms, booleans, multibody | solid | `[x]` |
 | 4 | Persistent-name layer + direct/synchronous modeling | core | `[ ]` |
 | 5 | Assemblies: constraints, joints, in-context | assembly | `[ ]` |
 | 6 | Motion & kinematics | motion | `[ ]` |
@@ -452,9 +456,15 @@ but the *model* is designed to full generality so no later bucket is a breaking 
   weighted assembly totals over the geometry-only kernel (closes R3). Gate: `materials_part`
   (aluminium halves + a steel boss) with a golden mass-props JSON. (Also fixed a 3.1 gap:
   `kernel.transform` now handles a multibody `BodySet` per body.)
-- **3.6** Phase-3 gate capstone: a multibody part with a circular pattern of cut features
-  and a mirror rebuilds correctly and reports per-body mass properties; determinism + STEP
-  round-trip (like the 2.9 capstone).
+- **3.6** `[x]` Phase-3 gate capstone: a **flanged shaft coupling** composes the phase - a
+  bolt-circle (a cutter placed via `circle at`, circular-patterned, boolean-cut), a mirror to a
+  symmetric coupling, and an aluminium flange + steel hub kept as addressable bodies with
+  per-body derived mass + a correct assembly total. Surfaced + fixed three multibody
+  correctness gaps: `circle at` center offset (a patterned origin-circle stacked at the axis),
+  flattening BodySet operands in boolean cut, and preserving per-body provenance/material
+  through keep-separate union + mirror (material rides on the body's creating feature). Gate:
+  `flanged_coupling` with per-body signature + mass-props goldens, STEP, determinism, additive
+  composition. **Phase 3 COMPLETE.**
 
 **Deferred backlog (Phase 3 buckets, gather here so nothing is lost):**
 - **Patterns (3.2):** **feature pattern** (re-apply the last feature's cut/boss at each
@@ -477,6 +487,12 @@ but the *model* is designed to full generality so no later bucket is a breaking 
 - **Cross-cutting (3.2 + 3.3 + 3.4):** general **datum planes / axes** as first-class
   referenceable entities for pattern/mirror/split references (shares the datum work deferred
   from Phase 2, and from loft in 2.4).
+- **Viewer multibody face alignment (surfaced by 3.6, NEXT bucket):** the glTF face-primitive
+  order does not match the element-map face order for a multibody `Compound` export, so
+  by-material coloring (and face picking) mis-map per body on multibody parts. Fix by aligning
+  the element-map face order to the exported Compound-face order (or export a per-body glTF
+  node per body) plus an invariant test; fixes coloring AND picking. A dedicated viewer/export
+  bucket with its own design.
 
 **Gate:** a multibody part with a circular pattern of cut features and a mirror rebuilds
 correctly and reports per-body mass properties (bucket 3.6).

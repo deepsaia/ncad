@@ -255,12 +255,15 @@ class Kernel(ABC):
         """
 
     @abstractmethod
-    def union_bodies(self, shapes: list, *, origin: str) -> Any:
+    def union_bodies(self, shapes: list, *, origin: str, sources: list | None = None) -> Any:
         """Collect ``shapes`` as separate bodies in one BodySet (a keep-separate union).
 
         A plain shape becomes a new body with id ``<origin>/body/<n>`` (minted at birth); a
         shape that is already a BodySet keeps its bodies' existing ids (a body is born once,
-        not re-minted per feature). Used by ``boolean merge=false``.
+        not re-minted per feature). Used by ``boolean merge=false``. ``sources`` (optional,
+        aligned with ``shapes``) sets each plain-shape body's ``created_by`` to its source
+        feature id, so per-body provenance/material survives assembly (None falls back to
+        ``origin``).
         """
 
     @abstractmethod

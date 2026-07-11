@@ -470,8 +470,8 @@ class Build123dKernel(Kernel):
             return shape.bodies
         return [Body(id="body/0", kind="solid", shape=shape, created_by="")]
 
-    def union_bodies(self, shapes: list, *, origin: str) -> Any:
-        return union_bodies(shapes, origin)
+    def union_bodies(self, shapes: list, *, origin: str, sources: list | None = None) -> Any:
+        return union_bodies(shapes, origin, sources)
 
     def transform(self, shape: Any, *, move: Point3 = (0.0, 0.0, 0.0),
                   rotate: dict | None = None, scale: Any = None) -> Any:

@@ -122,6 +122,25 @@ def test_gate_3_5_materials_mass_on_fake_kernel() -> None:
         assert resolver.for_body(body)["physical"]["density"] > 0
 
 
+def test_gate_3_6_coupling_on_fake_kernel() -> None:
+    from ncad.build.mass_calculator import MassCalculator
+    from ncad.build.material_resolver import MaterialResolver
+    from ncad.spec.material_library import MaterialLibrary
+
+    builder = DocumentBuilder(FakeKernel())
+    doc = builder._loader.load(str(_EXAMPLES_DIR / "gate-3.6" / "flanged_coupling.hocon"))
+    part = builder._resolve_and_validate(doc)["parts"]["flanged_coupling"]
+    result, _, _ = builder._builder.build_part_mapped(part)
+    assert [i for i in result.issues if i.level == "error"] == []
+    # A symmetric multibody coupling with two materials (aluminium flange + steel hub).
+    lib = MaterialLibrary(doc, base_dir=str(_EXAMPLES_DIR / "gate-3.6"))
+    props = MassCalculator(FakeKernel()).mass_properties(result.shape, MaterialResolver(part, lib))
+    materials = {b["material"] for b in props["bodies"]}
+    assert "aluminium_6061" in materials and "steel_1018" in materials
+    for b in props["bodies"]:
+        assert b["mass"] == pytest.approx(b["density"] * b["volume"] * 1e-9)
+
+
 @pytest.mark.slow
 def test_gate_0_1_exports_glb(tmp_path) -> None:
     from ncad.kernel.build123d_kernel import Build123dKernel
@@ -712,6 +731,117 @@ def test_gate_3_5_massprops_match_golden() -> None:
     assert len(props["bodies"]) == len(golden["bodies"])
     assert props["total"]["mass"] == pytest.approx(golden["total"]["mass"], rel=1e-6)
     assert props["total"]["volume"] == pytest.approx(golden["total"]["volume"], rel=1e-6)
+    for live_b, gold_b in zip(sorted(props["bodies"], key=lambda b: b["id"]),
+                              sorted(golden["bodies"], key=lambda b: b["id"])):
+        assert live_b["material"] == gold_b["material"]
+        assert live_b["mass"] == pytest.approx(gold_b["mass"], rel=1e-6)
+
+
+@pytest.mark.slow
+def test_gate_3_6_signature_matches_golden() -> None:
+    import json
+
+    from ncad.build.equality_comparator import EqualityComparator
+    from ncad.kernel.build123d_kernel import Build123dKernel
+
+    golden = json.loads((Path(__file__).resolve().parents[1] / "build" / "golden" /
+                         "flanged_coupling.signature.json").read_text())
+    kernel = Build123dKernel()
+    builder = DocumentBuilder(kernel)
+    resolved = builder._resolve_and_validate(builder._loader.load(
+        str(_EXAMPLES_DIR / "gate-3.6" / "flanged_coupling.hocon")))
+    result, _, _ = builder._builder.build_part_mapped(resolved["parts"]["flanged_coupling"])
+    live = kernel.signature(result.shape)
+    comparator = EqualityComparator()
+    assert comparator.equal(live, golden), comparator.explain(live, golden)
+
+
+@pytest.mark.slow
+def test_gate_3_6_builds_twice_deterministically() -> None:
+    from ncad.build.equality_comparator import EqualityComparator
+    from ncad.kernel.build123d_kernel import Build123dKernel
+
+    doc = _EXAMPLES_DIR / "gate-3.6" / "flanged_coupling.hocon"
+
+    def _sig() -> dict:
+        kernel = Build123dKernel()
+        builder = DocumentBuilder(kernel)
+        resolved = builder._resolve_and_validate(builder._loader.load(str(doc)))
+        result, _, _ = builder._builder.build_part_mapped(resolved["parts"]["flanged_coupling"])
+        assert result.shape is not None
+        return kernel.signature(result.shape)
+
+    s1, s2 = _sig(), _sig()
+    comparator = EqualityComparator()
+    assert comparator.equal(s1, s2), comparator.explain(s1, s2)
+
+
+@pytest.mark.slow
+def test_gate_3_6_step_round_trips(tmp_path) -> None:
+    from build123d import import_step
+
+    from ncad.kernel.build123d_kernel import Build123dKernel
+
+    doc = _EXAMPLES_DIR / "gate-3.6" / "flanged_coupling.hocon"
+    kernel = Build123dKernel()
+    artifacts = DocumentBuilder(kernel).build_file(str(doc), str(tmp_path), formats=("step",))
+    step_path = Path(artifacts["flanged_coupling"])
+    assert step_path.is_file()
+    assert abs(import_step(str(step_path)).volume) > 0
+
+
+@pytest.mark.slow
+def test_gate_3_6_composes_additively() -> None:
+    """Each feature prefix builds without errors and yields valid geometry.
+
+    The multibody tail (after union merge=false / mirror) is asserted via body count + per-body
+    validity, not .solids()==1 (a BodySet has no single solid) - the gate-3.0/3.2/3.4 pattern.
+    """
+    from ncad.kernel.build123d_kernel import Build123dKernel
+
+    doc = str(_EXAMPLES_DIR / "gate-3.6" / "flanged_coupling.hocon")
+    builder = DocumentBuilder(Build123dKernel())
+    feature_count = len(
+        builder._resolve_and_validate(builder._loader.load(doc))
+        ["parts"]["flanged_coupling"]["features"])
+    kernel = Build123dKernel()
+    for n in range(1, feature_count + 1):
+        resolved = builder._resolve_and_validate(builder._loader.load(doc))
+        part = resolved["parts"]["flanged_coupling"]
+        last_op = part["features"][n - 1].get("op", "")
+        part["features"] = part["features"][:n]
+        result, _, _ = builder._builder.build_part_mapped(part)
+        errors = [i for i in result.issues if i.level == "error"]
+        assert errors == [], f"prefix {n} (op {last_op!r}) errored: {errors}"
+        if last_op == "sketch":
+            continue
+        assert result.shape is not None
+        bodies = kernel.bodies(result.shape)
+        assert bodies, f"prefix {n} produced no bodies"
+        for body in bodies:
+            assert body.shape.is_valid, f"prefix {n} body {body.id} is invalid"
+
+
+@pytest.mark.slow
+def test_gate_3_6_massprops_match_golden() -> None:
+    import json
+
+    from ncad.build.mass_calculator import MassCalculator
+    from ncad.build.material_resolver import MaterialResolver
+    from ncad.kernel.build123d_kernel import Build123dKernel
+    from ncad.spec.material_library import MaterialLibrary
+
+    golden = json.loads((Path(__file__).resolve().parents[1] / "build" / "golden" /
+                         "flanged_coupling.massprops.json").read_text())
+    kernel = Build123dKernel()
+    builder = DocumentBuilder(kernel)
+    doc = builder._loader.load(str(_EXAMPLES_DIR / "gate-3.6" / "flanged_coupling.hocon"))
+    part = builder._resolve_and_validate(doc)["parts"]["flanged_coupling"]
+    result, _, _ = builder._builder.build_part_mapped(part)
+    lib = MaterialLibrary(doc, base_dir=str(_EXAMPLES_DIR / "gate-3.6"))
+    props = MassCalculator(kernel).mass_properties(result.shape, MaterialResolver(part, lib))
+    assert len(props["bodies"]) == len(golden["bodies"])
+    assert props["total"]["mass"] == pytest.approx(golden["total"]["mass"], rel=1e-6)
     for live_b, gold_b in zip(sorted(props["bodies"], key=lambda b: b["id"]),
                               sorted(golden["bodies"], key=lambda b: b["id"])):
         assert live_b["material"] == gold_b["material"]
