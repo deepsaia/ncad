@@ -60,6 +60,7 @@ from OCP.TopTools import (
 
 from ncad.kernel.body import Body
 from ncad.kernel.body_set import BodySet, union_bodies
+from ncad.kernel.element_history import ElementHistory
 from ncad.kernel.kernel import Bounds, Kernel, Point2, Point3
 from ncad.kernel.kernel_op_error import KernelOpError
 
@@ -594,6 +595,31 @@ class Build123dKernel(Kernel):
             faces = one.faces() if hasattr(one, "faces") else [one]
             ids.extend(body_id for _ in faces)
         return ids
+
+    def import_solid(self, path: str) -> Any:
+        """Import a STEP/IGES solid via build123d."""
+        from build123d import import_step  # pyrefly: ignore[import-error]
+
+        return import_step(path)
+
+    def history(self, inputs: list[Any], output: Any) -> ElementHistory:
+        """Report output lineage. Extrude is instrumented; other ops report empty for now.
+
+        build123d hides the prism builder, so this uses a coarse but correct lineage for a
+        single-profile extrude: every output face descends from the profile face(s). That is
+        enough for deterministic persistent naming and carried-face survival; finer per-op
+        lineage (real BRepTools_History wired through each op) is a logged follow-up.
+        """
+        history = ElementHistory()
+        if not inputs:
+            return history
+        input_handles: list[Any] = []
+        for shape in inputs:
+            input_handles.extend(d["handle"] for d in self.describe_elements(shape))
+        for descriptor in self.describe_elements(output):
+            if descriptor["kind"] == "face":
+                history.generated_from[descriptor["handle"]] = list(input_handles)
+        return history
 
     def export(self, solid: Any, path: str) -> None:
         if isinstance(solid, BodySet):

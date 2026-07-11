@@ -83,6 +83,36 @@ class ViewerCli:
         return DocumentBuilder(Build123dKernel()).build_file(
             document, str(out_dir), formats=formats)
 
+    def import_document(self, file: str, out: str | None) -> dict[str, str]:
+        """Build a one-feature import document from ``file``; return built artifacts.
+
+        DocumentBuilder builds from a file path (no in-memory entry), so the one-feature
+        import document is written to a temp JSON and built through the real build path.
+        """
+        import json
+        import os
+        import tempfile
+
+        from ncad.build.document_builder import DocumentBuilder
+        from ncad.kernel.build123d_kernel import Build123dKernel
+
+        logging.basicConfig(level=logging.INFO, format="%(message)s")
+        logging.getLogger("build123d").setLevel(logging.WARNING)
+        out_dir = self.resolve_models_dir(out)
+        document = {
+            "schema_version": 2,
+            "units": "mm",
+            "parts": {"imported": {"profile": "solid", "features": [
+                {"id": "import", "op": "import", "file": os.path.abspath(file)}]}},
+        }
+        handle = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False)
+        try:
+            json.dump(document, handle)
+            handle.close()
+            return DocumentBuilder(Build123dKernel()).build_file(handle.name, str(out_dir))
+        finally:
+            os.unlink(handle.name)
+
 
 app = typer.Typer(
     help="ncad: build and view parametric CAD models.",
@@ -131,6 +161,23 @@ def build(
     formats = _parse_formats(format)
     artifacts = cli.build_document(document, out, formats=formats)
     print(f"\nncad build: {document}  [{', '.join(formats)}]")
+    for name, path in artifacts.items():
+        print(f"  part {name:12} {path}")
+    if artifacts:
+        out_dir = next(iter(artifacts.values())).rsplit("/", 1)[0]
+        print(f"\nview with:  ncad view {out_dir}\n")
+    else:
+        print("  no parts built\n")
+
+
+@app.command("import")
+def import_(
+    file: str = typer.Argument(..., help="path to a STEP/IGES file to import as a base feature"),
+    out: str = typer.Option(None, help="output directory (default: out/)"),
+) -> None:
+    """Import a dumb solid as an editable base-feature document."""
+    artifacts = cli.import_document(file, out)
+    print(f"\nncad import: {file}")
     for name, path in artifacts.items():
         print(f"  part {name:12} {path}")
     if artifacts:

@@ -12,9 +12,27 @@ class GenerativeTagger:
     """Computes generative tags for an op's output faces."""
 
     def tags_for(self, op: str, plane: str, face_descriptors: list[dict]) -> dict[int, str]:
-        """Return {face_index: tag}; only extrude is tagged in bucket 0.3."""
-        if op != "extrude" or not face_descriptors:
+        """Return {face_index: tag} for the ops that have a generative-tag rule.
+
+        Extrude tags caps/sides; fillet/chamfer tag their generated curved faces by op; hole
+        tags its cylindrical walls. Other ops (e.g. boolean) tag nothing (lineage carries them).
+        """
+        if not face_descriptors:
             return {}
+        if op == "extrude":
+            return self._extrude_tags(plane, face_descriptors)
+        if op in ("fillet", "chamfer"):
+            # Dress-up faces are the generated curved surfaces; tag them by op so a ref like
+            # fillet.fillet resolves. Planar neighbours are untouched, so only curved faces tag.
+            return {i: op for i, f in enumerate(face_descriptors)
+                    if f.get("geom_type") in ("cylindrical", "conical", "toroidal", "bspline")}
+        if op == "hole":
+            return {i: "hole_wall" for i, f in enumerate(face_descriptors)
+                    if f.get("geom_type") == "cylindrical"}
+        return {}
+
+    def _extrude_tags(self, plane: str, face_descriptors: list[dict]) -> dict[int, str]:
+        """Tag the two axis-normal caps and the sides of an extrusion."""
         axis_index, axis_letter = _PLANE_AXIS.get(plane, (2, "Z"))
         tags: dict[int, str] = {}
         plus_index = _extreme_cap(face_descriptors, axis_index, positive=True)

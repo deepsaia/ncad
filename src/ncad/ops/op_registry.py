@@ -15,6 +15,7 @@ from ncad.ops.extrude_op import ExtrudeOp
 from ncad.ops.fillet_op import FilletOp
 from ncad.ops.groove_op import GrooveOp
 from ncad.ops.hole_op import HoleOp
+from ncad.ops.import_op import ImportOp
 from ncad.ops.loft_op import LoftOp
 from ncad.ops.mirror_op import MirrorOp
 from ncad.ops.pattern_op import PatternOp
@@ -55,6 +56,7 @@ class OpRegistry:
         registry.register("extrude", ExtrudeOp().build)
         registry.register("pocket", PocketOp().build)
         registry.register("hole", HoleOp().build)
+        registry.register("import", ImportOp().build)
         registry.register("fillet", FilletOp().build)
         registry.register("chamfer", ChamferOp().build)
         registry.register("boolean", BooleanOp().build)

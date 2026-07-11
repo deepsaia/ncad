@@ -54,10 +54,13 @@ Phase 2 solid-feature buckets are COMPLETE.
 scope-mode multibody algebra), and per-body materials + derived mass - capped by the
 `flanged_coupling` capstone (bolt-circle + mirror + a 2-material multibody, per-body mass
 properties). Viewer polish landed alongside: hierarchy Bodies group, per-category icons,
-inline sketch status, and by-material coloring. **Phase 4 has started:** bucket 4.0 (the
+inline sketch status, and by-material coloring. **Phase 4 is underway:** bucket 4.0 (the
 de-risking spike) is DONE - the OCCT direct-edit envelope is measured and written
-(`docs/research/direct-modeling-envelope.md`), and `GuardedRunner` shipped for 4.2. NEXT:
-bucket 4.1 (persistent-name layer + `ncad import`), scoped strictly to the measured envelope.
+(`docs/research/direct-modeling-envelope.md`), and `GuardedRunner` shipped for 4.2. Bucket 4.1
+is DONE - the TopoShape-style persistent-name layer (construction-lineage `#kind/owner/hash8`
+names via a kernel `ElementHistory` contract) plus `ncad import` (dumb-solid base feature),
+closing the export >> re-import >> rebuild round-trip. NEXT: bucket 4.2 (direct face ops),
+scoped strictly to the 4.0 envelope and referencing baked topology by 4.1's persistent names.
 The Phase 2/3 deferred items are gathered in sections below the bucket lists, so nothing is
 lost.
 
@@ -533,15 +536,24 @@ correctly and reports per-body mass properties (bucket 3.6).
       never trusted on validity alone. Raw record: `spikes/direct_modeling_4_0/`.
 - **Gate:** MET - measured report + written envelope both exist.
 
-**Bucket 4.1: Persistent-name layer**
-- [ ] **Persistent-name layer:** stable element names from construction history
-      (TopoShape-style); round-trip through edits; expose as `#face/...` refs
-      (hardens the bucket-0.5 spike)
-- [ ] **`ncad import <file>` CLI + `import` leaf op:** turn a foreign or our-own
-      STEP/IGES B-rep into an ncad document whose first op is an `import` base feature
-      (direct edits append on top). The read-side counterpart to `ncad build --format step`
-      (the write side, shipped in 4.0); together they close the export >> re-import >>
-      direct-edit round-trip.
+**Bucket 4.1: Persistent-name layer** - DONE
+- [x] **Persistent-name layer:** TopoShape-style element names from construction lineage
+      (`PersistentNamer`, content hash over feature + op + role + sorted parent names +
+      ordinal), exposed as `#kind/owner/hash8` ids. A kernel `history` contract
+      (`ElementHistory`: generated/modified/deleted) feeds lineage; `Build123dKernel`
+      instruments extrude, other ops fall back to geometric carry-forward. Names are
+      deterministic (same spec >> identical names) and survive param edits for carried faces;
+      failures stay id-attributed. Hardens the bucket-0.5 spike.
+- [x] **`ncad import <file>` CLI + `import` leaf op:** turns a foreign or our-own STEP/IGES
+      B-rep into an ncad document whose first op is an `import` base feature (history-free,
+      so its elements get geometric seed names; direct edits append on top). The read-side
+      counterpart to `ncad build --format step`; the export >> re-import >> rebuild round-trip
+      is tested green.
+- **Follow-ups (deferred):** wire `kernel.history` through each op's `OpResult.history` for
+      finer per-op lineage (extrude is the only instrumented op; the rest use geometric
+      carry-forward, so full "survives every edit" robustness on dress-up/booleans is partial);
+      instrument sweep/loft/revolve/shell/draft/rib/wrap/pattern/mirror/transform history;
+      foreign-STEP import robustness (dirty/non-solid/assembly STEP).
 
 **Bucket 4.2: Direct face ops (well-behaved only)**
 - [ ] `delete_face`/**defeature** (`BRepAlgoAPI_Defeaturing`): **non-tangent**

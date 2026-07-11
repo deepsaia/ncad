@@ -135,6 +135,10 @@ class Builder:
                 result = OpResult(shape=entry.shape, provenance={}, issues=[],
                                   status_report=entry.status_report)
                 self._rebuild_map_from_descriptors(element_map, feature, entry.descriptors)
+                # Restore the persistent names assigned on the first build so a cache hit keeps
+                # identical element identity (names are not re-derived from lineage on a hit).
+                if entry.names is not None:
+                    element_map.apply_names(entry.names)
             else:
                 # A feature's `scope` (merge scope: which bodies it targets/produces) rides
                 # in the feature dict to the op. In bucket 3.0 it defaults to all bodies and
@@ -144,7 +148,8 @@ class Builder:
                 builder_fn = self._registry.get(feature["op"])
                 result = builder_fn(shape_in, feature_with_refs, {}, self._kernel)
                 issues.extend(result.issues)
-                descriptors = self._rebuild_map(element_map, feature, result.shape)
+                descriptors = self._rebuild_map(element_map, feature, result.shape,
+                                                result.history)
                 errors = [i for i in result.issues if i.level == "error"]
                 succeeded = result.shape is not None and not errors
                 if not succeeded:
@@ -155,7 +160,8 @@ class Builder:
                     self._cache.record(feature_id, hit=False)
                     if succeeded:
                         self._cache.put(keys[feature_id], CacheEntry(
-                            result.shape, descriptors, result.status_report))
+                            result.shape, descriptors, result.status_report,
+                            names=[e.id for e in element_map.elements()]))
             if result.status_report is not None:
                 statuses.append(result.status_report)
             shape_by_id[feature_id] = result.shape
@@ -281,27 +287,32 @@ class Builder:
             handles.extend(e.handle for e in resolution.elements)
         return handles, None
 
-    def _rebuild_map(self, element_map: ElementMap, feature: dict, shape: Any) -> list | None:
+    def _rebuild_map(self, element_map: ElementMap, feature: dict, shape: Any,
+                     history: Any = None) -> list | None:
         """Rebuild the element map from a feature's output shape; return descriptors."""
         if shape is None or feature.get("op", "") in _NON_SOLID_OPS:
             return None
         descriptors = self._kernel.describe_elements(shape)
-        self._apply_descriptors(element_map, feature, descriptors)
+        self._apply_descriptors(element_map, feature, descriptors, history)
         return descriptors
 
     def _rebuild_map_from_descriptors(self, element_map: ElementMap, feature: dict,
                                       descriptors: list | None) -> None:
-        """Rebuild the element map from cached descriptors (no kernel call)."""
+        """Rebuild the element map from cached descriptors (no kernel call).
+
+        No history is threaded on the cache-hit path; the caller restores the cached persistent
+        names via ``element_map.apply_names`` right after this, so lineage is not re-derived.
+        """
         if descriptors is None:
             return
         self._apply_descriptors(element_map, feature, descriptors)
 
     def _apply_descriptors(self, element_map: ElementMap, feature: dict,
-                           descriptors: list) -> None:
+                           descriptors: list, history: Any = None) -> None:
         """Tag faces and rebuild the map from descriptors (shared hit/miss path)."""
         faces = [d for d in descriptors if d["kind"] == "face"]
         tags = self._tagger.tags_for(feature.get("op", ""), feature.get("plane", "XY"), faces)
-        element_map.rebuild(feature["id"], descriptors, tags)
+        element_map.rebuild(feature["id"], descriptors, tags, history)
 
 
 def _resolved_value(role: str, resolution: Any) -> Any:

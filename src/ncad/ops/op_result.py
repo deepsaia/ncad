@@ -3,6 +3,7 @@
 from dataclasses import dataclass, field
 from typing import Any
 
+from ncad.kernel.element_history import ElementHistory
 from ncad.ops.build_issue import BuildIssue
 from ncad.ops.sketch_status import SketchStatus
 
@@ -18,9 +19,13 @@ class OpResult:
     :ivar issues: Build issues attributed to node ids; empty means clean.
     :ivar status_report: A sketch feature's constraint status (SketchStatus), or None for
         ops that produce no sketch status.
+    :ivar history: The op's element lineage (ElementHistory) for persistent naming, or None
+        when the op/backend reports no usable history (the naming layer falls back to a
+        geometric seed).
     """
 
     shape: Any
     provenance: dict[str, str] = field(default_factory=dict)
     issues: list[BuildIssue] = field(default_factory=list)
     status_report: SketchStatus | None = None
+    history: ElementHistory | None = None
