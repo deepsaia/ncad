@@ -1,0 +1,17 @@
+# Built-in seed material library (dogfoods the material-library HOCON format). Densities in
+# kg/m^3. Extend or override via a document-inline `materials {}` block or an external
+# `materials_library = "..."` file.
+steel_1018 {
+  physical { density = 7870 }
+  structural { youngs_modulus = 200e9, poisson = 0.29, yield = 370e6 }
+  thermal { conductivity = 51.9, specific_heat = 486, melting_point = 1420 }
+}
+aluminium_6061 {
+  physical { density = 2700 }
+  structural { youngs_modulus = 68.9e9, poisson = 0.33, yield = 276e6 }
+  thermal { conductivity = 167, specific_heat = 896, melting_point = 652 }
+}
+abs {
+  physical { density = 1050 }
+  thermal { conductivity = 0.17, specific_heat = 1300 }
+}

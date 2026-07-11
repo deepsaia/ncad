@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+  type = object
+  # Open, grouped property bag (NX MatML style). Groups are objects; physical.density is a
+  # positive number when physical is present. additionalProperties stays true at every level
+  # so a domain adds custom keys/groups with no schema change. appearance is display-only.
+  additionalProperties = true
+  properties {
+    physical {
+      type = object
+      additionalProperties = true
+      properties { density { type = number, exclusiveMinimum = 0 } }
+    }
+    structural { type = object, additionalProperties = true }
+    thermal { type = object, additionalProperties = true }
+    appearance { type = object, additionalProperties = true }
+  }
+}
