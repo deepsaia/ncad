@@ -56,7 +56,10 @@ property), or material-derived quantities.
 
 **Correct fix:** bucket 3.5 (per-body material data + derived mass properties).
 
-**Status:** open, scheduled for 3.5. No action needed before then.
+**Status:** closed in 3.5. Mass/material is a layer OVER the kernel (`MaterialLibrary` +
+`MaterialResolver` + `MassCalculator`): the kernel stays geometry-only (`volume` + `signature`
+cog), and density (document/material data) drives derived mass = density x volume, computed on
+demand. No density in the kernel.
 
 ## R4 - Element is a mutable record with a mutated attrs dict
 

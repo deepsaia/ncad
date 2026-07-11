@@ -1,0 +1,29 @@
+schema_version = 2
+units = mm
+# Per-body materials + derived mass. A block is split into 2 bodies (part default material
+# aluminium_6061), then a boss is added kept-separate via a boolean union (feature material
+# override steel_1018) as a third body. Demonstrates part-default + feature-override materials,
+# an external library reference, and an inline materials override, all feeding derived mass.
+materials_library = "lib/materials.hocon"
+materials {
+  # inline: nudge aluminium density (demonstrates inline > seed).
+  aluminium_6061 { physical { density = 2710 } }
+}
+parts {
+  materials_part {
+    profile = solid
+    material = "aluminium_6061"
+    features = [
+      { id = blk_sk, op = sketch, plane = XY,
+        elements = [ { id = r, type = rectangle, w = 20, h = 10 } ] }
+      { id = blk, op = extrude, profile = blk_sk, distance = 8 }
+      { id = halves, op = split, plane = YZ, keep = both }
+      { id = boss_sk, op = sketch, plane = XY,
+        elements = [ { id = r, type = rectangle, w = 6, h = 6 } ] }
+      { id = boss, op = extrude, profile = boss_sk, distance = 30 }
+      # Add the boss as its own steel body (kept separate): a third body with its own material.
+      { id = grp, op = boolean, operation = union, merge = false, target = halves, tool = boss,
+        material = "steel_1018" }
+    ]
+  }
+}

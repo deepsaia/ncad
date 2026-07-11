@@ -478,6 +478,13 @@ class Build123dKernel(Kernel):
         # Apply scale >> rotate >> move in that fixed order (deterministic and unambiguous).
         # Rigid move/rotate are exact; non-uniform scale can produce an invalid B-rep, so it
         # is gated by _robust. Uniform scale and the rigid stages are not gated.
+        # A multibody running shape transforms per body, ids preserved (like mirror/split);
+        # build123d Shape ops (moved/rotate/scale) do not exist on a BodySet.
+        if isinstance(shape, BodySet):
+            moved = [Body(id=b.id, kind=b.kind,
+                          shape=self.transform(b.shape, move=move, rotate=rotate, scale=scale),
+                          created_by=b.created_by) for b in shape.bodies]
+            return BodySet(moved)
         result = shape
         if scale is not None:
             if isinstance(scale, (int, float)):

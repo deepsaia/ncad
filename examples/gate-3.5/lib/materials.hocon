@@ -1,0 +1,3 @@
+# External material library referenced by materials_part.hocon (in a subdir so the gate-*/*.hocon
+# sweep does not try to build it as a part). Densities in kg/m^3.
+titanium_g5 { physical { density = 4430 }, structural { youngs_modulus = 114e9 } }
