@@ -470,8 +470,10 @@ but the *model* is designed to full generality so no later bucket is a breaking 
   region-select of the resulting pieces; a body **Selector** for `scope` (by tag / material /
   bbox) instead of an explicit id list.
 - **Materials / mass (3.5):** CAE solving from `structural`/`thermal` (stored + queryable now,
-  computed nothing yet); temperature-dependent properties; `appearance` rendering in the
-  viewer; full MatML / Creo `.mtl` import; moments of inertia / inertia tensor.
+  computed nothing yet); temperature-dependent properties; full MatML / Creo `.mtl` import;
+  moments of inertia / inertia tensor. (Viewer by-material coloring shipped as viewer polish.)
+  **More multi-material example parts** (bi-material inserts, weldments, assemblies) as later
+  phases add richer parts, so the material + mass path is exercised on believable geometry.
 - **Cross-cutting (3.2 + 3.3 + 3.4):** general **datum planes / axes** as first-class
   referenceable entities for pattern/mirror/split references (shares the datum work deferred
   from Phase 2, and from loft in 2.4).
