@@ -571,10 +571,22 @@ class Build123dKernel(Kernel):
     def export(self, solid: Any, path: str) -> None:
         if isinstance(solid, BodySet):
             # A multibody part exports as a compound: STEP as a multi-solid assembly, glTF as
-            # one mesh part per body (so the viewer can pick/color per body). Single-shape
+            # one mesh part per body. Naming each body's shape (its label) names that body's
+            # glTF mesh with its body id, so the viewer colors/picks PER BODY by mesh name -
+            # not by a global face index, which does not match the glTF face order. Labeling is
+            # display metadata only; it does not affect the signature or STEP. Single-shape
             # export is unchanged.
             from build123d import Compound
-            solid = Compound(children=[b.shape for b in solid.bodies])
+            children = []
+            for body in solid.bodies:
+                # A body's shape is often a Compound (a boolean/mirror result); the glTF mesh is
+                # built from its SOLID, so label the solid(s) (not the wrapping Compound) to name
+                # each body's mesh with its body id. Flatten to solids so the export compound is
+                # one named mesh per body's solid.
+                for one in body.shape.solids():
+                    one.label = body.id
+                    children.append(one)
+            solid = Compound(children=children)
         lowered = path.lower()
         if lowered.endswith(".glb"):
             export_gltf(solid, path, unit=Unit.MM, binary=True,
