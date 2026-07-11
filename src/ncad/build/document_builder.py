@@ -128,8 +128,8 @@ class DocumentBuilder:
                 artifact_path = os.path.join(out_dir, f"{name}.{_FORMAT_EXTENSIONS[fmt]}")
                 self._kernel.export(result.shape, artifact_path)
                 written.append(artifact_path)
-            self._write_element_map(element_map, out_dir, name)
             bodies = self._body_materials(result.shape, part, material_library)
+            self._write_element_map(element_map, out_dir, name, bodies)
             self._write_hierarchy(part, out_dir, name, statuses, bodies)
             SketchStatusSidecar(out_dir).write(name, statuses)
             for status in statuses:
@@ -152,6 +152,8 @@ class DocumentBuilder:
         written: dict[str, str] = {}
         for name, part in resolved["parts"].items():
             _, element_map, _ = self._builder.build_part_mapped(part)
+            # No bodies map here: this element-map-only path does not feed the viewer's
+            # material coloring, so records get material=null (bodies defaults to None).
             written[name] = self._write_element_map(element_map, out_dir, name)
         return written
 
@@ -172,12 +174,22 @@ class DocumentBuilder:
             raise ValueError(f"document has dependency errors: {rendered}")
         return resolved
 
-    @staticmethod
-    def _write_element_map(element_map, out_dir: str, name: str) -> str:
-        """Write ``<name>.elementmap.json`` and return its path."""
+    def _write_element_map(self, element_map, out_dir: str, name: str,
+                           bodies: Any = None) -> str:
+        """Write ``<name>.elementmap.json`` and return its path.
+
+        ``bodies`` (``{id, material, appearance_color}`` per built body) stamps each element's
+        material by its body_id, so the viewer can color faces by material. ElementMap stays
+        material-free; material is document data resolved here.
+        """
+        by_body = {b["id"]: b for b in (bodies or [])}
+        records = element_map.to_sidecar()
+        for rec in records:
+            body = by_body.get(rec.get("body_id"))
+            rec["material"] = body["material"] if body else None
+            rec["appearance_color"] = body.get("appearance_color") if body else None
         path = os.path.join(out_dir, f"{name}{_ELEMENTMAP_SUFFIX}")
-        payload = {"attribute_model_version": AttributeModel.VERSION,
-                   "elements": element_map.to_sidecar()}
+        payload = {"attribute_model_version": AttributeModel.VERSION, "elements": records}
         with open(path, "w", encoding="utf-8") as handle:
             json.dump(payload, handle)
         return path
@@ -197,13 +209,20 @@ class DocumentBuilder:
 
     def _body_materials(self, shape: Any, part: dict,
                         material_library: MaterialLibrary) -> list[dict]:
-        """One ``{id, material}`` per built body, material resolved via its created_by feature.
+        """One ``{id, material, appearance_color}`` per built body, resolved via created_by.
 
-        Material is optional: a body with no resolvable material simply has ``material=None``
-        (the tree shows the body with no chip). Never raises; the hierarchy is display-only.
+        Material is optional: a body with no resolvable material has ``material=None`` (and no
+        appearance color). ``appearance_color`` is the material's authored
+        ``mat_data.appearance.color`` if present, else None. Never raises; display-only. Feeds
+        both the hierarchy Bodies group (reads id/material) and the element-map material stamp.
         """
         resolver = MaterialResolver(part, material_library)
         out: list[dict] = []
         for body in self._kernel.bodies(shape):
-            out.append({"id": body.id, "material": resolver.material_name(body)})
+            name = resolver.material_name(body)
+            color = None
+            if name is not None:
+                mat = resolver.for_body(body) or {}
+                color = mat.get("appearance", {}).get("color")
+            out.append({"id": body.id, "material": name, "appearance_color": color})
         return out

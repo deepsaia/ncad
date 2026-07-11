@@ -86,7 +86,10 @@ class ElementMap:
         """Ordered records for the glTF element-map sidecar (mesh-part order)."""
         return [
             {"index": i, "id": e.id, "kind": e.kind,
-             "created_by": e.created_by, "tag": e.tag}
+             "created_by": e.created_by, "tag": e.tag,
+             # body_id lets the viewer group face-primitives by body (for material coloring).
+             # Material itself is document data, stamped later by the builder, not here.
+             "body_id": e.attrs.get("body_id")}
             for i, e in enumerate(self._elements)
         ]
 
