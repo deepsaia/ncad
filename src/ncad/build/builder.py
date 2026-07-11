@@ -159,7 +159,13 @@ class Builder:
             if result.status_report is not None:
                 statuses.append(result.status_report)
             shape_by_id[feature_id] = result.shape
-            previous_shape = result.shape
+            # The running solid an implicit-input op (pattern/transform/mirror/wrap/...) inherits
+            # is the last SOLID-producing feature, not the last feature: a sketch produces a face,
+            # not a body, so it must not become `previous_shape` (mirrors the dependency graph's
+            # `previous_solid`, which skips _NON_SOLID_OPS). Otherwise an op that runs right after
+            # a sketch would grab the face as its base solid.
+            if feature.get("op", "") not in _NON_SOLID_OPS:
+                previous_shape = result.shape
             last_id = feature_id
 
         final_shape = shape_by_id.get(last_id) if last_id is not None else None

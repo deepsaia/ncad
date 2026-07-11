@@ -38,7 +38,17 @@ class RebuildGraph:
         return list(self._deps.get(feature_id, []))
 
     def order(self) -> list[str]:
-        """Topological order of feature ids. Raises GraphCycleError on a cycle."""
+        """Topological order of feature ids. Raises GraphCycleError on a cycle.
+
+        The sort is AUTHORED-STABLE: among features that are ready (all deps satisfied), the
+        one that appears earliest in the authored feature list runs first. A feature tree is a
+        stateful pipeline (like a Blender modifier stack) where ops with no explicit input ref
+        (pattern/transform/mirror/split) consume the authored-previous running solid; a plain
+        topological sort could schedule an independent later solid before such an op, so it
+        would replicate/transform the wrong shape. Dependencies force a feature EARLIER; they
+        never license reordering two independent features out of authored order.
+        """
+        rank = {fid: i for i, fid in enumerate(self._ids)}
         known = set(self._ids)
         indegree = {fid: 0 for fid in self._ids}
         dependents: dict[str, list[str]] = {fid: [] for fid in self._ids}
@@ -47,15 +57,21 @@ class RebuildGraph:
                 if dep in known:
                     indegree[fid] += 1
                     dependents[dep].append(fid)
-        ready = [fid for fid in self._ids if indegree[fid] == 0]
+        # `ready` kept sorted by authored rank so the earliest-authored ready feature runs next.
+        ready = sorted((fid for fid in self._ids if indegree[fid] == 0),
+                       key=lambda fid: rank[fid])
         result: list[str] = []
         while ready:
             current = ready.pop(0)
             result.append(current)
+            newly_ready = False
             for dependent in dependents[current]:
                 indegree[dependent] -= 1
                 if indegree[dependent] == 0:
                     ready.append(dependent)
+                    newly_ready = True
+            if newly_ready:
+                ready.sort(key=lambda fid: rank[fid])
         if len(result) != len(self._ids):
             remaining = sorted(fid for fid in self._ids if fid not in result)
             raise GraphCycleError(remaining)

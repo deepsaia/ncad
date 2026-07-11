@@ -140,6 +140,26 @@ bodies of the running multibody shape, addressed by born-once id.
 - **Seen in:** gate-3.4 `multibody_algebra` (`scoped_merge` unions `row/body/0`+`row/body/2`
   after the pattern mints them; `split_block` splits one body into two).
 
+### 10. Authored order is the tie-breaker; the running solid is the last SOLID, not the last feature
+
+Implicit-input ops (`pattern`, `transform`, `mirror`, `split`, `wrap`) consume the
+authored-previous *running solid*, not an explicitly named ref. Two guarantees make that
+well-defined, and both are enforced by the executor (not left to chance):
+
+- **The rebuild sort is authored-stable.** Among features whose dependencies are all satisfied,
+  the earliest-authored one runs first. A dependency can force a feature EARLIER, but two
+  independent features never reorder past each other. Without this, an independent later solid
+  could be scheduled before a `pattern`, so the pattern would replicate the wrong body.
+- **The running solid skips non-solid features.** A `sketch` produces a face, not a body, so it
+  never becomes the running solid an implicit-input op inherits (mirrors the dependency graph's
+  `previous_solid`). Otherwise an op right after a sketch grabs the face as its base.
+
+- **Failure mode (before the fix):** a `pattern` authored after `stud` but with a later
+  independent `boss` replicated the boss (unstable sort ran `boss` first); a `wrap` right after
+  its profile sketch grabbed the sketch face as its base solid.
+- **Seen in:** the spaced multibody parts (pattern of studs + a separate boss) and gate-2.8b
+  `embossed_logo` (wrap after a marker sketch).
+
 ---
 
 ## How to work when order bites you
