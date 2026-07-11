@@ -11,19 +11,26 @@ def _face(cx, cy, cz, area, order=None):
 
 
 def test_deterministic_namespaced_ids():
-    m = ElementMap()
+    # Bucket 4.1: ids are persistent names (#kind/owner/hash8), deterministic and unique.
     faces = [_face(0, 0, 5, 100), _face(10, 0, 5, 100)]
-    m.rebuild("pad", faces, tags={})
-    ids = sorted(e.id for e in m.by_feature("pad"))
-    assert ids == ["pad/face/0", "pad/face/1"]
+    first = ElementMap()
+    first.rebuild("pad", faces, tags={})
+    second = ElementMap()
+    second.rebuild("pad", faces, tags={})
+    ids = [e.id for e in first.by_feature("pad")]
+    assert [e.id for e in second.by_feature("pad")] == ids  # deterministic
+    assert len(set(ids)) == len(ids)  # unique
+    assert all(i.startswith("#face/pad/") and len(i.rsplit("/", 1)[1]) == 8 for i in ids)
 
 
 def test_generative_tag_becomes_role():
+    # The tag still rides on the element; the id is a persistent name owned by the feature.
     m = ElementMap()
     faces = [_face(0, 0, 10, 100), _face(0, 0, 0, 100)]
     m.rebuild("pad", faces, tags={0: "cap(+Z)", 1: "cap(-Z)"})
-    assert m.by_tag("cap(+Z)")[0].id == "pad/cap(+Z)/0"
-    assert m.by_tag("cap(-Z)")[0].id == "pad/cap(-Z)/0"
+    assert m.by_tag("cap(+Z)")[0].id.startswith("#face/pad/")
+    assert m.by_tag("cap(-Z)")[0].id.startswith("#face/pad/")
+    assert m.by_tag("cap(+Z)")[0].tag == "cap(+Z)"
 
 
 def test_instance_indexing_by_authored_order():
@@ -60,13 +67,13 @@ def test_attrs_include_normal_components_and_orientation():
     assert e.attrs["created_by"] == "pad"
 
 
-def test_element_ids_are_padded_past_ten():
+def test_many_elements_get_unique_persistent_names():
+    # Bucket 4.1: no more index padding; each element gets a unique #kind/owner/hash8 name.
     m = ElementMap()
-    # 12 edge descriptors in one role -> width 2 padded ids
     edges = [{"kind": "edge", "handle": object(), "geom_type": "line", "length": 1.0,
               "center": (float(i), 0.0, 0.0), "min_z": 0.0, "mid_z": 0.0, "max_z": 0.0}
              for i in range(12)]
     m.rebuild("f", edges, tags={})
-    edge_ids = sorted(e.id for e in m.by_feature("f"))
-    assert edge_ids == sorted(edge_ids)
-    assert any(i.endswith("/edge/00") for i in edge_ids)
+    edge_ids = [e.id for e in m.by_feature("f")]
+    assert len(set(edge_ids)) == 12
+    assert all(i.startswith("#edge/f/") for i in edge_ids)

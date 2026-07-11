@@ -19,11 +19,16 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class CacheEntry:
-    """A cached feature result: the shape, its element descriptors, and sketch status."""
+    """A cached feature result: the shape, its element descriptors, and sketch status.
+
+    ``names`` are the persistent element names assigned when the feature was first built, so a
+    cache hit restores identical names without re-running the op or re-deriving lineage.
+    """
 
     shape: Any
     descriptors: list | None
     status_report: SketchStatus | None = None
+    names: list[str] | None = None
 
 
 class FeatureCache:

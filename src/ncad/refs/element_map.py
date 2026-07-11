@@ -1,17 +1,19 @@
 """The per-build element/provenance map (design section 2).
 
-Rebuilt after every feature from the kernel's descriptors of that feature's output
-shape. Element ids are deterministic and namespaced by producing feature + role +
-index (no randomness, so ids are stable across rebuilds and safe as reference names).
-Provenance is carried forward by geometric matching: a face that survives a cut keeps
-its origin feature; new topology belongs to the current feature. Cross-boolean
-content-hash naming is the Phase 4 hardening, out of scope here.
+Rebuilt after every feature from the kernel's descriptors of that feature's output shape.
+Element ids are TopoShape-style persistent names derived from construction lineage by the
+PersistentNamer (bucket 4.1): a carried/modified element keeps its name across edits, fresh
+topology gets a content hash folding its parents' names, and a history-free op (import, or a
+backend that reports no history) seeds names from geometry. Names are deterministic (no
+randomness), so they are stable across rebuilds and safe as reference names.
 """
 
 import logging
 import math
 
+from ncad.kernel.element_history import ElementHistory
 from ncad.refs.element import Element
+from ncad.refs.persistent_namer import PersistentNamer, geometric_seed_name
 
 logger = logging.getLogger(__name__)
 
@@ -21,28 +23,79 @@ class ElementMap:
 
     def __init__(self) -> None:
         self._elements: list[Element] = []
+        self._namer = PersistentNamer()
 
-    def rebuild(self, feature_id: str, descriptors: list[dict], tags: dict[int, str]) -> None:
-        """Recompute the map from ``feature_id``'s output ``descriptors``.
+    def rebuild(self, feature_id: str, descriptors: list[dict], tags: dict[int, str],
+                history: ElementHistory | None = None) -> None:
+        """Recompute the map from ``feature_id``'s output ``descriptors`` and lineage.
+
+        With ``history`` (the hardened path), persistent names come from construction lineage
+        (PersistentNamer): a carried/modified element keeps its identity and origin, fresh
+        topology gets a content hash folding its parents' names. Without history (ops not yet
+        instrumented, and the general case today), fall back to GEOMETRIC CARRY-FORWARD: an
+        element whose geometry matches a prior element keeps that element's name and
+        ``created_by`` (so provenance survives a later feature), and genuinely new geometry gets
+        a fresh geometric-seed name owned by this feature. Both paths yield ``#kind/owner/hash``
+        names and are deterministic.
 
         :param tags: descriptor-index -> generative tag (from GenerativeTagger).
         """
-        previous = list(self._elements)
-        prior_by_key = {_geometric_key(e.attrs, e.kind): e for e in previous}
-        indexed = _assign_indices(feature_id, descriptors, tags)
+        if history is not None:
+            self._rebuild_from_history(feature_id, descriptors, tags, history)
+            return
+        self._rebuild_from_geometry(feature_id, descriptors, tags)
+
+    def _rebuild_from_history(self, feature_id: str, descriptors: list[dict],
+                              tags: dict[int, str], history: ElementHistory) -> None:
+        """Assign names from construction lineage (the hardened persistent-name path)."""
+        prior_by_handle = {e.handle: e.id for e in self._elements}
+        prior_owner = {e.id: e.created_by for e in self._elements}
+        names = self._namer.name_elements(feature_id, feature_id, descriptors, tags,
+                                          history, prior_by_handle)
         rebuilt: list[Element] = []
-        for descriptor, element_id, _role, tag in indexed:
+        for index, descriptor in enumerate(descriptors):
+            name = names[index]
+            tag = tags.get(index)
             attrs = _attrs_from(descriptor, feature_id, tag)
-            key = _geometric_key(attrs, descriptor["kind"])
-            match = prior_by_key.get(key)
+            # A carried/modified element inherits its prior owner; fresh topology is this feature.
+            created_by = prior_owner.get(name, feature_id)
+            attrs["created_by"] = created_by
+            rebuilt.append(Element(name, descriptor["kind"], created_by, tag,
+                                   attrs, descriptor["handle"]))
+        self._elements = rebuilt
+
+    def _rebuild_from_geometry(self, feature_id: str, descriptors: list[dict],
+                               tags: dict[int, str]) -> None:
+        """Carry names/provenance forward by geometric match; seed new geometry by this feature.
+
+        This is the no-history fallback: it preserves the pre-4.1 behavior (a face that survives
+        keeps its origin feature) while emitting persistent ``#kind/owner/hash`` names.
+        """
+        prior_by_key = {_geometric_key(e.attrs, e.kind): e for e in self._elements}
+        rebuilt: list[Element] = []
+        for index, descriptor in enumerate(descriptors):
+            tag = tags.get(index)
+            attrs = _attrs_from(descriptor, feature_id, tag)
+            match = prior_by_key.get(_geometric_key(attrs, descriptor["kind"]))
             if match is not None:
                 attrs["created_by"] = match.created_by
                 rebuilt.append(Element(match.id, descriptor["kind"], match.created_by,
                                        match.tag, attrs, descriptor["handle"]))
             else:
-                rebuilt.append(Element(element_id, descriptor["kind"], feature_id, tag,
+                name = geometric_seed_name(descriptor["kind"], descriptor, feature_id)
+                attrs["created_by"] = feature_id
+                rebuilt.append(Element(name, descriptor["kind"], feature_id, tag,
                                        attrs, descriptor["handle"]))
         self._elements = rebuilt
+
+    def apply_names(self, names: list[str]) -> None:
+        """Overwrite element ids from a cached name list (positional), for cache-hit restore."""
+        if len(names) != len(self._elements):
+            logger.warning("cached name count %d != element count %d; keeping computed names",
+                           len(names), len(self._elements))
+            return
+        for element, name in zip(self._elements, names):
+            element.id = name
 
     def elements(self) -> list[Element]:
         """All current elements."""
@@ -94,25 +147,6 @@ class ElementMap:
         ]
 
 
-def _assign_indices(feature_id: str, descriptors: list[dict],
-                    tags: dict[int, str]) -> list[tuple]:
-    """Return (descriptor, id, role, tag) tuples with deterministic per-role indices."""
-    by_role: dict[str, list[tuple]] = {}
-    for i, descriptor in enumerate(descriptors):
-        tag = tags.get(i)
-        role = tag if tag is not None else descriptor["kind"]
-        by_role.setdefault(role, []).append((descriptor, tag))
-    result: list[tuple] = []
-    for role, group in by_role.items():
-        ordered = sorted(group, key=lambda t: _canonical_sort_key(
-            t[0], t[0]["kind"], order=t[0].get("order")))
-        width = max(1, len(str(len(ordered) - 1))) if ordered else 1
-        for index, (descriptor, tag) in enumerate(ordered):
-            element_id = f"{feature_id}/{role}/{index:0{width}d}"
-            result.append((descriptor, element_id, role, tag))
-    return result
-
-
 def _canonical_sort_key(source: dict, kind: str, order: float | None = None) -> tuple:
     """Sort key: authored order first (if any), then centroid x,y,z, then size."""
     center = source.get("center") or (0.0, 0.0, 0.0)
@@ -122,7 +156,7 @@ def _canonical_sort_key(source: dict, kind: str, order: float | None = None) -> 
 
 
 def _geometric_key(attrs: dict, kind: str) -> tuple:
-    """Rounded geometric identity for provenance carry-forward matching."""
+    """Rounded geometric identity for the no-history provenance carry-forward match."""
     center = attrs.get("center") or (0.0, 0.0, 0.0)
     size = _size_of(attrs)
     return (kind, round(float(center[0]), 4), round(float(center[1]), 4),
