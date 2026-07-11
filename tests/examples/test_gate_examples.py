@@ -96,6 +96,32 @@ def test_gate_3_4_multibody_algebra_on_fake_kernel() -> None:
     assert FakeKernel().volume(merged.shape) == pytest.approx(3 * 360.0)
 
 
+def test_gate_3_5_materials_mass_on_fake_kernel() -> None:
+    from ncad.build.mass_calculator import MassCalculator
+    from ncad.build.material_resolver import MaterialResolver
+    from ncad.spec.material_library import MaterialLibrary
+
+    builder = DocumentBuilder(FakeKernel())
+    doc = builder._loader.load(str(_EXAMPLES_DIR / "gate-3.5" / "materials_part.hocon"))
+    part = builder._resolve_and_validate(doc)["parts"]["materials_part"]
+    result, _, _ = builder._builder.build_part_mapped(part)
+    assert [i for i in result.issues if i.level == "error"] == []
+
+    lib = MaterialLibrary(doc, base_dir=str(_EXAMPLES_DIR / "gate-3.5"))
+    resolver = MaterialResolver(part, lib)
+    props = MassCalculator(FakeKernel()).mass_properties(result.shape, resolver)
+    # Two materials across bodies: aluminium halves + a steel boss.
+    materials = {b["material"] for b in props["bodies"]}
+    assert "steel_1018" in materials and "aluminium_6061" in materials
+    # Every body's mass = density * volume * 1e-9.
+    for b in props["bodies"]:
+        assert b["mass"] == pytest.approx(b["density"] * b["volume"] * 1e-9)
+    # Assembly total mass = sum of body masses; raw mat_data queryable per body.
+    assert props["total"]["mass"] == pytest.approx(sum(b["mass"] for b in props["bodies"]))
+    for body in FakeKernel().bodies(result.shape):
+        assert resolver.for_body(body)["physical"]["density"] > 0
+
+
 @pytest.mark.slow
 def test_gate_0_1_exports_glb(tmp_path) -> None:
     from ncad.kernel.build123d_kernel import Build123dKernel
@@ -662,3 +688,31 @@ def test_gate_3_4_scoped_merge_bodies() -> None:
     result, _, _ = builder._builder.build_part_mapped(resolved["parts"]["scoped_merge"])
     ids = {b.id for b in kernel.bodies(result.shape)}
     assert ids == {"merged/body/0", "row/body/1"}
+
+
+@pytest.mark.slow
+def test_gate_3_5_massprops_match_golden() -> None:
+    import json
+
+    from ncad.build.mass_calculator import MassCalculator
+    from ncad.build.material_resolver import MaterialResolver
+    from ncad.kernel.build123d_kernel import Build123dKernel
+    from ncad.spec.material_library import MaterialLibrary
+
+    golden = json.loads((Path(__file__).resolve().parents[1] / "build" / "golden" /
+                         "materials_part.massprops.json").read_text())
+    kernel = Build123dKernel()
+    builder = DocumentBuilder(kernel)
+    doc = builder._loader.load(str(_EXAMPLES_DIR / "gate-3.5" / "materials_part.hocon"))
+    part = builder._resolve_and_validate(doc)["parts"]["materials_part"]
+    result, _, _ = builder._builder.build_part_mapped(part)
+    lib = MaterialLibrary(doc, base_dir=str(_EXAMPLES_DIR / "gate-3.5"))
+    props = MassCalculator(kernel).mass_properties(result.shape, MaterialResolver(part, lib))
+
+    assert len(props["bodies"]) == len(golden["bodies"])
+    assert props["total"]["mass"] == pytest.approx(golden["total"]["mass"], rel=1e-6)
+    assert props["total"]["volume"] == pytest.approx(golden["total"]["volume"], rel=1e-6)
+    for live_b, gold_b in zip(sorted(props["bodies"], key=lambda b: b["id"]),
+                              sorted(golden["bodies"], key=lambda b: b["id"])):
+        assert live_b["material"] == gold_b["material"]
+        assert live_b["mass"] == pytest.approx(gold_b["mass"], rel=1e-6)
