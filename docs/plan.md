@@ -54,10 +54,12 @@ Phase 2 solid-feature buckets are COMPLETE.
 scope-mode multibody algebra), and per-body materials + derived mass - capped by the
 `flanged_coupling` capstone (bolt-circle + mirror + a 2-material multibody, per-body mass
 properties). Viewer polish landed alongside: hierarchy Bodies group, per-category icons,
-inline sketch status, and by-material coloring. NEXT: Phase 4 (persistent-name layer +
-direct/synchronous modeling); a near-term viewer bucket fixes multibody face -> element ->
-glTF-primitive alignment (coloring + picking). The Phase 2/3 deferred items are gathered in
-sections below the bucket lists, so nothing is lost.
+inline sketch status, and by-material coloring. **Phase 4 has started:** bucket 4.0 (the
+de-risking spike) is DONE - the OCCT direct-edit envelope is measured and written
+(`docs/research/direct-modeling-envelope.md`), and `GuardedRunner` shipped for 4.2. NEXT:
+bucket 4.1 (persistent-name layer + `ncad import`), scoped strictly to the measured envelope.
+The Phase 2/3 deferred items are gathered in sections below the bucket lists, so nothing is
+lost.
 
 v1 proved the *pattern*: `spec >> build >> BOM >> view`, determinism, build123d/OCCT,
 HOCON+jsonschema, traversal BOM, the Three.js viewer, on the **building profile**
@@ -517,16 +519,29 @@ correctly and reports per-body mass properties (bucket 3.6).
 > and refuses rather than risks corruption; every op is gated by
 > `BRepCheck_Analyzer` **plus** an independent volume/area/closedness check.
 
-**Bucket 4.0: De-risking spike (do first)**
-- [ ] On a representative dirty STEP import, run **defeature + planar move_face +
-      heal**; measure validity-gate pass rate, tangent-face failure rate,
-      hang/timeout incidence. This sets the achievable envelope before building on it.
-- **Gate:** a measured success-rate report exists; the envelope is written down.
+**Bucket 4.0: De-risking spike (do first)** - DONE
+- [x] On our own STEP exports (last-few gate models + 3 cliff synthetics), ran
+      **defeature + planar move_face + offset/thicken + heal** through a subprocess
+      wall-clock guard (`GuardedRunner`, shipped in `src/ncad/kernel/`, reused by 4.2);
+      measured validity-gate pass rate, tangent/multibody/thin-wall failure, hang/timeout
+      incidence, and the gate-vs-reality (#1315) disagreement rate via a three-tier oracle.
+- [x] **Envelope written:** `docs/research/direct-modeling-envelope.md` (GREEN
+      build-on / RED refuse-with-precondition / YELLOW guarded-only). Headline: no hangs or
+      crashes on clean input, but 37% of runs were confident false positives (BRepCheck
+      "valid" on unchanged/empty geometry); `Defeaturing.IsDone()` lies constantly.
+      4.1/4.2 MUST cite this envelope: every direct op runs guarded + oracle-verified,
+      never trusted on validity alone. Raw record: `spikes/direct_modeling_4_0/`.
+- **Gate:** MET - measured report + written envelope both exist.
 
 **Bucket 4.1: Persistent-name layer**
 - [ ] **Persistent-name layer:** stable element names from construction history
       (TopoShape-style); round-trip through edits; expose as `#face/...` refs
       (hardens the bucket-0.5 spike)
+- [ ] **`ncad import <file>` CLI + `import` leaf op:** turn a foreign or our-own
+      STEP/IGES B-rep into an ncad document whose first op is an `import` base feature
+      (direct edits append on top). The read-side counterpart to `ncad build --format step`
+      (the write side, shipped in 4.0); together they close the export >> re-import >>
+      direct-edit round-trip.
 
 **Bucket 4.2: Direct face ops (well-behaved only)**
 - [ ] `delete_face`/**defeature** (`BRepAlgoAPI_Defeaturing`): **non-tangent**
