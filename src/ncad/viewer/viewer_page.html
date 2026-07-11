@@ -965,15 +965,17 @@ function treeNode(node) {
     opEl.className = "tree-op"; opEl.textContent = node.op;
     row.appendChild(opEl);
   }
-  // A sketch feature shows its constraint status inline: a colored dot (green/amber/red),
-  // with dof + failing constraint ids in the tooltip. Replaces the old separate status box.
+  // A sketch feature shows its constraint status inline: a colored dot (green/amber/red).
+  // The dof + failing constraint ids appear on hover over the whole row (not just the 9px
+  // dot), so the constraint state is easy to inspect. Replaces the old separate status box.
   if (node.status) {
-    const dot = document.createElement("span");
-    dot.className = "status-dot tree-status " + node.status;
     const fail = (node.failing_ids && node.failing_ids.length)
       ? ` [${node.failing_ids.join(", ")}]` : "";
-    dot.title = `${node.status} (dof ${node.dof})${fail}`;
+    const tip = `${node.status}-constrained (dof ${node.dof})${fail}`;
+    const dot = document.createElement("span");
+    dot.className = "status-dot tree-status " + node.status;
     row.appendChild(dot);
+    row.title = tip;              // hover anywhere on the sketch row shows the dof
   }
   // A material chip (part default or a feature override) rides at the row's end.
   if (node.material) {
