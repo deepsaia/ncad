@@ -285,21 +285,7 @@
   .bom-row .v { font-weight: 600; font-variant-numeric: tabular-nums; }
   .bom-row .u { color: var(--muted); font-weight: 400; font-size: 11px; margin-left: 3px; }
   .panel-empty { font-size: 12px; color: var(--muted); padding: 8px 0; }
-  /* Sketch constraint-status badge: collapsible header + per-sketch rows. */
-  .sketch-status { margin-bottom: 8px; border: 1px solid var(--border);
-    border-radius: 8px; background: var(--panel-2); overflow: hidden; }
-  .sketch-status-head { display: flex; align-items: center; gap: 6px; width: 100%;
-    padding: 6px 9px; background: none; border: 0; color: var(--text);
-    font-size: 12px; font-weight: 600; cursor: pointer; text-align: left; }
-  .sketch-status-caret { display: inline-block; font-size: 9px; color: var(--muted);
-    transition: transform .12s; }
-  .sketch-status.open .sketch-status-caret { transform: rotate(90deg); }
-  .sketch-status-list { padding: 2px 9px 7px; }
-  .sketch-status-row { display: flex; align-items: center; gap: 6px; padding: 3px 0;
-    font-size: 12px; font-variant-numeric: tabular-nums; }
-  .sketch-status-row .sid { font-weight: 600; }
-  .sketch-status-row .dof { color: var(--muted); }
-  .sketch-status-row .fail { color: #e74c3c; margin-left: auto; }
+  /* Sketch constraint status is shown inline on the sketch's own tree row (a colored dot). */
   .status-dot { width: 9px; height: 9px; border-radius: 50%; flex: none;
     background: var(--muted); }
   .status-dot.well { background: #2ecc71; }
@@ -336,10 +322,18 @@
   .tree-ico.feature { color: var(--accent); }
   .tree-name { overflow: hidden; text-overflow: ellipsis; }
   .tree-op { color: var(--muted); font-size: 11px; margin-left: 4px; }
+  .tree-ico.sketch { color: var(--accent); }
+  /* inline sketch-status dot sits just after the op label */
+  .tree-status { margin-left: 5px; }
+  /* material chip: pushed to the row's end, muted pill */
+  .tree-mat { margin-left: auto; padding: 0 6px; border-radius: 8px; font-size: 10px;
+    color: var(--muted); background: var(--panel-2); border: 1px solid var(--border);
+    white-space: nowrap; }
   .tree-children { margin-left: 12px; border-left: 1px solid var(--border);
     padding-left: 4px; }
   .tree-collapsed > .tree-children { display: none; }
-  #tab-hierarchy.hide-text .tree-name, #tab-hierarchy.hide-text .tree-op { display: none; }
+  #tab-hierarchy.hide-text .tree-name, #tab-hierarchy.hide-text .tree-op,
+  #tab-hierarchy.hide-text .tree-mat { display: none; }
 
   /* --- Orientation gizmo (top-right of the viewport). 128px matches the ViewHelper's
      fixed draw size; non-interactive (orientation readout only). --- */
@@ -515,14 +509,6 @@
       </button>
     </div>
     <div class="tab-panel active" id="tab-hierarchy" role="tabpanel">
-      <div id="sketch-status" class="sketch-status" hidden>
-        <button id="sketch-status-head" class="sketch-status-head" type="button">
-          <span class="sketch-status-caret">&#9654;</span>
-          <span>Sketches:</span>
-          <span id="sketch-status-badge" class="status-dot"></span>
-        </button>
-        <div id="sketch-status-list" class="sketch-status-list" hidden></div>
-      </div>
       <div id="hierarchy-body"><div class="panel-empty">select a model</div></div>
     </div>
     <div class="tab-panel" id="tab-bom" role="tabpanel">
@@ -867,51 +853,7 @@ function loadModel(name) {
   loadBom(name);
   loadPlan(name);
   loadHierarchy(name);
-  loadSketchStatus(name);
 }
-
-// ---- Sketch constraint-status badge ----
-const STATUS_RANK = { well: 0, under: 1, over: 2, inconsistent: 2 };
-
-function loadSketchStatus(name) {
-  const box = document.getElementById("sketch-status");
-  const list = document.getElementById("sketch-status-list");
-  const badge = document.getElementById("sketch-status-badge");
-  fetch(`/api/status/${name}`).then(r => r.ok ? r.json() : Promise.reject())
-    .then(data => {
-      const sketches = (data && data.sketches) || [];
-      if (!sketches.length) { box.hidden = true; return; }
-      box.hidden = false;
-      let worst = "well";
-      list.innerHTML = "";
-      sketches.forEach(s => {
-        if ((STATUS_RANK[s.status] || 0) > (STATUS_RANK[worst] || 0)) worst = s.status;
-        const row = document.createElement("div");
-        row.className = "sketch-status-row";
-        const dot = document.createElement("span");
-        dot.className = "status-dot " + s.status;
-        const sid = document.createElement("span");
-        sid.className = "sid"; sid.textContent = s.feature_id;
-        const dof = document.createElement("span");
-        dof.className = "dof"; dof.textContent = `(dof ${s.dof})`;
-        row.appendChild(dot); row.appendChild(sid); row.appendChild(dof);
-        if (s.failing_ids && s.failing_ids.length) {
-          const fail = document.createElement("span");
-          fail.className = "fail"; fail.textContent = `[${s.failing_ids.join(", ")}]`;
-          row.appendChild(fail);
-        }
-        list.appendChild(row);
-      });
-      badge.className = "status-dot " + worst;
-    }).catch(() => { box.hidden = true; });
-}
-
-document.getElementById("sketch-status-head").addEventListener("click", () => {
-  const box = document.getElementById("sketch-status");
-  const list = document.getElementById("sketch-status-list");
-  const open = box.classList.toggle("open");
-  list.hidden = !open;
-});
 
 // ---- Bill of materials panel ----
 const BOM_FIELDS = [
@@ -951,11 +893,42 @@ function loadPlan(name) {
 }
 
 // ---- Hierarchy tab (Blender-style tree, non-interactive) ----
+// Icons distinguish node kinds and, for features, the OP CATEGORY (additive / subtractive /
+// dress-up / boolean / placement / sketch). Each op maps to one category so the tree is
+// scannable at a glance; an unknown op falls back to the generic `feature` gear.
+const SVG = (body) => '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" ' +
+  'stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">' +
+  body + '</svg>';
 const TREE_ICONS = {
-  part: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M12 3 20 7.5v9L12 21 4 16.5v-9L12 3Z"/><path d="M4 7.5 12 12l8-4.5M12 12v9"/></svg>',
-  feature: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M6 6l2 2M16 16l2 2M18 6l-2 2M8 16l-2 2"/></svg>',
-  element: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><rect x="5" y="5" width="14" height="14" rx="1.5"/></svg>',
+  part: SVG('<path d="M12 3 20 7.5v9L12 21 4 16.5v-9L12 3Z"/><path d="M4 7.5 12 12l8-4.5M12 12v9"/>'),
+  feature: SVG('<circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M6 6l2 2M16 16l2 2M18 6l-2 2M8 16l-2 2"/>'),
+  element: SVG('<rect x="5" y="5" width="14" height="14" rx="1.5"/>'),
+  sketch: SVG('<rect x="5" y="5" width="14" height="14" rx="1.5"/>'),
+  // additive: material rising from a plane (up arrow above a baseline)
+  additive: SVG('<path d="M4 20h16"/><path d="M12 16V5"/><path d="M8 9l4-4 4 4"/>'),
+  // subtractive: material removed into a plane (down arrow into a baseline)
+  subtractive: SVG('<path d="M4 4h16"/><path d="M12 8v11"/><path d="M8 15l4 4 4-4"/>'),
+  // dress-up (fillet/chamfer/draft/shell): a rounded corner easing off an edge
+  dressup: SVG('<path d="M5 19V9a4 4 0 0 1 4-4h10"/><path d="M5 19h4"/>'),
+  // boolean/split (multibody algebra): two overlapping circles
+  boolean: SVG('<circle cx="9" cy="12" r="6"/><circle cx="15" cy="12" r="6"/>'),
+  // placement (pattern/mirror/transform): a small square copied across a grid
+  placement: SVG('<rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/>'),
 };
+const OP_CATEGORY = {
+  sketch: "sketch",
+  extrude: "additive", revolve: "additive", loft: "additive", sweep: "additive",
+  rib: "additive", wrap: "additive",
+  pocket: "subtractive", hole: "subtractive", groove: "subtractive",
+  fillet: "dressup", chamfer: "dressup", draft: "dressup", shell: "dressup",
+  boolean: "boolean", split: "boolean",
+  pattern: "placement", mirror: "placement", transform: "placement",
+};
+function iconKey(node) {
+  if (node.kind === "part") return "part";
+  if (node.kind === "element") return "element";
+  return OP_CATEGORY[node.op] || "feature";  // feature: category by op, else generic gear
+}
 
 function loadHierarchy(name) {
   const body = document.getElementById("hierarchy-body");
@@ -976,9 +949,10 @@ function treeNode(node) {
   const twist = document.createElement("span");
   twist.className = "tree-twist" + (kids.length ? "" : " leaf");
   twist.textContent = "▼";
+  const key = iconKey(node);
   const ico = document.createElement("span");
-  ico.className = "tree-ico " + node.kind;
-  ico.innerHTML = TREE_ICONS[node.kind] || TREE_ICONS.element;
+  ico.className = "tree-ico " + node.kind + " " + key;
+  ico.innerHTML = TREE_ICONS[key] || TREE_ICONS.element;
   const label = node.name || node.id || "?";
   row.innerHTML = "";
   row.appendChild(twist);
@@ -990,6 +964,23 @@ function treeNode(node) {
     const opEl = document.createElement("span");
     opEl.className = "tree-op"; opEl.textContent = node.op;
     row.appendChild(opEl);
+  }
+  // A sketch feature shows its constraint status inline: a colored dot (green/amber/red),
+  // with dof + failing constraint ids in the tooltip. Replaces the old separate status box.
+  if (node.status) {
+    const dot = document.createElement("span");
+    dot.className = "status-dot tree-status " + node.status;
+    const fail = (node.failing_ids && node.failing_ids.length)
+      ? ` [${node.failing_ids.join(", ")}]` : "";
+    dot.title = `${node.status} (dof ${node.dof})${fail}`;
+    row.appendChild(dot);
+  }
+  // A material chip (part default or a feature override) rides at the row's end.
+  if (node.material) {
+    const mat = document.createElement("span");
+    mat.className = "tree-mat"; mat.textContent = node.material;
+    mat.title = "material: " + node.material;
+    row.appendChild(mat);
   }
   wrap.appendChild(row);
   if (kids.length) {
