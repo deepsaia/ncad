@@ -118,11 +118,19 @@ def view(
 @app.command()
 def build(
     document: str = typer.Argument(..., help="path to a .hocon/.json feature-tree document"),
-    out: str = typer.Option(None, help="output directory for .glb files (default: out/)"),
+    out: str = typer.Option(None, help="output directory for artifacts (default: out/)"),
+    format: str = typer.Option(
+        "glb", "--format", "-f",
+        help="comma-separated export formats: glb, step (default: glb)",
+    ),
 ) -> None:
-    """Build every part in a feature-tree document to glTF."""
-    artifacts = cli.build_document(document, out)
-    print(f"\nncad build: {document}")
+    """Build every part in a feature-tree document to the chosen format(s)."""
+    # Reuse the ncad-build comma-list parser + validation so both entrypoints behave identically.
+    from ncad.build.__main__ import _parse_formats
+
+    formats = _parse_formats(format)
+    artifacts = cli.build_document(document, out, formats=formats)
+    print(f"\nncad build: {document}  [{', '.join(formats)}]")
     for name, path in artifacts.items():
         print(f"  part {name:12} {path}")
     if artifacts:
