@@ -13,6 +13,7 @@ from typing import Any
 from ncad.build.builder import Builder
 from ncad.build.feature_cache import FeatureCache
 from ncad.build.hierarchy_builder import HierarchyBuilder
+from ncad.build.material_resolver import MaterialResolver
 from ncad.build.sketch_status_sidecar import SketchStatusSidecar
 from ncad.kernel.kernel import Kernel
 from ncad.ops.op_registry import OpRegistry
@@ -22,6 +23,7 @@ from ncad.params.param_resolver import ParamResolver
 from ncad.refs.attribute_model import AttributeModel
 from ncad.spec.dependency_validator import DependencyValidator
 from ncad.spec.feature_id_validator import FeatureIdValidator
+from ncad.spec.material_library import MaterialLibrary
 from ncad.spec.schema_validator import SchemaValidator
 from ncad.spec.spec_loader import SpecLoader
 
@@ -107,7 +109,11 @@ class DocumentBuilder:
         """
         resolved_formats = resolve_formats(formats)
         os.makedirs(out_dir, exist_ok=True)
-        resolved = self._resolve_and_validate(self._loader.load(path))
+        document = self._loader.load(path)
+        resolved = self._resolve_and_validate(document)
+        # The material library reads the RAW document (materials / materials_library), resolved
+        # relative to the document's own directory. Bodies get their material via created_by.
+        material_library = MaterialLibrary(document, base_dir=os.path.dirname(path))
         artifacts: dict[str, str] = {}
         for name, part in resolved["parts"].items():
             result, element_map, statuses = self._builder.build_part_mapped(part)
@@ -123,7 +129,8 @@ class DocumentBuilder:
                 self._kernel.export(result.shape, artifact_path)
                 written.append(artifact_path)
             self._write_element_map(element_map, out_dir, name)
-            self._write_hierarchy(part, out_dir, name, statuses)
+            bodies = self._body_materials(result.shape, part, material_library)
+            self._write_hierarchy(part, out_dir, name, statuses, bodies)
             SketchStatusSidecar(out_dir).write(name, statuses)
             for status in statuses:
                 logger.info("sketch %s: %s-constrained (dof %d)%s", status.feature_id,
@@ -176,12 +183,27 @@ class DocumentBuilder:
         return path
 
     def _write_hierarchy(self, part: dict, out_dir: str, name: str,
-                         statuses: Any = None) -> str:
+                         statuses: Any = None, bodies: Any = None) -> str:
         """Write ``<name>.hierarchy.json`` (the display feature tree) and return its path.
 
-        ``statuses`` are stamped onto sketch nodes so the tree shows constraint status inline.
+        ``statuses`` are stamped onto sketch nodes so the tree shows constraint status inline;
+        ``bodies`` (``{id, material}`` per built body) become the trailing Bodies group.
         """
         path = os.path.join(out_dir, f"{name}{_HIERARCHY_SUFFIX}")
         with open(path, "w", encoding="utf-8") as handle:
-            json.dump(self._hierarchy.hierarchy(name, part, statuses=statuses), handle)
+            json.dump(self._hierarchy.hierarchy(name, part, statuses=statuses, bodies=bodies),
+                      handle)
         return path
+
+    def _body_materials(self, shape: Any, part: dict,
+                        material_library: MaterialLibrary) -> list[dict]:
+        """One ``{id, material}`` per built body, material resolved via its created_by feature.
+
+        Material is optional: a body with no resolvable material simply has ``material=None``
+        (the tree shows the body with no chip). Never raises; the hierarchy is display-only.
+        """
+        resolver = MaterialResolver(part, material_library)
+        out: list[dict] = []
+        for body in self._kernel.bodies(shape):
+            out.append({"id": body.id, "material": resolver.material_name(body)})
+        return out

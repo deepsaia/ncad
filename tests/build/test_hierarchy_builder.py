@@ -39,15 +39,46 @@ def test_non_sketch_feature_has_no_children():
     assert pad_node["children"] == []
 
 
-def test_part_and_feature_carry_material_when_present():
+def test_bodies_group_lists_per_body_material():
+    # Material is a per-body property (NX/Fusion model): it shows in a Bodies group, one node
+    # per body with its resolved material chip, NOT on feature/part rows.
     part = {"profile": "solid", "material": "aluminium_6061", "features": [
-        {"id": "pad", "op": "extrude", "material": "steel_1018"},
-        {"id": "rnd", "op": "fillet"},
+        {"id": "pad", "op": "extrude"},
     ]}
-    tree = HierarchyBuilder().hierarchy("p", part)
-    assert tree["material"] == "aluminium_6061"
-    assert tree["children"][0]["material"] == "steel_1018"  # feature override shown
-    assert "material" not in tree["children"][1]  # no material -> no chip
+    bodies = [
+        {"id": "pad/body/0", "material": "aluminium_6061"},
+        {"id": "grp/body/1", "material": "steel_1018"},
+    ]
+    tree = HierarchyBuilder().hierarchy("p", part, bodies=bodies)
+    # feature rows carry no material chip
+    assert "material" not in tree["children"][0]
+    # a Bodies group is appended after the features
+    group = tree["children"][-1]
+    assert group["kind"] == "group" and group["name"] == "Bodies"
+    listed = [(b["id"], b["material"]) for b in group["children"]]
+    assert listed == [("pad/body/0", "aluminium_6061"), ("grp/body/1", "steel_1018")]
+    assert all(b["kind"] == "body" for b in group["children"])
+
+
+def test_no_bodies_group_when_bodies_absent():
+    tree = HierarchyBuilder().hierarchy("p", _part())
+    assert all(c.get("kind") != "group" for c in tree["children"])
+
+
+def test_single_body_without_material_shows_no_group_and_no_part_chip():
+    # A lone contiguous body IS the part; no Bodies group, and no material authored -> no chip.
+    tree = HierarchyBuilder().hierarchy("p", _part(),
+                                        bodies=[{"id": "pad/body/0", "material": None}])
+    assert all(c.get("kind") != "group" for c in tree["children"])
+    assert "material" not in tree
+
+
+def test_single_body_with_material_shows_chip_on_part_not_a_group():
+    # Single body == part, so its material rides on the part row; no Bodies group.
+    tree = HierarchyBuilder().hierarchy("p", _part(),
+                                        bodies=[{"id": "pad/body/0", "material": "abs"}])
+    assert all(c.get("kind") != "group" for c in tree["children"])
+    assert tree["material"] == "abs"
 
 
 def test_sketch_feature_carries_its_constraint_status():
