@@ -19,6 +19,23 @@ def test_keep_true_merge_false_yields_two_body_bodyset_ordinal_ids():
     assert k.volume(result.shape) == pytest.approx(2000.0)  # original + reflection
 
 
+def test_keep_true_merge_false_multibody_gives_unique_ids_preserving_provenance():
+    # Mirroring a multibody running shape kept-separate must not collide the reflections with
+    # the originals' ids; all bodies get unique ids born under the feature, created_by preserved.
+    k = FakeKernel()
+    a = _box(k)
+    b = _box(k)
+    running = k.union_bodies([a, b], origin="grp", sources=["fa", "fb"])
+    result = MirrorOp().build(
+        running, {"id": "sym", "plane": "YZ", "keep": True, "merge": False}, {}, k)
+    assert isinstance(result.shape, BodySet)
+    ids = result.shape.ids()
+    assert ids == ["sym/body/0", "sym/body/1", "sym/body/2", "sym/body/3"]
+    assert len(ids) == len(set(ids))  # unique
+    # created_by preserved from each source body (so materials survive the mirror)
+    assert [bd.created_by for bd in result.shape.bodies] == ["fa", "fb", "fa", "fb"]
+
+
 def test_keep_true_merge_true_fuses_to_single_shape():
     k = FakeKernel()
     box = _box(k)
