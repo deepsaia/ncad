@@ -487,12 +487,20 @@ but the *model* is designed to full generality so no later bucket is a breaking 
 - **Cross-cutting (3.2 + 3.3 + 3.4):** general **datum planes / axes** as first-class
   referenceable entities for pattern/mirror/split references (shares the datum work deferred
   from Phase 2, and from loft in 2.4).
-- **Viewer multibody face alignment (surfaced by 3.6, NEXT bucket):** the glTF face-primitive
-  order does not match the element-map face order for a multibody `Compound` export, so
-  by-material coloring (and face picking) mis-map per body on multibody parts. Fix by aligning
-  the element-map face order to the exported Compound-face order (or export a per-body glTF
-  node per body) plus an invariant test; fixes coloring AND picking. A dedicated viewer/export
-  bucket with its own design.
+- **Viewer multibody face alignment (RESOLVED):** by-material coloring and face picking now key
+  on a per-primitive `meshes` list in the element-map sidecar (one `{body_id, material}` per
+  exported glTF face, in export order), so a multibody part colors uniformly per body and
+  picking reports the correct body. The export flatten + the mesh list share one
+  `_export_solids` walk, so the glTF primitive order and the list stay in lockstep. Exact
+  per-face element id on multibody picking remains a minor follow-up (picking reports
+  body-level).
+- **Bake per-body glTF materials at export (portability follow-up):** today per-body colors are
+  a viewer-side overlay (localStorage), so they do NOT port to other glTF renderers
+  (Vulkan/OpenGL/Blender) - only the geometry + body grouping do. Baking each body's material
+  color as a glTF PBR `baseColorFactor` at export would make default per-body colors
+  renderer-agnostic (the interactive color-picker stays a viewer overlay). Interacts with the
+  material-view decision that colors are viewer-side vs authored `appearance.color`; its own
+  small bucket.
 
 **Gate:** a multibody part with a circular pattern of cut features and a mirror rebuilds
 correctly and reports per-body mass properties (bucket 3.6).

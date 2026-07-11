@@ -129,7 +129,7 @@ class DocumentBuilder:
                 self._kernel.export(result.shape, artifact_path)
                 written.append(artifact_path)
             bodies = self._body_materials(result.shape, part, material_library)
-            self._write_element_map(element_map, out_dir, name, bodies)
+            self._write_element_map(element_map, out_dir, name, bodies, result.shape)
             self._write_hierarchy(part, out_dir, name, statuses, bodies)
             SketchStatusSidecar(out_dir).write(name, statuses)
             for status in statuses:
@@ -175,12 +175,15 @@ class DocumentBuilder:
         return resolved
 
     def _write_element_map(self, element_map, out_dir: str, name: str,
-                           bodies: Any = None) -> str:
+                           bodies: Any = None, shape: Any = None) -> str:
         """Write ``<name>.elementmap.json`` and return its path.
 
         ``bodies`` (``{id, material, appearance_color}`` per built body) stamps each element's
         material by its body_id, so the viewer can color faces by material. ElementMap stays
-        material-free; material is document data resolved here.
+        material-free; material is document data resolved here. ``shape`` (the built result)
+        adds a ``meshes`` list: one ``{body_id, material, appearance_color}`` per exported glTF
+        mesh in export order, so the viewer maps mesh index -> body -> material positionally
+        (glTF mesh names do not survive the loader).
         """
         by_body = {b["id"]: b for b in (bodies or [])}
         records = element_map.to_sidecar()
@@ -188,8 +191,17 @@ class DocumentBuilder:
             body = by_body.get(rec.get("body_id"))
             rec["material"] = body["material"] if body else None
             rec["appearance_color"] = body.get("appearance_color") if body else None
+        meshes = []
+        if shape is not None:
+            for body_id in self._kernel.mesh_body_ids(shape):
+                body = by_body.get(body_id)
+                meshes.append({"body_id": body_id,
+                               "material": body["material"] if body else None,
+                               "appearance_color": body.get("appearance_color") if body
+                               else None})
         path = os.path.join(out_dir, f"{name}{_ELEMENTMAP_SUFFIX}")
-        payload = {"attribute_model_version": AttributeModel.VERSION, "elements": records}
+        payload = {"attribute_model_version": AttributeModel.VERSION,
+                   "elements": records, "meshes": meshes}
         with open(path, "w", encoding="utf-8") as handle:
             json.dump(payload, handle)
         return path

@@ -568,13 +568,40 @@ class Build123dKernel(Kernel):
         box = solid.bounding_box()
         return (tuple(box.min), tuple(box.max))
 
+    def _export_solids(self, shape: Any) -> list:
+        """(body_id, solid) per exported solid, in export order (body -> solid).
+
+        The single source of truth for both the export Compound and mesh_body_ids, so the glTF
+        primitive order and the per-primitive body-id list stay in lockstep. A body's shape is
+        often a Compound (a boolean/mirror result); the glTF mesh is built from its SOLIDs.
+        """
+        pairs: list = []
+        for body in self.bodies(shape):
+            solids = body.shape.solids() if hasattr(body.shape, "solids") else [body.shape]
+            for one in (solids or [body.shape]):
+                pairs.append((body.id, one))
+        return pairs
+
+    def mesh_body_ids(self, shape: Any) -> list:
+        # One body id per exported glTF PRIMITIVE, in export order (body -> solid -> face).
+        # export_gltf tessellates one primitive per face; GLTFLoader turns each primitive into
+        # its own three.js Mesh, so the viewer's pickParts is per-FACE, not per-body. This
+        # parallel per-face list lets the viewer map pickParts[i] -> body -> material
+        # positionally (glTF mesh NAMES do not survive GLTFLoader reliably). Small structural
+        # walk (a handful of solids/faces), not a numeric loop - no vectorization to be had.
+        ids: list = []
+        for body_id, one in self._export_solids(shape):
+            faces = one.faces() if hasattr(one, "faces") else [one]
+            ids.extend(body_id for _ in faces)
+        return ids
+
     def export(self, solid: Any, path: str) -> None:
         if isinstance(solid, BodySet):
             # A multibody part exports as a compound: STEP as a multi-solid assembly, glTF as
-            # one mesh part per body (so the viewer can pick/color per body). Single-shape
-            # export is unchanged.
+            # one mesh per body solid, in body order (parallel to mesh_body_ids via the shared
+            # _export_solids). Single-shape export is unchanged.
             from build123d import Compound
-            solid = Compound(children=[b.shape for b in solid.bodies])
+            solid = Compound(children=[one for _bid, one in self._export_solids(solid)])
         lowered = path.lower()
         if lowered.endswith(".glb"):
             export_gltf(solid, path, unit=Unit.MM, binary=True,

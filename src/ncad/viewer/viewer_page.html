@@ -678,8 +678,17 @@ renderer.domElement.addEventListener("click", ev => {
   const out = document.getElementById("i-picked");
   if (!hits.length) { out.textContent = "-"; return; }
   const idx = pickParts.indexOf(hits[0].object);
-  const el = (elementMap.elements || [])[idx];
-  out.textContent = el ? `${el.id} (by ${el.created_by})` : "-";
+  // Report the clicked mesh's BODY id + material via the sidecar `meshes` list (mesh index ->
+  // body), which is body-correct for multibody. If there is no mesh entry (older sidecar) fall
+  // back to the flat element lookup (correct for a single body).
+  const meshes = (elementMap && elementMap.meshes) || [];
+  if (meshes[idx]) {
+    const info = meshes[idx];
+    out.textContent = `${info.body_id} (${info.material || "no material"})`;
+  } else {
+    const el = (elementMap.elements || [])[idx];
+    out.textContent = el ? `${el.id} (by ${el.created_by})` : "-";
+  }
 });
 
 // Ambient base, always on; the rig below provides the directional/spot character.
@@ -836,6 +845,15 @@ function colorFor(name, appearanceColor) {
   return paletteColor(name);
 }
 
+// Per-exported-mesh body/material, from the sidecar `meshes` list (one entry per glTF mesh, in
+// export order). pickParts is collected in that same glb mesh order, so meshInfo(i) maps mesh i
+// -> its body id + material. This is positional, not name-based: glTF mesh names do not survive
+// GLTFLoader reliably, and a global face index does not match the multibody glTF face order.
+function meshInfo(i) {
+  const meshes = (elementMap && elementMap.meshes) || [];
+  return meshes[i] || { body_id: null, material: null, appearance_color: null };
+}
+
 let modelRoot = null, edges = [], mode = "solid", showEdges = true, castShadows = true;
 let pickParts = [], elementMap = null;
 const loader = new GLTFLoader();
@@ -851,14 +869,14 @@ function clearModel() {
 function applyMode() {
   if (!modelRoot) return;
   if (mode === "bymaterial") {
-    // Color each face-primitive by its body's material. pickParts[i] is 1:1 with
-    // elementMap.elements[i] (one glTF primitive per face); a face with no material uses the
-    // "(no material)" color. Color only; metalness/roughness stay the neutral solid defaults.
-    const els = (elementMap && elementMap.elements) || [];
+    // Color each mesh by ITS BODY's material via the sidecar `meshes` list (mesh index i ->
+    // body/material), since pickParts is in glb mesh (export) order. A mesh with no sidecar
+    // entry falls back to the "(no material)" color. Color only; metalness/roughness stay the
+    // neutral solid defaults.
     pickParts.forEach((mesh, i) => {
-      const el = els[i] || {};
+      const info = meshInfo(i);
       mesh.material = new THREE.MeshStandardMaterial({
-        color: new THREE.Color(colorFor(el.material, el.appearance_color)),
+        color: new THREE.Color(colorFor(info.material, info.appearance_color)),
         metalness: 0.05, roughness: 0.85 });
       mesh.castShadow = castShadows;
     });

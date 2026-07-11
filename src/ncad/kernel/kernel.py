@@ -255,6 +255,16 @@ class Kernel(ABC):
         """
 
     @abstractmethod
+    def mesh_body_ids(self, shape: Any) -> list:
+        """The body id of each exported glTF mesh, in export (mesh) order.
+
+        The glTF export flattens each body to its solid(s), one mesh per solid, in body order.
+        This returns the parallel list of body ids so the viewer can map mesh index -> body ->
+        material without relying on glTF names surviving the loader. A single shape yields one
+        entry (its implicit body id).
+        """
+
+    @abstractmethod
     def union_bodies(self, shapes: list, *, origin: str, sources: list | None = None) -> Any:
         """Collect ``shapes`` as separate bodies in one BodySet (a keep-separate union).
 
