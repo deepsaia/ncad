@@ -1,9 +1,9 @@
 schema_version = 2
 units = mm
-# Per-body materials + derived mass. A block is split into 2 bodies (part default material
-# aluminium_6061), then a boss is added kept-separate via a boolean union (feature material
-# override steel_1018) as a third body. Demonstrates part-default + feature-override materials,
-# an external library reference, and an inline materials override, all feeding derived mass.
+# Per-body materials + derived mass, as a clearly-separated multibody part: two spaced studs
+# (part default material aluminium_6061) plus a taller boss offset to the side, added
+# kept-separate via a boolean union with a steel_1018 feature override. Three distinct solids
+# you can see apart in the viewport, each with its own material feeding derived mass.
 materials_library = "lib/materials.hocon"
 materials {
   # inline: nudge aluminium density (demonstrates inline > seed).
@@ -14,15 +14,19 @@ parts {
     profile = solid
     material = "aluminium_6061"
     features = [
-      { id = blk_sk, op = sketch, plane = XY,
-        elements = [ { id = r, type = rectangle, w = 20, h = 10 } ] }
-      { id = blk, op = extrude, profile = blk_sk, distance = 8 }
-      { id = halves, op = split, plane = YZ, keep = both }
+      { id = stud_sk, op = sketch, plane = XY,
+        elements = [ { id = r, type = rectangle, w = 8, h = 8 } ] }
+      { id = stud, op = extrude, profile = stud_sk, distance = 10 }
+      # Two aluminium studs, spaced 24 mm apart (kept separate) -> row/body/0, row/body/1.
+      { id = row, op = pattern, kind = linear, merge = false,
+        x = { dir = [ 1, 0, 0 ], spacing = 24, count = 2 } }
+      # A taller boss offset well to the side (x in [48, 56]) so it stands clearly apart.
       { id = boss_sk, op = sketch, plane = XY,
-        elements = [ { id = r, type = rectangle, w = 6, h = 6 } ] }
-      { id = boss, op = extrude, profile = boss_sk, distance = 30 }
-      # Add the boss as its own steel body (kept separate): a third body with its own material.
-      { id = grp, op = boolean, operation = union, merge = false, target = halves, tool = boss,
+        elements = [ { id = b, type = polygon,
+          points = [ [ 48, -4 ], [ 56, -4 ], [ 56, 4 ], [ 48, 4 ] ] } ] }
+      { id = boss, op = extrude, profile = boss_sk, distance = 26 }
+      # Add the boss as its own steel body (kept separate) -> grp/body/2.
+      { id = grp, op = boolean, operation = union, merge = false, target = row, tool = boss,
         material = "steel_1018" }
     ]
   }
