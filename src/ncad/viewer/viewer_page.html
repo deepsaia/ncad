@@ -4,6 +4,11 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>ncad 3D viewer</title>
+<!-- Google Material Symbols (the icon set MUI ships), loaded as a font and referenced by
+     name, so the hierarchy uses vetted icons instead of hand-drawn SVGs. -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="stylesheet"
+  href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400,0..1,0" />
 <script>
   // Apply the saved theme before first paint to avoid a flash of the wrong theme.
   (function () {
@@ -316,8 +321,14 @@
   .tree-twist { width: 12px; flex: none; color: var(--muted); cursor: pointer;
     display: inline-flex; align-items: center; justify-content: center; font-size: 9px; }
   .tree-twist.leaf { visibility: hidden; }
-  .tree-ico { width: 15px; height: 15px; flex: none; color: var(--muted);
-    display: inline-flex; align-items: center; justify-content: center; }
+  /* Material Symbols glyph, sized to the tree row. font-variation-settings tunes the
+     optical size/weight so the glyph reads crisply at 18px. */
+  .material-symbols-rounded { font-family: "Material Symbols Rounded";
+    font-weight: normal; font-style: normal; line-height: 1;
+    font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 20;
+    -webkit-font-feature-settings: "liga"; }
+  .tree-ico { width: 15px; height: 15px; flex: none; color: var(--muted); font-size: 15px;
+    display: inline-flex; align-items: center; justify-content: center; overflow: hidden; }
   .tree-ico.part { color: var(--accent-2); }
   .tree-ico.feature { color: var(--accent); }
   .tree-ico.group { color: var(--muted); }
@@ -900,31 +911,21 @@ function loadPlan(name) {
 }
 
 // ---- Hierarchy tab (Blender-style tree, non-interactive) ----
-// Icons distinguish node kinds and, for features, the OP CATEGORY (additive / subtractive /
-// dress-up / boolean / placement / sketch). Each op maps to one category so the tree is
-// scannable at a glance; an unknown op falls back to the generic `feature` gear.
-const SVG = (body) => '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" ' +
-  'stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">' +
-  body + '</svg>';
+// Icons are Google Material Symbols (referenced by glyph name, drawn by the font), chosen
+// per node kind and, for features, per OP CATEGORY (additive / subtractive / dress-up /
+// boolean / placement / sketch). An unknown op falls back to the generic `feature` glyph.
 const TREE_ICONS = {
-  part: SVG('<path d="M12 3 20 7.5v9L12 21 4 16.5v-9L12 3Z"/><path d="M4 7.5 12 12l8-4.5M12 12v9"/>'),
-  feature: SVG('<circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M6 6l2 2M16 16l2 2M18 6l-2 2M8 16l-2 2"/>'),
-  element: SVG('<rect x="5" y="5" width="14" height="14" rx="1.5"/>'),
-  sketch: SVG('<rect x="5" y="5" width="14" height="14" rx="1.5"/>'),
-  // additive: material rising from a plane (up arrow above a baseline)
-  additive: SVG('<path d="M4 20h16"/><path d="M12 16V5"/><path d="M8 9l4-4 4 4"/>'),
-  // subtractive: material removed into a plane (down arrow into a baseline)
-  subtractive: SVG('<path d="M4 4h16"/><path d="M12 8v11"/><path d="M8 15l4 4 4-4"/>'),
-  // dress-up (fillet/chamfer/draft/shell): a rounded corner easing off an edge
-  dressup: SVG('<path d="M5 19V9a4 4 0 0 1 4-4h10"/><path d="M5 19h4"/>'),
-  // boolean/split (multibody algebra): two overlapping circles
-  boolean: SVG('<circle cx="9" cy="12" r="6"/><circle cx="15" cy="12" r="6"/>'),
-  // placement (pattern/mirror/transform): a small square copied across a grid
-  placement: SVG('<rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/>'),
-  // group (Bodies folder): a folder
-  group: SVG('<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/>'),
-  // body: a solid cube (a built body)
-  body: SVG('<path d="M12 3 20 7.5v9L12 21 4 16.5v-9L12 3Z"/><path d="M4 7.5 12 12l8-4.5M12 12v9"/>'),
+  part: "deployed_code",             // a 3D cube = the part
+  feature: "settings",               // generic op
+  element: "check_box_outline_blank",// a sketch primitive (empty square)
+  sketch: "draw",                    // a sketch
+  additive: "add_box",               // extrude/revolve/loft/sweep/rib/wrap (add material)
+  subtractive: "indeterminate_check_box",  // pocket/hole/groove (remove material)
+  dressup: "rounded_corner",         // fillet/chamfer/draft/shell (edge/wall treatment)
+  boolean: "join",                   // boolean/split (combine/divide bodies)
+  placement: "grid_view",            // pattern/mirror/transform (place copies)
+  group: "folder",                   // the Bodies folder
+  body: "deployed_code",             // a built body (cube)
 };
 const OP_CATEGORY = {
   sketch: "sketch",
@@ -964,8 +965,8 @@ function treeNode(node) {
   twist.textContent = "▼";
   const key = iconKey(node);
   const ico = document.createElement("span");
-  ico.className = "tree-ico " + node.kind + " " + key;
-  ico.innerHTML = TREE_ICONS[key] || TREE_ICONS.element;
+  ico.className = "tree-ico material-symbols-rounded " + node.kind + " " + key;
+  ico.textContent = TREE_ICONS[key] || TREE_ICONS.feature;
   const label = node.name || node.id || "?";
   row.innerHTML = "";
   row.appendChild(twist);
