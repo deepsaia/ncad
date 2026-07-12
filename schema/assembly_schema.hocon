@@ -39,8 +39,38 @@ definitions {
     }
   }
 
+  # A mate connector reference: which connector on which instance.
+  mate_ref {
+    type = object
+    required = ["instance", "connector"]
+    properties {
+      instance { type = string }
+      connector { type = string }
+    }
+  }
+
+  # An assembly constraint (mate): a typed relation between one or two connector references
+  # (bucket 5.2). Lowered to the normal-form primitive core and solved by py-slvs.
+  mate {
+    type = object
+    required = ["id", "type", "between"]
+    properties {
+      id { type = string }
+      type { enum = ["coincident", "mate", "flush", "align", "concentric", "parallel",
+                     "perpendicular", "angle", "distance", "offset", "lock"] }
+      between {
+        type = array
+        minItems = 1
+        maxItems = 2
+        items = ${definitions.mate_ref}
+      }
+      value { type = number }
+      flip { type = boolean }
+    }
+  }
+
   # One placed part instance: a reference to {file, part} plus a unique id and optional placement
-  # (explicit) or connect (connector-driven snap).
+  # (explicit) or connect (connector-driven snap). `lock` grounds the instance in the solve.
   instance {
     type = object
     required = ["id", "file", "part"]
@@ -50,6 +80,7 @@ definitions {
       part { type = string }
       placement = ${definitions.placement}
       connect = ${definitions.connect}
+      lock { type = boolean }
     }
   }
 }
@@ -66,6 +97,10 @@ properties {
       instances {
         type = array
         items = ${definitions.instance}
+      }
+      constraints {
+        type = array
+        items = ${definitions.mate}
       }
     }
   }
