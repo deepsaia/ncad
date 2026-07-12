@@ -24,3 +24,15 @@ def test_axis_angle_rotation_about_z() -> None:
 def test_euler_rotation_runs() -> None:
     m = AssemblyPlacement().matrix({"rotation": {"euler": [0, 0, 90]}})
     assert math.isclose(m[0][0], 0.0, abs_tol=1e-9)
+
+
+def test_translation_scale_scales_position_not_rotation() -> None:
+    # translation_scale bakes a unit conversion into the translation only (rotation is unit-free).
+    m = AssemblyPlacement().matrix(
+        {"position": [15, 20, 6], "rotation": {"axis": [0, 0, 1], "angle": 90}},
+        translation_scale=0.001)
+    assert math.isclose(m[3][0], 0.015, abs_tol=1e-12)
+    assert math.isclose(m[3][1], 0.020, abs_tol=1e-12)
+    assert math.isclose(m[3][2], 0.006, abs_tol=1e-12)
+    # rotation unchanged by the scale.
+    assert math.isclose(abs(m[0][1]), 1.0, abs_tol=1e-9)

@@ -21,6 +21,8 @@ def test_gate_5_0_assembly_composes(tmp_path) -> None:
     glbs = {i["part_glb"] for i in sidecar["instances"]}
     assert len(glbs) == 2
     # Pegs are placed in the plate's centered frame (origin = part center): inset on the top face.
+    # Placements are baked to metres (glb unit) from the document's mm: -15mm -> -0.015, etc.
     peg_a = next(i for i in sidecar["instances"] if i["id"] == "peg_a")
-    assert peg_a["placement"][3][0] == -15 and peg_a["placement"][3][1] == 8
-    assert peg_a["placement"][3][2] == 6  # on the plate top (z=6)
+    assert peg_a["placement"][3][0] == pytest.approx(-0.015)
+    assert peg_a["placement"][3][1] == pytest.approx(0.008)
+    assert peg_a["placement"][3][2] == pytest.approx(0.006)  # on the plate top (z=6mm)

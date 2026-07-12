@@ -20,6 +20,9 @@ from ncad.spec.spec_loader import SpecLoader
 logger = logging.getLogger(__name__)
 
 _ASSEMBLY_SUFFIX = ".assembly.json"
+# Document unit -> metres (glTF's unit). The scene sidecar's placements are baked to metres so
+# they match the part glbs (which export in metres), and the viewer stays unit-agnostic.
+_TO_METRES = {"mm": 0.001, "m": 1.0, "in": 0.0254}
 
 
 class AssemblyBuilder:
@@ -41,6 +44,10 @@ class AssemblyBuilder:
         os.makedirs(out_dir, exist_ok=True)
         asm_dir = os.path.dirname(os.path.abspath(asm_path))
         name = _stem(asm_path)
+        # Part glbs export in metres (build123d export_gltf scales the document unit to metres),
+        # so the scene sidecar bakes placements to metres too. The viewer then consumes the scene
+        # unit-agnostic, exactly as it does a single-part glb.
+        to_metres = _TO_METRES.get(document.get("units", "mm"), 0.001)
         # One DocumentBuilder per part file so its feature cache composes cached parts across
         # instances; built_glbs dedups a {file, part} placed more than once.
         builders: dict[str, DocumentBuilder] = {}
@@ -51,7 +58,7 @@ class AssemblyBuilder:
             glb = self._ensure_part_glb(instance, asm_dir, out_dir, builders, built_glbs, issues)
             if glb is None:
                 continue
-            matrix = self._placement.matrix(instance.get("placement"))
+            matrix = self._placement.matrix(instance.get("placement"), to_metres)
             instances.append({"id": instance["id"], "part_glb": glb,
                               "part_name": instance["part"], "placement": matrix})
         sidecar = os.path.join(out_dir, f"{name}{_ASSEMBLY_SUFFIX}")
