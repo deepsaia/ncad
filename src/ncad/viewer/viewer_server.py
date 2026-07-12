@@ -32,6 +32,7 @@ _PLAN_ROUTE = "/api/plan/"
 _ELEMENTMAP_ROUTE = "/api/elementmap/"
 _HIERARCHY_ROUTE = "/api/hierarchy/"
 _STATUS_ROUTE = "/api/status/"
+_ASSEMBLY_ROUTE = "/api/assembly/"
 _CONTENT_TYPES = {
     ".gltf": "model/gltf+json",
     ".glb": "model/gltf-binary",
@@ -77,6 +78,10 @@ class _ViewerRequestHandler(BaseHTTPRequestHandler):
             self._send_json(200, {"tree": self._spec_catalog.tree()})
         elif path == "/api/models":
             self._send_model_list()
+        elif path == "/api/assemblies":
+            self._send_json(200, {"assemblies": self._catalog.assembly_names()})
+        elif path.startswith(_ASSEMBLY_ROUTE):
+            self._send_assembly(path[len(_ASSEMBLY_ROUTE) :])
         elif path.startswith(_BOM_ROUTE):
             self._send_bom(path[len(_BOM_ROUTE) :])
         elif path.startswith(_PLAN_ROUTE):
@@ -103,9 +108,14 @@ class _ViewerRequestHandler(BaseHTTPRequestHandler):
         path = self.path.split("?", 1)[0]
         if path == "/api/build":
             self._handle_build()
+        elif path == "/api/assemble":
+            self._handle_assemble()
         elif path.startswith(_API_MODELS_ROUTE) and path.endswith("/delete"):
             name = path[len(_API_MODELS_ROUTE) : -len("/delete")]
             self._handle_delete(unquote(name))
+        elif path.startswith(_ASSEMBLY_ROUTE) and path.endswith("/delete"):
+            name = path[len(_ASSEMBLY_ROUTE) : -len("/delete")]
+            self._handle_delete_assembly(unquote(name))
         else:
             self.send_error(404, "not found")
 
@@ -120,6 +130,7 @@ class _ViewerRequestHandler(BaseHTTPRequestHandler):
         try:
             result = self._build_service.build(spec)
         except BuildError as exc:
+            logger.warning("build rejected for %s: %s", spec, exc)
             self._send_json(400, {"error": str(exc)})
             return
         except Exception:  # noqa: BLE001 - never raise to the socket; log and 500
@@ -128,12 +139,43 @@ class _ViewerRequestHandler(BaseHTTPRequestHandler):
             return
         self._send_json(200, {"models": self._catalog.models_with_sources(), **result})
 
+    def _handle_assemble(self) -> None:
+        length = int(self.headers.get("Content-Length", 0))
+        try:
+            body = json.loads(self.rfile.read(length) or b"{}")
+            spec = body["spec"]
+        except (ValueError, KeyError):
+            self._send_json(400, {"error": "request must be JSON with a 'spec' field"})
+            return
+        try:
+            result = self._build_service.assemble(spec)
+        except BuildError as exc:
+            logger.warning("assemble rejected for %s: %s", spec, exc)
+            self._send_json(400, {"error": str(exc)})
+            return
+        except Exception:  # noqa: BLE001 - never raise to the socket; log and 500
+            logger.exception("unexpected assemble failure for %s", spec)
+            self._send_json(500, {"error": "internal assemble error"})
+            return
+        self._send_json(200, {"assemblies": self._catalog.assembly_names(), **result})
+
     def _handle_delete(self, name: str) -> None:
         removed = self._catalog.delete_model(name)
         if removed is None:
+            logger.warning("delete rejected: unknown model %r", name)
             self.send_error(404, "unknown model")
             return
+        logger.info("deleted model %s", name)
         self._send_json(200, {"models": self._catalog.models_with_sources()})
+
+    def _handle_delete_assembly(self, name: str) -> None:
+        removed = self._catalog.delete_assembly(name)
+        if removed is None:
+            logger.warning("delete rejected: unknown assembly %r", name)
+            self.send_error(404, "unknown assembly")
+            return
+        logger.info("deleted assembly %s", name)
+        self._send_json(200, {"assemblies": self._catalog.assembly_names()})
 
     def _send_model_list(self) -> None:
         self._send_json(200, {"models": self._catalog.models_with_sources()})
@@ -185,6 +227,14 @@ class _ViewerRequestHandler(BaseHTTPRequestHandler):
         resolved = self._catalog.resolve_status(unquote(model_name))
         if resolved is None:
             self.send_error(404, "no sketch status for model")
+            return
+        with open(resolved, "rb") as handle:
+            self._send_bytes(200, "application/json", handle.read())
+
+    def _send_assembly(self, name: str) -> None:
+        resolved = self._catalog.resolve_assembly(unquote(name))
+        if resolved is None:
+            self.send_error(404, "unknown assembly")
             return
         with open(resolved, "rb") as handle:
             self._send_bytes(200, "application/json", handle.read())
