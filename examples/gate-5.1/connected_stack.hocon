@@ -1,0 +1,20 @@
+schema_version = 2
+units = mm
+parts {
+  # A plate with a `top` mate connector on its upper face (Z = +normal, origin = face center).
+  plate { profile = solid,
+    connectors = [ { id = top, at = "select faces where normal_z > 0.9" } ],
+    features = [
+      { id = sk, op = sketch, plane = XY,
+        elements = [ { id = r, type = rectangle, w = 60, h = 40 } ] }
+      { id = ext, op = extrude, profile = sk, distance = 6 }
+    ] }
+  # A peg with a `base` connector on its lower face; snapping base onto the plate top seats the
+  # peg flush on the plate, no hand-placed coordinates.
+  peg { profile = solid,
+    connectors = [ { id = base, at = "select faces where normal_z < -0.9" } ],
+    features = [
+      { id = sk, op = sketch, plane = XY, elements = [ { id = c, type = circle, d = 8 } ] }
+      { id = ext, op = extrude, profile = sk, distance = 20 }
+    ] }
+}

@@ -1,0 +1,12 @@
+# Bucket 5.1 demo: gate-5.0's successor. The peg snaps onto the plate by a named mate connector
+# instead of hand-placed coordinates: `connect` lands the peg's `base` connector on the plate's
+# `top` connector (a one-shot rigid frame coincidence; the constraint solver is bucket 5.2).
+schema_version = 1
+units = mm
+assembly {
+  instances = [
+    { id = base, file = "connected_stack.hocon", part = plate }
+    { id = pin, file = "connected_stack.hocon", part = peg,
+      connect = { my = base, to = { instance = base, connector = top } } }
+  ]
+}
