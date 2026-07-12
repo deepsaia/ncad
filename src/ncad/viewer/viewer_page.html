@@ -1921,6 +1921,16 @@ function loadAssembly(name, verbose) {
             o.userData.instanceId = inst.id;   // tag for bidirectional pick <> tree selection
             pickParts.push(o);
             (instanceMeshes[inst.id] = instanceMeshes[inst.id] || []).push(o);
+            // Per-part edge overlay (same as the single-part path): a line where adjacent facets
+            // meet above 25deg (clears the tessellation facet angle, catches real geometric edges).
+            // Baked to world space and pushed to `edges[]`, so the existing Edge toggle + applyMode
+            // visibility logic drive it in assemblies too.
+            const line = new THREE.LineSegments(
+              new THREE.EdgesGeometry(o.geometry, 25),
+              new THREE.LineBasicMaterial({ color: cssColor("--edge") }));
+            o.updateWorldMatrix(true, false); line.applyMatrix4(o.matrixWorld);
+            line.visible = showEdges;
+            edges.push(line); scene.add(line);
           }
         });
         // Log the pickup point only when verbose (an explicit assemble), not on every re-select.
