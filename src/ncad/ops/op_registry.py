@@ -23,6 +23,7 @@ from ncad.ops.move_face_op import MoveFaceOp
 from ncad.ops.offset_face_op import OffsetFaceOp
 from ncad.ops.pattern_op import PatternOp
 from ncad.ops.pocket_op import PocketOp
+from ncad.ops.relational_edit_op import RelationalEditOp
 from ncad.ops.revolve_op import RevolveOp
 from ncad.ops.rib_op import RibOp
 from ncad.ops.shell_op import ShellOp
@@ -63,6 +64,7 @@ class OpRegistry:
         registry.register("defeature", DefeatureOp().build)
         registry.register("offset", OffsetFaceOp().build)
         registry.register("move_face", MoveFaceOp().build)
+        registry.register("relate", RelationalEditOp().build)
         registry.register("fillet", FilletOp().build)
         registry.register("chamfer", ChamferOp().build)
         registry.register("boolean", BooleanOp().build)

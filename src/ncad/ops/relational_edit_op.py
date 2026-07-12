@@ -1,0 +1,65 @@
+"""The ``relate`` direct op: apply a one-shot planar relation by moving a body (design 3).
+
+Reads a reference planar face (fixed) and a moving planar face (on the body to move), computes
+the rigid transform that satisfies the relation once (RelationalSolver), and applies it to the
+moving body via kernel.transform. Planar relations only (parallel/coplanar/perpendicular/
+symmetric); non-planar elements are refused. No maintenance/DoF (that is Phase 5).
+"""
+
+import logging
+from typing import Any
+
+from ncad.ops.build_issue import BuildIssue
+from ncad.ops.op_result import OpResult
+from ncad.ops.relational_solver import RelationalSolver
+
+logger = logging.getLogger(__name__)
+
+_PLANAR_NAMES = frozenset({"plane", None})
+
+
+class RelationalEditOp:
+    """Moves the running body so its face satisfies a one-shot relation with a reference face."""
+
+    def build(self, shape_in: Any, params: dict, provenance_in: dict, kernel: Any) -> OpResult:
+        node_id = params.get("id", "relate")
+        relation = params.get("relation", "")
+        refs = params.get("__refs__", {})
+        reference = refs.get("reference")
+        moving = refs.get("moving")
+        if shape_in is None:
+            return OpResult(shape=None, issues=[BuildIssue(node_id, "relate has no input solid")])
+        if reference is None or moving is None:
+            return OpResult(shape=None,
+                            issues=[BuildIssue(node_id, "relate needs reference and moving faces")])
+        ref_frame = self._frame(reference)
+        moving_frame = self._frame(moving)
+        if ref_frame is None or moving_frame is None:
+            return OpResult(shape=None,
+                            issues=[BuildIssue(node_id, "relate refused: non-planar face")])
+        transform = RelationalSolver().solve(relation, ref_frame, moving_frame)
+        if transform is None:
+            # Already satisfied (or unknown relation handled as no-op): leave the body as is.
+            return OpResult(shape=shape_in)
+        try:
+            moved = kernel.transform(shape_in, move=transform["move"], rotate=transform["rotate"])
+        except Exception as exc:  # noqa: BLE001 - a KernelOpError becomes an id-attributed issue
+            logger.warning("relate transform failed on %s: %s", node_id, exc)
+            return OpResult(shape=None, issues=[BuildIssue(node_id, f"relate failed: {exc}")])
+        if moved is None or kernel.volume(moved) <= 0.0:
+            return OpResult(shape=None,
+                            issues=[BuildIssue(node_id, "relate produced a degenerate solid")])
+        return OpResult(shape=moved)
+
+    def _frame(self, element: Any) -> tuple | None:
+        attrs = getattr(element, "attrs", None)
+        if attrs is None:
+            return None
+        geom_type = attrs.get("geom_type") or attrs.get("type")
+        if geom_type not in _PLANAR_NAMES:
+            return None
+        normal = attrs.get("normal")
+        center = attrs.get("center")
+        if normal is None or center is None:
+            return None
+        return (tuple(normal), tuple(center))
