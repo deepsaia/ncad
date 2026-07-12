@@ -42,7 +42,7 @@ assembly {{ instances = [
     assert len(glbs) == 1  # shared part glb deduped
     assert (out / next(iter(glbs))).is_file()
     p2 = next(i for i in sidecar["instances"] if i["id"] == "p2")
-    assert p2["placement"][3][0] == 20  # translated 20 in x
+    assert p2["placement"][3][0] == pytest.approx(0.020)  # 20mm baked to metres (glb unit)
 
 
 def test_assemble_reports_bad_instance_ref(tmp_path) -> None:

@@ -36,6 +36,8 @@
     --panel-strong: rgba(22,29,41,.92); --hint-bg: rgba(13,17,23,.72);
     --scene-bg: #0d1117; --grid-major: #33455c; --grid-minor: #1b2533; --edge: #0d1117;
     --accent-tint: rgba(90,160,255,.14);
+    /* Log levels (dark): brighter tints for contrast on the dark panel. */
+    --log-info: #b9c6d6; --log-success: #37d39a; --log-warn: #e6b34d; --log-error: #ff6b6b;
   }
   :root[data-theme="light"] {
     --bg: #eef1f5; --bg-2: #e4e9f0; --panel: #ffffff; --panel-2: #eef2f7;
@@ -45,6 +47,8 @@
     --panel-strong: rgba(255,255,255,.94); --hint-bg: rgba(238,241,245,.8);
     --scene-bg: #dfe5ec; --grid-major: #b9c4d2; --grid-minor: #cfd7e2; --edge: #6b7686;
     --accent-tint: rgba(47,116,208,.13);
+    /* Log levels (light): darker tints for contrast on the white panel. */
+    --log-info: #3a4658; --log-success: #0a8f63; --log-warn: #9a6b00; --log-error: #c0392b;
   }
   /* --- Base --- */
   * { box-sizing: border-box; }
@@ -299,9 +303,12 @@
   /* Session log (Logs tab): monospace lines, newest at the bottom; not persisted across reloads. */
   #logs-body { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 11.5px; }
   .log-line { padding: 2px 0; border-bottom: 1px solid var(--border); white-space: pre-wrap;
-    word-break: break-word; }
-  .log-line.log-error { color: #e74c3c; }
+    word-break: break-word; color: var(--log-info); }
   .log-line .log-time { color: var(--muted); margin-right: 6px; }
+  /* Log level colors, themed for readability on both light and dark backgrounds. */
+  .log-line.log-success { color: var(--log-success); }
+  .log-line.log-warn { color: var(--log-warn); }
+  .log-line.log-error { color: var(--log-error); }
   #tab-plan.tab-panel { padding: 0; }
   /* The plan SVG is drawn dark-on-white, so its container is white only when it holds
      a plan; the empty/placeholder state uses the normal panel padding + theme colors. */
@@ -1505,18 +1512,24 @@ const REGEN_SVG = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" s
 const DELETE_SVG = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>';
 
 // Session log: appended to the Logs tab (newest at the bottom), not persisted across reloads.
-function log(message, isError) {
+// level is "info" (default) | "success" | "warn" | "error" (color-coded, themed for light + dark);
+// a truthy boolean still maps to "error" for older call sites. ncad-service messages are prefixed
+// [ncad]; pass opts.raw=true to skip the prefix (a third-party / non-service line).
+function log(message, level, opts) {
   const body = document.getElementById("logs-body");
   if (!body) return;
   const empty = body.querySelector(".panel-empty");
   if (empty) empty.remove();
+  const lvl = level === true ? "error" : (level || "info");
   const line = document.createElement("div");
-  line.className = "log-line" + (isError ? " log-error" : "");
+  line.className = "log-line log-" + lvl;
   const now = new Date();
-  const t = now.toTimeString().slice(0, 8);
+  // hh:mm:ss.s (one-decimal seconds).
+  const t = now.toTimeString().slice(0, 8) + "." + Math.floor(now.getMilliseconds() / 100);
   line.innerHTML = '<span class="log-time"></span>';
   line.querySelector(".log-time").textContent = t;
-  line.appendChild(document.createTextNode(message));
+  const text = (opts && opts.raw) ? message : "[ncad] " + message;
+  line.appendChild(document.createTextNode(text));
   body.appendChild(line);
   body.scrollTop = body.scrollHeight;
 }
@@ -1650,9 +1663,9 @@ function renderAssemblyList(names) {
   }
 }
 
-function selectAssembly(name) {
+function selectAssembly(name, verbose) {
   activeModel = name;
-  loadAssembly(name);
+  loadAssembly(name, verbose);
   refreshAssemblies();
 }
 
@@ -1665,7 +1678,7 @@ function assembleSpec(spec) {
     .then(d => {
       renderAssemblyList(d.assemblies || []);
       assemblySources[d.assembled] = spec;  // remember the source for regenerate
-      if (d.assembled) selectAssembly(d.assembled);
+      if (d.assembled) selectAssembly(d.assembled, true);  // verbose: a genuine (re)compose
       const issues = (d.issues || []).length;
       toast("assembled " + d.assembled + (issues ? ` (${issues} issue(s))` : ""));
     })
@@ -1688,7 +1701,7 @@ function removeAssembly(name) {
     .catch(() => toast("could not delete " + name, true));
 }
 
-function loadAssembly(name) {
+function loadAssembly(name, verbose) {
   spinner.style.display = "flex";
   // NB: name the payload `sceneDoc`, NOT `scene` - `scene` is the global THREE.Scene, and
   // shadowing it here would make `scene.add(...)` add to the JSON instead of the 3D scene.
@@ -1704,16 +1717,22 @@ function loadAssembly(name) {
     const root = new THREE.Group();
     modelRoot = root;
     scene.add(root);
-    log(`assembly ${name}: ${(sceneDoc.instances || []).length} instances`);
+    // Plain re-select (mode switch / page refresh) logs NOTHING, mirroring how parts log nothing
+    // on select. Only an explicit assemble (verbose) narrates instances + bbox.
+    if (verbose) log(`assembly ${name}: ${(sceneDoc.instances || []).length} instances`);
     let pending = 0, done = false;
     const finish = () => {
       if (!(done && pending === 0)) return;
       root.updateMatrixWorld(true);
       applyMode();
       frameModel();
-      const box = new THREE.Box3().setFromObject(modelRoot);
-      const sz = box.getSize(new THREE.Vector3());
-      log(`assembly rendered: ${pickParts.length} meshes, bbox ${sz.x.toFixed(1)} x ${sz.y.toFixed(1)} x ${sz.z.toFixed(1)}`);
+      // Verbose bbox line only on an explicit assemble/first-load, not on every plain re-select
+      // (switching Parts<->Assemblies just re-loads the existing scene; do not spam the log).
+      if (verbose) {
+        const box = new THREE.Box3().setFromObject(modelRoot);
+        const sz = box.getSize(new THREE.Vector3());
+        log(`assembly rendered: ${pickParts.length} meshes, bbox ${sz.x.toFixed(1)} x ${sz.y.toFixed(1)} x ${sz.z.toFixed(1)}`, "success");
+      }
       document.getElementById("i-meshes").textContent = pickParts.length;
       spinner.style.display = "none";
     };
@@ -1743,9 +1762,11 @@ function loadAssembly(name) {
         root.add(node);
         node.updateMatrixWorld(true);
         node.traverse(o => { if (o.isMesh) pickParts.push(o); });
-        // Log the pickup point: where this instance's origin lands in world space.
-        const p = inst.placement;
-        log(`  ${inst.id} (${inst.part_name}): origin at [${p[3][0]}, ${p[3][1]}, ${p[3][2]}]`);
+        // Log the pickup point only when verbose (an explicit assemble), not on every re-select.
+        if (verbose) {
+          const p = inst.placement;
+          log(`  ${inst.id} (${inst.part_name}): origin at [${p[3][0]}, ${p[3][1]}, ${p[3][2]}] m`);
+        }
         pending--; finish();
       }, () => { pending--; toast("part glb failed: " + inst.part_glb, true); finish(); });
     }
@@ -1764,17 +1785,14 @@ function loadPartGlb(glbName, cb, onErr) {
     undefined, err => { console.error("part glb failed", glbName, err); if (onErr) onErr(err); });
 }
 
-// The sidecar placement is a ROW-MAJOR 4x4 in mm (the document's authored unit); three.js
-// Matrix4.set takes row-major args (translation in the last column). The part glbs are exported
-// in METERS (export_gltf(unit=MM) scales mm -> m), so the placement TRANSLATION is scaled by
-// MM_TO_M to match the geometry unit; rotation is unit-free. Without this, a 60mm part (0.06 in
-// glb units) placed at "15" lands 15 metres away and is an invisible speck.
-const MM_TO_M = 0.001;
+// The sidecar placement is a ROW-MAJOR 4x4 already in the glb's unit (metres): the AssemblyBuilder
+// bakes the document-unit-to-metres conversion, so the viewer is unit-agnostic (like single-part
+// glbs). three.js Matrix4.set takes row-major args with the translation in the last column.
 function matrixFromRowMajor(m) {
   const M = new THREE.Matrix4();
-  M.set(m[0][0], m[0][1], m[0][2], m[3][0] * MM_TO_M,
-        m[1][0], m[1][1], m[1][2], m[3][1] * MM_TO_M,
-        m[2][0], m[2][1], m[2][2], m[3][2] * MM_TO_M,
+  M.set(m[0][0], m[0][1], m[0][2], m[3][0],
+        m[1][0], m[1][1], m[1][2], m[3][1],
+        m[2][0], m[2][1], m[2][2], m[3][2],
         0, 0, 0, 1);
   return M;
 }
@@ -1797,7 +1815,12 @@ function setViewMode(next) {
   document.getElementById("mode-parts").classList.toggle("active", next === "parts");
   document.getElementById("mode-assemblies").classList.toggle("active", next === "assemblies");
   syncAssemblyControls();
-  renderSpecTree(document.getElementById("spec-search").value);
+  // Switching mode must NOT open the spec dropdown (renderSpecTree un-hides it); clear the
+  // search and keep the tree hidden. It re-renders (mode-filtered) on the input's focus/input.
+  const search = document.getElementById("spec-search");
+  search.value = "";
+  syncSpecClear();
+  document.getElementById("spec-tree").hidden = true;
   activeModel = null;
   if (next === "assemblies") {
     refreshAssemblies().then(names => { if (names.length) selectAssembly(names[0]); });

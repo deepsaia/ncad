@@ -17,13 +17,22 @@ _IDENTITY = [[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0],
 class AssemblyPlacement:
     """Computes the 4x4 rigid matrix for an instance placement."""
 
-    def matrix(self, placement: dict | None) -> list[list[float]]:
-        """Return the row-major 4x4 for ``placement``; None/empty is identity."""
+    def matrix(self, placement: dict | None,
+               translation_scale: float = 1.0) -> list[list[float]]:
+        """Return the row-major 4x4 for ``placement``; None/empty is identity.
+
+        ``translation_scale`` scales the translation only (rotation is unit-free), so the caller
+        bakes a unit conversion into the matrix. The AssemblyBuilder passes the document's
+        to-metres factor, so the scene sidecar speaks glTF's unit (metres) and the viewer needs no
+        conversion, exactly as it consumes single-part glbs.
+        """
         if not placement:
             return [row[:] for row in _IDENTITY]
         rot = self._rotation(placement.get("rotation"))
         position = placement.get("position") or [0.0, 0.0, 0.0]
-        px, py, pz = float(position[0]), float(position[1]), float(position[2])
+        px = float(position[0]) * translation_scale
+        py = float(position[1]) * translation_scale
+        pz = float(position[2]) * translation_scale
         # Row-major: rotation 3x3 in the top-left, translation in the last row.
         return [
             [rot[0][0], rot[0][1], rot[0][2], 0.0],
