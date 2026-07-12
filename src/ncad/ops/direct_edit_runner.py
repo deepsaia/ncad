@@ -29,9 +29,21 @@ class DirectEditRunner:
     """Runs a direct-edit kernel call and accepts it only if the oracle agrees."""
 
     def run(self, kernel: Any, kernel_call: Callable[[], Any], before: Any, op: str,
-            subprocess: bool = False) -> RunResult:
-        """Run ``kernel_call`` and verify its result; ``subprocess`` is reserved for 4.3."""
-        after = kernel_call()
+            subprocess: bool = False, guarded_spec: dict | None = None) -> RunResult:
+        """Run ``kernel_call`` and verify its result.
+
+        When ``subprocess`` and a ``guarded_spec`` are given, run the op in a CHILD PROCESS (via
+        the 4.0 GuardedRunner) so an OCCT hang/segfault on untrusted imported geometry is isolated,
+        then verify the re-imported result with the same three-tier oracle. Authored geometry runs
+        in-process (the spike measured no hangs there).
+        """
+        if subprocess and guarded_spec is not None:
+            after = self._run_guarded(kernel, before, guarded_spec)
+            if after is None:
+                return RunResult(None, False, guarded_spec.get(
+                    "failure", f"guarded {op} timed out or crashed on imported body"))
+        else:
+            after = kernel_call()
         if after is None:
             return RunResult(None, False, "op produced no shape")
         if not self._sanity(kernel, after):
@@ -40,6 +52,36 @@ class DirectEditRunner:
         if not intent_ok:
             return RunResult(after, False, reason)
         return RunResult(after, True)
+
+    def _run_guarded(self, kernel: Any, before: Any, spec: dict) -> Any:
+        # Serialize the input to a temp STEP, run the probe in a child with a wall-clock timeout,
+        # re-import the result. The op stays IO-free; the runner owns the serialize round-trip.
+        import os
+        import tempfile
+
+        from ncad.kernel.guarded_runner import GuardedRunner
+        from ncad.ops.guarded_direct_probe import guarded_offset_probe
+
+        if spec.get("kind") != "offset":
+            # Only whole-solid offset is subprocess-guarded in this bucket (no face to re-resolve
+            # across the process boundary); other ops run in-process, still oracle-verified.
+            return None
+        in_fd, in_path = tempfile.mkstemp(suffix=".step")
+        out_fd, out_path = tempfile.mkstemp(suffix=".step")
+        os.close(in_fd)
+        os.close(out_fd)
+        try:
+            kernel.export(before, in_path)
+            result = GuardedRunner(timeout_s=spec.get("timeout_s", 30.0)).run(
+                guarded_offset_probe, in_path, spec["distance"], out_path)
+            if result.outcome != "ok":
+                logger.warning("guarded offset on imported body: %s", result.outcome)
+                return None
+            return kernel.import_solid(out_path)
+        finally:
+            for path in (in_path, out_path):
+                if os.path.exists(path):
+                    os.unlink(path)
 
     def _sanity(self, kernel: Any, shape: Any) -> bool:
         # Independent of BRepCheck: finite positive volume and at least one face.
