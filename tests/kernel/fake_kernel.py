@@ -353,12 +353,20 @@ class FakeKernel(Kernel):
         return infos
 
     def describe_elements(self, solid: Any) -> list:
-        # Per body, tagging each descriptor with its body_id (single shape = "body/0").
+        # Memoize per solid so descriptor handles are STABLE across calls: face_neighbours and the
+        # guard both call describe_elements, and callers compare handles by identity, so minting
+        # fresh handles each call would break neighbour lookups. Keyed by object id (the Fake's
+        # shapes are not hashable), held on the kernel instance for the build's lifetime.
+        cache = self.__dict__.setdefault("_describe_cache", {})
+        key = id(solid)
+        if key in cache:
+            return cache[key]
         described: list = []
         for body in self.bodies(solid):
             for descriptor in self._describe_one(body.shape):
                 descriptor["body_id"] = body.id
                 described.append(descriptor)
+        cache[key] = described
         return described
 
     def import_solid(self, path: str) -> Any:
