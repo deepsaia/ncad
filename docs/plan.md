@@ -924,10 +924,11 @@ single watertight body.
 
 ---
 
-## Phase 11: Domain profiles: sheet metal · mold · building
+## Phase 11: Domain profiles: sheet metal · mold · building · process plant · structural
 
 **Goal:** specialized part kinds as profiles over the substrate (design §6).
-**Depends on** Phase 2 (sheet metal, building), Phase 9 (mold).
+**Depends on** Phase 2 (sheet metal, building, structural), Phase 9 (mold), Phase 5
+(process plant + structural, for routes/members-as-connectors + component instances).
 
 **Sheet metal**
 - [ ] Base flange/tab, **edge flange**, miter flange, **hem**, **jog**, bend,
@@ -950,8 +951,147 @@ single watertight body.
 - [ ] (building-profile track: roofs, multi-storey, L/T/U footprints, curved
       corners, carried from the old roadmap)
 
+**Process plant** *(chemical/process facilities: **equipment** connected by
+**piping**, held by **supports**, governed by a **flow diagram**. Like PCB (§6b),
+it has **two representations of one system**: a 2D **flow diagram** (the logical
+schematic) and a 3D **plant model** (the physical solids), linked. "Piping" is the
+connective tissue; the profile is the whole plant)*
+- [ ] **Flow diagram (P&ID / PFD, the logical model):** a 2D **schematic** of the
+      system's logic - **tagged equipment/nodes** (pump, vessel, exchanger, column),
+      **line numbers** carrying service + spec, **inline components** (valves,
+      instruments, reducers) as symbols, and **connectivity** (what flows to what).
+      Component symbols follow a standard **symbol library**; the diagram is the
+      *source of truth for the network* and is **linked** to the 3D model (a line on
+      the P&ID maps to a physical run, a symbol to a placed component) so BOM and
+      consistency checks span both. This is the process analogue of the PCB electrical
+      model (§6b): schematic first, solids lowered from it. Diagram authoring /
+      round-trip to standard exchange is a **plugin/exchange** concern (§14), not core `(A)`
+- [ ] **Equipment: pressure vessels, tanks & exchangers** *(the shell-and-head
+      fabrications piping connects to; parametric, spec-driven, generated not
+      hand-modeled)*:
+  - **Vessel / tank shells:** **cylindrical** and **spherical** shells from
+    diameter + wall/thickness + length; **heads** (**ellipsoidal / torispherical
+    (dished) / hemispherical / flat / conical**); horizontal or vertical orientation
+  - **Internals & externals (as features/instances):** **nozzles** (a nozzle = a
+    sized, flanged **port** through the shell - reuses the pipe spec + flange
+    catalogue below), **manways**, **skirt / saddle / leg / lug supports**,
+    **stiffening rings**, **reinforcing pads**
+  - **Columns / towers:** tall vertical vessels with **tray / packing** section
+    markers (as annotated regions, not detailed internals)
+  - **Heat exchangers:** shell-and-tube / plate as **placed equipment with ports**
+    (external envelope + nozzle ports; internal tube bundles are detail `(A)`)
+  - **Rotating / package equipment** (pump, compressor, blower, mixer): **placed
+    instances with nozzle ports** from an equipment library, so piping can connect
+    to them; internal mechanism is out of scope, the envelope + ports are the model
+  - Thickness/rating are **inputs** (ASME-style pressure sizing is an input check,
+    §10, not a solver we write - the FEA/CFD line, design §17)
+- [ ] **Route model (the physical path):** a 3D **centerline path** (straight
+      segments + bends) as the primary author-side object; **route from port to
+      port** (mate connectors, §7) with **slope/grade**, **bend radius**, and **min
+      straight length** rules; branch points; a first-class referenceable entity
+      that drives everything below
+- [ ] **Pipe specification (the "pipe spec"):** a named spec binding nominal size
+      (**NPS / DN**), **schedule / wall thickness**, **pressure rating** (e.g. flange
+      class), material, and **end type** (butt-weld / socket-weld / threaded /
+      flanged / grooved / compression), so a route resolves to real **OD/ID/wall**
+      and picks the right components without hand-authoring dimensions
+- [ ] **Fitting & component catalogue** *(the heart of piping; each is a
+      **spec-driven, parametrically-generated** placed instance, auto-oriented and
+      auto-trimmed to the route, §7 instances)*:
+  - **Direction change:** **elbow** (long-radius / short-radius, 90 deg / 45 deg /
+    custom), **bend** (pipe bend from bend radius), **miter bend** (segmented, with
+    cut count/angle), **return** (180 deg)
+  - **Branch:** **tee** (equal / reducing), **wye / lateral**, **cross**, **stub-in /
+    weldolet-style** branch connections
+  - **Size / transition:** **reducer** (concentric / eccentric), **swage / bushing**,
+    **coupling**, **union**, **nipple**
+  - **Termination:** **cap**, **plug**, **blind flange**, **blank / spectacle blind**
+  - **Connection:** **flange** (weld-neck / slip-on / socket / lap-joint / threaded /
+    blind, by pressure class + face type) with **gasket** and **bolt-set** stacks;
+    **weld joints**; **threaded** and **socket-weld** joints; **grooved / compression**
+    couplings
+  - **Inline devices** *(bodies with ports; the model places + connects them)*:
+    **valve** (gate / globe / ball / check / butterfly / needle), **strainer**,
+    **flow instrument**, **expansion joint / flexible connector**
+- [ ] **Pipe supports & restraints** *(the structural attachments that carry the
+      route's weight/loads to steel or walls; placed along the path, spec- and
+      size-driven)*: **hanger** (rod / clevis / spring / constant-support),
+      **shoe / saddle / trunnion**, **guide** (allows axial slide), **anchor**
+      (fully fixed), **rest / resting support**, **U-bolt / clamp / strap**, **base
+      / dummy-leg support**; each references the pipe run **and** a structural member
+      (in-context, §7), reports support **spacing/span** against a spec rule, and
+      contributes to the BOM + (later) load take-off
+- [ ] **Solid generation (lowers to substrate ops):** **sweep** the annular section
+      along the centerline for straight runs + bends; **place the catalogue fittings**
+      as instances at bends/branches/ends/transitions, auto-oriented and auto-trimmed
+      to the route; assemble **flange + gasket + bolt** stacks at connections; the
+      whole physical model is composed from substrate sweep + boolean + instances
+- [ ] **Connectivity & continuity:** **port compatibility** across every joint (size
+      **and** rating **and** end type must match, else id-tagged); a **connected-network**
+      model so a route/fitting knows its neighbours (feeds BOM roll-up + checks);
+      **auto-insert** the correct catalogue fitting when two runs meet (elbow at a
+      turn, tee at a branch, reducer at a size change), driven by the spec
+- [ ] **Validation (id-tagged, §10):** **min/max bend radius**, **interference /
+      clearance** against other routes and equipment (reuses §7 interference),
+      **slope direction**, **wall/schedule vs pressure** input check, **spec mismatch
+      at a joint**, and **diagram-vs-model consistency** (every P&ID line has a
+      physical run and vice versa)
+- [ ] **Flexible / tubing & cabling** *(same substrate, softer path)*: **flexible
+      hose / tube** routed along a spline path with **min bend radius** honoured;
+      **conduit / cable-tray** runs as a thin-wall variant of the same route model
+- [ ] **Outputs & exchange:** a **pipe + fitting + component BOM** (cut lengths per
+      run + fitting counts + valve/instrument list + spec) by traversal (§9);
+      **isometric spool drawings** and the **P&ID** itself as drafting views (§7);
+      **PCF / ISO / P&ID** piping-exchange formats are **plugin/exchange** concerns
+      (§14), not core `(A)`
+
+**Structural framing / members** *(the load-bearing frame: standard **sections**
+swept along a **skeleton of members**, joined at **connections**, sitting on
+**foundations**. This is the mechanical **weldment / frame** pattern (a skeleton +
+swept standard profiles + trimmed joints) generalized, informed by BIM structural
+concepts. Pairs with the building profile (walls/openings) and shares machinery with
+process-plant **pipe supports**. The mechanical-structural slice, NOT full civil
+engineering - roads, terrain, drainage, survey/GIS are a different discipline, out of
+scope like FEA (design §17))*
+- [ ] **Section library:** standard structural shapes as parametric swept profiles -
+      **I-beam / wide-flange**, **channel**, **angle (L)**, **tee**, **HSS
+      (rectangular / round / square tube)**, **pipe**, **bar / plate**, plus
+      **precast / cast concrete** rectangular/round sections; keyed by a named
+      designation + material (steel / concrete / timber)
+- [ ] **Member model:** a **skeleton** of member lines/curves (the frame layout,
+      the primary author-side object) with a section + orientation (**rotation /
+      cardinal-point** insertion) per member; **beams**, **columns**, **braces**,
+      **girts / purlins**; members reference grid/level datums so the frame is
+      grid-driven
+- [ ] **End conditions & connections:** **trim / miter / cope / notch** members to
+      each other at joints (substrate boolean-trim, the weldment pattern);
+      **connections** as placed components - **base plates, gusset/cleat plates,
+      stiffeners, bolt groups, welds** - each referencing the joined members
+      (in-context, §7)
+- [ ] **Foundations & plates:** **footings** (isolated / strip / mat/raft),
+      **pile caps**, **pedestals**, **slabs**, **retaining / shear walls** as
+      sketched-solid features lowering to substrate extrude + boolean
+- [ ] **Reinforcement (concrete):** **rebar / bar sets** along a member or in a slab
+      (path-driven bar instances with cover + spacing); **later / detail** `(A)`
+- [ ] **Analytical model (handoff, not a solver):** an optional **line/node +
+      surface** abstraction of the frame (members >> analytical bars, slabs/walls >>
+      analytical panels, with supports/releases) for **export to a structural
+      analysis tool** - the FEA line (design §17): ncad owns the model, not the solve
+- [ ] **Grids & levels:** **column grids** (labelled axes) and **levels / storeys**
+      as datum systems the frame is placed against (shared with the building profile)
+- [ ] **Outputs & exchange:** **steel/concrete BOM** (member cut lengths per section,
+      connection + bolt counts, rebar schedule, concrete volume) by traversal (§9);
+      **IFC** structural exchange (`ifcopenshell`, shared with building) and **CIS/2 /
+      SDNF** steel-detailing formats as **plugin/exchange** concerns (§14) `(A)`
+
 **Gate:** a sheet-metal part flattens to a correct flat pattern; a simple two-plate
-mold splits core/cavity; a v1 building re-builds via the lowered profile.
+mold splits core/cavity; a v1 building re-builds via the lowered profile; a **process
+route from port to port resolves against a pipe spec into a swept solid with
+auto-placed elbows/reducers/tees and flange stacks at connections (and a vessel with
+a nozzle it lands on), reports a pipe + fitting BOM, and flags a bend below the spec's
+minimum radius (and a rating mismatch at a joint) by `id`**; a **steel frame of
+members on a grid trims at its joints, sits on footings, and reports a steel BOM by
+section**.
 
 ---
 
