@@ -17,6 +17,7 @@ from typing import Any
 from ncad.assembly.assembly_placement import AssemblyPlacement
 from ncad.assembly.connector_frame import ConnectorFrame
 from ncad.assembly.connector_resolver import ConnectorResolver
+from ncad.assembly.coupling import Coupling
 from ncad.assembly.dof_diagnostics import PRIMITIVE_DOF, DofDiagnostics
 from ncad.assembly.frame_snap import FrameSnap
 from ncad.assembly.joint_lowering import JointError, JointLowering
@@ -88,7 +89,7 @@ class AssemblyBuilder:
                               "connectors": world, "lock": bool(instance.get("lock"))})
         # Solve the mate network (if any): overwrites solved instances' placements + world
         # connector frames in the sidecar list, and yields the solve status + mate records.
-        solve_block, mates_out, joints_out = self._solve_constraints(
+        solve_block, mates_out, joints_out, couplings_out = self._solve_constraints(
             document, local_frames, placements_mm, to_metres, instances, issues)
         sidecar = os.path.join(out_dir, f"{name}{_ASSEMBLY_SUFFIX}")
         # Record the source .asm.hocon so the viewer can regenerate this assembly after a reload
@@ -97,7 +98,7 @@ class AssemblyBuilder:
         with open(sidecar, "w", encoding="utf-8") as handle:
             json.dump({"schema_version": 1, "name": name, "source": os.path.abspath(asm_path),
                        "instances": instances, "solve": solve_block, "mates": mates_out,
-                       "joints": joints_out}, handle)
+                       "joints": joints_out, "couplings": couplings_out}, handle)
         return {"sidecar": sidecar, "issues": issues, "instances": [i["id"] for i in instances]}
 
     def _place(self, instance: dict, placements_mm: dict,
@@ -133,14 +134,20 @@ class AssemblyBuilder:
 
     def _solve_constraints(self, document: dict, local_frames: dict, placements_mm: dict,
                            to_metres: float, instances: list,
-                           issues: list) -> tuple[dict, list, list]:
-        """Solve the mate + joint network; overwrite placements; return (solve, mates, joints)."""
+                           issues: list) -> tuple[dict, list, list, list]:
+        """Solve the mate + joint network; overwrite placements; return solve/mates/joints/coupl."""
         constraints = document["assembly"].get("constraints") or []
         joints = document["assembly"].get("joints") or []
+        # Couplings are declared-only (no primitives, no pose); build them up-front so they reach
+        # the sidecar even when there is nothing to solve. Phase 6 enforces them.
+        couplings_out = [
+            Coupling(id=c["id"], type=c["type"], between=list(c.get("between", [])),
+                     ratio=c.get("ratio")).to_dict()
+            for c in (document["assembly"].get("couplings") or [])]
         if not constraints and not joints:
             return ({"status": "well_constrained", "dof": 0, "explanation": "no constraints",
                      "failing_ids": [], "redundant_ids": [], "under_constrained_hint": None},
-                    [], [])
+                    [], [], couplings_out)
         primitives: list[dict] = []
         mates_out: list[dict] = []
         for mate in constraints:
@@ -176,7 +183,8 @@ class AssemblyBuilder:
         # Diagnostics (bucket 5.3): interpret the raw solve signals into a legible report. The
         # network summary feeds the nominal DoF-accounting explanation; the solver's dof is truth.
         network = {"bodies": len(local_frames), "grounded": len(ground_ids),
-                   "removed": sum(PRIMITIVE_DOF.get(p["kind"], 0) for p in primitives)}
+                   "removed": sum(PRIMITIVE_DOF.get(p["kind"], 0) for p in primitives),
+                   "couplings": len(couplings_out)}
         report = self._diagnostics.analyze(outcome, network)
         failing = set(report.failing_ids)
         redundant = set(report.redundant_ids)
@@ -187,7 +195,7 @@ class AssemblyBuilder:
         logger.info("assembly solve: status=%s dof=%d failing=%s redundant=%s joints=%d (%s)",
                     report.status, report.dof, report.failing_ids, report.redundant_ids,
                     len(joints_out), report.explanation)
-        return report.to_dict(), mates_out, joints_out
+        return report.to_dict(), mates_out, joints_out, couplings_out
 
     def _lower_joint(self, joint: dict, local_frames: dict, issues: list):
         """Resolve a joint's refs + lower to primitives + signature; None on error."""

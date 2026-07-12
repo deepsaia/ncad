@@ -77,7 +77,7 @@ definitions {
     properties {
       id { type = string }
       type { enum = ["fixed", "revolute", "slider", "cylindrical", "planar", "ball",
-                     "point_on_line", "slot"] }
+                     "point_on_line", "slot", "screw"] }
       between {
         type = array
         minItems = 2
@@ -86,6 +86,24 @@ definitions {
       }
       value {}
       limits {}
+      pitch { type = number }
+    }
+  }
+
+  # A declarative coupling between two joints (bucket 5.4b), enforced during motion (Phase 6).
+  coupling {
+    type = object
+    required = ["id", "type", "between"]
+    properties {
+      id { type = string }
+      type { enum = ["gear", "belt", "rack_pinion", "universal"] }
+      between {
+        type = array
+        minItems = 2
+        maxItems = 2
+        items { type = string }
+      }
+      ratio { type = number }
     }
   }
 
@@ -125,6 +143,10 @@ properties {
       joints {
         type = array
         items = ${definitions.joint}
+      }
+      couplings {
+        type = array
+        items = ${definitions.coupling}
       }
     }
   }

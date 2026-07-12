@@ -1,0 +1,29 @@
+# Bucket 5.4b demo: completes the joint vocabulary. A SCREW joint drives a bolt into the block bore
+# (one turn advances one pitch axially, solved here; rotation-driving is Phase 6). Two gears mount
+# on two PARALLEL OFFSET shafts (a real mesh, not coaxial) via revolutes, coupled by a GEAR coupling
+# at a 2:1 ratio (declared + validated + shown; ENFORCED during motion in Phase 6).
+schema_version = 1
+units = mm
+assembly {
+  instances = [
+    { id = block, file = "geared_screw.hocon", part = block, lock = true }
+    { id = bolt, file = "geared_screw.hocon", part = bolt }
+    { id = shaftA, file = "geared_screw.hocon", part = shaft, lock = true,
+      placement = { position = [-16, 0, 20] } }
+    { id = shaftB, file = "geared_screw.hocon", part = shaft, lock = true,
+      placement = { position = [16, 0, 20] } }
+    { id = gearA, file = "geared_screw.hocon", part = gear }
+    { id = gearB, file = "geared_screw.hocon", part = gear }
+  ]
+  joints = [
+    { id = screw1, type = screw, pitch = 4, value = 360, between = [
+      { instance = block, connector = bore }, { instance = bolt, connector = shank } ] }
+    { id = jA, type = revolute, between = [
+      { instance = shaftA, connector = axis }, { instance = gearA, connector = hub } ] }
+    { id = jB, type = revolute, between = [
+      { instance = shaftB, connector = axis }, { instance = gearB, connector = hub } ] }
+  ]
+  couplings = [
+    { id = mesh, type = gear, between = [ jA, jB ], ratio = 2 }
+  ]
+}

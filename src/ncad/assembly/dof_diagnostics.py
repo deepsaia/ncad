@@ -57,5 +57,12 @@ class DofDiagnostics:
         bodies = int(network.get("bodies", 0))
         grounded = int(network.get("grounded", 0))
         removed = int(network.get("removed", 0))
-        return (f"{bodies} bodies ({6 * bodies} DoF), {grounded} grounded (-{6 * grounded}), "
+        base = (f"{bodies} bodies ({6 * bodies} DoF), {grounded} grounded (-{6 * grounded}), "
                 f"mates removing {removed} DoF >> {dof} free DoF")
+        couplings = int(network.get("couplings", 0))
+        if couplings > 0:
+            # Report, don't count: couplings enforce nothing in 5.4b (Phase 6 does), so the dof
+            # number stays truthful to what is enforced; we only surface the declared intent.
+            plural = "s" if couplings != 1 else ""
+            base += f"; + {couplings} declared coupling{plural} (enforced in motion)"
+        return base

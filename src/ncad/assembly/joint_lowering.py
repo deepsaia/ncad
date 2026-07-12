@@ -28,11 +28,18 @@ class JointLowering:
         jtype = joint.get("type", "")
         if jtype not in SIGNATURES:
             raise JointError(f"unknown joint type {jtype!r} (joint {joint.get('id')!r})")
-        signature = SIGNATURES[jtype]
+        signature = self._signature(jtype, joint)
         value = joint.get("value")
         prims = self._positioning(jtype)
         prims.extend(self._value_pins(jtype, value, joint))
         return prims, signature
+
+    def _signature(self, jtype: str, joint: dict) -> list[FreeAxis]:
+        """The declared signature; screw's is rebuilt with the joint's pitch (else static)."""
+        if jtype == "screw":
+            pitch = joint.get("pitch")
+            return [FreeAxis("screw", "Z", pitch=None if pitch is None else float(pitch))]
+        return SIGNATURES[jtype]
 
     def _positioning(self, jtype: str) -> list[dict]:
         """The primitives that position the two bodies, leaving the joint's DoF free."""
@@ -53,6 +60,10 @@ class JointLowering:
                     _p("parallel_dirs", "A.axis", "B.axis")]
         if jtype == "ball":
             return [_p("points_coincident", "A.origin", "B.origin")]
+        if jtype == "screw":
+            # Coaxial like cylindrical; the rotation+axial coupling is enforced by the value pins
+            # (valued) or driven in Phase 6 (valueless). Leaves the cylindrical freedom otherwise.
+            return [_p("axes_coincident", "A.axis", "B.axis")]
         # point_on_line / slot
         return [_p("point_on_line", "A.origin", "B.axis")]
 
@@ -66,14 +77,26 @@ class JointLowering:
         """
         if value is None:
             return []
-        if jtype == "revolute":
-            return [_p("dirs_angle", "A.secondary", "B.secondary", _num(value, joint))]
         if jtype == "slider":
             return [_p("point_plane_distance", "A.origin", "B.plane", _num(value, joint))]
         if jtype == "point_on_line":
             return [_p("point_plane_distance", "A.origin", "B.plane", _num(value, joint))]
-        # cylindrical / planar / ball: multi-DoF value-pinning deferred (see spec section 3).
-        logger.debug("value-pinning for %r is deferred in 5.4a; leaving DoF free", jtype)
+        if jtype == "screw":
+            # A screw's value is the turn angle; its coupled axial travel (theta/360 * pitch) pins
+            # the DEPTH, which solves statically. The ROTATION pin is deferred to Phase 6 (angular
+            # pinning does not solve statically here, see below), so a valued screw fixes depth and
+            # leaves rotation free.
+            theta = _num(value, joint)
+            pitch = joint.get("pitch")
+            if pitch is None:
+                raise JointError(f"screw joint {joint.get('id')!r} with a value needs a pitch")
+            return [_p("point_plane_distance", "A.origin", "B.plane", theta / 360.0 * float(pitch))]
+        # Rotation-pinning (revolute angle, cylindrical/planar/ball multi-DoF) is DEFERRED to Phase
+        # 6 forward kinematics: an angular value does not pin a static solve (addAngle on coaxial
+        # frames is inconsistent/redundant), so the joint solves with that DoF free. Only the
+        # TRANSLATIONAL pins above (slider/point_on_line/screw-depth) solve statically in 5.4b.
+        logger.debug("rotation value-pinning for %r is deferred to Phase 6; leaving that DoF free",
+                     jtype)
         return []
 
 

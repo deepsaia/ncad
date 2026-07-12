@@ -76,8 +76,11 @@ with redundant + failing constraints attributed by mate id, a plain-language DoF
 viewer + CLI surfacing (the 3D analogue of the sketch-status legibility layer); bucket 5.4a
 (lower-pair joints) is DONE - the 7 lower pairs (fixed/revolute/slider/cylindrical/planar/ball/
 point_on_line) as a parallel `joints[]` family lowering to the primitive core + a declared DoF
-signature + static solve, with sidecar joint records + viewer joint chips. NEXT: 5.4b coupled
-joints (screw/gear/rack-pinion/belt/cam/universal). Per-phase deferred items are gathered in the
+signature + static solve, with sidecar joint records + viewer joint chips; bucket 5.4b
+(coupled/higher joints) is DONE - the screw joint fully shipped (coaxial + pitch signature + valued
+solve) + gear/belt/rack_pinion/universal as declarative `couplings[]` records (enforced in Phase 6),
+completing Phase 5's joint vocabulary (cam deferred). NEXT: 5.5 viewer polish (exploded views,
+mate/DoF/joint display, richer instance-tree interactions). Per-phase deferred items are gathered in the
 deferred-backlog sections below each phase's bucket list, so nothing is lost.
 
 v1 proved the *pattern*: `spec >> build >> BOM >> view`, determinism, build123d/OCCT,
@@ -696,8 +699,15 @@ the existing primitive core (plus a `secondary_parallel` primitive + a per-conne
 for anti-spin) and yields a declared **DoF signature** (free-axis records from a static table);
 an optional static `value` pins the free DoF (1-DoF joints + cylindrical), valueless leaves it free;
 one unified mate+joint solve (shared id space); sidecar `joints[]` block (signature + role) + viewer
-joint chips. Joints DEFINE allowed motion (a revolute leaves [rot Z]); Phase 6 drives them. NEXT:
-5.4b coupled/higher joints (screw/gear/rack-pinion/belt/cam/universal), then 5.5-5.6 below.
+joint chips. Joints DEFINE allowed motion (a revolute leaves [rot Z]); Phase 6 drives them.
+**Bucket 5.4b (coupled/higher joints) is DONE:** the **screw** joint fully shipped (coaxial
+positioning + a pitch-bearing `screw` DoF signature; a valued screw pins the turn angle + coupled
+axial travel on the same body, fully solved with no cross-joint machinery); and gear/belt/
+rack_pinion/universal as a declarative `couplings[]` family (`Coupling` records referencing two
+joint ids + a ratio, validated + stored + shown + reported-not-counted in diagnostics, ENFORCED in
+Phase 6). Cam deferred (needs curved-contact geometry). This COMPLETES Phase 5's joint vocabulary.
+NEXT: 5.5 viewer polish (exploded views, mate/DoF/joint display, richer instance-tree
+interactions), then 5.6 (interference/BOM/STEP + capstone).
 
 - [ ] **Instances & structure:** components, sub-assemblies, flexible
       sub-assemblies, replace/pattern/mirror component
@@ -712,12 +722,12 @@ joint chips. Joints DEFINE allowed motion (a revolute leaves [rot Z]); Phase 6 d
       width, lock
       (5.2 shipped 8 mates lowering to the normal-form core + py-slvs solve; tangent/symmetric/
       width and raw-geometry-ref mates deferred, see backlog)
-- [ ] **Joints (DoF-bearing):** **fixed/rigid**, **revolute/pin**,
+- [x] **Joints (DoF-bearing):** **fixed/rigid**, **revolute/pin**,
       **slider/prismatic**, cylindrical, planar, **ball/spherical**, universal,
       screw, gear, rack-pinion, cam, belt, point-on-line/slot
-      (5.4a shipped the 7 lower pairs: fixed/revolute/slider/cylindrical/planar/ball/point_on_line
-      + DoF signature + static solve; coupled/higher joints screw/gear/rack-pinion/belt/cam/universal
-      = 5.4b; time-varying driving = Phase 6)
+      (5.4a shipped the 7 lower pairs + DoF signature + static solve; 5.4b shipped screw (fully
+      solved) + gear/belt/rack_pinion/universal as declared couplings; cam + coupling ENFORCEMENT
+      (Phase 6) + time-varying driving (Phase 6) remain)
 - [ ] **Top-down / in-context:** skeleton / master model; publish geometry; change
       propagation
 - [ ] **Interference / clearance** (static): exact (`BRepExtrema_DistShapeShape`)
@@ -780,15 +790,35 @@ STEP (AP242) and opens in FreeCAD; interference check is correct.
   DECLARED signature is the authoritative DoF statement and the solver dof is a coarse rigid/free
   cross-check. **5.4a follow-ups (deferred):** valued planar/ball multi-DoF pinning; joint `limits`
   enforcement; 3D free-axis viewport arrows (>> 5.5).
-- **Joints, coupled/higher (5.4b):** screw, gear, rack-pinion, belt, cam, universal. These are not
-  frame-to-frame relations: screw couples rotation-to-translation by a pitch; gear/rack-pinion/belt
-  couple two OTHER joints' rates by a ratio (joints referencing joints); universal is two coupled
-  revolutes; cam is curved contact. They need DoF-coupling machinery (a DoF as a function of another
-  DoF, overlapping Phase 6's driver-functions) + cam contact geometry. Depends on 5.4a.
+- **Joints, coupled/higher (5.4b): DONE (screw + declarative couplings).** The **screw** joint is
+  fully shipped: coaxial positioning + a pitch-bearing `screw` DoF signature; a valued screw pins
+  the turn angle + coupled axial travel (theta/360 * pitch) on the same body, fully solved with no
+  cross-joint machinery. **gear/belt/rack_pinion/universal** ship as a declarative `couplings[]`
+  family (`Coupling` records referencing two joint ids + a ratio), validated (id uniqueness +
+  shared id space + referenced-joint existence), stored in the sidecar, shown as dashed viewer
+  chips, and reported-not-counted in the diagnostics ("+ N declared couplings, enforced in motion").
+  **5.4b follow-ups (deferred):** the **cam** joint (curved-contact geometry, a new primitive kind);
+  coupling **enforcement** (driving one joint so the coupled joint follows) = Phase 6 forward
+  kinematics (py-slvs has no angle-ratio constraint, only `addLengthRatio`); universal's
+  geometry-derived ratio; 3D gear-mesh / cam-profile visualization = 5.5 / Phase 6.
+- **Rotation value-pinning deferred to Phase 6 (found during 5.4b execution):** a joint `value`
+  that pins ROTATION (a revolute angle, a screw turn) does not solve statically - `addAngle` on
+  coaxial frames is inconsistent/redundant - so it is deferred to Phase 6 forward kinematics; the
+  joint solves with that rotational DoF free. Only TRANSLATIONAL pins solve statically in 5.4a/5.4b:
+  slider distance, point_on_line distance, and screw DEPTH (theta/360 * pitch). gate-5.4a's revolute
+  is valueless; gate-5.4b's screw pins depth (not turn); the two gears mount on parallel OFFSET
+  shafts (distinct axes) so the mesh is well-posed (no shared-axis redundancy).
 - **Viewer polish (5.5):** exploded views, mate/DoF display, richer instance-tree interactions
   (select/highlight/isolate); the 5.0 instance tree is minimal. Also a browser-side assemble
   action (like the part Build button): 5.0 composes via the `ncad assemble` CLI and the viewer
-  loads the already-composed scene; assembling from the browser is a small follow-up.
+  loads the already-composed scene; assembling from the browser is a small follow-up. Plus 3D
+  joint/coupling visualization (free-axis arrows/arcs at a joint, gear-mesh/cam profiles) deferred
+  from 5.4a/5.4b. **Two gizmo issues found during 5.4b viewer checks:** (1) the world-origin marker
+  (a `THREE.AxesHelper`, GL LINES) stutters/z-fights because WebGL caps line width at 1px, so
+  thickening does not help - swap it for a small poly gizmo (thin box/cylinder meshes) and/or tune
+  depthTest; (2) confirm whether instance-origin gizmos and mate-connector-frame triads visually
+  overlapping is correct (for centered-sketch parts a connector often sits AT the part origin, so
+  overlap is expected) or needs a visual offset/toggle to disambiguate.
 - **Interference/clearance + BOM + STEP (5.6):** static interference
   (`BRepExtrema_DistShapeShape` or Manifold), assembly BOM + roll-up mass across instances,
   structured STEP AP242 export (XCAF/XDE), and the Phase 5 capstone gate.
@@ -924,10 +954,11 @@ single watertight body.
 
 ---
 
-## Phase 11: Domain profiles: sheet metal · mold · building
+## Phase 11: Domain profiles: sheet metal · mold · building · process plant · structural
 
 **Goal:** specialized part kinds as profiles over the substrate (design §6).
-**Depends on** Phase 2 (sheet metal, building), Phase 9 (mold).
+**Depends on** Phase 2 (sheet metal, building, structural), Phase 9 (mold), Phase 5
+(process plant + structural, for routes/members-as-connectors + component instances).
 
 **Sheet metal**
 - [ ] Base flange/tab, **edge flange**, miter flange, **hem**, **jog**, bend,
@@ -950,8 +981,147 @@ single watertight body.
 - [ ] (building-profile track: roofs, multi-storey, L/T/U footprints, curved
       corners, carried from the old roadmap)
 
+**Process plant** *(chemical/process facilities: **equipment** connected by
+**piping**, held by **supports**, governed by a **flow diagram**. Like PCB (§6b),
+it has **two representations of one system**: a 2D **flow diagram** (the logical
+schematic) and a 3D **plant model** (the physical solids), linked. "Piping" is the
+connective tissue; the profile is the whole plant)*
+- [ ] **Flow diagram (P&ID / PFD, the logical model):** a 2D **schematic** of the
+      system's logic - **tagged equipment/nodes** (pump, vessel, exchanger, column),
+      **line numbers** carrying service + spec, **inline components** (valves,
+      instruments, reducers) as symbols, and **connectivity** (what flows to what).
+      Component symbols follow a standard **symbol library**; the diagram is the
+      *source of truth for the network* and is **linked** to the 3D model (a line on
+      the P&ID maps to a physical run, a symbol to a placed component) so BOM and
+      consistency checks span both. This is the process analogue of the PCB electrical
+      model (§6b): schematic first, solids lowered from it. Diagram authoring /
+      round-trip to standard exchange is a **plugin/exchange** concern (§14), not core `(A)`
+- [ ] **Equipment: pressure vessels, tanks & exchangers** *(the shell-and-head
+      fabrications piping connects to; parametric, spec-driven, generated not
+      hand-modeled)*:
+  - **Vessel / tank shells:** **cylindrical** and **spherical** shells from
+    diameter + wall/thickness + length; **heads** (**ellipsoidal / torispherical
+    (dished) / hemispherical / flat / conical**); horizontal or vertical orientation
+  - **Internals & externals (as features/instances):** **nozzles** (a nozzle = a
+    sized, flanged **port** through the shell - reuses the pipe spec + flange
+    catalogue below), **manways**, **skirt / saddle / leg / lug supports**,
+    **stiffening rings**, **reinforcing pads**
+  - **Columns / towers:** tall vertical vessels with **tray / packing** section
+    markers (as annotated regions, not detailed internals)
+  - **Heat exchangers:** shell-and-tube / plate as **placed equipment with ports**
+    (external envelope + nozzle ports; internal tube bundles are detail `(A)`)
+  - **Rotating / package equipment** (pump, compressor, blower, mixer): **placed
+    instances with nozzle ports** from an equipment library, so piping can connect
+    to them; internal mechanism is out of scope, the envelope + ports are the model
+  - Thickness/rating are **inputs** (ASME-style pressure sizing is an input check,
+    §10, not a solver we write - the FEA/CFD line, design §17)
+- [ ] **Route model (the physical path):** a 3D **centerline path** (straight
+      segments + bends) as the primary author-side object; **route from port to
+      port** (mate connectors, §7) with **slope/grade**, **bend radius**, and **min
+      straight length** rules; branch points; a first-class referenceable entity
+      that drives everything below
+- [ ] **Pipe specification (the "pipe spec"):** a named spec binding nominal size
+      (**NPS / DN**), **schedule / wall thickness**, **pressure rating** (e.g. flange
+      class), material, and **end type** (butt-weld / socket-weld / threaded /
+      flanged / grooved / compression), so a route resolves to real **OD/ID/wall**
+      and picks the right components without hand-authoring dimensions
+- [ ] **Fitting & component catalogue** *(the heart of piping; each is a
+      **spec-driven, parametrically-generated** placed instance, auto-oriented and
+      auto-trimmed to the route, §7 instances)*:
+  - **Direction change:** **elbow** (long-radius / short-radius, 90 deg / 45 deg /
+    custom), **bend** (pipe bend from bend radius), **miter bend** (segmented, with
+    cut count/angle), **return** (180 deg)
+  - **Branch:** **tee** (equal / reducing), **wye / lateral**, **cross**, **stub-in /
+    weldolet-style** branch connections
+  - **Size / transition:** **reducer** (concentric / eccentric), **swage / bushing**,
+    **coupling**, **union**, **nipple**
+  - **Termination:** **cap**, **plug**, **blind flange**, **blank / spectacle blind**
+  - **Connection:** **flange** (weld-neck / slip-on / socket / lap-joint / threaded /
+    blind, by pressure class + face type) with **gasket** and **bolt-set** stacks;
+    **weld joints**; **threaded** and **socket-weld** joints; **grooved / compression**
+    couplings
+  - **Inline devices** *(bodies with ports; the model places + connects them)*:
+    **valve** (gate / globe / ball / check / butterfly / needle), **strainer**,
+    **flow instrument**, **expansion joint / flexible connector**
+- [ ] **Pipe supports & restraints** *(the structural attachments that carry the
+      route's weight/loads to steel or walls; placed along the path, spec- and
+      size-driven)*: **hanger** (rod / clevis / spring / constant-support),
+      **shoe / saddle / trunnion**, **guide** (allows axial slide), **anchor**
+      (fully fixed), **rest / resting support**, **U-bolt / clamp / strap**, **base
+      / dummy-leg support**; each references the pipe run **and** a structural member
+      (in-context, §7), reports support **spacing/span** against a spec rule, and
+      contributes to the BOM + (later) load take-off
+- [ ] **Solid generation (lowers to substrate ops):** **sweep** the annular section
+      along the centerline for straight runs + bends; **place the catalogue fittings**
+      as instances at bends/branches/ends/transitions, auto-oriented and auto-trimmed
+      to the route; assemble **flange + gasket + bolt** stacks at connections; the
+      whole physical model is composed from substrate sweep + boolean + instances
+- [ ] **Connectivity & continuity:** **port compatibility** across every joint (size
+      **and** rating **and** end type must match, else id-tagged); a **connected-network**
+      model so a route/fitting knows its neighbours (feeds BOM roll-up + checks);
+      **auto-insert** the correct catalogue fitting when two runs meet (elbow at a
+      turn, tee at a branch, reducer at a size change), driven by the spec
+- [ ] **Validation (id-tagged, §10):** **min/max bend radius**, **interference /
+      clearance** against other routes and equipment (reuses §7 interference),
+      **slope direction**, **wall/schedule vs pressure** input check, **spec mismatch
+      at a joint**, and **diagram-vs-model consistency** (every P&ID line has a
+      physical run and vice versa)
+- [ ] **Flexible / tubing & cabling** *(same substrate, softer path)*: **flexible
+      hose / tube** routed along a spline path with **min bend radius** honoured;
+      **conduit / cable-tray** runs as a thin-wall variant of the same route model
+- [ ] **Outputs & exchange:** a **pipe + fitting + component BOM** (cut lengths per
+      run + fitting counts + valve/instrument list + spec) by traversal (§9);
+      **isometric spool drawings** and the **P&ID** itself as drafting views (§7);
+      **PCF / ISO / P&ID** piping-exchange formats are **plugin/exchange** concerns
+      (§14), not core `(A)`
+
+**Structural framing / members** *(the load-bearing frame: standard **sections**
+swept along a **skeleton of members**, joined at **connections**, sitting on
+**foundations**. This is the mechanical **weldment / frame** pattern (a skeleton +
+swept standard profiles + trimmed joints) generalized, informed by BIM structural
+concepts. Pairs with the building profile (walls/openings) and shares machinery with
+process-plant **pipe supports**. The mechanical-structural slice, NOT full civil
+engineering - roads, terrain, drainage, survey/GIS are a different discipline, out of
+scope like FEA (design §17))*
+- [ ] **Section library:** standard structural shapes as parametric swept profiles -
+      **I-beam / wide-flange**, **channel**, **angle (L)**, **tee**, **HSS
+      (rectangular / round / square tube)**, **pipe**, **bar / plate**, plus
+      **precast / cast concrete** rectangular/round sections; keyed by a named
+      designation + material (steel / concrete / timber)
+- [ ] **Member model:** a **skeleton** of member lines/curves (the frame layout,
+      the primary author-side object) with a section + orientation (**rotation /
+      cardinal-point** insertion) per member; **beams**, **columns**, **braces**,
+      **girts / purlins**; members reference grid/level datums so the frame is
+      grid-driven
+- [ ] **End conditions & connections:** **trim / miter / cope / notch** members to
+      each other at joints (substrate boolean-trim, the weldment pattern);
+      **connections** as placed components - **base plates, gusset/cleat plates,
+      stiffeners, bolt groups, welds** - each referencing the joined members
+      (in-context, §7)
+- [ ] **Foundations & plates:** **footings** (isolated / strip / mat/raft),
+      **pile caps**, **pedestals**, **slabs**, **retaining / shear walls** as
+      sketched-solid features lowering to substrate extrude + boolean
+- [ ] **Reinforcement (concrete):** **rebar / bar sets** along a member or in a slab
+      (path-driven bar instances with cover + spacing); **later / detail** `(A)`
+- [ ] **Analytical model (handoff, not a solver):** an optional **line/node +
+      surface** abstraction of the frame (members >> analytical bars, slabs/walls >>
+      analytical panels, with supports/releases) for **export to a structural
+      analysis tool** - the FEA line (design §17): ncad owns the model, not the solve
+- [ ] **Grids & levels:** **column grids** (labelled axes) and **levels / storeys**
+      as datum systems the frame is placed against (shared with the building profile)
+- [ ] **Outputs & exchange:** **steel/concrete BOM** (member cut lengths per section,
+      connection + bolt counts, rebar schedule, concrete volume) by traversal (§9);
+      **IFC** structural exchange (`ifcopenshell`, shared with building) and **CIS/2 /
+      SDNF** steel-detailing formats as **plugin/exchange** concerns (§14) `(A)`
+
 **Gate:** a sheet-metal part flattens to a correct flat pattern; a simple two-plate
-mold splits core/cavity; a v1 building re-builds via the lowered profile.
+mold splits core/cavity; a v1 building re-builds via the lowered profile; a **process
+route from port to port resolves against a pipe spec into a swept solid with
+auto-placed elbows/reducers/tees and flange stacks at connections (and a vessel with
+a nozzle it lands on), reports a pipe + fitting BOM, and flags a bend below the spec's
+minimum radius (and a rating mismatch at a joint) by `id`**; a **steel frame of
+members on a grid trims at its joints, sits on footings, and reports a steel BOM by
+section**.
 
 ---
 
@@ -988,10 +1158,19 @@ with lightweight reps; interference query stays interactive.
 - [ ] **PartCAD plugin**: PartCAD YAML ⇄ ncad document (target compatibility,
       isolated, maintainable)
 - [ ] **Other plugins** (same contract): OpenSCAD import; vendor/format converters
+- [ ] **FEA/CFD export seam** *(delegate the solve, never write one, design §17)*:
+      export the geometry + a **mesh + boundary-conditions** deck to a mature **open
+      FEM engine** (**CalculiX**, **Elmer**, **Z88**), the way FreeCAD shells out.
+      ncad owns the model - geometry, a mesh (via **Gmsh**), the analytical model from
+      the structural profile (§Phase 11), loads/constraints/materials as authored
+      inputs - and writes the engine's input deck (e.g. CalculiX/Abaqus-style `.inp`,
+      or `.unv`); the analysis runs **outside** ncad, results are read back for display
+      only. Not a solver we write (the FEA/CFD line, design §17); `(A)`
 - [ ] (later) JT / 3D-PDF lightweight exchange
 
 **Gate:** a PartCAD assembly imports as an ncad document and re-exports as STEP
-AP242 without loss of structure.
+AP242 without loss of structure; a part exports a valid mesh + boundary-condition
+deck that an open FEM engine (CalculiX) loads and solves.
 
 ---
 
