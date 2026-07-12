@@ -68,8 +68,10 @@ within the envelope >> re-export; out-of-envelope refused). **Phase 5 is in prog
 placement, `ncad assemble` composing cached part glbs into a scene sidecar, and an assembly
 viewer mode (Parts | Assemblies switch); bucket 5.1 (mate connectors) is DONE - part-level
 geometry-derived connector frames + a one-shot connector-to-connector `connect` snap + a viewer
-Connectors overlay (answering the 5.0 pickup-point problem). NEXT: 5.2 constraints + py-slvs
-solve. Per-phase deferred items are gathered in the deferred-backlog sections below each
+Connectors overlay (answering the 5.0 pickup-point problem); bucket 5.2 (assembly constraints +
+py-slvs solve) is DONE - an 8-mate vocabulary lowering to a closed normal-form primitive core and
+solved by py-slvs rigid-body transforms, with a solved-status line + mate chips in the viewer
+hierarchy. NEXT: 5.3 DoF diagnostics. Per-phase deferred items are gathered in the deferred-backlog sections below each
 phase's bucket list, so nothing is lost.
 
 v1 proved the *pattern*: `spec >> build >> BOM >> view`, determinism, build123d/OCCT,
@@ -667,8 +669,16 @@ cylinder gives an axis frame), a one-shot connector-to-connector **`connect` sna
 moving connector on an already-placed target connector with optional offset/flip), AssemblyBuilder
 placing instances by `connect` + emitting world-space connector frames into the sidecar, and a
 viewer **Connectors overlay** (toggleable frame triads). This answers the 5.0 pickup-point problem:
-an assembly references a named face/hole frame instead of the raw part origin. Still pre-solver
-(explicit `connect`, one target). NEXT: 5.2 constraints + py-slvs solve, then 5.3-5.6 below.
+an assembly references a named face/hole frame instead of the raw part origin. **Bucket 5.2
+(assembly constraints + py-slvs solve) is DONE:** an 8-mate vocabulary (coincident/mate, flush/
+align, concentric, parallel, perpendicular, angle, distance/offset, lock) referencing connector
+pairs, a two-layer lowering (MateLowering >> a closed ~9-primitive normal form; MateSolver >>
+py-slvs rigid-body transforms, one per movable instance, with BodyPose quaternion readback),
+first-instance/lock grounding + seed-and-refine from connect/placement, a top-level `constraints[]`
+schema (+ id uniqueness), AssemblyBuilder solving the network and recording a `solve` status block +
+`mates[]` in the sidecar, and a viewer hierarchy (solved-status line + per-instance mate chips +
+over-constrained highlighting). Minimal solve status only (DoF count + id-attributed failing);
+rich diagnostics are 5.3. NEXT: 5.3 DoF diagnostics, then 5.4-5.6 below.
 
 - [ ] **Instances & structure:** components, sub-assemblies, flexible
       sub-assemblies, replace/pattern/mirror component
@@ -678,9 +688,11 @@ an assembly references a named face/hole frame instead of the raw part origin. S
       primitive for both families below)
       (5.1 shipped part-level connectors + connector-to-connector `connect` snap + viewer overlay;
       assembly-level ad-hoc connectors + edge/point/datum-derived connectors deferred, see backlog)
-- [ ] **Assembly constraints:** mate/coincident, **align**, **flush**, **offset**,
+- [x] **Assembly constraints:** mate/coincident, **align**, **flush**, **offset**,
       angle, **tangent**, parallel, perpendicular, concentric, symmetric, distance,
       width, lock
+      (5.2 shipped 8 mates lowering to the normal-form core + py-slvs solve; tangent/symmetric/
+      width and raw-geometry-ref mates deferred, see backlog)
 - [ ] **Joints (DoF-bearing):** **fixed/rigid**, **revolute/pin**,
       **slider/prismatic**, cylindrical, planar, **ball/spherical**, universal,
       screw, gear, rack-pinion, cam, belt, point-on-line/slot
@@ -709,10 +721,17 @@ STEP (AP242) and opens in FreeCAD; interference check is correct.
   the instance matrix), keeping the sidecar + logs in canonical mm. If a cleaner seam emerges
   (e.g. exporting parts in mm, or a unit field on the sidecar), revisit; the current split keeps
   assembly data consistent with the rest of the project.
-- **Assembly constraints + solve (5.2):** mate/align/flush/concentric/angle/tangent/parallel/
-  perpendicular/symmetric/distance/width/lock, lowered to the 21-primitive normal form and solved
-  by py-slvs (already 3D-native + wired for 2D sketches); the solver outputs the same placement
-  matrices 5.0 renders (author writes them in 5.0; solver computes them in 5.2).
+- **Assembly constraints + solve (5.2): DONE.** 8 mates (coincident/mate, flush/align, concentric,
+  parallel, perpendicular, angle, distance/offset, lock) lowering to a closed ~9-primitive normal
+  form (MateLowering) and solved by py-slvs rigid-body transforms (MateSolver, one addTransform per
+  movable instance, BodyPose quaternion readback); first-instance/lock grounding + seed-and-refine
+  from connect/placement; top-level `constraints[]` schema + id uniqueness; sidecar `solve` block +
+  `mates[]`; viewer solved-status line + per-instance mate chips. Minimal status only (DoF +
+  id-attributed failing). **5.2 follow-ups (deferred):** tangent/symmetric/width mates (tangent
+  needs a curved-surface, radius-bearing connector; the lowering table is the extension point);
+  raw-geometry-ref mates (connectors only in 5.2); better rotation seeding from connect/placement
+  orientation (5.2 seeds translation only, rotation identity). The nested-sparsity pre-screen
+  belongs to 5.3.
 - **DoF diagnostics (5.3):** free DoF = 6n - 6 - rank; over/under/exactly-constrained status;
   redundant constraints attributed by id; optional nested-sparsity pebble-game reject-screen
   (`docs/research/assembly-constraints-3d.md`). The 3D analogue of sketch status; the legibility

@@ -1,0 +1,25 @@
+schema_version = 2
+units = mm
+parts {
+  # A round bracket (disk) with a pivot cylinder-axis connector and a top face connector.
+  bracket { profile = solid,
+    connectors = [
+      { id = pivot, at = "select faces where type = 'cylinder'" }
+      { id = top, at = "select faces where normal_z > 0.9" }
+    ],
+    features = [
+      { id = sk, op = sketch, plane = XY, elements = [ { id = c, type = circle, d = 40 } ] }
+      { id = ext, op = extrude, profile = sk, distance = 6 }
+    ] }
+  # A lever (peg) with a hub cylinder-axis connector and a bottom face connector; concentric hub
+  # onto pivot + coincident bottom onto top stacks it coaxially on the bracket top.
+  lever { profile = solid,
+    connectors = [
+      { id = hub, at = "select faces where type = 'cylinder'" }
+      { id = bottom, at = "select faces where normal_z < -0.9" }
+    ],
+    features = [
+      { id = sk, op = sketch, plane = XY, elements = [ { id = c, type = circle, d = 12 } ] }
+      { id = ext, op = extrude, profile = sk, distance = 25 }
+    ] }
+}
