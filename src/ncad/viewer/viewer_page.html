@@ -837,10 +837,42 @@ let grid = new THREE.GridHelper(80, 80, cssColor("--grid-major"), cssColor("--gr
 grid.rotation.x = Math.PI / 2;
 scene.add(grid);
 
-// A small colored axes marker fixed at the WORLD origin (X=red, Y=green, Z=blue), so the global
-// origin is always visible as a reference. Its size is refreshed to the current model in
-// frameModel (a fraction of the model extent) so it reads as a small marker at any zoom.
-const worldOrigin = new THREE.AxesHelper(0.02);
+// A small poly axis gizmo: three thin colored cylinders (X red / Y green / Z blue) + a center
+// sphere. Poly meshes take real thickness and do NOT z-fight like GL LINES (AxesHelper), fixing the
+// world-origin stutter. `size` is the axis length; opts.radius scales the shaft thickness. Reused
+// for the world origin, instance origins, connector triads, and joint-glyph bases (DRY).
+function buildAxisGizmo(size, opts) {
+  opts = opts || {};
+  const r = opts.radius != null ? opts.radius : size * 0.04;
+  const g = new THREE.Group();
+  g.userData.isGizmo = true;
+  const axes = [
+    { color: 0xff5555, rot: [0, 0, -Math.PI / 2], off: [size / 2, 0, 0] },  // +X
+    { color: 0x55ff55, rot: [0, 0, 0], off: [0, size / 2, 0] },             // +Y
+    { color: 0x5599ff, rot: [Math.PI / 2, 0, 0], off: [0, 0, size / 2] },   // +Z
+  ];
+  for (const a of axes) {
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, size, 12),
+                             new THREE.MeshBasicMaterial({ color: a.color }));
+    m.rotation.set(a.rot[0], a.rot[1], a.rot[2]);
+    m.position.set(a.off[0], a.off[1], a.off[2]);
+    g.add(m);
+  }
+  g.add(new THREE.Mesh(new THREE.SphereGeometry(r * 1.6, 12, 12),
+                       new THREE.MeshBasicMaterial({ color: 0xdddddd })));
+  return g;
+}
+
+// True if the object is inside a gizmo group (so it is excluded from the pick raycast set).
+function _inGizmo(o) {
+  for (let p = o; p; p = p.parent) if (p.userData && p.userData.isGizmo) return true;
+  return false;
+}
+
+// A small poly gizmo fixed at the WORLD origin (X=red, Y=green, Z=blue), always visible as a
+// reference. A poly gizmo (not an AxesHelper) because GL LINES are 1px-capped and z-fight the grid,
+// causing a stutter. Its size is refreshed to the current model in frameModel (scaled from 0.02).
+const worldOrigin = buildAxisGizmo(0.02);
 worldOrigin.name = "worldOrigin";
 scene.add(worldOrigin);
 
