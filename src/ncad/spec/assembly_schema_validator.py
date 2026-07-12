@@ -38,6 +38,9 @@ class AssemblySchemaValidator:
         issues.extend(self._duplicate_constraint_ids(document))
         issues.extend(self._duplicate_joint_ids(document))
         issues.extend(self._joint_constraint_id_collisions(document))
+        issues.extend(self._duplicate_coupling_ids(document))
+        issues.extend(self._coupling_id_collisions(document))
+        issues.extend(self._coupling_joint_refs(document))
         return issues
 
     def _duplicate_ids(self, document: dict) -> list[SchemaIssue]:
@@ -96,4 +99,47 @@ class AssemblySchemaValidator:
                 out.append(SchemaIssue(
                     location="assembly.joints",
                     message=f"joint id {joint_id!r} collides with a constraint id"))
+        return out
+
+    def _duplicate_coupling_ids(self, document: dict) -> list[SchemaIssue]:
+        """One issue per repeated coupling id."""
+        seen: set[str] = set()
+        out: list[SchemaIssue] = []
+        for coupling in document.get("assembly", {}).get("couplings", []):
+            cid = coupling.get("id")
+            if cid is None:
+                continue
+            if cid in seen:
+                out.append(SchemaIssue(location="assembly.couplings",
+                                       message=f"duplicate coupling id {cid!r}"))
+            seen.add(cid)
+        return out
+
+    def _coupling_id_collisions(self, document: dict) -> list[SchemaIssue]:
+        """A coupling id must not collide with an instance, constraint, or joint id."""
+        assembly = document.get("assembly", {})
+        taken = {i.get("id") for i in assembly.get("instances", [])}
+        taken |= {c.get("id") for c in assembly.get("constraints", [])}
+        taken |= {j.get("id") for j in assembly.get("joints", [])}
+        out: list[SchemaIssue] = []
+        for coupling in assembly.get("couplings", []):
+            cid = coupling.get("id")
+            if cid is not None and cid in taken:
+                out.append(SchemaIssue(
+                    location="assembly.couplings",
+                    message=f"coupling id {cid!r} collides with an instance/constraint/joint id"))
+        return out
+
+    def _coupling_joint_refs(self, document: dict) -> list[SchemaIssue]:
+        """Each coupling `between` entry must reference a declared joint id."""
+        assembly = document.get("assembly", {})
+        joint_ids = {j.get("id") for j in assembly.get("joints", [])}
+        out: list[SchemaIssue] = []
+        for coupling in assembly.get("couplings", []):
+            cid = coupling.get("id")
+            for ref in coupling.get("between", []):
+                if ref not in joint_ids:
+                    out.append(SchemaIssue(
+                        location="assembly.couplings",
+                        message=f"coupling {cid!r} references unknown joint {ref!r}"))
         return out
