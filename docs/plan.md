@@ -811,7 +811,14 @@ STEP (AP242) and opens in FreeCAD; interference check is correct.
 - **Viewer polish (5.5):** exploded views, mate/DoF display, richer instance-tree interactions
   (select/highlight/isolate); the 5.0 instance tree is minimal. Also a browser-side assemble
   action (like the part Build button): 5.0 composes via the `ncad assemble` CLI and the viewer
-  loads the already-composed scene; assembling from the browser is a small follow-up.
+  loads the already-composed scene; assembling from the browser is a small follow-up. Plus 3D
+  joint/coupling visualization (free-axis arrows/arcs at a joint, gear-mesh/cam profiles) deferred
+  from 5.4a/5.4b. **Two gizmo issues found during 5.4b viewer checks:** (1) the world-origin marker
+  (a `THREE.AxesHelper`, GL LINES) stutters/z-fights because WebGL caps line width at 1px, so
+  thickening does not help - swap it for a small poly gizmo (thin box/cylinder meshes) and/or tune
+  depthTest; (2) confirm whether instance-origin gizmos and mate-connector-frame triads visually
+  overlapping is correct (for centered-sketch parts a connector often sits AT the part origin, so
+  overlap is expected) or needs a visual offset/toggle to disambiguate.
 - **Interference/clearance + BOM + STEP (5.6):** static interference
   (`BRepExtrema_DistShapeShape` or Manifold), assembly BOM + roll-up mass across instances,
   structured STEP AP242 export (XCAF/XDE), and the Phase 5 capstone gate.
