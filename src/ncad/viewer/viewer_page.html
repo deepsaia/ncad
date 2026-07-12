@@ -396,6 +396,7 @@
     color: var(--muted); background: var(--panel-2); border: 1px solid var(--border);
     display: inline-block; }
   .mate-chip.mate-chip-bad { color: var(--log-error); border-color: var(--log-error); }
+  .mate-chip.mate-chip-redundant { color: var(--log-warn); border-color: var(--log-warn); }
 
   /* --- Orientation gizmo (top-right of the viewport). 128px matches the ViewHelper's
      fixed draw size; non-interactive (orientation readout only). --- */
@@ -1846,16 +1847,24 @@ function renderInstanceTree(sceneDoc) {
   const instances = sceneDoc.instances || [];
   const mates = sceneDoc.mates || [];
   const solve = sceneDoc.solve || null;
-  // Solved-status line (bucket 5.2): green solved, red over-constrained (lists failing mate ids),
-  // amber under-constrained. Only shown when the assembly carries a solve block.
+  // Solved-status line (bucket 5.3): four states - green well-constrained, red over-constrained
+  // (failing ids), amber redundant (removable ids) / under-constrained (free DoF). The DoF
+  // accounting explanation is the tooltip. Only shown when the assembly carries a solve block.
   if (solve) {
     const line = document.createElement("div");
-    const cls = solve.status === "solved" ? "mate-status-ok"
+    const cls = solve.status === "well_constrained" ? "mate-status-ok"
       : solve.status === "over_constrained" ? "mate-status-bad" : "mate-status-warn";
     line.className = "mate-status " + cls;
-    line.textContent = solve.status === "over_constrained"
-      ? `over-constrained: [${(solve.failing || []).join(", ")}]`
-      : `${solve.status.replace("_", "-")} - ${solve.dof} free DoF`;
+    let text;
+    if (solve.status === "over_constrained") {
+      text = `over-constrained: [${(solve.failing_ids || []).join(", ")}]`;
+    } else if (solve.status === "redundant") {
+      text = `redundant: [${(solve.redundant_ids || []).join(", ")}]`;
+    } else {
+      text = `${solve.status.replace("_", "-")} - ${solve.dof} free DoF`;
+    }
+    line.textContent = text;
+    if (solve.explanation) line.title = solve.explanation;
     body.appendChild(line);
   }
   const inMate = id => mates.some(m => (m.between || []).some(b => b.instance === id));
@@ -1882,10 +1891,13 @@ function renderInstanceTree(sceneDoc) {
       if (mine < 0) continue;
       const other = sides[mine === 0 ? 1 : 0];
       const chip = document.createElement("div");
-      chip.className = "mate-chip" + (m.ok === false ? " mate-chip-bad" : "");
+      const roleCls = m.role === "failing" ? " mate-chip-bad"
+        : m.role === "redundant" ? " mate-chip-redundant" : "";
+      chip.className = "mate-chip" + roleCls;
       const otherLabel = other ? `${other.instance}.${other.connector}` : "(self)";
       chip.textContent = `${m.type} -- ${otherLabel} [${m.id}]`;
-      if (m.ok === false) chip.title = "over-constrained / failing mate";
+      if (m.role === "failing") chip.title = "over-constrained / failing mate";
+      else if (m.role === "redundant") chip.title = "redundant - removable without changing the result";
       body.appendChild(chip);
     }
   }
