@@ -63,9 +63,12 @@ oracle) with `defeature`, `offset`, `move_face`, and resize-baked-dress-up as a 
 4.3a/b shipped one-shot relational edits (`relate`: parallel/coplanar/perpendicular/symmetric +
 coaxial/tangent), verified Creo-style mixed mode, import validate-on-load, and the subprocess
 guard for direct offset on imported bodies. The Phase 4 capstone gate is met (import >> direct-edit
-within the envelope >> re-export; out-of-envelope refused). NEXT: Phase 5 (assemblies:
-constraints, joints, in-context). Per-phase deferred items are gathered in the deferred-backlog
-sections below each phase's bucket list, so nothing is lost.
+within the envelope >> re-export; out-of-envelope refused). **Phase 5 has started:** bucket 5.0
+(the assembly spine) is DONE - a separate `.asm.hocon` document of part instances with explicit
+placement, `ncad assemble` composing cached part glbs into a scene sidecar, and an assembly
+viewer mode (Parts | Assemblies switch). NEXT: 5.1 mate connectors, then 5.2 constraints +
+py-slvs solve. Per-phase deferred items are gathered in the deferred-backlog sections below each
+phase's bucket list, so nothing is lost.
 
 v1 proved the *pattern*: `spec >> build >> BOM >> view`, determinism, build123d/OCCT,
 HOCON+jsonschema, traversal BOM, the Three.js viewer, on the **building profile**
@@ -648,8 +651,20 @@ corrupted.
 **Goal:** instances + relationships; the joint graph motion (Phase 6) drives.
 **Depends on** Phase 4 (persistent refs to mating faces/axes).
 
+Phase 5 decomposes spine-first into buckets 5.0-5.6 (like Phases 2/3/4). **Bucket 5.0
+(assembly spine) is DONE:** a separate `.asm.hocon` assembly document (own schema + validator,
+instance-id uniqueness), part **instances** referencing `{file, part}` with a unique id and
+optional **explicit placement** (position + axis-angle/euler, reusing the transform vocabulary),
+`ncad assemble` composing cached part glbs into a `<name>.assembly.json` scene sidecar
+(compose-cached-parts, glb dedup, id-attributed bad-instance handling), and an assembly **viewer
+mode** (Parts | Assemblies switch) that renders placed instances + an instance tree. No solver
+yet (parts sit where placed). NEXT: 5.1 mate connectors, 5.2 constraints + py-slvs solve, then
+5.3-5.6 below.
+
 - [ ] **Instances & structure:** components, sub-assemblies, flexible
       sub-assemblies, replace/pattern/mirror component
+      (5.0 shipped flat instances + explicit placement; sub-assembly rendering + component
+      pattern/mirror/replace deferred, see the Phase 5 backlog)
 - [ ] **Mate connectors / ports:** named coordinate frames on parts (the shared
       primitive for both families below)
 - [ ] **Assembly constraints:** mate/coincident, **align**, **flush**, **offset**,
@@ -668,6 +683,43 @@ corrupted.
 
 **Gate:** a two-part mated assembly with one revolute joint exports as structured
 STEP (AP242) and opens in FreeCAD; interference check is correct.
+
+**Deferred backlog (Phase 5 buckets, gather here so nothing is lost):**
+- **Mate connectors / ports (5.1):** named coordinate frames on parts (from Phase 4 persistent
+  names or explicit datum frames), the shared primitive both constraint families lower to.
+  Motivation surfaced in 5.0: an explicit placement moves the part's OWN modeling origin, and our
+  parts are sketched CENTERED, so the origin is the part center - which is unintuitive to
+  hand-place against (a peg at "[15,20]" hangs off a plate whose center is at world origin). Named
+  connectors let a placement/mate reference a face/hole/edge instead of the raw origin, which is
+  the real "pickup point" answer.
+- **Viewer unit handling (follow-up):** part glbs export in METRES (build123d
+  `export_gltf(unit=MM)` scales mm to m), while assembly placements are authored in mm (ncad's
+  canonical unit). 5.0 converts mm->m at the viewer boundary (a documented `MM_TO_M` when building
+  the instance matrix), keeping the sidecar + logs in canonical mm. If a cleaner seam emerges
+  (e.g. exporting parts in mm, or a unit field on the sidecar), revisit; the current split keeps
+  assembly data consistent with the rest of the project.
+- **Assembly constraints + solve (5.2):** mate/align/flush/concentric/angle/tangent/parallel/
+  perpendicular/symmetric/distance/width/lock, lowered to the 21-primitive normal form and solved
+  by py-slvs (already 3D-native + wired for 2D sketches); the solver outputs the same placement
+  matrices 5.0 renders (author writes them in 5.0; solver computes them in 5.2).
+- **DoF diagnostics (5.3):** free DoF = 6n - 6 - rank; over/under/exactly-constrained status;
+  redundant constraints attributed by id; optional nested-sparsity pebble-game reject-screen
+  (`docs/research/assembly-constraints-3d.md`). The 3D analogue of sketch status; the legibility
+  layer is the value-add, not the bare solve.
+- **Joints (5.4):** fixed/revolute/slider/cylindrical/planar/ball/universal/screw/gear/
+  rack-pinion/cam/belt/point-on-line/slot, DoF-bearing (Phase 6 motion drives them).
+- **Viewer polish (5.5):** exploded views, mate/DoF display, richer instance-tree interactions
+  (select/highlight/isolate); the 5.0 instance tree is minimal. Also a browser-side assemble
+  action (like the part Build button): 5.0 composes via the `ncad assemble` CLI and the viewer
+  loads the already-composed scene; assembling from the browser is a small follow-up.
+- **Interference/clearance + BOM + STEP (5.6):** static interference
+  (`BRepExtrema_DistShapeShape` or Manifold), assembly BOM + roll-up mass across instances,
+  structured STEP AP242 export (XCAF/XDE), and the Phase 5 capstone gate.
+- **Structure:** nested sub-assembly RENDERING (the 5.0 doc model allows a `.asm.hocon` instance
+  ref; recursive compose deferred); component pattern/mirror/replace; flexible sub-assemblies;
+  top-down / in-context skeleton + published geometry + change propagation.
+- **Large-assembly scale (design section 7; also Phase 12):** lightweight representations,
+  lazy/on-demand load, simplified reps / LOD, spatial index (BVH/octree), display states.
 
 ---
 

@@ -1,0 +1,15 @@
+# Bucket 5.0 demo: a plate with two pegs placed at explicit offsets (no solver; hand-placed).
+# NOTE on placement: a placement moves the part's OWN modeling origin. Both parts here are
+# sketched centered on their origin, so the plate's origin is its base center (it spans
+# x -30..30, y -20..20, top at z=6) and each peg's origin is its base center. So the pegs are
+# placed in the plate's centered frame: on the plate top (z=6), inset from the edges. Named
+# mate connectors (bucket 5.1) will let a placement reference a face/hole instead of the origin.
+schema_version = 1
+units = mm
+assembly {
+  instances = [
+    { id = base, file = "plate.hocon", part = plate }
+    { id = peg_a, file = "plate.hocon", part = peg, placement = { position = [-15, 8, 6] } }
+    { id = peg_b, file = "plate.hocon", part = peg, placement = { position = [15, 8, 6] } }
+  ]
+}
