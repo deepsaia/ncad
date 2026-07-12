@@ -556,11 +556,8 @@ correctly and reports per-body mass properties (bucket 3.6).
       so its elements get geometric seed names; direct edits append on top). The read-side
       counterpart to `ncad build --format step`; the export >> re-import >> rebuild round-trip
       is tested green.
-- **Follow-ups (deferred):** wire `kernel.history` through each op's `OpResult.history` for
-      finer per-op lineage (extrude is the only instrumented op; the rest use geometric
-      carry-forward, so full "survives every edit" robustness on dress-up/booleans is partial);
-      instrument sweep/loft/revolve/shell/draft/rib/wrap/pattern/mirror/transform history;
-      foreign-STEP import robustness (dirty/non-solid/assembly STEP).
+- **Follow-ups:** see the Phase 4 deferred backlog below (per-op history instrumentation,
+      foreign-STEP naming-seed robustness).
 
 **Bucket 4.2 + 4.2b: Direct face ops (well-behaved only)** - DONE (defeature, offset, move_face)
 - [x] **Safe direct-edit spine:** `DirectEditGuard` enforces the 4.0 envelope's RED
@@ -583,11 +580,8 @@ correctly and reports per-body mass properties (bucket 3.6).
       never tagged (`cylindrical` never matched real `cylinder`). Also shipped the
       import-then-direct-edit example (gate-4.2b, an `import` base feature + direct ops in one
       spec, section-10 design realized).
-- **Follow-ups (deferred):** `replace_face`, reposition-hole, direct modify-fillet for
-      history-free geometry, relational edits (coaxial/tangent/symmetric): 4.3; per-face offset
-      (documented OCCT weakness); enable the subprocess guard mode for foreign/dirty imports
-      (4.3, seam in place); wire OCCT per-op history through the direct ops so their outputs get
-      true lineage names (currently geometric carry-forward).
+- **Follow-ups:** see the Phase 4 deferred backlog below (`replace_face`, reposition-hole,
+      history-free modify-fillet, per-face offset, per-op history lineage).
 
 **Bucket 4.3a: Relational edits + mixed mode** - DONE
 - [x] **Relational direct edits (planar set):** `relate` op does one-shot make-parallel /
@@ -598,9 +592,8 @@ correctly and reports per-body mass properties (bucket 3.6).
 - [x] **Mixed mode:** verified + documented that direct-edit features append after a history tree
       (Creo-style) and rebuild cleanly (a sketch>>extrude>>fillet>>offset test); no new machinery,
       it is just feature-ordering (rule 11).
-- **Follow-ups (deferred to 4.3b):** coaxial/tangent relations; imported-mode hardening
-      (foreign/dirty STEP, enable the subprocess guard mode, seam in place); multibody-moving
-      relations.
+- **Follow-ups:** see the Phase 4 deferred backlog below (coaxial/tangent, imported hardening,
+      multibody-moving relations).
 
 **Bucket 4.3b: Imported hardening + coaxial/tangent (not started)**
 - [ ] **Imported-geometry mode hardening:** foreign/dirty STEP robustness; enable the
@@ -611,6 +604,28 @@ correctly and reports per-body mass properties (bucket 3.6).
 a fillet directly within the measured envelope, and re-export, references survive;
 out-of-envelope inputs are **refused with an id-tagged reason**, never silently
 corrupted.
+
+**Deferred backlog (Phase 4 buckets, gather here so nothing is lost):**
+- **Persistent names (4.1):** wire OCCT per-op history through EACH op's `OpResult.history`
+  (only extrude is instrumented; the rest fall back to geometric carry-forward, so full
+  "survives every edit" robustness on dress-up/booleans is partial); instrument
+  sweep/loft/revolve/shell/draft/rib/wrap/pattern/mirror/transform history; foreign-STEP import
+  robustness for the naming seed (dirty/non-solid/assembly STEP).
+- **Direct ops (4.2 / 4.2b):** `replace_face`; reposition baked `hole` (move the cut tool +
+  re-cut); a direct `modify_fillet`/`modify_chamfer` for HISTORY-FREE imported solids (when
+  there is no feature to re-run); per-face offset (documented OCCT weakness, whole-solid only
+  today); wire OCCT per-op history through the direct ops so their outputs get true lineage
+  names (currently geometric carry-forward, shares the 4.1 item).
+- **Relational edits (4.3a):** multibody-moving relations (move ONE body of a multibody part;
+  4.3a moves the whole single-body running solid); a richer gate example once multibody-moving
+  lands (today's example is a self-referencing no-op, real behavior in the real-kernel test).
+- **Imported & coaxial/tangent (4.3b, the remaining bucket):** foreign/dirty STEP robustness;
+  enable the subprocess guard mode (the `DirectEditRunner` seam is in place) for
+  hang/segfault isolation on untrusted input; coaxial / tangent relational edits (axis
+  extraction + curved-surface tangency).
+- **Excluded from v1 entirely** (below): auto-maintained relations, fillet/blend/tangent-chain
+  face moves, per-face variable offset, self-intersecting offsets. These are NOT deferred
+  follow-ups; they need a commercial kernel + constraint solver and are out of scope for v1.
 
 > **Excluded from v1** (`(A)`, design §19): auto-*maintained* relational inference
 > ("Live Rules" = commercial kernel + D-Cubed solver, multi-year), moving faces in
