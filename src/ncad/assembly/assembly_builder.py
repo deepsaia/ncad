@@ -55,8 +55,12 @@ class AssemblyBuilder:
             instances.append({"id": instance["id"], "part_glb": glb,
                               "part_name": instance["part"], "placement": matrix})
         sidecar = os.path.join(out_dir, f"{name}{_ASSEMBLY_SUFFIX}")
+        # Record the source .asm.hocon so the viewer can regenerate this assembly after a reload
+        # (the browser's in-memory source map is lost on reload; this survives it, like the part
+        # meta sidecar's `source`).
         with open(sidecar, "w", encoding="utf-8") as handle:
-            json.dump({"schema_version": 1, "name": name, "instances": instances}, handle)
+            json.dump({"schema_version": 1, "name": name, "source": os.path.abspath(asm_path),
+                       "instances": instances}, handle)
         return {"sidecar": sidecar, "issues": issues, "instances": [i["id"] for i in instances]}
 
     def _ensure_part_glb(self, instance: dict, asm_dir: str, out_dir: str,

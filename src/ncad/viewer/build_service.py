@@ -7,6 +7,7 @@ in a model's meta sidecar), (2) runs the existing DocumentBuilder build path, an
 raised as a typed BuildError; the server turns that into a JSON error response.
 """
 
+import json
 import logging
 import os
 from collections.abc import Callable
@@ -79,6 +80,26 @@ class BuildService:
         logger.info("built %s from %s", built, spec)
         return {"built": built}
 
+    def assemble(self, spec: str) -> dict:
+        """Compose an assembly document ``spec`` into a scene sidecar.
+
+        :return: ``{"assembled": <assembly_name>, "issues": [...]}``.
+        :raises BuildError: If the spec is not allowed or composition fails.
+        """
+        from ncad.assembly.assembly_builder import AssemblyBuilder
+        from ncad.kernel.build123d_kernel import Build123dKernel
+
+        resolved = self._allowed_assembly_path(spec)
+        if resolved is None:
+            raise BuildError(f"assembly spec not allowed: {spec}")
+        try:
+            result = AssemblyBuilder(Build123dKernel()).assemble(resolved, self._models_dir)
+        except (ValueError, OSError, RuntimeError) as exc:
+            raise BuildError(str(exc)) from exc
+        name = os.path.basename(result["sidecar"])[: -len(".assembly.json")]
+        logger.info("assembled %s from %s (%d issues)", name, spec, len(result["issues"]))
+        return {"assembled": name, "issues": result["issues"]}
+
     def _allowed_path(self, spec: str) -> str | None:
         """Resolve ``spec`` if under examples or a recorded meta source, else None."""
         under_examples = self._spec_catalog.resolve(spec)
@@ -86,5 +107,25 @@ class BuildService:
             return under_examples
         for model in self._model_catalog.models_with_sources():
             if model["source"] == spec and os.path.isfile(spec):
+                return spec
+        return None
+
+    def _allowed_assembly_path(self, spec: str) -> str | None:
+        """Resolve an assembly ``spec`` if under examples or a recorded scene source, else None.
+
+        Regenerate passes the source recorded in an existing scene sidecar (an absolute path),
+        which is not under examples; accept it when a built scene records it (mirrors the part
+        meta-source rule, so a reload can regenerate).
+        """
+        under_examples = self._spec_catalog.resolve(spec)
+        if under_examples is not None:
+            return under_examples
+        for name in self._model_catalog.assembly_names():
+            path = self._model_catalog.resolve_assembly(name)
+            if path is None:
+                continue
+            with open(path, encoding="utf-8") as handle:
+                source = json.load(handle).get("source")
+            if source == spec and os.path.isfile(spec):
                 return spec
         return None

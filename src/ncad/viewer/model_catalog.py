@@ -80,6 +80,18 @@ class ModelCatalog:
             return None
         return candidate if os.path.isfile(candidate) else None
 
+    def delete_assembly(self, name: str) -> str | None:
+        """Delete ``<name>.assembly.json`` (the composed scene). Returns the name, or None.
+
+        The shared part glbs are ordinary build output and are left in place (other assemblies
+        or the part view may use them); only the assembly scene sidecar is removed.
+        """
+        resolved = self.resolve_assembly(name)
+        if resolved is None:
+            return None
+        os.remove(resolved)
+        return name
+
     def resolve_bom(self, model_name: str) -> str | None:
         """Resolve a model name to its BOM sidecar (``<stem>.bom.json``), or None."""
         return self._resolve_sidecar(model_name, _BOM_SUFFIX)
