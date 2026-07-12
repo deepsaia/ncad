@@ -17,3 +17,7 @@ class SolveOutcome:
     dof: int
     status: str
     failing_ids: list[str] = field(default_factory=list)
+    # Raw signals for the 5.3 diagnostics layer: the py-slvs solve code and the redundant-but-
+    # consistent constraint ids (code 5). DofDiagnostics interprets these; the solver stays numeric.
+    solve_code: int = 0
+    redundant_ids: list[str] = field(default_factory=list)
