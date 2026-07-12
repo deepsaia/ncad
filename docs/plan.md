@@ -59,10 +59,13 @@ de-risking spike) is DONE - the OCCT direct-edit envelope is measured and writte
 (`docs/research/direct-modeling-envelope.md`), and `GuardedRunner` shipped for 4.2. Bucket 4.1
 is DONE - the TopoShape-style persistent-name layer (construction-lineage `#kind/owner/hash8`
 names via a kernel `ElementHistory` contract) plus `ncad import` (dumb-solid base feature),
-closing the export >> re-import >> rebuild round-trip. NEXT: bucket 4.2 (direct face ops),
-scoped strictly to the 4.0 envelope and referencing baked topology by 4.1's persistent names.
-The Phase 2/3 deferred items are gathered in sections below the bucket lists, so nothing is
-lost.
+closing the export >> re-import >> rebuild round-trip. Bucket 4.2 is partly DONE - the safe
+direct-edit spine (`DirectEditGuard` enforcing the 4.0 envelope + `DirectEditRunner` three-tier
+oracle) plus the two ops the envelope supports: `defeature` (single-body planar faces, refusing
+tangent/multibody/sliver) and `offset` (outward thicken, refusing inward-past-wall), with
+gate-4.2 examples. NEXT: bucket 4.2b (`move_face` + direct dress-up, YELLOW: guarded +
+oracle-verified), then bucket 4.3 (imported/mixed mode). The Phase 2/3 deferred items are
+gathered in sections below the bucket lists, so nothing is lost.
 
 v1 proved the *pattern*: `spec >> build >> BOM >> view`, determinism, build123d/OCCT,
 HOCON+jsonschema, traversal BOM, the Three.js viewer, on the **building profile**
@@ -555,14 +558,27 @@ correctly and reports per-body mass properties (bucket 3.6).
       instrument sweep/loft/revolve/shell/draft/rib/wrap/pattern/mirror/transform history;
       foreign-STEP import robustness (dirty/non-solid/assembly STEP).
 
-**Bucket 4.2: Direct face ops (well-behaved only)**
-- [ ] `delete_face`/**defeature** (`BRepAlgoAPI_Defeaturing`): **non-tangent**
-      adjacent faces only; detect tangency and **refuse**
-- [ ] `offset_face`/thicken: planar/analytic faces, single offset < smallest local
-      concave radius; reject C0 BSpline surfaces
+**Bucket 4.2: Direct face ops (well-behaved only)** - defeature + offset DONE
+- [x] **Safe direct-edit spine:** `DirectEditGuard` enforces the 4.0 envelope's RED
+      preconditions (multibody / tangent-adjacent / sliver / non-planar defeature;
+      inward-offset past wall; fail-safe refuse) before any kernel op runs, id-attributed;
+      `DirectEditRunner` applies the three-tier oracle (validity + independent sanity +
+      intent) and rejects valid-but-wrong results. New kernel topology surface
+      (`face_neighbours`, `is_tangent_adjacent`, `min_wall_thickness`).
+- [x] `delete_face`/**defeature** (`BRepAlgoAPI_Defeaturing`): non-tangent planar faces of a
+      single-body solid; tangency/multibody/sliver detected and refused (real-kernel tests).
+- [x] `offset`/thicken: whole-solid, outward GREEN; inward refused past min wall thickness.
 - [ ] `move_face`/`replace_face`: planar faces on well-behaved topology
-      (rebuild + boolean + `UnifySameDomain` + `ShapeFix`)
+      (rebuild + boolean + `UnifySameDomain` + `ShapeFix`) - deferred to 4.2b (YELLOW).
 - [ ] **Direct dress-up edits:** resize baked `fillet`/`chamfer`; reposition baked `hole`
+      - deferred to 4.2b.
+- **Follow-ups (deferred):** move_face + direct dress-up (4.2b, YELLOW: guarded + oracle);
+      per-face offset (documented OCCT weakness); enable the subprocess guard mode for
+      foreign/dirty imports (4.3, seam already in place); wire OCCT per-op history through
+      defeature/offset so direct-edit outputs get true lineage names (currently geometric
+      carry-forward). Also: the two kernels diverge on geom_type vocabulary (Build123dKernel
+      `plane`/`cylinder` vs FakeKernel `planar`; the generative tagger's `cylindrical`/`conical`
+      names never match real faces) - normalize the geom_type vocabulary across kernels.
 
 **Bucket 4.3: Imported & mixed mode**
 - [ ] **Imported-geometry mode:** STEP/IGES import >> editable direct body

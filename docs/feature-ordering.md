@@ -162,6 +162,35 @@ well-defined, and both are enforced by the executor (not left to chance):
 
 ---
 
+### 11. Direct-edit ops (`defeature`, `offset`) come AFTER the geometry they act on
+
+Direct/synchronous ops edit the *current* B-rep in place (design section 3): they consume the
+running solid and reference a baked face by persistent name (4.1), so they must be authored
+AFTER every history feature that builds the topology they touch. A `defeature` that removes a
+boss top must come after the `boolean union` that creates the boss; an `offset` thickens
+whatever solid precedes it.
+
+Two order-sensitive facts, both from the measured 4.0 envelope (`docs/research/
+direct-modeling-envelope.md`), enforced by the DirectEditGuard before the kernel op runs:
+
+- **defeature needs a simple planar face on a single-body solid.** Placed before a `boolean`
+  that would fuse a second body, the solid is single-body and the target is clean; placed after,
+  a multibody solid is refused. Removing a face that is tangent-adjacent to a fillet is refused,
+  so a `defeature` must precede a `fillet` that would make its target tangent (or target a
+  non-tangent face).
+- **inward `offset` is refused once walls get thin.** An inward offset authored after a `shell`
+  or a thinning feature can exceed the remaining wall and is refused; keep inward offsets before
+  wall-thinning, or offset outward.
+
+- **Failure mode:** a `defeature` on a plain prism face is a silent OCCT no-op (the oracle
+  rejects it); the robust target is a face whose removal genuinely changes the solid (a boss top
+  that heals back to the base). A `defeature` after a `fillet` that made its target tangent is
+  refused by the guard rather than silently corrupting.
+- **Seen in:** gate-4.2 `defeatured_block` (boss unioned, then its top defeatured) and
+  `offset_shell` (base, then outward offset).
+
+---
+
 ## How to work when order bites you
 
 1. Build on the REAL kernel (`DocumentBuilder(Build123dKernel()).build_file(..., formats=
