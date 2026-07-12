@@ -1513,7 +1513,8 @@ function log(message, isError) {
   const line = document.createElement("div");
   line.className = "log-line" + (isError ? " log-error" : "");
   const now = new Date();
-  const t = now.toTimeString().slice(0, 8);
+  // hh:mm:ss.s (one-decimal seconds).
+  const t = now.toTimeString().slice(0, 8) + "." + Math.floor(now.getMilliseconds() / 100);
   line.innerHTML = '<span class="log-time"></span>';
   line.querySelector(".log-time").textContent = t;
   line.appendChild(document.createTextNode(message));
@@ -1743,9 +1744,10 @@ function loadAssembly(name) {
         root.add(node);
         node.updateMatrixWorld(true);
         node.traverse(o => { if (o.isMesh) pickParts.push(o); });
-        // Log the pickup point: where this instance's origin lands in world space.
+        // Log the pickup point: where this instance's origin lands in world space (metres, the
+        // sidecar unit).
         const p = inst.placement;
-        log(`  ${inst.id} (${inst.part_name}): origin at [${p[3][0]}, ${p[3][1]}, ${p[3][2]}]`);
+        log(`  ${inst.id} (${inst.part_name}): origin at [${p[3][0]}, ${p[3][1]}, ${p[3][2]}] m`);
         pending--; finish();
       }, () => { pending--; toast("part glb failed: " + inst.part_glb, true); finish(); });
     }
@@ -1764,17 +1766,14 @@ function loadPartGlb(glbName, cb, onErr) {
     undefined, err => { console.error("part glb failed", glbName, err); if (onErr) onErr(err); });
 }
 
-// The sidecar placement is a ROW-MAJOR 4x4 in mm (the document's authored unit); three.js
-// Matrix4.set takes row-major args (translation in the last column). The part glbs are exported
-// in METERS (export_gltf(unit=MM) scales mm -> m), so the placement TRANSLATION is scaled by
-// MM_TO_M to match the geometry unit; rotation is unit-free. Without this, a 60mm part (0.06 in
-// glb units) placed at "15" lands 15 metres away and is an invisible speck.
-const MM_TO_M = 0.001;
+// The sidecar placement is a ROW-MAJOR 4x4 already in the glb's unit (metres): the AssemblyBuilder
+// bakes the document-unit-to-metres conversion, so the viewer is unit-agnostic (like single-part
+// glbs). three.js Matrix4.set takes row-major args with the translation in the last column.
 function matrixFromRowMajor(m) {
   const M = new THREE.Matrix4();
-  M.set(m[0][0], m[0][1], m[0][2], m[3][0] * MM_TO_M,
-        m[1][0], m[1][1], m[1][2], m[3][1] * MM_TO_M,
-        m[2][0], m[2][1], m[2][2], m[3][2] * MM_TO_M,
+  M.set(m[0][0], m[0][1], m[0][2], m[3][0],
+        m[1][0], m[1][1], m[1][2], m[3][1],
+        m[2][0], m[2][1], m[2][2], m[3][2],
         0, 0, 0, 1);
   return M;
 }
