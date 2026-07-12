@@ -1796,7 +1796,12 @@ function setViewMode(next) {
   document.getElementById("mode-parts").classList.toggle("active", next === "parts");
   document.getElementById("mode-assemblies").classList.toggle("active", next === "assemblies");
   syncAssemblyControls();
-  renderSpecTree(document.getElementById("spec-search").value);
+  // Switching mode must NOT open the spec dropdown (renderSpecTree un-hides it); clear the
+  // search and keep the tree hidden. It re-renders (mode-filtered) on the input's focus/input.
+  const search = document.getElementById("spec-search");
+  search.value = "";
+  syncSpecClear();
+  document.getElementById("spec-tree").hidden = true;
   activeModel = null;
   if (next === "assemblies") {
     refreshAssemblies().then(names => { if (names.length) selectAssembly(names[0]); });
