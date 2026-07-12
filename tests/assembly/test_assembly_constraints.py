@@ -54,8 +54,8 @@ assembly {{
     result = AssemblyBuilder(Build123dKernel()).assemble(str(asm), str(out))
     assert not result["issues"], result["issues"]
     sidecar = json.loads((out / "mated.assembly.json").read_text())
-    assert sidecar["solve"]["status"] in ("solved", "under_constrained")
-    assert not sidecar["solve"]["failing"]
+    assert sidecar["solve"]["status"] in ("well_constrained", "under_constrained", "redundant")
+    assert not sidecar["solve"]["failing_ids"]
     mate = next(m for m in sidecar["mates"] if m["id"] == "m1")
     assert mate["type"] == "coincident" and mate["ok"] is True
     # pin's base connector coincides with plate top (z=6mm=0.006m): pin origin lands on the top.

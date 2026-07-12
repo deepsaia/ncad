@@ -17,6 +17,7 @@ from typing import Any
 from ncad.assembly.assembly_placement import AssemblyPlacement
 from ncad.assembly.connector_frame import ConnectorFrame
 from ncad.assembly.connector_resolver import ConnectorResolver
+from ncad.assembly.dof_diagnostics import PRIMITIVE_DOF, DofDiagnostics
 from ncad.assembly.frame_snap import FrameSnap
 from ncad.assembly.mate_lowering import MateError, MateLowering
 from ncad.assembly.mate_solver import MateSolver
@@ -44,6 +45,7 @@ class AssemblyBuilder:
         self._snap = FrameSnap()
         self._lowering = MateLowering()
         self._solver = MateSolver()
+        self._diagnostics = DofDiagnostics()
 
     def assemble(self, asm_path: str, out_dir: str) -> dict:
         """Compose the assembly at ``asm_path`` into ``out_dir``; return sidecar path + issues."""
@@ -131,7 +133,8 @@ class AssemblyBuilder:
         """Solve the assembly's mate network; overwrite solved placements; return (solve, mates)."""
         constraints = document["assembly"].get("constraints") or []
         if not constraints:
-            return {"status": "solved", "dof": 0, "failing": []}, []
+            return ({"status": "well_constrained", "dof": 0, "explanation": "no constraints",
+                     "failing_ids": [], "redundant_ids": [], "under_constrained_hint": None}, [])
         primitives: list[dict] = []
         mates_out: list[dict] = []
         for mate in constraints:
@@ -153,13 +156,21 @@ class AssemblyBuilder:
             inst["placement"] = _bake_matrix(matrix_mm, to_metres)
             inst["connectors"] = [_bake_frame(cid, _world_frame(frame, matrix_mm), to_metres)
                                   for cid, frame in local_frames.get(iid, {}).items()]
-        failing = set(outcome.failing_ids)
+        # Diagnostics (bucket 5.3): interpret the raw solve signals into a legible report. The
+        # network summary feeds the nominal DoF-accounting explanation; the solver's dof is truth.
+        network = {"bodies": len(local_frames), "grounded": len(ground_ids),
+                   "removed": sum(PRIMITIVE_DOF.get(p["kind"], 0) for p in primitives)}
+        report = self._diagnostics.analyze(outcome, network)
+        failing = set(report.failing_ids)
+        redundant = set(report.redundant_ids)
         for mate in mates_out:
             mate["ok"] = mate["id"] not in failing
-        logger.info("assembly solve: status=%s dof=%d failing=%s",
-                    outcome.status, outcome.dof, outcome.failing_ids)
-        return ({"status": outcome.status, "dof": outcome.dof,
-                 "failing": outcome.failing_ids}, mates_out)
+            mate["role"] = ("failing" if mate["id"] in failing
+                            else "redundant" if mate["id"] in redundant else "active")
+        logger.info("assembly solve: status=%s dof=%d failing=%s redundant=%s (%s)",
+                    report.status, report.dof, report.failing_ids, report.redundant_ids,
+                    report.explanation)
+        return report.to_dict(), mates_out
 
     def _lower_mate(self, mate: dict, local_frames: dict, issues: list) -> list[dict] | None:
         """Resolve a mate's refs + lower to primitives with a_ref/b_ref attached; None on error."""
