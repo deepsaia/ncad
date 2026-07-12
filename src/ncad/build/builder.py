@@ -55,6 +55,7 @@ _REF_FIELDS: dict[str, dict[str, str]] = {
     # offset ignores the face today (whole-solid); declaring it future-proofs per-face offset.
     "offset": {"face": "face"},
     "move_face": {"face": "face"},
+    "relate": {"reference": "face", "moving": "face"},
 }
 _EDGE_KEYWORDS = ("all", "top", "bottom", "vertical", "horizontal")
 _FACE_KEYWORDS = ("all", "top", "bottom", "vertical", "horizontal")
