@@ -3,7 +3,7 @@ from ncad.refs.element_map import ElementMap
 
 
 def _face(handle: str, center: tuple, area: float) -> dict:
-    return {"kind": "face", "handle": handle, "geom_type": "planar",
+    return {"kind": "face", "handle": handle, "geom_type": "plane",
             "normal": (0.0, 0.0, 1.0), "area": area, "center": center}
 
 

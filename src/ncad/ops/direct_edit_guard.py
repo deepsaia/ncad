@@ -18,10 +18,9 @@ _SLIVER_AREA_MM2 = 1.0        # "sliver/small face" (envelope RED: defeature on 
 _MIN_WALL_FACTOR = 1.0        # inward offset refused when |distance| >= min wall thickness
 _ENVELOPE = "docs/research/direct-modeling-envelope.md"
 
-# The two kernels name a flat face differently (Build123dKernel "plane" from GeomType.PLANE
-# lowercased; FakeKernel "planar"), so the guard accepts both. None = a Fake descriptor with no
-# geom_type set (treated as planar for the Fake's boxes).
-_PLANAR_NAMES = frozenset({"plane", "planar", None})
+# FakeKernel and Build123dKernel now both emit the canonical "plane"; None tolerates a
+# descriptor with no type set.
+_PLANAR_NAMES = frozenset({"plane", None})
 
 
 @dataclass

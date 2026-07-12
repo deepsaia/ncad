@@ -15,7 +15,7 @@ class GenerativeTagger:
         """Return {face_index: tag} for the ops that have a generative-tag rule.
 
         Extrude tags caps/sides; fillet/chamfer tag their generated curved faces by op; hole
-        tags its cylindrical walls. Other ops (e.g. boolean) tag nothing (lineage carries them).
+        tags its cylinder walls. Other ops (e.g. boolean) tag nothing (lineage carries them).
         """
         if not face_descriptors:
             return {}
@@ -23,12 +23,12 @@ class GenerativeTagger:
             return self._extrude_tags(plane, face_descriptors)
         if op in ("fillet", "chamfer"):
             # Dress-up faces are the generated curved surfaces; tag them by op so a ref like
-            # fillet.fillet resolves. Planar neighbours are untouched, so only curved faces tag.
+            # fillet.fillet resolves. Canonical geom_type names are build123d's (lowercased).
             return {i: op for i, f in enumerate(face_descriptors)
-                    if f.get("geom_type") in ("cylindrical", "conical", "toroidal", "bspline")}
+                    if f.get("geom_type") in ("cylinder", "cone", "torus", "bspline")}
         if op == "hole":
             return {i: "hole_wall" for i, f in enumerate(face_descriptors)
-                    if f.get("geom_type") == "cylindrical"}
+                    if f.get("geom_type") == "cylinder"}
         return {}
 
     def _extrude_tags(self, plane: str, face_descriptors: list[dict]) -> dict[int, str]:

@@ -610,7 +610,8 @@ def _box_face(cx: float, cy: float, cz: float, normal: Point3, area: float,
               z: float) -> dict:
     """A synthetic planar face descriptor for the FakeKernel's axis-aligned bounds."""
     return {
-        "kind": "face", "handle": object(), "geom_type": "planar", "normal": normal,
+        # canonical geom_type (build123d GeomType lowercased); matches Build123dKernel
+        "kind": "face", "handle": object(), "geom_type": "plane", "normal": normal,
         "area": area, "center": (cx, cy, cz), "min_z": z, "mid_z": z, "max_z": z,
     }
 

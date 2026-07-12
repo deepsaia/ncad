@@ -31,18 +31,18 @@ def _curved_face(geom_type: str) -> dict:
 
 
 def test_fillet_faces_tagged_fillet():
-    faces = [_curved_face("cylindrical")]
+    faces = [_curved_face("cylinder")]
     tags = GenerativeTagger().tags_for("fillet", "XY", faces)
     assert tags.get(0) == "fillet"
 
 
 def test_chamfer_faces_tagged_chamfer():
-    faces = [_curved_face("conical")]
+    faces = [_curved_face("cone")]
     tags = GenerativeTagger().tags_for("chamfer", "XY", faces)
     assert tags.get(0) == "chamfer"
 
 
 def test_hole_walls_tagged():
-    faces = [_curved_face("cylindrical")]
+    faces = [_curved_face("cylinder")]
     tags = GenerativeTagger().tags_for("hole", "XY", faces)
     assert tags.get(0) == "hole_wall"
