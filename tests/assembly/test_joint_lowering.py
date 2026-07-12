@@ -24,9 +24,11 @@ def test_revolute_valueless() -> None:
     assert [a.motion for a in sig] == ["rotation"]
 
 
-def test_revolute_value_adds_angle_pin() -> None:
+def test_revolute_value_leaves_rotation_free() -> None:
+    # Rotation-pinning (a revolute angle) is deferred to Phase 6 forward kinematics: an angular
+    # value does not pin a static solve, so the joint lowers to its positioning primitives only.
     kinds = _kinds({"id": "j", "type": "revolute", "value": 30})
-    assert kinds == ["axes_coincident", "point_in_plane", "dirs_angle"]
+    assert kinds == ["axes_coincident", "point_in_plane"]
 
 
 def test_slider_blocks_spin() -> None:
@@ -72,16 +74,17 @@ def test_screw_valueless_positioning_and_signature() -> None:
     assert len(sig) == 1 and sig[0].motion == "screw" and sig[0].pitch == 2.0
 
 
-def test_screw_valued_adds_angle_and_axial_pins() -> None:
+def test_screw_valued_pins_axial_depth_only() -> None:
+    # A screw's value is the turn angle; its coupled axial travel (theta/360 * pitch) pins the
+    # DEPTH (solves statically). The rotation pin is deferred to Phase 6, so only the axial pin
+    # is added alongside the coaxial positioning.
     prims, _ = JointLowering().lower(
         {"id": "j", "type": "screw", "pitch": 2, "value": 360}, _f(), _f())
     kinds = [p["kind"] for p in prims]
-    assert kinds == ["axes_coincident", "dirs_angle", "point_plane_distance"]
+    assert kinds == ["axes_coincident", "point_plane_distance"]
     # One full turn (360 deg) advances by exactly one pitch (2mm).
     axial = next(p for p in prims if p["kind"] == "point_plane_distance")
     assert axial["value"] == 2.0
-    angle = next(p for p in prims if p["kind"] == "dirs_angle")
-    assert angle["value"] == 360.0
 
 
 def test_valued_screw_without_pitch_raises() -> None:

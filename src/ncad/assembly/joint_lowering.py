@@ -77,24 +77,26 @@ class JointLowering:
         """
         if value is None:
             return []
-        if jtype == "revolute":
-            return [_p("dirs_angle", "A.secondary", "B.secondary", _num(value, joint))]
         if jtype == "slider":
             return [_p("point_plane_distance", "A.origin", "B.plane", _num(value, joint))]
         if jtype == "point_on_line":
             return [_p("point_plane_distance", "A.origin", "B.plane", _num(value, joint))]
         if jtype == "screw":
-            # A valued screw is fully determined: pin the turn angle AND the coupled axial travel
-            # (theta/360 * pitch) on the same body. Positive theta advances along +Z (right-hand).
+            # A screw's value is the turn angle; its coupled axial travel (theta/360 * pitch) pins
+            # the DEPTH, which solves statically. The ROTATION pin is deferred to Phase 6 (angular
+            # pinning does not solve statically here, see below), so a valued screw fixes depth and
+            # leaves rotation free.
             theta = _num(value, joint)
             pitch = joint.get("pitch")
             if pitch is None:
                 raise JointError(f"screw joint {joint.get('id')!r} with a value needs a pitch")
-            return [_p("dirs_angle", "A.secondary", "B.secondary", theta),
-                    _p("point_plane_distance", "A.origin", "B.plane",
-                       theta / 360.0 * float(pitch))]
-        # cylindrical / planar / ball: multi-DoF value-pinning deferred (see spec section 3).
-        logger.debug("value-pinning for %r is deferred in 5.4a; leaving DoF free", jtype)
+            return [_p("point_plane_distance", "A.origin", "B.plane", theta / 360.0 * float(pitch))]
+        # Rotation-pinning (revolute angle, cylindrical/planar/ball multi-DoF) is DEFERRED to Phase
+        # 6 forward kinematics: an angular value does not pin a static solve (addAngle on coaxial
+        # frames is inconsistent/redundant), so the joint solves with that DoF free. Only the
+        # TRANSLATIONAL pins above (slider/point_on_line/screw-depth) solve statically in 5.4b.
+        logger.debug("rotation value-pinning for %r is deferred to Phase 6; leaving that DoF free",
+                     jtype)
         return []
 
 
