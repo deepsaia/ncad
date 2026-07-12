@@ -115,6 +115,19 @@ class MateSolver:
             # Line-line coincidence: A's origin lies on B's axis AND the axes are parallel.
             system.addPointOnLine(a_o, b_axis, group=_SOLVE_GROUP)
             system.addParallel(a_axis, b_axis, group=_SOLVE_GROUP)
+        elif kind == "point_in_plane":
+            # A.origin lies in B's plane: its projection onto B's axis is at distance 0 from
+            # B.origin. addPointsProjectDistance(d, p1, p2, direction_line) is that projection.
+            system.addPointsProjectDistance(0.0, a_o, b_o, b_axis, group=_SOLVE_GROUP)
+        elif kind == "point_plane_distance":
+            # Signed gap along B's normal: A.origin projects onto B's axis at distance `value`
+            # from B.origin.
+            system.addPointsProjectDistance(float(primitive["value"]), a_o, b_o, b_axis,
+                                            group=_SOLVE_GROUP)
+        elif kind == "points_distance":
+            system.addPointsDistance(float(primitive["value"]), a_o, b_o, group=_SOLVE_GROUP)
+        elif kind == "dirs_angle":
+            system.addAngle(float(primitive["value"]), False, a_axis, b_axis, group=_SOLVE_GROUP)
         elif kind == "lock":
             # A locked body is grounded at solve setup (folded into ground_ids); nothing to add.
             pass
