@@ -71,7 +71,10 @@ geometry-derived connector frames + a one-shot connector-to-connector `connect` 
 Connectors overlay (answering the 5.0 pickup-point problem); bucket 5.2 (assembly constraints +
 py-slvs solve) is DONE - an 8-mate vocabulary lowering to a closed normal-form primitive core and
 solved by py-slvs rigid-body transforms, with a solved-status line + mate chips in the viewer
-hierarchy. NEXT: 5.3 DoF diagnostics. Per-phase deferred items are gathered in the deferred-backlog sections below each
+hierarchy; bucket 5.3 (DoF diagnostics) is DONE - a four-state status (well/under/over/redundant)
+with redundant + failing constraints attributed by mate id, a plain-language DoF explanation, and
+viewer + CLI surfacing (the 3D analogue of the sketch-status legibility layer). NEXT: 5.4 joints.
+Per-phase deferred items are gathered in the deferred-backlog sections below each
 phase's bucket list, so nothing is lost.
 
 v1 proved the *pattern*: `spec >> build >> BOM >> view`, determinism, build123d/OCCT,
@@ -677,8 +680,14 @@ py-slvs rigid-body transforms, one per movable instance, with BodyPose quaternio
 first-instance/lock grounding + seed-and-refine from connect/placement, a top-level `constraints[]`
 schema (+ id uniqueness), AssemblyBuilder solving the network and recording a `solve` status block +
 `mates[]` in the sidecar, and a viewer hierarchy (solved-status line + per-instance mate chips +
-over-constrained highlighting). Minimal solve status only (DoF count + id-attributed failing);
-rich diagnostics are 5.3. NEXT: 5.3 DoF diagnostics, then 5.4-5.6 below.
+over-constrained highlighting). **Bucket 5.3 (DoF diagnostics) is DONE:** the legibility layer over
+the solve (the 3D analogue of the sketch-status work) - a four-state status (well/under/over/
+**redundant**) with redundant + failing constraints attributed by mate id (reusing py-slvs's own
+redundant reporting, solve code 5), a plain-language DoF explanation built from cheap counts (nominal
+accounting alongside the solver's authoritative dof), an under-constrained hint, a pure
+`DofDiagnostics` unit + `DiagnosticReport` typed result, and viewer + CLI surfacing (explanation on
+the status line, amber redundant / red failing mate chips, enriched solve log line). NEXT: 5.4
+joints, then 5.5-5.6 below.
 
 - [ ] **Instances & structure:** components, sub-assemblies, flexible
       sub-assemblies, replace/pattern/mirror component
@@ -732,10 +741,21 @@ STEP (AP242) and opens in FreeCAD; interference check is correct.
   raw-geometry-ref mates (connectors only in 5.2); better rotation seeding from connect/placement
   orientation (5.2 seeds translation only, rotation identity). The nested-sparsity pre-screen
   belongs to 5.3.
-- **DoF diagnostics (5.3):** free DoF = 6n - 6 - rank; over/under/exactly-constrained status;
-  redundant constraints attributed by id; optional nested-sparsity pebble-game reject-screen
-  (`docs/research/assembly-constraints-3d.md`). The 3D analogue of sketch status; the legibility
-  layer is the value-add, not the bare solve.
+- **DoF diagnostics (5.3): DONE.** A four-state status (well/under/over/**redundant**) with
+  redundant + failing constraints attributed by mate id (reusing py-slvs's own redundant reporting,
+  solve code 5, via the handle-to-id map); a plain-language DoF explanation from cheap counts
+  (nominal `6N - 6G - K` alongside the solver's authoritative dof); an under-constrained hint; a
+  pure `DofDiagnostics` unit + `DiagnosticReport` typed result (the 3D analogue of `SketchStatus`);
+  viewer (explanation tooltip, amber redundant / red failing chips) + CLI log surfacing. Sidecar
+  `solve` block key `failing` renamed to `failing_ids` (+ `redundant_ids`, `explanation`,
+  `under_constrained_hint`); each mate gains a `role` (active/redundant/failing). **Finding during
+  execution:** `coincident + parallel` on the same connector pair reliably attributes redundancy
+  (both lower to `addParallel`), whereas two full `coincident` mates get absorbed by py-slvs as
+  well-constrained (code 5 with an empty redundant set). **5.3 follow-ups (deferred):** the
+  nested-sparsity pebble-game reject screen (necessary-not-sufficient; unmeasured payoff);
+  per-body screw-motion characterization + the full rigidity-matrix rank/null-space analysis
+  (overlaps Phase 6); leave-one-out redundancy root-causing (upgrade if py-slvs's own set proves
+  unintuitive).
 - **Joints (5.4):** fixed/revolute/slider/cylindrical/planar/ball/universal/screw/gear/
   rack-pinion/cam/belt/point-on-line/slot, DoF-bearing (Phase 6 motion drives them).
 - **Viewer polish (5.5):** exploded views, mate/DoF display, richer instance-tree interactions

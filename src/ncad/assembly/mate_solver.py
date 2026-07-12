@@ -58,11 +58,16 @@ class MateSolver:
                 handle_to_id[handle] = primitive.get("id", "?")
         code = system.solve(group=_SOLVE_GROUP, reportFailed=True)
         dof = int(system.Dof)
-        failing = _failing_ids(list(system.Failed), handle_to_id)
+        reported = _failing_ids(list(system.Failed), handle_to_id)
         placements = {iid: self._read_pose(system, body, seeds.get(iid))
                       for iid, body in body_handles.items()}
+        # py-slvs code 5 is redundant-but-consistent: the reported handles are REDUNDANT
+        # (removable), not failing. Any other nonzero code / reported handle is a real conflict.
+        redundant = reported if code == _REDUNDANT_OKAY else []
+        failing = [] if code == _REDUNDANT_OKAY else reported
         status = _status(code, dof, failing)
-        return SolveOutcome(placements=placements, dof=dof, status=status, failing_ids=failing)
+        return SolveOutcome(placements=placements, dof=dof, status=status, failing_ids=failing,
+                            solve_code=code, redundant_ids=redundant)
 
     def _add_body(self, system: Any, connectors: dict, seed: list | None,
                   grounded: bool) -> _Body:

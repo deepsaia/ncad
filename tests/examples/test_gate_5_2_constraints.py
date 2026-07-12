@@ -15,8 +15,8 @@ def test_gate_5_2_mate_network_solves(tmp_path) -> None:
     result = AssemblyBuilder(Build123dKernel()).assemble(str(_ASM), str(tmp_path))
     assert not result["issues"], result["issues"]
     sidecar = json.loads((tmp_path / "arm_linkage.assembly.json").read_text())
-    assert sidecar["solve"]["status"] in ("solved", "under_constrained")
-    assert not sidecar["solve"]["failing"]
+    assert sidecar["solve"]["status"] in ("well_constrained", "under_constrained", "redundant")
+    assert not sidecar["solve"]["failing_ids"]
     ids = {m["id"] for m in sidecar["mates"]}
     assert ids == {"m1", "m2"}
     assert all(m["ok"] for m in sidecar["mates"])
