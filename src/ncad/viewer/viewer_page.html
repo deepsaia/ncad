@@ -112,6 +112,11 @@
     border-radius: 9px; color: var(--text); cursor: pointer; }
   .icon-btn:hover { border-color: var(--accent); color: var(--accent); }
   /* --- Models list --- */
+  /* Parts | Assemblies mode switch: two segmented buttons above the model list. */
+  .view-mode-switch { display: flex; gap: 4px; margin: 4px 0 8px; }
+  .mode-btn { flex: 1; padding: 4px 8px; font-size: 12px; cursor: pointer; color: var(--muted);
+    background: var(--panel-2); border: 1px solid var(--border); border-radius: 7px; }
+  .mode-btn.active { color: var(--on-accent); background: var(--accent); border-color: var(--accent); }
   .model-list { display: flex; flex-direction: column; gap: 4px; max-height: 30vh; overflow: auto; }
   .model-row { display: flex; align-items: center; gap: 6px; min-height: 40px;
     padding: 4px 9px; background: var(--panel-2); border: 1px solid transparent;
@@ -402,6 +407,10 @@
     </div>
     <div>
       <div class="label">Models</div>
+      <div id="view-mode-switch" class="view-mode-switch">
+        <button id="mode-parts" class="mode-btn active" data-mode="parts">Parts</button>
+        <button id="mode-assemblies" class="mode-btn" data-mode="assemblies">Assemblies</button>
+      </div>
       <div id="model-list" class="model-list"></div>
     </div>
     <div class="spacer"></div>
@@ -1535,6 +1544,107 @@ function selectModel(name) {
   refreshModels();
 }
 
+// ---- Assemblies mode ----
+// Parts mode (default) is unchanged: it lists /api/models and loads a single glb. Assemblies mode
+// lists /api/assemblies and loads an assembly scene (its parts placed by their solved/explicit
+// matrices). The choice persists in localStorage, like the theme and sidebar width.
+let viewMode = localStorage.getItem("ncad.viewMode") || "parts";
+const partGlbCache = {};  // part_glb filename -> loaded THREE.Object3D (loaded once, instanced)
+
+function refreshAssemblies() {
+  return fetch("/api/assemblies").then(r => r.json()).then(data => {
+    renderAssemblyList(data.assemblies || []); return data.assemblies || []; });
+}
+
+function renderAssemblyList(names) {
+  const list = document.getElementById("model-list");
+  list.innerHTML = "";
+  if (!names.length) { list.innerHTML = '<div class="panel-empty">no assemblies in out/</div>'; return; }
+  for (const name of names) {
+    const row = document.createElement("div");
+    row.className = "model-row" + (activeModel === name ? " active" : "");
+    const label = document.createElement("div");
+    label.className = "name"; label.textContent = name; label.title = name;
+    row.appendChild(label);
+    row.addEventListener("click", () => selectAssembly(name));
+    list.appendChild(row);
+  }
+}
+
+function selectAssembly(name) {
+  activeModel = name;
+  loadAssembly(name);
+  refreshAssemblies();
+}
+
+function loadAssembly(name) {
+  spinner.style.display = "flex";
+  fetch(`/api/assembly/${name}`).then(r => r.json()).then(scene => {
+    clearModel();
+    for (const key in partGlbCache) delete partGlbCache[key];
+    const root = new THREE.Group();
+    // Match the part loader's Z-up correction so assembly space equals modeled coordinates.
+    root.rotation.x = Math.PI / 2;
+    modelRoot = root; scene_add_root(root);
+    let pending = 0, done = false;
+    const finish = () => { if (done && pending === 0) { applyMode(); frameModel(); spinner.style.display = "none"; } };
+    for (const inst of scene.instances) {
+      pending++;
+      loadPartGlb(inst.part_glb, obj => {
+        const node = obj.clone(true);
+        node.applyMatrix4(matrixFromRowMajor(inst.placement));
+        root.add(node);
+        pending--; finish();
+      });
+    }
+    done = true; finish();
+    renderInstanceTree(scene.instances);
+  }).catch(err => { spinner.textContent = "failed to load assembly"; console.error(err); });
+}
+
+function scene_add_root(root) { scene.add(root); }
+
+function loadPartGlb(glbName, cb) {
+  if (partGlbCache[glbName]) { cb(partGlbCache[glbName]); return; }
+  loader.load(`/models/${glbName}`, gltf => { partGlbCache[glbName] = gltf.scene; cb(gltf.scene); },
+    undefined, err => { console.error("part glb failed", glbName, err); });
+}
+
+// The sidecar placement is a ROW-MAJOR 4x4; three.js Matrix4.set takes row-major args directly.
+function matrixFromRowMajor(m) {
+  const M = new THREE.Matrix4();
+  M.set(m[0][0], m[0][1], m[0][2], m[3][0],
+        m[1][0], m[1][1], m[1][2], m[3][1],
+        m[2][0], m[2][1], m[2][2], m[3][2],
+        0, 0, 0, 1);
+  return M;
+}
+
+function renderInstanceTree(instances) {
+  const body = document.getElementById("hierarchy-body");
+  if (!body) return;
+  body.innerHTML = "";
+  for (const inst of instances) {
+    const row = document.createElement("div");
+    row.className = "tree-row";
+    row.textContent = `${inst.id}  (${inst.part_name})`;
+    body.appendChild(row);
+  }
+}
+
+function setViewMode(next) {
+  viewMode = next;
+  localStorage.setItem("ncad.viewMode", next);
+  document.getElementById("mode-parts").classList.toggle("active", next === "parts");
+  document.getElementById("mode-assemblies").classList.toggle("active", next === "assemblies");
+  activeModel = null;
+  if (next === "assemblies") {
+    refreshAssemblies().then(names => { if (names.length) selectAssembly(names[0]); });
+  } else {
+    refreshModels().then(models => { if (models && models.length) selectModel(models[0].name); });
+  }
+}
+
 function build(spec) {
   if (!spec) { toast("select a spec first", true); return; }
   spinner.style.display = "block";
@@ -1612,13 +1722,21 @@ darkMedia.addEventListener("change", () => { if (themeChoice === "system") apply
 applyTheme();
 
 loadSpecs();
-refreshModels().then(models => {
-  if (!models || !models.length) return;
-  const requested = decodeURIComponent(location.pathname.replace(/^\//, ""));
-  const names = models.map(m => m.name);
-  const initial = names.includes(requested) ? requested : names[0];
-  selectModel(initial);
-});
+document.getElementById("mode-parts").addEventListener("click", () => setViewMode("parts"));
+document.getElementById("mode-assemblies").addEventListener("click", () => setViewMode("assemblies"));
+document.getElementById("mode-parts").classList.toggle("active", viewMode === "parts");
+document.getElementById("mode-assemblies").classList.toggle("active", viewMode === "assemblies");
+if (viewMode === "assemblies") {
+  refreshAssemblies().then(names => { if (names.length) selectAssembly(names[0]); });
+} else {
+  refreshModels().then(models => {
+    if (!models || !models.length) return;
+    const requested = decodeURIComponent(location.pathname.replace(/^\//, ""));
+    const names = models.map(m => m.name);
+    const initial = names.includes(requested) ? requested : names[0];
+    selectModel(initial);
+  });
+}
 
 function fitRendererToStage() {
   camera.aspect = stage.clientWidth / stage.clientHeight; camera.updateProjectionMatrix();
