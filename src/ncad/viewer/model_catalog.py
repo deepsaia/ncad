@@ -61,6 +61,25 @@ class ModelCatalog:
             return None
         return candidate
 
+    def assembly_names(self) -> list[str]:
+        """Assembly scene names (files ending in .assembly.json), without the suffix."""
+        if not os.path.isdir(self._directory):
+            return []
+        suffix = ".assembly.json"
+        return sorted(entry[: -len(suffix)] for entry in os.listdir(self._directory)
+                      if entry.lower().endswith(suffix)
+                      and os.path.isfile(os.path.join(self._directory, entry)))
+
+    def resolve_assembly(self, name: str) -> str | None:
+        """Safe absolute path to ``<name>.assembly.json``, or None if unsafe/absent.
+
+        Rejects path traversal and any name not directly inside the directory (mirrors resolve).
+        """
+        candidate = os.path.abspath(os.path.join(self._directory, name + ".assembly.json"))
+        if os.path.dirname(candidate) != self._directory:
+            return None
+        return candidate if os.path.isfile(candidate) else None
+
     def resolve_bom(self, model_name: str) -> str | None:
         """Resolve a model name to its BOM sidecar (``<stem>.bom.json``), or None."""
         return self._resolve_sidecar(model_name, _BOM_SUFFIX)
