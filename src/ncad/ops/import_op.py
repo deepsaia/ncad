@@ -30,5 +30,9 @@ class ImportOp:
             logger.warning("import failed for %s: %s", path, exc)
             return OpResult(shape=None, issues=[BuildIssue(
                 node_id=node_id, message=f"could not import {path!r}: {exc}")])
+        # Validate-on-load: a non-solid / empty import must not become a silent bad base feature.
+        if shape is None or kernel.volume(shape) <= 0.0:
+            return OpResult(shape=None, issues=[BuildIssue(
+                node_id=node_id, message=f"import {path!r} is not a valid solid")])
         # history stays None: no lineage, so names seed from geometry (design section 6).
         return OpResult(shape=shape)
