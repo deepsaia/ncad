@@ -374,6 +374,11 @@ class FakeKernel(Kernel):
         # without a real STEP file on disk.
         return _FakeSolid(_FakeFace([(0, 0), (10, 0), (10, 10), (0, 10)], "XY"), 10.0)
 
+    def axis_of(self, face: Any) -> dict | None:
+        # The Fake's synthetic shapes are planar boxes with no cylindrical faces; return None.
+        # Coaxial/tangent relational behavior is covered by the real-kernel slow tests.
+        return None
+
     def defeature(self, solid: Any, face: Any) -> Any:
         # Analytic stand-in: removing a face shrinks the solid slightly, so the oracle's
         # face-count/volume-change intent is satisfied in fast tests. Returns a _FakeCombined.
