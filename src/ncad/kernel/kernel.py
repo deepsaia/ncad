@@ -312,6 +312,14 @@ class Kernel(ABC):
         """
 
     @abstractmethod
+    def defeature(self, solid: Any, face: Any) -> Any:
+        """Remove ``face`` from ``solid`` (BRepAlgoAPI_Defeaturing); raise on OCCT failure."""
+
+    @abstractmethod
+    def offset_solid(self, solid: Any, distance: float) -> Any:
+        """Offset the whole ``solid`` by ``distance`` (outward > 0); raise on OCCT failure."""
+
+    @abstractmethod
     def face_neighbours(self, solid: Any, face: Any) -> list[Any]:
         """The faces of ``solid`` that share an edge with ``face``."""
 

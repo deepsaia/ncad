@@ -366,6 +366,16 @@ class FakeKernel(Kernel):
         # without a real STEP file on disk.
         return _FakeSolid(_FakeFace([(0, 0), (10, 0), (10, 10), (0, 10)], "XY"), 10.0)
 
+    def defeature(self, solid: Any, face: Any) -> Any:
+        # Analytic stand-in: removing a face shrinks the solid slightly, so the oracle's
+        # face-count/volume-change intent is satisfied in fast tests. Returns a _FakeCombined.
+        return _FakeCombined(self.volume(solid) * 0.99, self.bounding_box(solid))
+
+    def offset_solid(self, solid: Any, distance: float) -> Any:
+        # Outward offset grows volume; inward shrinks it (bounds unchanged is good enough).
+        factor = 1.0 + (0.05 if distance >= 0 else -0.05)
+        return _FakeCombined(self.volume(solid) * factor, self.bounding_box(solid))
+
     def face_neighbours(self, solid: Any, face: Any) -> list[Any]:
         # The Fake has no adjacency graph; a box face borders every other face of the same
         # single body. Enough for the guard's "has neighbours" and single-body reasoning.
