@@ -63,9 +63,11 @@ closing the export >> re-import >> rebuild round-trip. Bucket 4.2 is partly DONE
 direct-edit spine (`DirectEditGuard` enforcing the 4.0 envelope + `DirectEditRunner` three-tier
 oracle) plus the two ops the envelope supports: `defeature` (single-body planar faces, refusing
 tangent/multibody/sliver) and `offset` (outward thicken, refusing inward-past-wall), with
-gate-4.2 examples. NEXT: bucket 4.2b (`move_face` + direct dress-up, YELLOW: guarded +
-oracle-verified), then bucket 4.3 (imported/mixed mode). The Phase 2/3 deferred items are
-gathered in sections below the bucket lists, so nothing is lost.
+gate-4.2 examples. Bucket 4.2b is DONE - `move_face` (guarded fuse/cut synthesis), resize-baked
+fillet/chamfer proven as a parametric edit, the geom_type canonicalization (fixing the latent
+tagger bug), and an import-then-direct-edit example. NEXT: bucket 4.3 (imported/mixed mode +
+relational edits). The Phase 2/3 deferred items are gathered in sections below the bucket lists,
+so nothing is lost.
 
 v1 proved the *pattern*: `spec >> build >> BOM >> view`, determinism, build123d/OCCT,
 HOCON+jsonschema, traversal BOM, the Three.js viewer, on the **building profile**
@@ -558,7 +560,7 @@ correctly and reports per-body mass properties (bucket 3.6).
       instrument sweep/loft/revolve/shell/draft/rib/wrap/pattern/mirror/transform history;
       foreign-STEP import robustness (dirty/non-solid/assembly STEP).
 
-**Bucket 4.2: Direct face ops (well-behaved only)** - defeature + offset DONE
+**Bucket 4.2 + 4.2b: Direct face ops (well-behaved only)** - DONE (defeature, offset, move_face)
 - [x] **Safe direct-edit spine:** `DirectEditGuard` enforces the 4.0 envelope's RED
       preconditions (multibody / tangent-adjacent / sliver / non-planar defeature;
       inward-offset past wall; fail-safe refuse) before any kernel op runs, id-attributed;
@@ -568,17 +570,22 @@ correctly and reports per-body mass properties (bucket 3.6).
 - [x] `delete_face`/**defeature** (`BRepAlgoAPI_Defeaturing`): non-tangent planar faces of a
       single-body solid; tangency/multibody/sliver detected and refused (real-kernel tests).
 - [x] `offset`/thicken: whole-solid, outward GREEN; inward refused past min wall thickness.
-- [ ] `move_face`/`replace_face`: planar faces on well-behaved topology
-      (rebuild + boolean + `UnifySameDomain` + `ShapeFix`) - deferred to 4.2b (YELLOW).
-- [ ] **Direct dress-up edits:** resize baked `fillet`/`chamfer`; reposition baked `hole`
-      - deferred to 4.2b.
-- **Follow-ups (deferred):** move_face + direct dress-up (4.2b, YELLOW: guarded + oracle);
-      per-face offset (documented OCCT weakness); enable the subprocess guard mode for
-      foreign/dirty imports (4.3, seam already in place); wire OCCT per-op history through
-      defeature/offset so direct-edit outputs get true lineage names (currently geometric
-      carry-forward). Also: the two kernels diverge on geom_type vocabulary (Build123dKernel
-      `plane`/`cylinder` vs FakeKernel `planar`; the generative tagger's `cylindrical`/`conical`
-      names never match real faces) - normalize the geom_type vocabulary across kernels.
+- [x] `move_face` (4.2b): planar faces on well-behaved topology (extrude-slab + fuse/cut +
+      ShapeFix), YELLOW: guarded (refuse non-planar target/neighbour, over-complexity,
+      inward-past-wall) + oracle-verified. `replace_face` deferred.
+- [x] **Resize baked `fillet`/`chamfer` (4.2b):** proven to be a parameter edit on the existing
+      dress-up feature (edit radius, rebuild; persistent edge names hold the selection), not a
+      new op. Reposition baked `hole` and a direct modify-fillet for history-free imports defer.
+- [x] **geom_type canonicalization (4.2b):** kernels agreed on build123d GeomType-lowercased
+      names (`plane`/`cylinder`/...); fixed the latent tagger bug where fillet/hole faces were
+      never tagged (`cylindrical` never matched real `cylinder`). Also shipped the
+      import-then-direct-edit example (gate-4.2b, an `import` base feature + direct ops in one
+      spec, section-10 design realized).
+- **Follow-ups (deferred):** `replace_face`, reposition-hole, direct modify-fillet for
+      history-free geometry, relational edits (coaxial/tangent/symmetric): 4.3; per-face offset
+      (documented OCCT weakness); enable the subprocess guard mode for foreign/dirty imports
+      (4.3, seam in place); wire OCCT per-op history through the direct ops so their outputs get
+      true lineage names (currently geometric carry-forward).
 
 **Bucket 4.3: Imported & mixed mode**
 - [ ] **Imported-geometry mode:** STEP/IGES import >> editable direct body

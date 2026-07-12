@@ -63,4 +63,9 @@ class DirectEditRunner:
             if abs(after_v - before_v) <= 1e-9:
                 return (False, "offset made no change")
             return (True, None)
+        if op == "move_face":
+            # Volume must move; sanity already rejected empty/degenerate results.
+            if abs(after_v - before_v) <= 1e-9:
+                return (False, "move_face made no change")
+            return (True, None)
         return (False, f"no intent rule for direct op {op!r}")

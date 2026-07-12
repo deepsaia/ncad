@@ -4,7 +4,7 @@ from ncad.refs.reference_resolver import ReferenceResolver
 
 
 def _face(cx, cy, cz, area, normal=(0.0, 0.0, 1.0)):
-    return {"kind": "face", "handle": object(), "geom_type": "planar", "normal": normal,
+    return {"kind": "face", "handle": object(), "geom_type": "plane", "normal": normal,
             "area": area, "center": (cx, cy, cz), "min_z": cz, "mid_z": cz, "max_z": cz}
 
 

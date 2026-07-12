@@ -3,7 +3,7 @@ from ncad.refs.persistent_namer import PersistentNamer, geometric_seed_name
 
 
 def _face(handle: str, center: tuple, area: float, normal: tuple = (0.0, 0.0, 1.0)) -> dict:
-    return {"kind": "face", "handle": handle, "geom_type": "planar",
+    return {"kind": "face", "handle": handle, "geom_type": "plane",
             "normal": normal, "area": area, "center": center}
 
 

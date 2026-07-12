@@ -620,6 +620,21 @@ class Build123dKernel(Kernel):
         defeat.Build()
         return Solid(defeat.Shape())
 
+    def move_face(self, solid: Any, face: Any, distance: float) -> Any:
+        return self._robust(self._do_move_face, solid, face, distance, name="move_face")
+
+    def _do_move_face(self, solid: Any, face: Any, distance: float) -> Any:
+        # Synthesize move_face (OCCT has no native op): extrude the target face into a slab along
+        # its normal, then fuse it on (outward, distance >= 0) or cut it away (inward). Use the
+        # private _do_ boolean forms since this is already inside a _robust wrapper (one failure
+        # surface, no double validation).
+        target = face if hasattr(face, "normal_at") else Face(face)
+        normal = target.normal_at()
+        slab = Solid.extrude(target, normal * distance)
+        if distance >= 0:
+            return self._do_fuse([solid, slab])
+        return self._do_cut(solid, [slab])
+
     def offset_solid(self, solid: Any, distance: float) -> Any:
         return self._robust(self._do_offset_solid, solid, distance, name="offset")
 

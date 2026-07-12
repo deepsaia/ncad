@@ -353,12 +353,20 @@ class FakeKernel(Kernel):
         return infos
 
     def describe_elements(self, solid: Any) -> list:
-        # Per body, tagging each descriptor with its body_id (single shape = "body/0").
+        # Memoize per solid so descriptor handles are STABLE across calls: face_neighbours and the
+        # guard both call describe_elements, and callers compare handles by identity, so minting
+        # fresh handles each call would break neighbour lookups. Keyed by object id (the Fake's
+        # shapes are not hashable), held on the kernel instance for the build's lifetime.
+        cache = self.__dict__.setdefault("_describe_cache", {})
+        key = id(solid)
+        if key in cache:
+            return cache[key]
         described: list = []
         for body in self.bodies(solid):
             for descriptor in self._describe_one(body.shape):
                 descriptor["body_id"] = body.id
                 described.append(descriptor)
+        cache[key] = described
         return described
 
     def import_solid(self, path: str) -> Any:
@@ -374,6 +382,12 @@ class FakeKernel(Kernel):
     def offset_solid(self, solid: Any, distance: float) -> Any:
         # Outward offset grows volume; inward shrinks it (bounds unchanged is good enough).
         factor = 1.0 + (0.05 if distance >= 0 else -0.05)
+        return _FakeCombined(self.volume(solid) * factor, self.bounding_box(solid))
+
+    def move_face(self, solid: Any, face: Any, distance: float) -> Any:
+        # Analytic: moving a face changes volume by a slab; sign follows direction. Bounds
+        # unchanged is good enough for the guard/oracle tests.
+        factor = 1.0 + (0.1 if distance >= 0 else -0.1)
         return _FakeCombined(self.volume(solid) * factor, self.bounding_box(solid))
 
     def face_neighbours(self, solid: Any, face: Any) -> list[Any]:
@@ -610,7 +624,8 @@ def _box_face(cx: float, cy: float, cz: float, normal: Point3, area: float,
               z: float) -> dict:
     """A synthetic planar face descriptor for the FakeKernel's axis-aligned bounds."""
     return {
-        "kind": "face", "handle": object(), "geom_type": "planar", "normal": normal,
+        # canonical geom_type (build123d GeomType lowercased); matches Build123dKernel
+        "kind": "face", "handle": object(), "geom_type": "plane", "normal": normal,
         "area": area, "center": (cx, cy, cz), "min_z": z, "mid_z": z, "max_z": z,
     }
 

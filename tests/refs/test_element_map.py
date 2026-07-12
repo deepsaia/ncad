@@ -2,7 +2,7 @@ from ncad.refs.element_map import ElementMap
 
 
 def _face(cx, cy, cz, area, order=None):
-    d = {"kind": "face", "handle": object(), "geom_type": "planar",
+    d = {"kind": "face", "handle": object(), "geom_type": "plane",
          "normal": (0.0, 0.0, 1.0), "area": area,
          "center": (cx, cy, cz), "min_z": cz, "mid_z": cz, "max_z": cz}
     if order is not None:
