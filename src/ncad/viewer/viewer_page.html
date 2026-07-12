@@ -1874,18 +1874,21 @@ function renderInstanceTree(sceneDoc) {
     if (solve.explanation) line.title = solve.explanation;
     body.appendChild(line);
   }
-  const inMate = id => mates.some(m => (m.between || []).some(b => b.instance === id));
+  // An instance is "floating" only if NO mate AND NO joint references it (a joint-only instance is
+  // still connected, not floating).
+  const inRelation = id => mates.some(m => (m.between || []).some(b => b.instance === id))
+    || joints.some(j => (j.between || []).some(b => b.instance === id));
   const firstId = instances.length ? instances[0].id : null;
   for (const inst of instances) {
     const row = document.createElement("div");
     row.className = "tree-row";
     row.textContent = `${inst.id}  (${inst.part_name})`;
-    // GROUND badge for the anchor (first instance or lock:true); floating if it is in no mate.
+    // GROUND badge for the anchor (first instance or lock:true); floating if no mate or joint.
     if (inst.id === firstId || inst.lock) {
       const badge = document.createElement("span");
       badge.className = "tree-badge"; badge.textContent = "GROUND";
       row.appendChild(badge);
-    } else if (!inMate(inst.id)) {
+    } else if (!inRelation(inst.id)) {
       const badge = document.createElement("span");
       badge.className = "tree-badge"; badge.textContent = "floating";
       row.appendChild(badge);
