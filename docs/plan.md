@@ -54,22 +54,18 @@ Phase 2 solid-feature buckets are COMPLETE.
 scope-mode multibody algebra), and per-body materials + derived mass - capped by the
 `flanged_coupling` capstone (bolt-circle + mirror + a 2-material multibody, per-body mass
 properties). Viewer polish landed alongside: hierarchy Bodies group, per-category icons,
-inline sketch status, and by-material coloring. **Phase 4 is underway:** bucket 4.0 (the
-de-risking spike) is DONE - the OCCT direct-edit envelope is measured and written
-(`docs/research/direct-modeling-envelope.md`), and `GuardedRunner` shipped for 4.2. Bucket 4.1
-is DONE - the TopoShape-style persistent-name layer (construction-lineage `#kind/owner/hash8`
-names via a kernel `ElementHistory` contract) plus `ncad import` (dumb-solid base feature),
-closing the export >> re-import >> rebuild round-trip. Bucket 4.2 is partly DONE - the safe
-direct-edit spine (`DirectEditGuard` enforcing the 4.0 envelope + `DirectEditRunner` three-tier
-oracle) plus the two ops the envelope supports: `defeature` (single-body planar faces, refusing
-tangent/multibody/sliver) and `offset` (outward thicken, refusing inward-past-wall), with
-gate-4.2 examples. Bucket 4.2b is DONE - `move_face` (guarded fuse/cut synthesis), resize-baked
-fillet/chamfer proven as a parametric edit, the geom_type canonicalization (fixing the latent
-tagger bug), and an import-then-direct-edit example. Bucket 4.3a is DONE - one-shot relational
-edits (`relate`: parallel/coplanar/perpendicular/symmetric via a rigid transform) + verified
-Creo-style mixed mode (direct edits after a history tree). NEXT: bucket 4.3b (imported-mode
-hardening + coaxial/tangent), or Phase 5 (assemblies). The Phase 2/3 deferred items are gathered
-in sections below the bucket lists, so nothing is lost.
+inline sketch status, and by-material coloring. **Phase 4 is COMPLETE:** the direct/synchronous
+modeling axis. 4.0 measured the OCCT direct-edit envelope (`GuardedRunner` + the envelope doc);
+4.1 shipped the TopoShape-style persistent-name layer (construction-lineage `#kind/owner/hash8`
+names via a kernel `ElementHistory` contract) + `ncad import`; 4.2/4.2b shipped the safe
+direct-edit spine (`DirectEditGuard` enforcing the envelope + `DirectEditRunner` three-tier
+oracle) with `defeature`, `offset`, `move_face`, and resize-baked-dress-up as a param edit;
+4.3a/b shipped one-shot relational edits (`relate`: parallel/coplanar/perpendicular/symmetric +
+coaxial/tangent), verified Creo-style mixed mode, import validate-on-load, and the subprocess
+guard for direct offset on imported bodies. The Phase 4 capstone gate is met (import >> direct-edit
+within the envelope >> re-export; out-of-envelope refused). NEXT: Phase 5 (assemblies:
+constraints, joints, in-context). Per-phase deferred items are gathered in the deferred-backlog
+sections below each phase's bucket list, so nothing is lost.
 
 v1 proved the *pattern*: `spec >> build >> BOM >> view`, determinism, build123d/OCCT,
 HOCON+jsonschema, traversal BOM, the Three.js viewer, on the **building profile**
@@ -105,7 +101,7 @@ modeling, the domain profiles, CAM/PCB seams, and a plugin layer.
 | 1 | 2D sketching & the constraint solver | core | `[~]` |
 | 2 | Core solid features (sketched + dress-up) | solid | `[ ]` |
 | 3 | Patterns, transforms, booleans, multibody | solid | `[x]` |
-| 4 | Persistent-name layer + direct/synchronous modeling | core | `[ ]` |
+| 4 | Persistent-name layer + direct/synchronous modeling | core | `[x]` |
 | 5 | Assemblies: constraints, joints, in-context | assembly | `[ ]` |
 | 6 | Motion & kinematics | motion | `[ ]` |
 | 7 | Drafting & documentation (2D drawings) | docs | `[ ]` |
@@ -595,10 +591,22 @@ correctly and reports per-body mass properties (bucket 3.6).
 - **Follow-ups:** see the Phase 4 deferred backlog below (coaxial/tangent, imported hardening,
       multibody-moving relations).
 
-**Bucket 4.3b: Imported hardening + coaxial/tangent (not started)**
-- [ ] **Imported-geometry mode hardening:** foreign/dirty STEP robustness; enable the
-      subprocess guard mode for hang/segfault isolation on untrusted input.
-- [ ] **coaxial / tangent relational edits** (axis extraction + curved-surface tangency).
+**Bucket 4.3b: Imported hardening + coaxial/tangent** - DONE (closes Phase 4)
+- [x] **coaxial + tangent relational edits:** `axis_of` extracts a cylinder axis (location /
+      direction / radius) and cylindrical-face descriptors carry it in attrs; `RelationalSolver`
+      gained coaxial (collinear two axes) and tangent (planar face at `radius` from a cylinder
+      axis), one-shot rigid transforms; the `relate` op reads axis frames from attrs and refuses
+      non-cylindrical references. Cylinder-to-cylinder tangent deferred.
+- [x] **Imported-geometry hardening (bounded slice):** `import` validates the loaded solid
+      (reject non-solid/empty, id-attributed); the subprocess guard mode is ACTIVATED for direct
+      `offset` on imported bodies (serialize >> child via the 4.0 GuardedRunner >> re-import, so
+      an OCCT hang/segfault on foreign geometry is isolated), gated by an `__imported__` flag the
+      builder injects when a part's tree contains an `import`. Face-targeted direct ops on imports
+      (defeature/move_face) stay in-process + oracle-verified until face re-resolve by geometric
+      key across the process boundary is proven (deferred). Deep dirty-STEP repair deferred.
+- **Phase 4 capstone gate MET:** import a dumb STEP, direct-edit it within the envelope,
+      re-export to a valid STEP; an out-of-envelope inward offset is refused with an id-tagged
+      reason (tests/examples/test_phase4_capstone.py).
 
 **Gate (Phase 4):** import a dumb STEP solid, defeature + move a planar face + resize
 a fillet directly within the measured envelope, and re-export, references survive;
@@ -616,13 +624,15 @@ corrupted.
   there is no feature to re-run); per-face offset (documented OCCT weakness, whole-solid only
   today); wire OCCT per-op history through the direct ops so their outputs get true lineage
   names (currently geometric carry-forward, shares the 4.1 item).
-- **Relational edits (4.3a):** multibody-moving relations (move ONE body of a multibody part;
-  4.3a moves the whole single-body running solid); a richer gate example once multibody-moving
-  lands (today's example is a self-referencing no-op, real behavior in the real-kernel test).
-- **Imported & coaxial/tangent (4.3b, the remaining bucket):** foreign/dirty STEP robustness;
-  enable the subprocess guard mode (the `DirectEditRunner` seam is in place) for
-  hang/segfault isolation on untrusted input; coaxial / tangent relational edits (axis
-  extraction + curved-surface tangency).
+- **Relational edits (4.3a/b):** multibody-moving relations (move ONE body of a multibody part;
+  4.3a/b move the whole single-body running solid); richer gate examples once multibody-moving
+  lands (today's examples are self-referencing no-ops, real behavior in the real-kernel tests);
+  cylinder-to-cylinder tangent (4.3b shipped planar-face-to-cylinder tangent).
+- **Imported hardening (4.3b, partial):** SHIPPED - import validate-on-load + the subprocess
+  guard activated for direct `offset` on imported bodies. STILL DEFERRED - subprocess
+  face-targeting (defeature/move_face on imports currently run in-process + oracle, not
+  hang-isolated, until face re-resolve by geometric key across the process boundary is proven);
+  deep dirty-STEP repair (healing sweeps, assembly/multi-solid STEP, non-solid recovery).
 - **Excluded from v1 entirely** (below): auto-maintained relations, fillet/blend/tangent-chain
   face moves, per-face variable offset, self-intersecting offsets. These are NOT deferred
   follow-ups; they need a commercial kernel + constraint solver and are out of scope for v1.

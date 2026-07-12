@@ -190,11 +190,13 @@ direct-modeling-envelope.md`), enforced by the DirectEditGuard before the kernel
   on a face must come BEFORE a `fillet`/`chamfer` that would round its neighbours; and an inward
   `move_face` past the min wall thickness is refused (place before wall-thinning). See the
   envelope doc.
-- **`relate` (4.3a) is one-shot: it moves the running body once and does NOT re-solve.** A
-  `relate` (make a planar face parallel/coplanar/perpendicular/symmetric to a reference face) must
-  come AFTER the features that build both the moving body and the geometry the reference face
-  belongs to. It applies a rigid transform at build time and is not maintained if upstream
-  geometry later changes (maintained relations are Phase 5 assembly mates, not direct editing).
+- **`relate` (4.3a/b) is one-shot: it moves the running body once and does NOT re-solve.** A
+  `relate` (planar parallel/coplanar/perpendicular/symmetric, or coaxial/tangent) must come AFTER
+  the features that build both the moving body and the geometry the reference belongs to. The
+  coaxial/tangent variants (4.3b) need a CYLINDRICAL reference face, so they must follow the
+  feature that creates that round face. It applies a rigid transform at build time and is not
+  maintained if upstream geometry later changes (maintained relations are Phase 5 assembly mates,
+  not direct editing).
 
 - **Failure mode:** a `defeature` on a plain prism face is a silent OCCT no-op (the oracle
   rejects it); the robust target is a face whose removal genuinely changes the solid (a boss top

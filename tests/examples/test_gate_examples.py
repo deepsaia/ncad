@@ -24,8 +24,11 @@ _EXAMPLE_DOCS = sorted(_EXAMPLES_DIR.glob("gate-*/*.hocon"))
 # (volume + bounds only) cannot represent, so it is covered by its real-kernel signature
 # golden + op unit tests instead of this sweep. An `import` example reads a real STEP (a path
 # the test fills in at runtime), which the FakeKernel cannot produce, so it is covered by
-# test_imported_edit.py.
-_FAKE_KERNEL_SKIP = ("project", "sources =", "op = defeature", "op = import")
+# test_imported_edit.py. A `coaxial` relate needs a cylindrical reference face (the FakeKernel
+# has none, so axis_of returns None), so it is real-kernel-only, covered by its signature golden
+# + test_relational_coaxial_real.py.
+_FAKE_KERNEL_SKIP = ("project", "sources =", "op = defeature", "op = import",
+                     "relation = coaxial")
 _FAKE_KERNEL_DOCS = [p for p in _EXAMPLE_DOCS
                      if not any(token in p.read_text() for token in _FAKE_KERNEL_SKIP)]
 
@@ -913,6 +916,28 @@ def test_gate_4_3a_related_blocks_signature_matches_golden() -> None:
     resolved = builder._resolve_and_validate(builder._loader.load(
         str(_EXAMPLES_DIR / "gate-4.3a" / "related_blocks.hocon")))
     result, _, _ = builder._builder.build_part_mapped(resolved["parts"]["related_blocks"])
+    live = kernel.signature(result.shape)
+
+    comparator = EqualityComparator()
+    assert comparator.equal(live, golden), comparator.explain(live, golden)
+
+
+@pytest.mark.slow
+def test_gate_4_3b_coaxial_bosses_signature_matches_golden() -> None:
+    import json
+
+    from ncad.build.equality_comparator import EqualityComparator
+    from ncad.kernel.build123d_kernel import Build123dKernel
+
+    golden_path = Path(__file__).resolve().parents[1] / "build" / "golden" / \
+        "coaxial_bosses.signature.json"
+    golden = json.loads(golden_path.read_text())
+
+    kernel = Build123dKernel()
+    builder = DocumentBuilder(kernel)
+    resolved = builder._resolve_and_validate(builder._loader.load(
+        str(_EXAMPLES_DIR / "gate-4.3b" / "coaxial_bosses.hocon")))
+    result, _, _ = builder._builder.build_part_mapped(resolved["parts"]["coaxial_bosses"])
     live = kernel.signature(result.shape)
 
     comparator = EqualityComparator()
