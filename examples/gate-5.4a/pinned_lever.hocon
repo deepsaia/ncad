@@ -1,0 +1,18 @@
+schema_version = 2
+units = mm
+parts {
+  # A round bracket with a pivot cylinder-axis connector.
+  bracket { profile = solid,
+    connectors = [ { id = pivot, at = "select faces where type = 'cylinder'" } ],
+    features = [
+      { id = sk, op = sketch, plane = XY, elements = [ { id = c, type = circle, d = 40 } ] }
+      { id = ext, op = extrude, profile = sk, distance = 6 }
+    ] }
+  # A lever with a hub cylinder-axis connector; a revolute pins it to the bracket, free to rotate.
+  lever { profile = solid,
+    connectors = [ { id = hub, at = "select faces where type = 'cylinder'" } ],
+    features = [
+      { id = sk, op = sketch, plane = XY, elements = [ { id = c, type = circle, d = 12 } ] }
+      { id = ext, op = extrude, profile = sk, distance = 25 }
+    ] }
+}
