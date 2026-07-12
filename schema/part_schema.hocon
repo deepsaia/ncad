@@ -123,6 +123,19 @@ definitions {
     }
   }
 
+  # A named mate connector: a coordinate frame derived from a geometry reference.
+  connector {
+    type = object
+    required = ["id", "at"]
+    properties {
+      id { type = string }
+      at { type = string }
+      offset = ${definitions.vec3}
+      primary { type = string }
+      secondary = ${definitions.vec3}
+    }
+  }
+
   # A part: a profile kind plus an ordered list of features.
   part {
     type = object
@@ -131,6 +144,11 @@ definitions {
       profile { type = string }
       # The part's default material name (a body inherits it unless its feature overrides).
       material { type = string }
+      # Named mate connectors: geometry-derived frames other assemblies snap to (bucket 5.1).
+      connectors {
+        type = array
+        items = ${definitions.connector}
+      }
       features {
         type = array
         items = ${definitions.feature}
