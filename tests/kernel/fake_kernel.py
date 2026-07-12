@@ -376,6 +376,12 @@ class FakeKernel(Kernel):
         factor = 1.0 + (0.05 if distance >= 0 else -0.05)
         return _FakeCombined(self.volume(solid) * factor, self.bounding_box(solid))
 
+    def move_face(self, solid: Any, face: Any, distance: float) -> Any:
+        # Analytic: moving a face changes volume by a slab; sign follows direction. Bounds
+        # unchanged is good enough for the guard/oracle tests.
+        factor = 1.0 + (0.1 if distance >= 0 else -0.1)
+        return _FakeCombined(self.volume(solid) * factor, self.bounding_box(solid))
+
     def face_neighbours(self, solid: Any, face: Any) -> list[Any]:
         # The Fake has no adjacency graph; a box face borders every other face of the same
         # single body. Enough for the guard's "has neighbours" and single-body reasoning.

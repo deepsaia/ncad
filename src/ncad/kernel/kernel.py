@@ -320,6 +320,15 @@ class Kernel(ABC):
         """Offset the whole ``solid`` by ``distance`` (outward > 0); raise on OCCT failure."""
 
     @abstractmethod
+    def move_face(self, solid: Any, face: Any, distance: float) -> Any:
+        """Push planar ``face`` of ``solid`` along its normal by ``distance``.
+
+        Outward (> 0) fuses a slab; inward (< 0) cuts one. OCCT has no native move-face, so this
+        is synthesized (extrude-slab + boolean + heal) and must be guarded + oracle-verified.
+        Raises on OCCT failure.
+        """
+
+    @abstractmethod
     def face_neighbours(self, solid: Any, face: Any) -> list[Any]:
         """The faces of ``solid`` that share an edge with ``face``."""
 
