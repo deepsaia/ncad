@@ -19,8 +19,11 @@ _EXAMPLE_DOCS = sorted(_EXAMPLES_DIR.glob("gate-*/*.hocon"))
 # (analytic edges have no circle/curve type) and multi-loop SKETCH `pattern` transforms
 # (discriminated by `sources =`; disjoint loops need multi-loop faces, deferred until
 # WireOrderer supports multiple loops). The feature-level `pattern` op (gate-3.2) is NOT
-# a sketch transform and builds fine on the FakeKernel, so it stays in the sweep.
-_FAKE_KERNEL_SKIP = ("project", "sources =")
+# a sketch transform and builds fine on the FakeKernel, so it stays in the sweep. A
+# `defeature` example needs real B-rep face topology that the FakeKernel's boolean result
+# (volume + bounds only) cannot represent, so it is covered by its real-kernel signature
+# golden + op unit tests instead of this sweep.
+_FAKE_KERNEL_SKIP = ("project", "sources =", "op = defeature")
 _FAKE_KERNEL_DOCS = [p for p in _EXAMPLE_DOCS
                      if not any(token in p.read_text() for token in _FAKE_KERNEL_SKIP)]
 
@@ -846,3 +849,47 @@ def test_gate_3_6_massprops_match_golden() -> None:
                               sorted(golden["bodies"], key=lambda b: b["id"])):
         assert live_b["material"] == gold_b["material"]
         assert live_b["mass"] == pytest.approx(gold_b["mass"], rel=1e-6)
+
+
+@pytest.mark.slow
+def test_gate_4_2_defeatured_block_signature_matches_golden() -> None:
+    import json
+
+    from ncad.build.equality_comparator import EqualityComparator
+    from ncad.kernel.build123d_kernel import Build123dKernel
+
+    golden_path = Path(__file__).resolve().parents[1] / "build" / "golden" / \
+        "defeatured_block.signature.json"
+    golden = json.loads(golden_path.read_text())
+
+    kernel = Build123dKernel()
+    builder = DocumentBuilder(kernel)
+    resolved = builder._resolve_and_validate(builder._loader.load(
+        str(_EXAMPLES_DIR / "gate-4.2" / "defeatured_block.hocon")))
+    result, _, _ = builder._builder.build_part_mapped(resolved["parts"]["defeatured_block"])
+    live = kernel.signature(result.shape)
+
+    comparator = EqualityComparator()
+    assert comparator.equal(live, golden), comparator.explain(live, golden)
+
+
+@pytest.mark.slow
+def test_gate_4_2_offset_shell_signature_matches_golden() -> None:
+    import json
+
+    from ncad.build.equality_comparator import EqualityComparator
+    from ncad.kernel.build123d_kernel import Build123dKernel
+
+    golden_path = Path(__file__).resolve().parents[1] / "build" / "golden" / \
+        "offset_shell.signature.json"
+    golden = json.loads(golden_path.read_text())
+
+    kernel = Build123dKernel()
+    builder = DocumentBuilder(kernel)
+    resolved = builder._resolve_and_validate(builder._loader.load(
+        str(_EXAMPLES_DIR / "gate-4.2" / "offset_shell.hocon")))
+    result, _, _ = builder._builder.build_part_mapped(resolved["parts"]["offset_shell"])
+    live = kernel.signature(result.shape)
+
+    comparator = EqualityComparator()
+    assert comparator.equal(live, golden), comparator.explain(live, golden)

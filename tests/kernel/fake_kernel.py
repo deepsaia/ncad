@@ -366,6 +366,32 @@ class FakeKernel(Kernel):
         # without a real STEP file on disk.
         return _FakeSolid(_FakeFace([(0, 0), (10, 0), (10, 10), (0, 10)], "XY"), 10.0)
 
+    def defeature(self, solid: Any, face: Any) -> Any:
+        # Analytic stand-in: removing a face shrinks the solid slightly, so the oracle's
+        # face-count/volume-change intent is satisfied in fast tests. Returns a _FakeCombined.
+        return _FakeCombined(self.volume(solid) * 0.99, self.bounding_box(solid))
+
+    def offset_solid(self, solid: Any, distance: float) -> Any:
+        # Outward offset grows volume; inward shrinks it (bounds unchanged is good enough).
+        factor = 1.0 + (0.05 if distance >= 0 else -0.05)
+        return _FakeCombined(self.volume(solid) * factor, self.bounding_box(solid))
+
+    def face_neighbours(self, solid: Any, face: Any) -> list[Any]:
+        # The Fake has no adjacency graph; a box face borders every other face of the same
+        # single body. Enough for the guard's "has neighbours" and single-body reasoning.
+        return [d["handle"] for d in self.describe_elements(solid)
+                if d["kind"] == "face" and d["handle"] is not face]
+
+    def is_tangent_adjacent(self, solid: Any, face: Any) -> bool:
+        # Fake shapes are planar boxes: no tangent (G1) adjacency. Guard tests that need a
+        # tangent case use the real kernel (slow).
+        return False
+
+    def min_wall_thickness(self, solid: Any) -> float | None:
+        # Smallest bounding-box dimension is a safe lower bound for the Fake's boxes.
+        (minx, miny, minz), (maxx, maxy, maxz) = self.bounding_box(solid)
+        return min(maxx - minx, maxy - miny, maxz - minz)
+
     def history(self, inputs: list[Any], output: Any) -> ElementHistory:
         # The Fake has no real topology graph, so it returns a coarse analytic lineage that is
         # enough to exercise the naming layer: every output face descriptor is treated as

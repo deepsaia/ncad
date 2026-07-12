@@ -312,6 +312,33 @@ class Kernel(ABC):
         """
 
     @abstractmethod
+    def defeature(self, solid: Any, face: Any) -> Any:
+        """Remove ``face`` from ``solid`` (BRepAlgoAPI_Defeaturing); raise on OCCT failure."""
+
+    @abstractmethod
+    def offset_solid(self, solid: Any, distance: float) -> Any:
+        """Offset the whole ``solid`` by ``distance`` (outward > 0); raise on OCCT failure."""
+
+    @abstractmethod
+    def face_neighbours(self, solid: Any, face: Any) -> list[Any]:
+        """The faces of ``solid`` that share an edge with ``face``."""
+
+    @abstractmethod
+    def is_tangent_adjacent(self, solid: Any, face: Any) -> bool:
+        """True if ``face`` meets any neighbour with tangent (G1) continuity.
+
+        Used by the direct-edit guard: defeature silently no-ops on tangent-adjacent faces
+        (4.0 envelope), so such a target is refused.
+        """
+
+    @abstractmethod
+    def min_wall_thickness(self, solid: Any) -> float | None:
+        """An estimate of ``solid``'s smallest wall thickness, or None if not computable.
+
+        The guard fails safe (refuses an inward offset) when this is None.
+        """
+
+    @abstractmethod
     def import_solid(self, path: str) -> Any:
         """Read a solid B-rep from ``path`` (STEP/IGES); the base of an imported document."""
 

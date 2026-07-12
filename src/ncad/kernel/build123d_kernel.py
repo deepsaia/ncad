@@ -46,16 +46,20 @@ from build123d import (
 # OCP ships incomplete stubs, so these raw-OCP names read as missing to the type checker;
 # they resolve at runtime (see the [tool.pyrefly] OCP-boundary note). Used for the per-edge
 # distance-angle chamfer that build123d cannot express.
+from OCP.BRep import BRep_Tool  # pyrefly: ignore[missing-module-attribute]
+from OCP.BRepAlgoAPI import BRepAlgoAPI_Defeaturing  # pyrefly: ignore[missing-module-attribute]
 from OCP.BRepBuilderAPI import (
     BRepBuilderAPI_GTransform,  # pyrefly: ignore[missing-module-attribute]
 )
 from OCP.BRepFilletAPI import BRepFilletAPI_MakeChamfer  # pyrefly: ignore[missing-module-attribute]
+from OCP.GeomAbs import GeomAbs_G1  # pyrefly: ignore[missing-module-attribute]
 from OCP.gp import gp_GTrsf  # pyrefly: ignore[missing-module-attribute]
 from OCP.TopAbs import TopAbs_EDGE, TopAbs_FACE  # pyrefly: ignore[missing-module-attribute]
-from OCP.TopExp import TopExp  # pyrefly: ignore[missing-module-attribute]
+from OCP.TopExp import TopExp, TopExp_Explorer  # pyrefly: ignore[missing-module-attribute]
 from OCP.TopoDS import TopoDS  # pyrefly: ignore[missing-module-attribute]
 from OCP.TopTools import (
     TopTools_IndexedDataMapOfShapeListOfShape,  # pyrefly: ignore[missing-module-attribute]
+    TopTools_ListOfShape,  # pyrefly: ignore[missing-module-attribute]
 )
 
 from ncad.kernel.body import Body
@@ -601,6 +605,77 @@ class Build123dKernel(Kernel):
         from build123d import import_step  # pyrefly: ignore[import-error]
 
         return import_step(path)
+
+    def defeature(self, solid: Any, face: Any) -> Any:
+        return self._robust(self._do_defeature, solid, face, name="defeature")
+
+    def _do_defeature(self, solid: Any, face: Any) -> Any:
+        wrapped = solid.wrapped if hasattr(solid, "wrapped") else solid
+        target = face.wrapped if hasattr(face, "wrapped") else face
+        remove = TopTools_ListOfShape()
+        remove.Append(target)
+        defeat = BRepAlgoAPI_Defeaturing()
+        defeat.SetShape(wrapped)
+        defeat.AddFacesToRemove(remove)
+        defeat.Build()
+        return Solid(defeat.Shape())
+
+    def offset_solid(self, solid: Any, distance: float) -> Any:
+        return self._robust(self._do_offset_solid, solid, distance, name="offset")
+
+    def _do_offset_solid(self, solid: Any, distance: float) -> Any:
+        one = solid.solids()[0] if hasattr(solid, "solids") else solid
+        # offset_3d(openings, thickness): no openings (closed offset), positional thickness.
+        return one.offset_3d(None, distance)
+
+    def _edge_face_map(self, solid: Any) -> Any:
+        wrapped = solid.wrapped if hasattr(solid, "wrapped") else solid
+        edge_faces = TopTools_IndexedDataMapOfShapeListOfShape()
+        TopExp.MapShapesAndAncestors_s(wrapped, TopAbs_EDGE, TopAbs_FACE, edge_faces)
+        return edge_faces
+
+    def face_neighbours(self, solid: Any, face: Any) -> list[Any]:
+        # Faces sharing any edge with `face`, via the edge -> ancestor-faces map.
+        target = face.wrapped if hasattr(face, "wrapped") else face
+        edge_faces = self._edge_face_map(solid)
+        neighbours: list[Any] = []
+        explorer = TopExp_Explorer(target, TopAbs_EDGE)
+        while explorer.More():
+            for candidate in list(edge_faces.FindFromKey(explorer.Current())):
+                if not candidate.IsSame(target) and not any(candidate.IsSame(n)
+                                                            for n in neighbours):
+                    neighbours.append(candidate)
+            explorer.Next()
+        return neighbours
+
+    def is_tangent_adjacent(self, solid: Any, face: Any) -> bool:
+        # G1 (tangent) stored continuity across a shared edge means defeature silently no-ops
+        # there (4.0 envelope). OCCT stores G1 on fillet/blend seams, which is exactly the case
+        # we must refuse.
+        target = face.wrapped if hasattr(face, "wrapped") else face
+        edge_faces = self._edge_face_map(solid)
+        tangent_floor = int(GeomAbs_G1)
+        explorer = TopExp_Explorer(target, TopAbs_EDGE)
+        while explorer.More():
+            ancestors = list(edge_faces.FindFromKey(explorer.Current()))
+            edge = TopoDS.Edge_s(explorer.Current())
+            for candidate in ancestors:
+                if candidate.IsSame(target):
+                    continue
+                continuity = BRep_Tool.Continuity_s(edge, TopoDS.Face_s(target),
+                                                    TopoDS.Face_s(candidate))
+                if int(continuity) >= tangent_floor:
+                    return True
+            explorer.Next()
+        return False
+
+    def min_wall_thickness(self, solid: Any) -> float | None:
+        # A cheap, safe lower-bound estimate: the smallest bounding-box dimension. A finer
+        # medial-axis estimate is a follow-up; the guard only needs a conservative floor to
+        # refuse inward offsets that would exceed the wall.
+        (minx, miny, minz), (maxx, maxy, maxz) = self.bounding_box(solid)
+        span = min(maxx - minx, maxy - miny, maxz - minz)
+        return span if span > 0 else None
 
     def history(self, inputs: list[Any], output: Any) -> ElementHistory:
         """Report output lineage. Extrude is instrumented; other ops report empty for now.

@@ -10,6 +10,7 @@ from collections.abc import Callable
 
 from ncad.ops.boolean_op import BooleanOp
 from ncad.ops.chamfer_op import ChamferOp
+from ncad.ops.defeature_op import DefeatureOp
 from ncad.ops.draft_op import DraftOp
 from ncad.ops.extrude_op import ExtrudeOp
 from ncad.ops.fillet_op import FilletOp
@@ -18,6 +19,7 @@ from ncad.ops.hole_op import HoleOp
 from ncad.ops.import_op import ImportOp
 from ncad.ops.loft_op import LoftOp
 from ncad.ops.mirror_op import MirrorOp
+from ncad.ops.offset_face_op import OffsetFaceOp
 from ncad.ops.pattern_op import PatternOp
 from ncad.ops.pocket_op import PocketOp
 from ncad.ops.revolve_op import RevolveOp
@@ -57,6 +59,8 @@ class OpRegistry:
         registry.register("pocket", PocketOp().build)
         registry.register("hole", HoleOp().build)
         registry.register("import", ImportOp().build)
+        registry.register("defeature", DefeatureOp().build)
+        registry.register("offset", OffsetFaceOp().build)
         registry.register("fillet", FilletOp().build)
         registry.register("chamfer", ChamferOp().build)
         registry.register("boolean", BooleanOp().build)
