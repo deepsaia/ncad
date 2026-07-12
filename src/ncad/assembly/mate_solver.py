@@ -92,34 +92,51 @@ class MateSolver:
         return _Body(params, handles)
 
     def _add_connector(self, system: Any, frame: ConnectorFrame, pose: tuple) -> dict:
-        """Local connector geometry (origin, axis tip along Z) transformed into the solved group."""
+        """Local connector geometry (origin + Z axis line + X secondary line) into the solved group.
+
+        The Z line carries the primary axis (concentric/parallel/angle); the X (secondary) line lets
+        anti-spin joints (fixed/slider/revolute-value) block rotation ABOUT Z via addParallel on X.
+        Transform POINTS only (never a LineSegment); rebuild both lines in the solved group.
+        """
         dx, dy, dz, qw, qx, qy, qz = pose
         o0 = system.addPoint3dV(frame.origin[0], frame.origin[1], frame.origin[2],
                                 group=_FIX_GROUP)
-        tip = (frame.origin[0] + frame.z[0], frame.origin[1] + frame.z[1],
-               frame.origin[2] + frame.z[2])
-        z0 = system.addPoint3dV(tip[0], tip[1], tip[2], group=_FIX_GROUP)
-        # Transform POINTS (never a LineSegment); rebuild the axis line in the solved group.
+        ztip = (frame.origin[0] + frame.z[0], frame.origin[1] + frame.z[1],
+                frame.origin[2] + frame.z[2])
+        z0 = system.addPoint3dV(ztip[0], ztip[1], ztip[2], group=_FIX_GROUP)
+        xtip = (frame.origin[0] + frame.x[0], frame.origin[1] + frame.x[1],
+                frame.origin[2] + frame.x[2])
+        x0 = system.addPoint3dV(xtip[0], xtip[1], xtip[2], group=_FIX_GROUP)
         origin = system.addTransform(o0, dx, dy, dz, qw, qx, qy, qz, group=_SOLVE_GROUP)
         axis_tip = system.addTransform(z0, dx, dy, dz, qw, qx, qy, qz, group=_SOLVE_GROUP)
+        sec_tip = system.addTransform(x0, dx, dy, dz, qw, qx, qy, qz, group=_SOLVE_GROUP)
         axis_line = system.addLineSegment(origin, axis_tip, group=_SOLVE_GROUP)
-        return {"origin": origin, "axis_tip": axis_tip, "axis_line": axis_line}
+        secondary_line = system.addLineSegment(origin, sec_tip, group=_SOLVE_GROUP)
+        return {"origin": origin, "axis_tip": axis_tip, "axis_line": axis_line,
+                "secondary_line": secondary_line}
 
     def _apply(self, system: Any, primitive: dict, bodies: dict) -> None:
         """Emit one py-slvs constraint for a primitive. Unknown kinds are logged and skipped."""
         kind = primitive["kind"]
-        a_o, a_axis = self._side(primitive, "a_ref", bodies)
-        b_o, b_axis = self._side(primitive, "b_ref", bodies)
+        a_o, a_axis, a_sec = self._side(primitive, "a_ref", bodies)
+        b_o, b_axis, b_sec = self._side(primitive, "b_ref", bodies)
         if kind == "points_coincident":
             system.addPointsCoincident(a_o, b_o, group=_SOLVE_GROUP)
         elif kind in ("parallel_dirs", "anti_parallel_dirs"):
             # Axis-line parallelism. Sense (opposed vs same) is carried by the coincident origin +
             # the seed orientation; addParallel aligns the lines' directions.
             system.addParallel(a_axis, b_axis, group=_SOLVE_GROUP)
+        elif kind == "secondary_parallel":
+            # Anti-spin: align the connectors' secondary (X) axes so rotation about the shared Z is
+            # blocked. Same addParallel math as parallel_dirs, on the X lines instead of Z.
+            system.addParallel(a_sec, b_sec, group=_SOLVE_GROUP)
         elif kind == "axes_coincident":
             # Line-line coincidence: A's origin lies on B's axis AND the axes are parallel.
             system.addPointOnLine(a_o, b_axis, group=_SOLVE_GROUP)
             system.addParallel(a_axis, b_axis, group=_SOLVE_GROUP)
+        elif kind == "point_on_line":
+            # A.origin constrained to B's axis line (the slot's line); leaves translation along it.
+            system.addPointOnLine(a_o, b_axis, group=_SOLVE_GROUP)
         elif kind == "point_in_plane":
             # A.origin lies in B's plane: its projection onto B's axis is at distance 0 from
             # B.origin. addPointsProjectDistance(d, p1, p2, direction_line) is that projection.
@@ -140,12 +157,12 @@ class MateSolver:
             logger.debug("mate solver: primitive kind %r not handled in this task", kind)
 
     def _side(self, primitive: dict, ref_key: str, bodies: dict) -> tuple:
-        """Return (origin_handle, axis_line_handle) for the a/b side, or (None, None)."""
+        """Return (origin, axis_line, secondary_line) for the a/b side, or (None, None, None)."""
         ref = primitive.get(ref_key)
         if ref is None:
-            return None, None
+            return None, None, None
         connector = bodies[ref["instance"]].connectors[ref["connector"]]
-        return connector["origin"], connector["axis_line"]
+        return connector["origin"], connector["axis_line"], connector["secondary_line"]
 
     def _read_pose(self, system: Any, body: _Body, seed: list | None) -> list[list[float]]:
         """Read a body's solved pose from its transform param handles -> row-major 4x4."""
