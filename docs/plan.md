@@ -65,9 +65,11 @@ oracle) plus the two ops the envelope supports: `defeature` (single-body planar 
 tangent/multibody/sliver) and `offset` (outward thicken, refusing inward-past-wall), with
 gate-4.2 examples. Bucket 4.2b is DONE - `move_face` (guarded fuse/cut synthesis), resize-baked
 fillet/chamfer proven as a parametric edit, the geom_type canonicalization (fixing the latent
-tagger bug), and an import-then-direct-edit example. NEXT: bucket 4.3 (imported/mixed mode +
-relational edits). The Phase 2/3 deferred items are gathered in sections below the bucket lists,
-so nothing is lost.
+tagger bug), and an import-then-direct-edit example. Bucket 4.3a is DONE - one-shot relational
+edits (`relate`: parallel/coplanar/perpendicular/symmetric via a rigid transform) + verified
+Creo-style mixed mode (direct edits after a history tree). NEXT: bucket 4.3b (imported-mode
+hardening + coaxial/tangent), or Phase 5 (assemblies). The Phase 2/3 deferred items are gathered
+in sections below the bucket lists, so nothing is lost.
 
 v1 proved the *pattern*: `spec >> build >> BOM >> view`, determinism, build123d/OCCT,
 HOCON+jsonschema, traversal BOM, the Three.js viewer, on the **building profile**
@@ -587,11 +589,23 @@ correctly and reports per-body mass properties (bucket 3.6).
       (4.3, seam in place); wire OCCT per-op history through the direct ops so their outputs get
       true lineage names (currently geometric carry-forward).
 
-**Bucket 4.3: Imported & mixed mode**
-- [ ] **Imported-geometry mode:** STEP/IGES import >> editable direct body
-- [ ] **Relational direct edits:** parallel / coaxial / perpendicular / tangent /
-      symmetric / coplanar (on history-free geometry)
-- [ ] Mixed mode: direct-edit features appended after a history tree (Creo-style)
+**Bucket 4.3a: Relational edits + mixed mode** - DONE
+- [x] **Relational direct edits (planar set):** `relate` op does one-shot make-parallel /
+      coplanar / perpendicular / symmetric via a rigid transform (`RelationalSolver`, pure vector
+      math) applied to the moving body; reference + moving faces addressed via the 4.1 ref layer;
+      non-planar refused; no-op when already satisfied. One-shot only (no maintenance/DoF; that is
+      Phase 5). coaxial/tangent (axis + curved-surface) deferred to 4.3b.
+- [x] **Mixed mode:** verified + documented that direct-edit features append after a history tree
+      (Creo-style) and rebuild cleanly (a sketch>>extrude>>fillet>>offset test); no new machinery,
+      it is just feature-ordering (rule 11).
+- **Follow-ups (deferred to 4.3b):** coaxial/tangent relations; imported-mode hardening
+      (foreign/dirty STEP, enable the subprocess guard mode, seam in place); multibody-moving
+      relations.
+
+**Bucket 4.3b: Imported hardening + coaxial/tangent (not started)**
+- [ ] **Imported-geometry mode hardening:** foreign/dirty STEP robustness; enable the
+      subprocess guard mode for hang/segfault isolation on untrusted input.
+- [ ] **coaxial / tangent relational edits** (axis extraction + curved-surface tangency).
 
 **Gate (Phase 4):** import a dumb STEP solid, defeature + move a planar face + resize
 a fillet directly within the measured envelope, and re-export, references survive;

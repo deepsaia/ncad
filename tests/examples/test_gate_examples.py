@@ -895,3 +895,25 @@ def test_gate_4_2_offset_shell_signature_matches_golden() -> None:
 
     comparator = EqualityComparator()
     assert comparator.equal(live, golden), comparator.explain(live, golden)
+
+
+@pytest.mark.slow
+def test_gate_4_3a_related_blocks_signature_matches_golden() -> None:
+    import json
+
+    from ncad.build.equality_comparator import EqualityComparator
+    from ncad.kernel.build123d_kernel import Build123dKernel
+
+    golden_path = Path(__file__).resolve().parents[1] / "build" / "golden" / \
+        "related_blocks.signature.json"
+    golden = json.loads(golden_path.read_text())
+
+    kernel = Build123dKernel()
+    builder = DocumentBuilder(kernel)
+    resolved = builder._resolve_and_validate(builder._loader.load(
+        str(_EXAMPLES_DIR / "gate-4.3a" / "related_blocks.hocon")))
+    result, _, _ = builder._builder.build_part_mapped(resolved["parts"]["related_blocks"])
+    live = kernel.signature(result.shape)
+
+    comparator = EqualityComparator()
+    assert comparator.equal(live, golden), comparator.explain(live, golden)
