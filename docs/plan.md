@@ -63,11 +63,13 @@ oracle) with `defeature`, `offset`, `move_face`, and resize-baked-dress-up as a 
 4.3a/b shipped one-shot relational edits (`relate`: parallel/coplanar/perpendicular/symmetric +
 coaxial/tangent), verified Creo-style mixed mode, import validate-on-load, and the subprocess
 guard for direct offset on imported bodies. The Phase 4 capstone gate is met (import >> direct-edit
-within the envelope >> re-export; out-of-envelope refused). **Phase 5 has started:** bucket 5.0
+within the envelope >> re-export; out-of-envelope refused). **Phase 5 is in progress:** bucket 5.0
 (the assembly spine) is DONE - a separate `.asm.hocon` document of part instances with explicit
 placement, `ncad assemble` composing cached part glbs into a scene sidecar, and an assembly
-viewer mode (Parts | Assemblies switch). NEXT: 5.1 mate connectors, then 5.2 constraints +
-py-slvs solve. Per-phase deferred items are gathered in the deferred-backlog sections below each
+viewer mode (Parts | Assemblies switch); bucket 5.1 (mate connectors) is DONE - part-level
+geometry-derived connector frames + a one-shot connector-to-connector `connect` snap + a viewer
+Connectors overlay (answering the 5.0 pickup-point problem). NEXT: 5.2 constraints + py-slvs
+solve. Per-phase deferred items are gathered in the deferred-backlog sections below each
 phase's bucket list, so nothing is lost.
 
 v1 proved the *pattern*: `spec >> build >> BOM >> view`, determinism, build123d/OCCT,
@@ -657,16 +659,25 @@ instance-id uniqueness), part **instances** referencing `{file, part}` with a un
 optional **explicit placement** (position + axis-angle/euler, reusing the transform vocabulary),
 `ncad assemble` composing cached part glbs into a `<name>.assembly.json` scene sidecar
 (compose-cached-parts, glb dedup, id-attributed bad-instance handling), and an assembly **viewer
-mode** (Parts | Assemblies switch) that renders placed instances + an instance tree. No solver
-yet (parts sit where placed). NEXT: 5.1 mate connectors, 5.2 constraints + py-slvs solve, then
-5.3-5.6 below.
+mode** (Parts | Assemblies switch) that renders placed instances + an instance tree. **Bucket 5.1
+(mate connectors) is DONE:** part-level named **mate connectors** (geometry-derived full-triad
+frames via Phase 4 persistent-name/selector refs: a planar face gives a normal+center frame, a
+cylinder gives an axis frame), a one-shot connector-to-connector **`connect` snap** on an instance
+(ConnectorFrame + FrameSnap + ConnectorResolver, reusing the RelationalSolver vector math; lands a
+moving connector on an already-placed target connector with optional offset/flip), AssemblyBuilder
+placing instances by `connect` + emitting world-space connector frames into the sidecar, and a
+viewer **Connectors overlay** (toggleable frame triads). This answers the 5.0 pickup-point problem:
+an assembly references a named face/hole frame instead of the raw part origin. Still pre-solver
+(explicit `connect`, one target). NEXT: 5.2 constraints + py-slvs solve, then 5.3-5.6 below.
 
 - [ ] **Instances & structure:** components, sub-assemblies, flexible
       sub-assemblies, replace/pattern/mirror component
       (5.0 shipped flat instances + explicit placement; sub-assembly rendering + component
       pattern/mirror/replace deferred, see the Phase 5 backlog)
-- [ ] **Mate connectors / ports:** named coordinate frames on parts (the shared
+- [x] **Mate connectors / ports:** named coordinate frames on parts (the shared
       primitive for both families below)
+      (5.1 shipped part-level connectors + connector-to-connector `connect` snap + viewer overlay;
+      assembly-level ad-hoc connectors + edge/point/datum-derived connectors deferred, see backlog)
 - [ ] **Assembly constraints:** mate/coincident, **align**, **flush**, **offset**,
       angle, **tangent**, parallel, perpendicular, concentric, symmetric, distance,
       width, lock
@@ -685,13 +696,13 @@ yet (parts sit where placed). NEXT: 5.1 mate connectors, 5.2 constraints + py-sl
 STEP (AP242) and opens in FreeCAD; interference check is correct.
 
 **Deferred backlog (Phase 5 buckets, gather here so nothing is lost):**
-- **Mate connectors / ports (5.1):** named coordinate frames on parts (from Phase 4 persistent
-  names or explicit datum frames), the shared primitive both constraint families lower to.
-  Motivation surfaced in 5.0: an explicit placement moves the part's OWN modeling origin, and our
-  parts are sketched CENTERED, so the origin is the part center - which is unintuitive to
-  hand-place against (a peg at "[15,20]" hangs off a plate whose center is at world origin). Named
-  connectors let a placement/mate reference a face/hole/edge instead of the raw origin, which is
-  the real "pickup point" answer.
+- **Mate connector follow-ups (post-5.1):** 5.1 shipped part-level connectors (planar/cylindrical
+  faces) + the connector-to-connector `connect` snap + the viewer overlay. Still deferred:
+  assembly-level ad-hoc connectors (frames declared on an instance rather than the part);
+  edge/point/datum-derived connectors (5.1 covers face-normal + cylinder-axis frames only);
+  connector-driven component patterns; a `primary`/`secondary` explicit axis override beyond the
+  projected-world-axis default. Chained `connect` across many instances works (each target must be
+  an earlier, already-placed instance); a full constraint network is 5.2.
 - **Viewer unit handling (follow-up):** part glbs export in METRES (build123d
   `export_gltf(unit=MM)` scales mm to m), while assembly placements are authored in mm (ncad's
   canonical unit). 5.0 converts mm->m at the viewer boundary (a documented `MM_TO_M` when building

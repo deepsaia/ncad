@@ -157,6 +157,20 @@ class DocumentBuilder:
             written[name] = self._write_element_map(element_map, out_dir, name)
         return written
 
+    def resolve_part_elements(self, path: str) -> dict[str, tuple[dict, list]]:
+        """Return ``{part_name: (resolved_part_dict, elements)}`` for the document at ``path``.
+
+        Used by the assembly layer to resolve a part's mate connectors against its element map.
+        Reuses the feature cache, so calling this after :meth:`build_file` on the same instance
+        re-executes nothing (the element map comes straight from the cached build).
+        """
+        resolved = self._resolve_and_validate(self._loader.load(path))
+        out: dict[str, tuple[dict, list]] = {}
+        for name, part in resolved["parts"].items():
+            _, element_map, _ = self._builder.build_part_mapped(part)
+            out[name] = (part, element_map.elements())
+        return out
+
     def _resolve_and_validate(self, document: dict) -> dict:
         """Resolve expressions and run schema + feature-id validation (raises on failure)."""
         resolved = self._resolver.resolve_document(document)

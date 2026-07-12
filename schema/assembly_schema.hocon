@@ -19,7 +19,28 @@ definitions {
     }
   }
 
-  # One placed part instance: a reference to {file, part} plus a unique id and optional placement.
+  # A connector-to-connector snap: place this instance so its `my` connector coincides with a
+  # target instance's connector, with an optional axial offset and a face-opposing flip (bucket 5.1).
+  connect {
+    type = object
+    required = ["my", "to"]
+    properties {
+      my { type = string }
+      to {
+        type = object
+        required = ["instance", "connector"]
+        properties {
+          instance { type = string }
+          connector { type = string }
+        }
+      }
+      offset { type = number }
+      flip { type = boolean }
+    }
+  }
+
+  # One placed part instance: a reference to {file, part} plus a unique id and optional placement
+  # (explicit) or connect (connector-driven snap).
   instance {
     type = object
     required = ["id", "file", "part"]
@@ -28,6 +49,7 @@ definitions {
       file { type = string }
       part { type = string }
       placement = ${definitions.placement}
+      connect = ${definitions.connect}
     }
   }
 }

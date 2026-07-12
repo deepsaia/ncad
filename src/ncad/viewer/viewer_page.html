@@ -548,6 +548,10 @@
           <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21V6M12 6l-3 3M12 6l3 3M12 21H4M4 21l3-3M4 21l3 3M12 21h5l3-4"/></svg>
           <span class="vc-label">Origins</span>
         </button>
+        <button class="vc-btn vc-toggle" data-toggle="connectors" title="Mate connector frames">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>
+          <span class="vc-label">Connectors</span>
+        </button>
       </div>
 
       <div class="vc-sep"></div>
@@ -903,12 +907,17 @@ let pickParts = [], elementMap = null;
 // which runs at load) to avoid a temporal-dead-zone error.
 let originGizmos = [];  // per-instance origin axes helpers (toggled by the Origins control)
 let showOrigins = localStorage.getItem("ncad.origins") === "1";
+// Mate connector triads (bucket 5.1): per-connector frame markers, toggled by the Connectors
+// control. Declared here (before bindVcToggle runs at load) to avoid a temporal-dead-zone error.
+let connectorGizmos = [];
+let showConnectors = localStorage.getItem("ncad.connectors") === "1";
 const loader = new GLTFLoader();
 
 function clearModel() {
   if (modelRoot) { scene.remove(modelRoot); modelRoot = null; }
   edges.forEach(e => scene.remove(e)); edges = [];
   originGizmos = [];  // gizmos are children of modelRoot, removed with it above
+  connectorGizmos = [];  // connector triads are children of modelRoot too, removed with it
   pickParts = []; elementMap = null;
   const picked = document.getElementById("i-picked");
   if (picked) picked.textContent = "-";
@@ -1349,6 +1358,10 @@ bindVcToggle("rotate", "ncad.rotate", v => {
   if (orientationMode === "axis") controls.autoRotate = v;
 });
 bindVcToggle("freelook", "ncad.freelook", v => { setOrientationMode(v ? "free" : "axis"); });
+bindVcToggle("connectors", "ncad.connectors", v => {
+  showConnectors = v;
+  connectorGizmos.forEach(g => { g.visible = v; });
+});
 bindVcToggle("origins", "ncad.origins", v => {
   showOrigins = v;
   originGizmos.forEach(g => { g.visible = v; });
@@ -1760,6 +1773,21 @@ function loadAssembly(name, verbose) {
         originGizmos.push(gizmo);
         node.add(gizmo);
         root.add(node);
+        // Mate connector triads: each `inst.connectors` entry is a world-space frame (metres) in
+        // the same Z-up modeled frame as the placement, so it goes directly under `root` (NOT the
+        // placement node, which would double-apply the placement). Oriented by its x/y/z basis.
+        for (const c of (inst.connectors || [])) {
+          const triad = new THREE.AxesHelper(axisLen);
+          const basis = new THREE.Matrix4().makeBasis(
+            new THREE.Vector3(c.x[0], c.x[1], c.x[2]),
+            new THREE.Vector3(c.y[0], c.y[1], c.y[2]),
+            new THREE.Vector3(c.z[0], c.z[1], c.z[2]));
+          basis.setPosition(c.origin[0], c.origin[1], c.origin[2]);
+          triad.applyMatrix4(basis);
+          triad.visible = showConnectors;
+          connectorGizmos.push(triad);
+          root.add(triad);
+        }
         node.updateMatrixWorld(true);
         node.traverse(o => { if (o.isMesh) pickParts.push(o); });
         // Log the pickup point only when verbose (an explicit assemble), not on every re-select.

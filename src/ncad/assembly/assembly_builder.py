@@ -1,10 +1,12 @@
 """Compose an assembly document into a scene sidecar the viewer renders.
 
 For each instance: build (or reuse, via a per-file DocumentBuilder + its feature cache) the
-referenced part's glb, resolve its placement to a 4x4, and record it. The result is a lightweight
-composition of independently-built cached parts (design section 7 large-assembly strategy), NOT a
-re-baked merged glTF. Bad instance refs are id-attributed issues; a bad instance is skipped and
-the rest still compose (an assembly is partially viewable).
+referenced part's glb, resolve its placement to a 4x4, and record it. An instance is placed either
+explicitly (``placement``) or by a connector-to-connector snap (``connect``): the moving instance's
+named connector frame is landed on an already-placed target instance's connector frame (bucket 5.1).
+The result is a lightweight composition of independently-built cached parts (design section 7
+large-assembly strategy), NOT a re-baked merged glTF. Bad instance refs / connects are id-attributed
+issues; a bad instance is skipped or falls back to identity and the rest still compose.
 """
 
 import json
@@ -13,6 +15,9 @@ import os
 from typing import Any
 
 from ncad.assembly.assembly_placement import AssemblyPlacement
+from ncad.assembly.connector_frame import ConnectorFrame
+from ncad.assembly.connector_resolver import ConnectorResolver
+from ncad.assembly.frame_snap import FrameSnap
 from ncad.build.document_builder import DocumentBuilder
 from ncad.spec.assembly_schema_validator import AssemblySchemaValidator
 from ncad.spec.spec_loader import SpecLoader
@@ -33,6 +38,8 @@ class AssemblyBuilder:
         self._loader = SpecLoader()
         self._validator = AssemblySchemaValidator()
         self._placement = AssemblyPlacement()
+        self._connectors = ConnectorResolver()
+        self._snap = FrameSnap()
 
     def assemble(self, asm_path: str, out_dir: str) -> dict:
         """Compose the assembly at ``asm_path`` into ``out_dir``; return sidecar path + issues."""
@@ -52,15 +59,25 @@ class AssemblyBuilder:
         # instances; built_glbs dedups a {file, part} placed more than once.
         builders: dict[str, DocumentBuilder] = {}
         built_glbs: dict[tuple[str, str], str] = {}
+        # Placement matrices are computed in document units (mm) so a connect snap can compose in a
+        # single unit space; the translation is baked to metres only when the sidecar is written.
+        placements_mm: dict[str, list[list[float]]] = {}
+        local_frames: dict[str, dict[str, ConnectorFrame]] = {}
         instances: list[dict] = []
         issues: list[dict] = []
         for instance in document["assembly"]["instances"]:
             glb = self._ensure_part_glb(instance, asm_dir, out_dir, builders, built_glbs, issues)
             if glb is None:
                 continue
-            matrix = self._placement.matrix(instance.get("placement"), to_metres)
-            instances.append({"id": instance["id"], "part_glb": glb,
-                              "part_name": instance["part"], "placement": matrix})
+            iid = instance["id"]
+            local_frames[iid] = self._resolve_connectors(instance, asm_dir, builders, issues)
+            matrix_mm = self._place(instance, placements_mm, local_frames, issues)
+            placements_mm[iid] = matrix_mm
+            world = [_bake_frame(cid, _world_frame(frame, matrix_mm), to_metres)
+                     for cid, frame in local_frames[iid].items()]
+            instances.append({"id": iid, "part_glb": glb, "part_name": instance["part"],
+                              "placement": _bake_matrix(matrix_mm, to_metres),
+                              "connectors": world})
         sidecar = os.path.join(out_dir, f"{name}{_ASSEMBLY_SUFFIX}")
         # Record the source .asm.hocon so the viewer can regenerate this assembly after a reload
         # (the browser's in-memory source map is lost on reload; this survives it, like the part
@@ -69,6 +86,61 @@ class AssemblyBuilder:
             json.dump({"schema_version": 1, "name": name, "source": os.path.abspath(asm_path),
                        "instances": instances}, handle)
         return {"sidecar": sidecar, "issues": issues, "instances": [i["id"] for i in instances]}
+
+    def _place(self, instance: dict, placements_mm: dict,
+               local_frames: dict, issues: list) -> list[list[float]]:
+        """Placement matrix (mm) for an instance: connect snap, explicit placement, or identity."""
+        connect = instance.get("connect")
+        if connect:
+            return self._connect_matrix(instance, connect, placements_mm, local_frames, issues)
+        return self._placement.matrix(instance.get("placement"), 1.0)
+
+    def _connect_matrix(self, instance: dict, connect: dict, placements_mm: dict,
+                        local_frames: dict, issues: list) -> list[list[float]]:
+        """Snap ``my`` connector onto an already-placed target connector; identity on any gap."""
+        iid = instance["id"]
+        target = connect.get("to", {})
+        tinst, tconn = target.get("instance"), target.get("connector")
+        # The target must be an already-placed earlier instance (single-pass, document order); a
+        # forward/unknown reference cannot be resolved here and falls back to identity.
+        if tinst not in placements_mm:
+            issues.append({"instance_id": iid,
+                           "message": f"connect target {tinst!r} not placed before {iid!r}"})
+            return self._placement.matrix(None, 1.0)
+        moving = local_frames.get(iid, {}).get(connect.get("my"))
+        target_local = local_frames.get(tinst, {}).get(tconn)
+        if moving is None or target_local is None:
+            mine = connect.get("my")
+            issues.append({"instance_id": iid,
+                           "message": f"connect connector missing ({mine!r}/{tconn!r})"})
+            return self._placement.matrix(None, 1.0)
+        target_world = _world_frame(target_local, placements_mm[tinst])
+        return self._snap.transform(moving, target_world,
+                                    float(connect.get("offset", 0.0)), bool(connect.get("flip")))
+
+    def _resolve_connectors(self, instance: dict, asm_dir: str, builders: dict,
+                            issues: list) -> dict[str, ConnectorFrame]:
+        """Resolve a part's declared connectors to local-space frames (empty on any failure)."""
+        part_file = os.path.join(asm_dir, instance["file"])
+        key = os.path.abspath(part_file)
+        builder = builders.setdefault(key, DocumentBuilder(self._kernel))
+        try:
+            parts = builder.resolve_part_elements(part_file)
+        except Exception as exc:  # noqa: BLE001 - a bad part becomes an id-attributed issue
+            issues.append({"instance_id": instance["id"],
+                           "message": f"connector resolution failed: {exc}"})
+            return {}
+        part = parts.get(instance["part"])
+        if part is None:
+            return {}
+        part_dict, elements = part
+        connectors = part_dict.get("connectors") or []
+        if not connectors:
+            return {}
+        frames, conn_issues = self._connectors.resolve(connectors, elements)
+        for issue in conn_issues:
+            issues.append({"instance_id": instance["id"], "message": issue["message"]})
+        return frames
 
     def _ensure_part_glb(self, instance: dict, asm_dir: str, out_dir: str,
                          builders: dict, built_glbs: dict, issues: list) -> str | None:
@@ -96,6 +168,38 @@ class AssemblyBuilder:
         glb = os.path.basename(artifacts[part_name])
         built_glbs[key] = glb
         return glb
+
+
+def _apply_point(matrix: list[list[float]], p: tuple) -> tuple:
+    """Map a point through a row-major 4x4 (p' = p . R + t; translation in the last row)."""
+    return tuple(sum(p[k] * matrix[k][i] for k in range(3)) + matrix[3][i] for i in range(3))
+
+
+def _apply_dir(matrix: list[list[float]], d: tuple) -> tuple:
+    """Map a direction through a row-major 4x4 (rotation only, no translation)."""
+    return tuple(sum(d[k] * matrix[k][i] for k in range(3)) for i in range(3))
+
+
+def _world_frame(frame: ConnectorFrame, matrix: list[list[float]]) -> ConnectorFrame:
+    """Transform a connector frame by a placement matrix into that placement's space."""
+    return ConnectorFrame(_apply_point(matrix, frame.origin), _apply_dir(matrix, frame.x),
+                          _apply_dir(matrix, frame.y), _apply_dir(matrix, frame.z))
+
+
+def _bake_matrix(matrix: list[list[float]], to_metres: float) -> list[list[float]]:
+    """Copy a placement matrix with its translation row scaled to metres (rotation unit-free)."""
+    out = [row[:] for row in matrix]
+    out[3][0] *= to_metres
+    out[3][1] *= to_metres
+    out[3][2] *= to_metres
+    return out
+
+
+def _bake_frame(cid: str, frame: ConnectorFrame, to_metres: float) -> dict:
+    """Serialize a world-space connector frame with its origin baked to metres (axes unit-free)."""
+    return {"id": cid,
+            "origin": [c * to_metres for c in frame.origin],
+            "x": list(frame.x), "y": list(frame.y), "z": list(frame.z)}
 
 
 def _stem(path: str) -> str:
