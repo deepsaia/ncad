@@ -32,14 +32,11 @@ class RelationalEditOp:
         if reference is None or moving is None:
             return OpResult(shape=None,
                             issues=[BuildIssue(node_id, "relate needs reference and moving faces")])
-        ref_frame = self._frame(reference)
-        moving_frame = self._frame(moving)
-        if ref_frame is None or moving_frame is None:
-            return OpResult(shape=None,
-                            issues=[BuildIssue(node_id, "relate refused: non-planar face")])
-        transform = RelationalSolver().solve(relation, ref_frame, moving_frame)
+        transform = self._solve(relation, reference, moving)
+        if isinstance(transform, str):
+            return OpResult(shape=None, issues=[BuildIssue(node_id, transform)])
         if transform is None:
-            # Already satisfied (or unknown relation handled as no-op): leave the body as is.
+            # Already satisfied: leave the body as is.
             return OpResult(shape=shape_in)
         try:
             moved = kernel.transform(shape_in, move=transform["move"], rotate=transform["rotate"])
@@ -51,15 +48,55 @@ class RelationalEditOp:
                             issues=[BuildIssue(node_id, "relate produced a degenerate solid")])
         return OpResult(shape=moved)
 
-    def _frame(self, element: Any) -> tuple | None:
+    def _solve(self, relation: str, reference: Any, moving: Any) -> dict | None | str:
+        """Return a transform dict, None (already satisfied), or a refusal-reason string."""
+        if relation in ("parallel", "coplanar", "perpendicular", "symmetric"):
+            ref_frame = self._planar_frame(reference)
+            moving_frame = self._planar_frame(moving)
+            if ref_frame is None or moving_frame is None:
+                return "relate refused: non-planar face"
+            return RelationalSolver().solve(relation, ref_frame, moving_frame)
+        if relation == "coaxial":
+            ref_axis = self._axis_frame(reference)
+            moving_axis = self._axis_frame(moving)
+            if ref_axis is None or moving_axis is None:
+                return "coaxial refused: needs two cylindrical faces"
+            return RelationalSolver().solve("coaxial", ref_axis, moving_axis)
+        if relation == "tangent":
+            ref_axis = self._axis_frame(reference)
+            radius = self._radius(reference)
+            moving_plane = self._planar_frame(moving)
+            if ref_axis is None or radius is None:
+                return "tangent refused: reference must be a cylinder"
+            if moving_plane is None:
+                return "tangent refused: moving face must be planar"
+            return RelationalSolver().solve("tangent", ref_axis, moving_plane, radius=radius)
+        return f"relate refused: unknown relation {relation!r}"
+
+    def _planar_frame(self, element: Any) -> tuple | None:
         attrs = getattr(element, "attrs", None)
         if attrs is None:
             return None
         geom_type = attrs.get("geom_type") or attrs.get("type")
         if geom_type not in _PLANAR_NAMES:
             return None
-        normal = attrs.get("normal")
-        center = attrs.get("center")
+        normal, center = attrs.get("normal"), attrs.get("center")
         if normal is None or center is None:
             return None
         return (tuple(normal), tuple(center))
+
+    def _axis_frame(self, element: Any) -> tuple | None:
+        attrs = getattr(element, "attrs", None)
+        if attrs is None:
+            return None
+        loc, direction = attrs.get("axis_location"), attrs.get("axis_direction")
+        if loc is None or direction is None:
+            return None
+        return (tuple(loc), tuple(direction))
+
+    def _radius(self, element: Any) -> float | None:
+        attrs = getattr(element, "attrs", None)
+        if attrs is None:
+            return None
+        radius = attrs.get("radius")
+        return float(radius) if radius is not None else None

@@ -217,8 +217,16 @@ class Kernel(ABC):
         Returns face descriptors first (in the backend's native face order, which the
         glTF exporter mirrors as mesh-part order), then edge descriptors. Face dict:
         ``{"kind":"face","handle","geom_type","normal","area","center","min_z","mid_z",
-        "max_z"}``. Edge dict: ``{"kind":"edge","handle","geom_type","length","center",
+        "max_z"}`` plus, for cylindrical faces, ``axis_location``/``axis_direction``/``radius``.
+        Edge dict: ``{"kind":"edge","handle","geom_type","length","center",
         "orientation","min_z","mid_z","max_z"}``.
+        """
+
+    @abstractmethod
+    def axis_of(self, face: Any) -> dict | None:
+        """The axis of a cylindrical ``face`` as {location, direction, radius}, or None.
+
+        Used by coaxial/tangent relational edits to align a body to a round feature.
         """
 
     @abstractmethod

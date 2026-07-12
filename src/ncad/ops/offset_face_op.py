@@ -27,9 +27,14 @@ class OffsetFaceOp:
         if not verdict.allowed:
             return OpResult(shape=None,
                             issues=[BuildIssue(node_id, verdict.reason or "offset refused")])
+        # A body whose part tree includes an import is foreign geometry: run the op subprocess-
+        # guarded (hang/segfault isolation). Authored geometry runs in-process (no hangs measured).
+        imported = bool(params.get("__imported__"))
+        guarded_spec = {"kind": "offset", "distance": distance} if imported else None
         try:
             run = DirectEditRunner().run(kernel, lambda: kernel.offset_solid(shape_in, distance),
-                                         shape_in, "offset")
+                                         shape_in, "offset", subprocess=imported,
+                                         guarded_spec=guarded_spec)
         except Exception as exc:  # noqa: BLE001 - a KernelOpError becomes an id-attributed issue
             logger.warning("offset failed on %s: %s", node_id, exc)
             return OpResult(shape=None, issues=[BuildIssue(node_id, f"offset failed: {exc}")])

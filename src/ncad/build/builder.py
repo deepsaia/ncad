@@ -150,6 +150,10 @@ class Builder:
                 # no op dispatches per-body yet; it is reserved for per-body dispatch in 3.4.
                 feature_with_refs = dict(feature)
                 feature_with_refs["__refs__"] = refs
+                # A part whose tree includes an import edits foreign geometry, so a direct op on
+                # it runs the subprocess-guarded path (hang/segfault isolation). Authored-only
+                # parts stay in-process (the 4.0 spike measured no hangs on clean geometry).
+                feature_with_refs["__imported__"] = self._part_has_import(by_id)
                 builder_fn = self._registry.get(feature["op"])
                 result = builder_fn(shape_in, feature_with_refs, {}, self._kernel)
                 issues.extend(result.issues)
@@ -182,6 +186,14 @@ class Builder:
         final_shape = shape_by_id.get(last_id) if last_id is not None else None
         return (OpResult(shape=final_shape, provenance={}, issues=issues),
                 element_map, statuses)
+
+    def _part_has_import(self, by_id: dict) -> bool:
+        """True if the part's feature tree contains an import (its running solid is foreign).
+
+        A coarse part-level flag: any import in the tree means a later direct op may edit foreign
+        geometry, so it runs subprocess-guarded (hang/segfault isolation).
+        """
+        return any(f.get("op") == "import" for f in by_id.values())
 
     def _mark_failed(self, feature_id: str, failed: set[str],
                      shape_by_id: dict[str, Any]) -> None:

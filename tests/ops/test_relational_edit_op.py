@@ -46,3 +46,46 @@ def test_relate_already_satisfied_returns_input() -> None:
         solid, {"id": "rel", "relation": "parallel",
                 "__refs__": {"reference": ref, "moving": moving}}, {}, kernel)
     assert result.shape is solid  # unchanged
+
+
+def _cyl_face(axis_loc, axis_dir, radius, center) -> Element:
+    return Element(id="#face/c/00000000", kind="face", created_by="c", tag=None,
+                   attrs={"geom_type": "cylinder", "axis_location": axis_loc,
+                          "axis_direction": axis_dir, "radius": radius, "center": center,
+                          "normal": (1.0, 0.0, 0.0), "area": 50.0}, handle=object())
+
+
+def test_relate_coaxial_applies() -> None:
+    kernel = FakeKernel()
+    solid = _box(kernel)
+    ref = _cyl_face((0, 0, 0), (0, 0, 1), 4.0, (0, 0, 5))
+    moving = _cyl_face((5, 0, 0), (0, 0, 1), 4.0, (5, 0, 5))
+    result = RelationalEditOp().build(
+        solid, {"id": "rel", "relation": "coaxial",
+                "__refs__": {"reference": ref, "moving": moving}}, {}, kernel)
+    assert result.shape is not None
+    assert not [i for i in result.issues if i.level == "error"]
+
+
+def test_relate_coaxial_noncylindrical_refused() -> None:
+    kernel = FakeKernel()
+    solid = _box(kernel)
+    ref = _face((0.0, 0.0, 1.0), (0.0, 0.0, 0.0))  # planar, no axis
+    moving = _cyl_face((5, 0, 0), (0, 0, 1), 4.0, (5, 0, 5))
+    result = RelationalEditOp().build(
+        solid, {"id": "rel", "relation": "coaxial",
+                "__refs__": {"reference": ref, "moving": moving}}, {}, kernel)
+    errors = [i for i in result.issues if i.level == "error"]
+    assert errors and errors[0].node_id == "rel"
+
+
+def test_relate_tangent_plane_to_cylinder_applies() -> None:
+    kernel = FakeKernel()
+    solid = _box(kernel)
+    ref = _cyl_face((0, 0, 0), (0, 0, 1), 5.0, (0, 0, 5))
+    moving = _face((1.0, 0.0, 0.0), (20.0, 0.0, 0.0))  # planar +X at x=20
+    result = RelationalEditOp().build(
+        solid, {"id": "rel", "relation": "tangent",
+                "__refs__": {"reference": ref, "moving": moving}}, {}, kernel)
+    assert result.shape is not None
+    assert not [i for i in result.issues if i.level == "error"]

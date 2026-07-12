@@ -335,6 +335,22 @@ class Build123dKernel(Kernel):
                 described.append(descriptor)
         return described
 
+    def axis_of(self, face: Any) -> dict | None:
+        from OCP.BRepAdaptor import BRepAdaptor_Surface  # pyrefly: ignore[missing-module-attribute]
+        from OCP.GeomAbs import GeomAbs_Cylinder  # pyrefly: ignore[missing-module-attribute]
+
+        wrapped = face.wrapped if hasattr(face, "wrapped") else face
+        adaptor = BRepAdaptor_Surface(wrapped)
+        if adaptor.GetType() != GeomAbs_Cylinder:
+            return None
+        cylinder = adaptor.Cylinder()
+        axis = cylinder.Axis()
+        loc = axis.Location()
+        direction = axis.Direction()
+        return {"location": (loc.X(), loc.Y(), loc.Z()),
+                "direction": (direction.X(), direction.Y(), direction.Z()),
+                "radius": cylinder.Radius()}
+
     @staticmethod
     def _describe_one(solid: Any) -> list:
         """Face then edge descriptors for one body's shape (no body_id yet)."""
@@ -757,13 +773,30 @@ def _describe_face(face: Any) -> dict:
     center = face.center()
     normal = face.normal_at()
     box = face.bounding_box()
-    return {
+    descriptor = {
         "kind": "face", "handle": face, "geom_type": _geom_name(face),
         "normal": (round(normal.X, 9), round(normal.Y, 9), round(normal.Z, 9)),
         "area": face.area,
         "center": (center.X, center.Y, center.Z),
         "min_z": box.min.Z, "mid_z": center.Z, "max_z": box.max.Z,
     }
+    _add_axis_fields(descriptor, face)
+    return descriptor
+
+
+def _add_axis_fields(descriptor: dict, face: Any) -> None:
+    # Cylindrical faces carry their axis so coaxial/tangent relations can read it from attrs.
+    if _geom_name(face) != "cylinder":
+        return
+    from OCP.BRepAdaptor import BRepAdaptor_Surface  # pyrefly: ignore[missing-module-attribute]
+
+    adaptor = BRepAdaptor_Surface(face.wrapped)
+    cylinder = adaptor.Cylinder()
+    axis = cylinder.Axis()
+    loc, direction = axis.Location(), axis.Direction()
+    descriptor["axis_location"] = (loc.X(), loc.Y(), loc.Z())
+    descriptor["axis_direction"] = (direction.X(), direction.Y(), direction.Z())
+    descriptor["radius"] = cylinder.Radius()
 
 
 def _describe_edge(edge: Any) -> dict:

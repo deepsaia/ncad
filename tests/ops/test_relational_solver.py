@@ -43,3 +43,28 @@ def test_symmetric_reflects_across_reference_plane() -> None:
     result = solver.solve("symmetric", ((0, 0, 1), (0, 0, 0)), ((0, 0, 1), (0, 0, 10)))
     assert result is not None
     assert math.isclose(result["move"][2], -20.0, abs_tol=1e-9)
+
+
+def test_coaxial_aligns_parallel_offset_axes() -> None:
+    solver = RelationalSolver()
+    # Reference axis along Z through origin; moving axis along Z through (5,0,0): already parallel,
+    # so only a translation removes the (5,0,0) perpendicular offset.
+    result = solver.solve("coaxial", ((0, 0, 0), (0, 0, 1)), ((5, 0, 0), (0, 0, 1)))
+    assert result is not None
+    assert math.isclose(result["move"][0], -5.0, abs_tol=1e-9)
+    assert math.isclose(result["move"][1], 0.0, abs_tol=1e-9)
+
+
+def test_coaxial_already_coaxial_is_identity() -> None:
+    solver = RelationalSolver()
+    result = solver.solve("coaxial", ((0, 0, 0), (0, 0, 1)), ((0, 0, 9), (0, 0, 1)))
+    assert result is None
+
+
+def test_tangent_moves_plane_to_radius_distance() -> None:
+    solver = RelationalSolver()
+    # Reference cylinder: axis along Z through origin, radius 5. Moving plane: +X normal at x=20.
+    # Already parallel to the axis and facing radially; only a translation to x=5 is needed.
+    result = solver.solve("tangent", ((0, 0, 0), (0, 0, 1)), ((1, 0, 0), (20, 0, 0)), radius=5.0)
+    assert result is not None
+    assert math.isclose(result["move"][0], -15.0, abs_tol=1e-6)
