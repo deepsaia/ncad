@@ -19,6 +19,7 @@ from ncad.assembly.connector_frame import ConnectorFrame
 from ncad.assembly.connector_resolver import ConnectorResolver
 from ncad.assembly.dof_diagnostics import PRIMITIVE_DOF, DofDiagnostics
 from ncad.assembly.frame_snap import FrameSnap
+from ncad.assembly.joint_lowering import JointError, JointLowering
 from ncad.assembly.mate_lowering import MateError, MateLowering
 from ncad.assembly.mate_solver import MateSolver
 from ncad.build.document_builder import DocumentBuilder
@@ -44,6 +45,7 @@ class AssemblyBuilder:
         self._connectors = ConnectorResolver()
         self._snap = FrameSnap()
         self._lowering = MateLowering()
+        self._joint_lowering = JointLowering()
         self._solver = MateSolver()
         self._diagnostics = DofDiagnostics()
 
@@ -86,7 +88,7 @@ class AssemblyBuilder:
                               "connectors": world, "lock": bool(instance.get("lock"))})
         # Solve the mate network (if any): overwrites solved instances' placements + world
         # connector frames in the sidecar list, and yields the solve status + mate records.
-        solve_block, mates_out = self._solve_constraints(
+        solve_block, mates_out, joints_out = self._solve_constraints(
             document, local_frames, placements_mm, to_metres, instances, issues)
         sidecar = os.path.join(out_dir, f"{name}{_ASSEMBLY_SUFFIX}")
         # Record the source .asm.hocon so the viewer can regenerate this assembly after a reload
@@ -94,7 +96,8 @@ class AssemblyBuilder:
         # meta sidecar's `source`).
         with open(sidecar, "w", encoding="utf-8") as handle:
             json.dump({"schema_version": 1, "name": name, "source": os.path.abspath(asm_path),
-                       "instances": instances, "solve": solve_block, "mates": mates_out}, handle)
+                       "instances": instances, "solve": solve_block, "mates": mates_out,
+                       "joints": joints_out}, handle)
         return {"sidecar": sidecar, "issues": issues, "instances": [i["id"] for i in instances]}
 
     def _place(self, instance: dict, placements_mm: dict,
@@ -129,12 +132,15 @@ class AssemblyBuilder:
                                     float(connect.get("offset", 0.0)), bool(connect.get("flip")))
 
     def _solve_constraints(self, document: dict, local_frames: dict, placements_mm: dict,
-                           to_metres: float, instances: list, issues: list) -> tuple[dict, list]:
-        """Solve the assembly's mate network; overwrite solved placements; return (solve, mates)."""
+                           to_metres: float, instances: list,
+                           issues: list) -> tuple[dict, list, list]:
+        """Solve the mate + joint network; overwrite placements; return (solve, mates, joints)."""
         constraints = document["assembly"].get("constraints") or []
-        if not constraints:
+        joints = document["assembly"].get("joints") or []
+        if not constraints and not joints:
             return ({"status": "well_constrained", "dof": 0, "explanation": "no constraints",
-                     "failing_ids": [], "redundant_ids": [], "under_constrained_hint": None}, [])
+                     "failing_ids": [], "redundant_ids": [], "under_constrained_hint": None},
+                    [], [])
         primitives: list[dict] = []
         mates_out: list[dict] = []
         for mate in constraints:
@@ -145,6 +151,17 @@ class AssemblyBuilder:
             mates_out.append({"id": mate["id"], "type": mate["type"],
                               "between": mate.get("between", []), "value": mate.get("value"),
                               "ok": True})
+        joints_out: list[dict] = []
+        for joint in joints:
+            prims_sig = self._lower_joint(joint, local_frames, issues)
+            if prims_sig is None:
+                continue
+            prims, signature = prims_sig
+            primitives.extend(prims)
+            joints_out.append({"id": joint["id"], "type": joint["type"],
+                               "between": joint.get("between", []), "value": joint.get("value"),
+                               "limits": joint.get("limits"),
+                               "signature": [a.to_dict() for a in signature], "ok": True})
         ground_ids = self._ground_ids(document, constraints, instances)
         outcome = self._solver.solve(local_frames, primitives, ground_ids, placements_mm)
         # Overwrite each solved instance's placement + world connector frames (baked to metres).
@@ -163,14 +180,36 @@ class AssemblyBuilder:
         report = self._diagnostics.analyze(outcome, network)
         failing = set(report.failing_ids)
         redundant = set(report.redundant_ids)
-        for mate in mates_out:
-            mate["ok"] = mate["id"] not in failing
-            mate["role"] = ("failing" if mate["id"] in failing
-                            else "redundant" if mate["id"] in redundant else "active")
-        logger.info("assembly solve: status=%s dof=%d failing=%s redundant=%s (%s)",
+        for record in (*mates_out, *joints_out):
+            record["ok"] = record["id"] not in failing
+            record["role"] = ("failing" if record["id"] in failing
+                              else "redundant" if record["id"] in redundant else "active")
+        logger.info("assembly solve: status=%s dof=%d failing=%s redundant=%s joints=%d (%s)",
                     report.status, report.dof, report.failing_ids, report.redundant_ids,
-                    report.explanation)
-        return report.to_dict(), mates_out
+                    len(joints_out), report.explanation)
+        return report.to_dict(), mates_out, joints_out
+
+    def _lower_joint(self, joint: dict, local_frames: dict, issues: list):
+        """Resolve a joint's refs + lower to primitives + signature; None on error."""
+        between = joint.get("between") or []
+        a_ref = between[0] if len(between) >= 1 else None
+        b_ref = between[1] if len(between) >= 2 else None
+        frame_a = self._frame_for(a_ref, local_frames)
+        frame_b = self._frame_for(b_ref, local_frames)
+        if frame_a is None or frame_b is None:
+            issues.append({"joint_id": joint.get("id"),
+                           "message": f"joint {joint.get('id')!r} references an unknown connector"})
+            return None
+        try:
+            prims, signature = self._joint_lowering.lower(joint, frame_a, frame_b)
+        except JointError as exc:
+            issues.append({"joint_id": joint.get("id"), "message": str(exc)})
+            return None
+        for prim in prims:
+            prim["id"] = joint["id"]
+            prim["a_ref"] = a_ref
+            prim["b_ref"] = b_ref
+        return prims, signature
 
     def _lower_mate(self, mate: dict, local_frames: dict, issues: list) -> list[dict] | None:
         """Resolve a mate's refs + lower to primitives with a_ref/b_ref attached; None on error."""
