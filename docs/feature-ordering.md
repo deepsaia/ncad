@@ -182,12 +182,22 @@ direct-modeling-envelope.md`), enforced by the DirectEditGuard before the kernel
   or a thinning feature can exceed the remaining wall and is refused; keep inward offsets before
   wall-thinning, or offset outward.
 
+- **inward `offset` is refused once walls get thin.** An inward offset authored after a `shell`
+  or a thinning feature can exceed the remaining wall and is refused; keep inward offsets before
+  wall-thinning, or offset outward.
+- **`move_face` (4.2b) is refused when a neighbour is non-planar, or inward past the wall.** The
+  fuse/cut synthesis goes valid-but-empty next to a fillet/blend (envelope RED), so a `move_face`
+  on a face must come BEFORE a `fillet`/`chamfer` that would round its neighbours; and an inward
+  `move_face` past the min wall thickness is refused (place before wall-thinning). See the
+  envelope doc.
+
 - **Failure mode:** a `defeature` on a plain prism face is a silent OCCT no-op (the oracle
   rejects it); the robust target is a face whose removal genuinely changes the solid (a boss top
   that heals back to the base). A `defeature` after a `fillet` that made its target tangent is
-  refused by the guard rather than silently corrupting.
+  refused by the guard rather than silently corrupting. A `move_face` authored after a `fillet`
+  that rounded its neighbour is refused for the same reason.
 - **Seen in:** gate-4.2 `defeatured_block` (boss unioned, then its top defeatured) and
-  `offset_shell` (base, then outward offset).
+  `offset_shell` (base, then outward offset); gate-4.2b `imported_edit` (import, then offset).
 
 ---
 

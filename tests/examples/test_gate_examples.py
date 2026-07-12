@@ -22,8 +22,10 @@ _EXAMPLE_DOCS = sorted(_EXAMPLES_DIR.glob("gate-*/*.hocon"))
 # a sketch transform and builds fine on the FakeKernel, so it stays in the sweep. A
 # `defeature` example needs real B-rep face topology that the FakeKernel's boolean result
 # (volume + bounds only) cannot represent, so it is covered by its real-kernel signature
-# golden + op unit tests instead of this sweep.
-_FAKE_KERNEL_SKIP = ("project", "sources =", "op = defeature")
+# golden + op unit tests instead of this sweep. An `import` example reads a real STEP (a path
+# the test fills in at runtime), which the FakeKernel cannot produce, so it is covered by
+# test_imported_edit.py.
+_FAKE_KERNEL_SKIP = ("project", "sources =", "op = defeature", "op = import")
 _FAKE_KERNEL_DOCS = [p for p in _EXAMPLE_DOCS
                      if not any(token in p.read_text() for token in _FAKE_KERNEL_SKIP)]
 
