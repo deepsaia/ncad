@@ -18,6 +18,8 @@ from ncad.assembly.assembly_placement import AssemblyPlacement
 from ncad.assembly.connector_frame import ConnectorFrame
 from ncad.assembly.connector_resolver import ConnectorResolver
 from ncad.assembly.frame_snap import FrameSnap
+from ncad.assembly.mate_lowering import MateError, MateLowering
+from ncad.assembly.mate_solver import MateSolver
 from ncad.build.document_builder import DocumentBuilder
 from ncad.spec.assembly_schema_validator import AssemblySchemaValidator
 from ncad.spec.spec_loader import SpecLoader
@@ -40,6 +42,8 @@ class AssemblyBuilder:
         self._placement = AssemblyPlacement()
         self._connectors = ConnectorResolver()
         self._snap = FrameSnap()
+        self._lowering = MateLowering()
+        self._solver = MateSolver()
 
     def assemble(self, asm_path: str, out_dir: str) -> dict:
         """Compose the assembly at ``asm_path`` into ``out_dir``; return sidecar path + issues."""
@@ -77,14 +81,18 @@ class AssemblyBuilder:
                      for cid, frame in local_frames[iid].items()]
             instances.append({"id": iid, "part_glb": glb, "part_name": instance["part"],
                               "placement": _bake_matrix(matrix_mm, to_metres),
-                              "connectors": world})
+                              "connectors": world, "lock": bool(instance.get("lock"))})
+        # Solve the mate network (if any): overwrites solved instances' placements + world
+        # connector frames in the sidecar list, and yields the solve status + mate records.
+        solve_block, mates_out = self._solve_constraints(
+            document, local_frames, placements_mm, to_metres, instances, issues)
         sidecar = os.path.join(out_dir, f"{name}{_ASSEMBLY_SUFFIX}")
         # Record the source .asm.hocon so the viewer can regenerate this assembly after a reload
         # (the browser's in-memory source map is lost on reload; this survives it, like the part
         # meta sidecar's `source`).
         with open(sidecar, "w", encoding="utf-8") as handle:
             json.dump({"schema_version": 1, "name": name, "source": os.path.abspath(asm_path),
-                       "instances": instances}, handle)
+                       "instances": instances, "solve": solve_block, "mates": mates_out}, handle)
         return {"sidecar": sidecar, "issues": issues, "instances": [i["id"] for i in instances]}
 
     def _place(self, instance: dict, placements_mm: dict,
@@ -117,6 +125,85 @@ class AssemblyBuilder:
         target_world = _world_frame(target_local, placements_mm[tinst])
         return self._snap.transform(moving, target_world,
                                     float(connect.get("offset", 0.0)), bool(connect.get("flip")))
+
+    def _solve_constraints(self, document: dict, local_frames: dict, placements_mm: dict,
+                           to_metres: float, instances: list, issues: list) -> tuple[dict, list]:
+        """Solve the assembly's mate network; overwrite solved placements; return (solve, mates)."""
+        constraints = document["assembly"].get("constraints") or []
+        if not constraints:
+            return {"status": "solved", "dof": 0, "failing": []}, []
+        primitives: list[dict] = []
+        mates_out: list[dict] = []
+        for mate in constraints:
+            prims = self._lower_mate(mate, local_frames, issues)
+            if prims is None:
+                continue
+            primitives.extend(prims)
+            mates_out.append({"id": mate["id"], "type": mate["type"],
+                              "between": mate.get("between", []), "value": mate.get("value"),
+                              "ok": True})
+        ground_ids = self._ground_ids(document, constraints, instances)
+        outcome = self._solver.solve(local_frames, primitives, ground_ids, placements_mm)
+        # Overwrite each solved instance's placement + world connector frames (baked to metres).
+        by_id = {inst["id"]: inst for inst in instances}
+        for iid, matrix_mm in outcome.placements.items():
+            inst = by_id.get(iid)
+            if inst is None:
+                continue
+            inst["placement"] = _bake_matrix(matrix_mm, to_metres)
+            inst["connectors"] = [_bake_frame(cid, _world_frame(frame, matrix_mm), to_metres)
+                                  for cid, frame in local_frames.get(iid, {}).items()]
+        failing = set(outcome.failing_ids)
+        for mate in mates_out:
+            mate["ok"] = mate["id"] not in failing
+        logger.info("assembly solve: status=%s dof=%d failing=%s",
+                    outcome.status, outcome.dof, outcome.failing_ids)
+        return ({"status": outcome.status, "dof": outcome.dof,
+                 "failing": outcome.failing_ids}, mates_out)
+
+    def _lower_mate(self, mate: dict, local_frames: dict, issues: list) -> list[dict] | None:
+        """Resolve a mate's refs + lower to primitives with a_ref/b_ref attached; None on error."""
+        between = mate.get("between") or []
+        a_ref = between[0] if len(between) >= 1 else None
+        b_ref = between[1] if len(between) >= 2 else None
+        frame_a = self._frame_for(a_ref, local_frames)
+        frame_b = self._frame_for(b_ref, local_frames) if b_ref else None
+        if frame_a is None or (b_ref is not None and frame_b is None):
+            issues.append({"constraint_id": mate.get("id"),
+                           "message": f"mate {mate.get('id')!r} references an unknown connector"})
+            return None
+        try:
+            prims = self._lowering.lower(mate, frame_a, frame_b)
+        except MateError as exc:
+            issues.append({"constraint_id": mate.get("id"), "message": str(exc)})
+            return None
+        for prim in prims:
+            prim["id"] = mate["id"]
+            prim["a_ref"] = a_ref
+            prim["b_ref"] = b_ref
+        return prims
+
+    def _frame_for(self, ref: dict | None,
+                   local_frames: dict) -> ConnectorFrame | None:
+        """The local ConnectorFrame a {instance, connector} ref names, or None."""
+        if not ref:
+            return None
+        return local_frames.get(ref.get("instance"), {}).get(ref.get("connector"))
+
+    def _ground_ids(self, document: dict, constraints: list, instances: list) -> set:
+        """First instance + any lock:true instance + any instance targeted by a lock mate."""
+        ground: set = set()
+        if instances:
+            ground.add(instances[0]["id"])
+        for inst in document["assembly"]["instances"]:
+            if inst.get("lock"):
+                ground.add(inst["id"])
+        for mate in constraints:
+            if mate.get("type") == "lock":
+                between = mate.get("between") or []
+                if between:
+                    ground.add(between[0]["instance"])
+        return ground
 
     def _resolve_connectors(self, instance: dict, asm_dir: str, builders: dict,
                             issues: list) -> dict[str, ConnectorFrame]:
