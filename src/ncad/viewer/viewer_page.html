@@ -348,6 +348,7 @@
   /* --- Blender-style hierarchy tree --- */
   .tree-row { display: flex; align-items: center; gap: 5px; font-size: 12.5px;
     padding: 2px 0; white-space: nowrap; color: var(--text); }
+  .tree-row-active { background: var(--panel-2); border-radius: 4px; }
   .tree-twist { width: 12px; flex: none; color: var(--muted); cursor: pointer;
     display: inline-flex; align-items: center; justify-content: center; font-size: 9px; }
   .tree-twist.leaf { visibility: hidden; }
@@ -577,6 +578,10 @@
           <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>
           <span class="vc-label">Connectors</span>
         </button>
+        <button class="vc-btn vc-toggle" data-toggle="isolate" title="Isolate selected instance">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.5"/></svg>
+          <span class="vc-label">Isolate</span>
+        </button>
       </div>
 
       <div class="vc-sep"></div>
@@ -734,13 +739,20 @@ function renderGizmo() {
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
 renderer.domElement.addEventListener("click", ev => {
-  if (!modelRoot || !elementMap) return;
+  if (!modelRoot) return;
   const rect = renderer.domElement.getBoundingClientRect();
   pointer.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
   pointer.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
   raycaster.setFromCamera(pointer, camera);
   const hits = raycaster.intersectObjects(pickParts, false);
+  // Assemblies: a click selects the hit mesh's instance (highlight + tree sync); empty space
+  // clears. This runs regardless of elementMap (an assembly has none; it is a part concept).
+  if (viewMode === "assemblies") {
+    selectInstance(hits.length ? hits[0].object.userData.instanceId : null);
+    return;
+  }
   const out = document.getElementById("i-picked");
+  if (!elementMap) return;
   if (!hits.length) { out.textContent = "-"; return; }
   const idx = pickParts.indexOf(hits[0].object);
   // Report the clicked mesh's BODY id + material via the sidecar `meshes` list (mesh index ->
@@ -968,13 +980,62 @@ let showOrigins = localStorage.getItem("ncad.origins") === "1";
 // control. Declared here (before bindVcToggle runs at load) to avoid a temporal-dead-zone error.
 let connectorGizmos = [];
 let showConnectors = localStorage.getItem("ncad.connectors") === "1";
+// Assembly selection / highlight / isolate (bucket 5.5). instanceMeshMap: instanceId -> [meshes],
+// published by loadAssembly once all glbs load. Declared before bindVcToggle (isolate) runs.
+let instanceMeshMap = {};
+let selectedInstances = [];
+let isolateOn = localStorage.getItem("ncad.isolate") === "1";
 const loader = new GLTFLoader();
+
+// Select one instance (or none) and re-apply highlight/isolate + tree active styling.
+function selectInstance(id) { selectedInstances = id ? [id] : []; _applySelection(); }
+// Select a set (used by a mate/joint/coupling chip highlighting both connected instances).
+function selectInstances(ids) { selectedInstances = (ids || []).filter(Boolean); _applySelection(); }
+function clearSelection() { selectedInstances = []; _applySelection(); }
+function _applySelection() { refreshInstanceVisuals(); syncTreeActive(); }
+
+// Capture each instance mesh's BASE material (what applyMode assigned). applyMode owns the base and
+// calls this before refreshInstanceVisuals, so highlight/isolate always derive from a clean base
+// rather than a prior clone (which would clone-a-clone or leak a mutated shared material).
+function captureInstanceBases() {
+  for (const id in instanceMeshMap)
+    for (const m of instanceMeshMap[id]) m.userData._baseMat = m.material;
+}
+
+// The single place that applies per-instance visual state (highlight + isolate). Because applyMode
+// assigns ONE shared material object (SOLID/XRAY/...) to every mesh, per-instance state MUST use a
+// per-mesh CLONE (mutating the shared material in place would tint/fade the whole assembly). A mesh
+// with no distinct state is reset to its shared base.
+function refreshInstanceVisuals() {
+  const sel = new Set(selectedInstances);
+  const dim = isolateOn && selectedInstances.length > 0;
+  for (const id in instanceMeshMap) {
+    const hi = sel.has(id);
+    const faded = dim && !hi;
+    for (const m of instanceMeshMap[id]) {
+      const base = m.userData._baseMat || m.material;
+      if (!hi && !faded) { m.material = base; continue; }
+      const mm = base.clone();
+      if (hi && mm.emissive) mm.emissive.setHex(0x2266aa);
+      if (faded) { mm.transparent = true; mm.opacity = 0.12; mm.depthWrite = false; }
+      m.material = mm;
+    }
+  }
+}
+
+function syncTreeActive() {
+  const sel = new Set(selectedInstances);
+  document.querySelectorAll(".tree-row[data-instance]").forEach(r => {
+    r.classList.toggle("tree-row-active", sel.has(r.dataset.instance));
+  });
+}
 
 function clearModel() {
   if (modelRoot) { scene.remove(modelRoot); modelRoot = null; }
   edges.forEach(e => scene.remove(e)); edges = [];
   originGizmos = [];  // gizmos are children of modelRoot, removed with it above
   connectorGizmos = [];  // connector triads are children of modelRoot too, removed with it
+  instanceMeshMap = {}; selectedInstances = [];  // drop selection state with the old scene
   pickParts = []; elementMap = null;
   const picked = document.getElementById("i-picked");
   if (picked) picked.textContent = "-";
@@ -995,11 +1056,15 @@ function applyMode() {
       mesh.castShadow = castShadows;
     });
     edges.forEach(e => { e.visible = showEdges; });
+    captureInstanceBases(); refreshInstanceVisuals();
     return;
   }
   const mat = { solid: SOLID, material: materialMat(), wireframe: WIRE, xray: XRAY }[mode];
   modelRoot.traverse(o => { if (o.isMesh) { o.material = mat; o.castShadow = castShadows && mode !== "wireframe"; } });
   edges.forEach(e => { e.visible = showEdges && mode !== "wireframe"; });
+  // Re-capture the (shared) base material each mode sets, then re-apply per-instance highlight/
+  // isolate as per-mesh clones so a mode change does not clobber the selection visuals.
+  captureInstanceBases(); refreshInstanceVisuals();
 }
 
 function hasMaterials() {
@@ -1423,6 +1488,7 @@ bindVcToggle("origins", "ncad.origins", v => {
   showOrigins = v;
   originGizmos.forEach(g => { g.visible = v; });
 });
+bindVcToggle("isolate", "ncad.isolate", v => { isolateOn = v; refreshInstanceVisuals(); });
 document.getElementById("vc-reset").addEventListener("click", () => { if (modelRoot) frameModel(); });
 
 // The assembly-only floating controls show only in Assemblies mode.
@@ -1787,6 +1853,7 @@ function loadAssembly(name, verbose) {
     const root = new THREE.Group();
     modelRoot = root;
     scene.add(root);
+    const instanceMeshes = {};   // instanceId -> [meshes], for selection highlight/isolate
     // Plain re-select (mode switch / page refresh) logs NOTHING, mirroring how parts log nothing
     // on select. Only an explicit assemble (verbose) narrates instances + bbox.
     if (verbose) log(`assembly ${name}: ${(sceneDoc.instances || []).length} instances`);
@@ -1794,7 +1861,10 @@ function loadAssembly(name, verbose) {
     const finish = () => {
       if (!(done && pending === 0)) return;
       root.updateMatrixWorld(true);
-      applyMode();
+      // All instance meshes are loaded now (glb callbacks done): publish the per-instance mesh map
+      // for selection highlight/isolate, and re-apply any active selection.
+      instanceMeshMap = instanceMeshes;
+      applyMode();   // assigns base materials, captures them, and re-applies selection visuals
       frameModel();
       // Verbose bbox line only on an explicit assemble/first-load, not on every plain re-select
       // (switching Parts<->Assemblies just re-loads the existing scene; do not spam the log).
@@ -1846,7 +1916,13 @@ function loadAssembly(name, verbose) {
           root.add(triad);
         }
         node.updateMatrixWorld(true);
-        node.traverse(o => { if (o.isMesh) pickParts.push(o); });
+        node.traverse(o => {
+          if (o.isMesh) {
+            o.userData.instanceId = inst.id;   // tag for bidirectional pick <> tree selection
+            pickParts.push(o);
+            (instanceMeshes[inst.id] = instanceMeshes[inst.id] || []).push(o);
+          }
+        });
         // Log the pickup point only when verbose (an explicit assemble), not on every re-select.
         if (verbose) {
           const p = inst.placement;
@@ -1924,6 +2000,10 @@ function renderInstanceTree(sceneDoc) {
     const row = document.createElement("div");
     row.className = "tree-row";
     row.textContent = `${inst.id}  (${inst.part_name})`;
+    // Click a row to select+highlight that instance in 3D (bidirectional with the 3D pick).
+    row.dataset.instance = inst.id;
+    row.style.cursor = "pointer";
+    row.addEventListener("click", () => selectInstance(inst.id));
     // GROUND badge for the anchor (first instance or lock:true); floating if no mate or joint.
     if (inst.id === firstId || inst.lock) {
       const badge = document.createElement("span");
@@ -1949,6 +2029,12 @@ function renderInstanceTree(sceneDoc) {
       chip.textContent = `${m.type} -- ${otherLabel} [${m.id}]`;
       if (m.role === "failing") chip.title = "over-constrained / failing mate";
       else if (m.role === "redundant") chip.title = "redundant - removable without changing the result";
+      // Click a mate chip to highlight the two instances it connects.
+      chip.style.cursor = "pointer";
+      chip.addEventListener("click", ev => {
+        ev.stopPropagation();
+        selectInstances((m.between || []).map(b => b.instance));
+      });
       body.appendChild(chip);
     }
     // One joint chip per joint this instance participates in (bucket 5.4a): distinct accent, shows
@@ -1969,6 +2055,12 @@ function renderInstanceTree(sceneDoc) {
       const otherLabel = other ? `${other.instance}.${other.connector}` : "(self)";
       const val = (j.value !== null && j.value !== undefined) ? ` = ${j.value}` : "";
       chip.textContent = `${j.type}${sig ? " [" + sig + "]" : ""} -- ${otherLabel} [${j.id}]${val}`;
+      // Click a joint chip to highlight the two instances it joins.
+      chip.style.cursor = "pointer";
+      chip.addEventListener("click", ev => {
+        ev.stopPropagation();
+        selectInstances((j.between || []).map(b => b.instance));
+      });
       body.appendChild(chip);
     }
     // Coupling chips (bucket 5.4b): a declared joint-to-joint relation (gear/belt/...), dashed +
@@ -1982,6 +2074,14 @@ function renderInstanceTree(sceneDoc) {
       const others = (c.between || []).join(" <> ");
       chip.textContent = `${c.type}${ratio} -- ${others} [${c.id}]`;
       chip.title = "enforced during motion (Phase 6)";
+      // Click a coupling chip to highlight the instances of both coupled joints.
+      chip.style.cursor = "pointer";
+      chip.addEventListener("click", ev => {
+        ev.stopPropagation();
+        const ids = [];
+        for (const jid of (c.between || [])) ids.push(...(jointInstances[jid] || []));
+        selectInstances(ids);
+      });
       body.appendChild(chip);
     }
   }
