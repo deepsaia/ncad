@@ -76,8 +76,11 @@ with redundant + failing constraints attributed by mate id, a plain-language DoF
 viewer + CLI surfacing (the 3D analogue of the sketch-status legibility layer); bucket 5.4a
 (lower-pair joints) is DONE - the 7 lower pairs (fixed/revolute/slider/cylindrical/planar/ball/
 point_on_line) as a parallel `joints[]` family lowering to the primitive core + a declared DoF
-signature + static solve, with sidecar joint records + viewer joint chips. NEXT: 5.4b coupled
-joints (screw/gear/rack-pinion/belt/cam/universal). Per-phase deferred items are gathered in the
+signature + static solve, with sidecar joint records + viewer joint chips; bucket 5.4b
+(coupled/higher joints) is DONE - the screw joint fully shipped (coaxial + pitch signature + valued
+solve) + gear/belt/rack_pinion/universal as declarative `couplings[]` records (enforced in Phase 6),
+completing Phase 5's joint vocabulary (cam deferred). NEXT: 5.5 viewer polish (exploded views,
+mate/DoF/joint display, richer instance-tree interactions). Per-phase deferred items are gathered in the
 deferred-backlog sections below each phase's bucket list, so nothing is lost.
 
 v1 proved the *pattern*: `spec >> build >> BOM >> view`, determinism, build123d/OCCT,
@@ -696,8 +699,15 @@ the existing primitive core (plus a `secondary_parallel` primitive + a per-conne
 for anti-spin) and yields a declared **DoF signature** (free-axis records from a static table);
 an optional static `value` pins the free DoF (1-DoF joints + cylindrical), valueless leaves it free;
 one unified mate+joint solve (shared id space); sidecar `joints[]` block (signature + role) + viewer
-joint chips. Joints DEFINE allowed motion (a revolute leaves [rot Z]); Phase 6 drives them. NEXT:
-5.4b coupled/higher joints (screw/gear/rack-pinion/belt/cam/universal), then 5.5-5.6 below.
+joint chips. Joints DEFINE allowed motion (a revolute leaves [rot Z]); Phase 6 drives them.
+**Bucket 5.4b (coupled/higher joints) is DONE:** the **screw** joint fully shipped (coaxial
+positioning + a pitch-bearing `screw` DoF signature; a valued screw pins the turn angle + coupled
+axial travel on the same body, fully solved with no cross-joint machinery); and gear/belt/
+rack_pinion/universal as a declarative `couplings[]` family (`Coupling` records referencing two
+joint ids + a ratio, validated + stored + shown + reported-not-counted in diagnostics, ENFORCED in
+Phase 6). Cam deferred (needs curved-contact geometry). This COMPLETES Phase 5's joint vocabulary.
+NEXT: 5.5 viewer polish (exploded views, mate/DoF/joint display, richer instance-tree
+interactions), then 5.6 (interference/BOM/STEP + capstone).
 
 - [ ] **Instances & structure:** components, sub-assemblies, flexible
       sub-assemblies, replace/pattern/mirror component
@@ -712,12 +722,12 @@ joint chips. Joints DEFINE allowed motion (a revolute leaves [rot Z]); Phase 6 d
       width, lock
       (5.2 shipped 8 mates lowering to the normal-form core + py-slvs solve; tangent/symmetric/
       width and raw-geometry-ref mates deferred, see backlog)
-- [ ] **Joints (DoF-bearing):** **fixed/rigid**, **revolute/pin**,
+- [x] **Joints (DoF-bearing):** **fixed/rigid**, **revolute/pin**,
       **slider/prismatic**, cylindrical, planar, **ball/spherical**, universal,
       screw, gear, rack-pinion, cam, belt, point-on-line/slot
-      (5.4a shipped the 7 lower pairs: fixed/revolute/slider/cylindrical/planar/ball/point_on_line
-      + DoF signature + static solve; coupled/higher joints screw/gear/rack-pinion/belt/cam/universal
-      = 5.4b; time-varying driving = Phase 6)
+      (5.4a shipped the 7 lower pairs + DoF signature + static solve; 5.4b shipped screw (fully
+      solved) + gear/belt/rack_pinion/universal as declared couplings; cam + coupling ENFORCEMENT
+      (Phase 6) + time-varying driving (Phase 6) remain)
 - [ ] **Top-down / in-context:** skeleton / master model; publish geometry; change
       propagation
 - [ ] **Interference / clearance** (static): exact (`BRepExtrema_DistShapeShape`)
@@ -780,11 +790,24 @@ STEP (AP242) and opens in FreeCAD; interference check is correct.
   DECLARED signature is the authoritative DoF statement and the solver dof is a coarse rigid/free
   cross-check. **5.4a follow-ups (deferred):** valued planar/ball multi-DoF pinning; joint `limits`
   enforcement; 3D free-axis viewport arrows (>> 5.5).
-- **Joints, coupled/higher (5.4b):** screw, gear, rack-pinion, belt, cam, universal. These are not
-  frame-to-frame relations: screw couples rotation-to-translation by a pitch; gear/rack-pinion/belt
-  couple two OTHER joints' rates by a ratio (joints referencing joints); universal is two coupled
-  revolutes; cam is curved contact. They need DoF-coupling machinery (a DoF as a function of another
-  DoF, overlapping Phase 6's driver-functions) + cam contact geometry. Depends on 5.4a.
+- **Joints, coupled/higher (5.4b): DONE (screw + declarative couplings).** The **screw** joint is
+  fully shipped: coaxial positioning + a pitch-bearing `screw` DoF signature; a valued screw pins
+  the turn angle + coupled axial travel (theta/360 * pitch) on the same body, fully solved with no
+  cross-joint machinery. **gear/belt/rack_pinion/universal** ship as a declarative `couplings[]`
+  family (`Coupling` records referencing two joint ids + a ratio), validated (id uniqueness +
+  shared id space + referenced-joint existence), stored in the sidecar, shown as dashed viewer
+  chips, and reported-not-counted in the diagnostics ("+ N declared couplings, enforced in motion").
+  **5.4b follow-ups (deferred):** the **cam** joint (curved-contact geometry, a new primitive kind);
+  coupling **enforcement** (driving one joint so the coupled joint follows) = Phase 6 forward
+  kinematics (py-slvs has no angle-ratio constraint, only `addLengthRatio`); universal's
+  geometry-derived ratio; 3D gear-mesh / cam-profile visualization = 5.5 / Phase 6.
+- **Rotation value-pinning deferred to Phase 6 (found during 5.4b execution):** a joint `value`
+  that pins ROTATION (a revolute angle, a screw turn) does not solve statically - `addAngle` on
+  coaxial frames is inconsistent/redundant - so it is deferred to Phase 6 forward kinematics; the
+  joint solves with that rotational DoF free. Only TRANSLATIONAL pins solve statically in 5.4a/5.4b:
+  slider distance, point_on_line distance, and screw DEPTH (theta/360 * pitch). gate-5.4a's revolute
+  is valueless; gate-5.4b's screw pins depth (not turn); the two gears mount on parallel OFFSET
+  shafts (distinct axes) so the mesh is well-posed (no shared-axis redundancy).
 - **Viewer polish (5.5):** exploded views, mate/DoF display, richer instance-tree interactions
   (select/highlight/isolate); the 5.0 instance tree is minimal. Also a browser-side assemble
   action (like the part Build button): 5.0 composes via the `ncad assemble` CLI and the viewer
@@ -1128,10 +1151,19 @@ with lightweight reps; interference query stays interactive.
 - [ ] **PartCAD plugin**: PartCAD YAML ⇄ ncad document (target compatibility,
       isolated, maintainable)
 - [ ] **Other plugins** (same contract): OpenSCAD import; vendor/format converters
+- [ ] **FEA/CFD export seam** *(delegate the solve, never write one, design §17)*:
+      export the geometry + a **mesh + boundary-conditions** deck to a mature **open
+      FEM engine** (**CalculiX**, **Elmer**, **Z88**), the way FreeCAD shells out.
+      ncad owns the model - geometry, a mesh (via **Gmsh**), the analytical model from
+      the structural profile (§Phase 11), loads/constraints/materials as authored
+      inputs - and writes the engine's input deck (e.g. CalculiX/Abaqus-style `.inp`,
+      or `.unv`); the analysis runs **outside** ncad, results are read back for display
+      only. Not a solver we write (the FEA/CFD line, design §17); `(A)`
 - [ ] (later) JT / 3D-PDF lightweight exchange
 
 **Gate:** a PartCAD assembly imports as an ncad document and re-exports as STEP
-AP242 without loss of structure.
+AP242 without loss of structure; a part exports a valid mesh + boundary-condition
+deck that an open FEM engine (CalculiX) loads and solves.
 
 ---
 
