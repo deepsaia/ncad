@@ -1,0 +1,50 @@
+# ncad assembly-document schema (HOCON): JSON-Schema draft 2020-12 vocabulary.
+# An assembly is instances of parts (by file + part name) with optional explicit placement.
+# Permissive while young: no additionalProperties=false, so the model grows (mates/joints later).
+
+definitions {
+  vec3 {
+    type = array
+    items { type = number }
+    minItems = 3
+    maxItems = 3
+  }
+
+  # A rigid placement: a position plus an optional rotation (axis-angle or euler).
+  placement {
+    type = object
+    properties {
+      position = ${definitions.vec3}
+      rotation { type = object }
+    }
+  }
+
+  # One placed part instance: a reference to {file, part} plus a unique id and optional placement.
+  instance {
+    type = object
+    required = ["id", "file", "part"]
+    properties {
+      id { type = string }
+      file { type = string }
+      part { type = string }
+      placement = ${definitions.placement}
+    }
+  }
+}
+
+type = object
+required = ["schema_version", "units", "assembly"]
+properties {
+  schema_version { type = integer, minimum = 1 }
+  units { enum = ["mm", "m", "in"] }
+  assembly {
+    type = object
+    required = ["instances"]
+    properties {
+      instances {
+        type = array
+        items = ${definitions.instance}
+      }
+    }
+  }
+}
