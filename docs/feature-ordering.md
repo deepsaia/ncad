@@ -206,6 +206,27 @@ direct-modeling-envelope.md`), enforced by the DirectEditGuard before the kernel
 - **Seen in:** gate-4.2 `defeatured_block` (boss unioned, then its top defeatured) and
   `offset_shell` (base, then outward offset); gate-4.2b `imported_edit` (import, then offset).
 
+### 12. Assembly mates (5.2) solve AFTER every instance's connectors resolve; grounding is required
+
+This is an ASSEMBLY-document rule (an `.asm.hocon` orchestrating parts), not a per-part feature
+rule, but the same order-sensitivity applies. The constraint solve (`MateSolver`) needs every
+instance's connector frames already resolved (a mate references two connectors), so connector
+resolution runs for all instances before the solve. The solve also needs an anchor: the first
+instance is grounded by default, plus any `lock = true` instance or `lock` mate. A network with no
+grounded body still solves (the first instance pins it) but a truly unconstrained instance keeps
+its seed pose (from `connect`/`placement`) and reports free DoF rather than erroring.
+
+- **Failure mode:** a mate referencing a connector that does not resolve (bad selector, wrong part)
+  is an id-attributed issue and that mate is dropped; the rest of the network still solves (partial
+  assembly stays viewable). An over-constrained network reports its failing mate ids (py-slvs
+  `Failed`), it does not silently relax.
+- **Seed vs solve:** `connect` (5.1) and `placement` (5.0) set the solver's initial guess; a mate
+  network refines from there. `connect` remains single-pass (its target must be an earlier,
+  already-placed instance); the solved `constraints[]` network has no such ordering requirement
+  among the mates themselves (py-slvs solves them together).
+- **Seen in:** gate-5.2 `arm_linkage` (bracket grounded via `lock`, lever mated concentric +
+  coincident onto it).
+
 ---
 
 ## How to work when order bites you

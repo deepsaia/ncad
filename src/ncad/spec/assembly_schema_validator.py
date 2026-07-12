@@ -35,6 +35,7 @@ class AssemblySchemaValidator:
             for error in self._validator.iter_errors(document)
         ]
         issues.extend(self._duplicate_ids(document))
+        issues.extend(self._duplicate_constraint_ids(document))
         return issues
 
     def _duplicate_ids(self, document: dict) -> list[SchemaIssue]:
@@ -50,4 +51,19 @@ class AssemblySchemaValidator:
                 out.append(SchemaIssue(location="assembly.instances",
                                        message=f"duplicate instance id {instance_id!r}"))
             seen.add(instance_id)
+        return out
+
+    def _duplicate_constraint_ids(self, document: dict) -> list[SchemaIssue]:
+        """One issue per repeated constraint id (author-controlled reference names)."""
+        seen: set[str] = set()
+        out: list[SchemaIssue] = []
+        constraints = document.get("assembly", {}).get("constraints", [])
+        for constraint in constraints:
+            constraint_id = constraint.get("id")
+            if constraint_id is None:
+                continue
+            if constraint_id in seen:
+                out.append(SchemaIssue(location="assembly.constraints",
+                                       message=f"duplicate constraint id {constraint_id!r}"))
+            seen.add(constraint_id)
         return out

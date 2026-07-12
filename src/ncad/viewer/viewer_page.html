@@ -383,6 +383,20 @@
   #tab-hierarchy.hide-text .tree-name, #tab-hierarchy.hide-text .tree-op,
   #tab-hierarchy.hide-text .tree-mat { display: none; }
 
+  /* --- Assembly mate status + chips (bucket 5.2) --- */
+  .mate-status { font-size: 11.5px; padding: 3px 6px; margin-bottom: 5px; border-radius: 5px;
+    background: var(--panel-2); border: 1px solid var(--border); }
+  .mate-status.mate-status-ok { color: var(--log-success); }
+  .mate-status.mate-status-warn { color: var(--log-warn); }
+  .mate-status.mate-status-bad { color: var(--log-error); }
+  .tree-badge { margin-left: 6px; padding: 0 6px; border-radius: 8px; font-size: 10px;
+    color: var(--muted); background: var(--panel-2); border: 1px solid var(--border);
+    white-space: nowrap; }
+  .mate-chip { margin: 2px 0 2px 22px; padding: 1px 7px; border-radius: 8px; font-size: 10.5px;
+    color: var(--muted); background: var(--panel-2); border: 1px solid var(--border);
+    display: inline-block; }
+  .mate-chip.mate-chip-bad { color: var(--log-error); border-color: var(--log-error); }
+
   /* --- Orientation gizmo (top-right of the viewport). 128px matches the ViewHelper's
      fixed draw size; non-interactive (orientation readout only). --- */
   #gizmo { position: absolute; top: 10px; right: 10px; width: 128px; height: 128px;
@@ -1799,7 +1813,7 @@ function loadAssembly(name, verbose) {
       }, () => { pending--; toast("part glb failed: " + inst.part_glb, true); finish(); });
     }
     done = true; finish();
-    renderInstanceTree(sceneDoc.instances);
+    renderInstanceTree(sceneDoc);
   }).catch(err => {
     spinner.style.display = "none";
     toast("assembly load error: " + (err && err.message ? err.message : err), true);
@@ -1825,15 +1839,55 @@ function matrixFromRowMajor(m) {
   return M;
 }
 
-function renderInstanceTree(instances) {
+function renderInstanceTree(sceneDoc) {
   const body = document.getElementById("hierarchy-body");
   if (!body) return;
   body.innerHTML = "";
+  const instances = sceneDoc.instances || [];
+  const mates = sceneDoc.mates || [];
+  const solve = sceneDoc.solve || null;
+  // Solved-status line (bucket 5.2): green solved, red over-constrained (lists failing mate ids),
+  // amber under-constrained. Only shown when the assembly carries a solve block.
+  if (solve) {
+    const line = document.createElement("div");
+    const cls = solve.status === "solved" ? "mate-status-ok"
+      : solve.status === "over_constrained" ? "mate-status-bad" : "mate-status-warn";
+    line.className = "mate-status " + cls;
+    line.textContent = solve.status === "over_constrained"
+      ? `over-constrained: [${(solve.failing || []).join(", ")}]`
+      : `${solve.status.replace("_", "-")} - ${solve.dof} free DoF`;
+    body.appendChild(line);
+  }
+  const inMate = id => mates.some(m => (m.between || []).some(b => b.instance === id));
+  const firstId = instances.length ? instances[0].id : null;
   for (const inst of instances) {
     const row = document.createElement("div");
     row.className = "tree-row";
     row.textContent = `${inst.id}  (${inst.part_name})`;
+    // GROUND badge for the anchor (first instance or lock:true); floating if it is in no mate.
+    if (inst.id === firstId || inst.lock) {
+      const badge = document.createElement("span");
+      badge.className = "tree-badge"; badge.textContent = "GROUND";
+      row.appendChild(badge);
+    } else if (!inMate(inst.id)) {
+      const badge = document.createElement("span");
+      badge.className = "tree-badge"; badge.textContent = "floating";
+      row.appendChild(badge);
+    }
     body.appendChild(row);
+    // One chip per mate this instance participates in: "type -- other.connector [id]".
+    for (const m of mates) {
+      const sides = m.between || [];
+      const mine = sides.findIndex(b => b.instance === inst.id);
+      if (mine < 0) continue;
+      const other = sides[mine === 0 ? 1 : 0];
+      const chip = document.createElement("div");
+      chip.className = "mate-chip" + (m.ok === false ? " mate-chip-bad" : "");
+      const otherLabel = other ? `${other.instance}.${other.connector}` : "(self)";
+      chip.textContent = `${m.type} -- ${otherLabel} [${m.id}]`;
+      if (m.ok === false) chip.title = "over-constrained / failing mate";
+      body.appendChild(chip);
+    }
   }
 }
 
