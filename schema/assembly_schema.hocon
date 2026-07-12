@@ -69,6 +69,26 @@ definitions {
     }
   }
 
+  # A DoF-bearing joint (bucket 5.4a): positions two connectors while leaving a specific DoF free,
+  # carrying a declared DoF signature. Lowers to the same primitive core as a mate.
+  joint {
+    type = object
+    required = ["id", "type", "between"]
+    properties {
+      id { type = string }
+      type { enum = ["fixed", "revolute", "slider", "cylindrical", "planar", "ball",
+                     "point_on_line", "slot"] }
+      between {
+        type = array
+        minItems = 2
+        maxItems = 2
+        items = ${definitions.mate_ref}
+      }
+      value {}
+      limits {}
+    }
+  }
+
   # One placed part instance: a reference to {file, part} plus a unique id and optional placement
   # (explicit) or connect (connector-driven snap). `lock` grounds the instance in the solve.
   instance {
@@ -101,6 +121,10 @@ properties {
       constraints {
         type = array
         items = ${definitions.mate}
+      }
+      joints {
+        type = array
+        items = ${definitions.joint}
       }
     }
   }

@@ -20,6 +20,9 @@ PRIMITIVE_DOF = {
     "points_coincident": 3, "axes_coincident": 4, "point_in_plane": 1,
     "point_plane_distance": 1, "points_distance": 1, "parallel_dirs": 2,
     "anti_parallel_dirs": 2, "dirs_angle": 1, "lock": 6,
+    # Joint primitives (bucket 5.4a): secondary_parallel blocks spin (2, like parallel_dirs);
+    # point_on_line pins a point to a line (2 translational DoF removed).
+    "secondary_parallel": 2, "point_on_line": 2,
 }
 
 _GENUINE_FAILURE_CODES = frozenset({1, 2, 3})

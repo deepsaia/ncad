@@ -73,9 +73,12 @@ py-slvs solve) is DONE - an 8-mate vocabulary lowering to a closed normal-form p
 solved by py-slvs rigid-body transforms, with a solved-status line + mate chips in the viewer
 hierarchy; bucket 5.3 (DoF diagnostics) is DONE - a four-state status (well/under/over/redundant)
 with redundant + failing constraints attributed by mate id, a plain-language DoF explanation, and
-viewer + CLI surfacing (the 3D analogue of the sketch-status legibility layer). NEXT: 5.4 joints.
-Per-phase deferred items are gathered in the deferred-backlog sections below each
-phase's bucket list, so nothing is lost.
+viewer + CLI surfacing (the 3D analogue of the sketch-status legibility layer); bucket 5.4a
+(lower-pair joints) is DONE - the 7 lower pairs (fixed/revolute/slider/cylindrical/planar/ball/
+point_on_line) as a parallel `joints[]` family lowering to the primitive core + a declared DoF
+signature + static solve, with sidecar joint records + viewer joint chips. NEXT: 5.4b coupled
+joints (screw/gear/rack-pinion/belt/cam/universal). Per-phase deferred items are gathered in the
+deferred-backlog sections below each phase's bucket list, so nothing is lost.
 
 v1 proved the *pattern*: `spec >> build >> BOM >> view`, determinism, build123d/OCCT,
 HOCON+jsonschema, traversal BOM, the Three.js viewer, on the **building profile**
@@ -686,8 +689,15 @@ the solve (the 3D analogue of the sketch-status work) - a four-state status (wel
 redundant reporting, solve code 5), a plain-language DoF explanation built from cheap counts (nominal
 accounting alongside the solver's authoritative dof), an under-constrained hint, a pure
 `DofDiagnostics` unit + `DiagnosticReport` typed result, and viewer + CLI surfacing (explanation on
-the status line, amber redundant / red failing mate chips, enriched solve log line). NEXT: 5.4
-joints, then 5.5-5.6 below.
+the status line, amber redundant / red failing mate chips, enriched solve log line). **Bucket 5.4a
+(lower-pair joints) is DONE:** the 7 lower-pair joints (fixed, revolute, slider, cylindrical,
+planar, ball, point_on_line/slot) as a parallel `joints[]` family - `JointLowering` maps each to
+the existing primitive core (plus a `secondary_parallel` primitive + a per-connector X axis line
+for anti-spin) and yields a declared **DoF signature** (free-axis records from a static table);
+an optional static `value` pins the free DoF (1-DoF joints + cylindrical), valueless leaves it free;
+one unified mate+joint solve (shared id space); sidecar `joints[]` block (signature + role) + viewer
+joint chips. Joints DEFINE allowed motion (a revolute leaves [rot Z]); Phase 6 drives them. NEXT:
+5.4b coupled/higher joints (screw/gear/rack-pinion/belt/cam/universal), then 5.5-5.6 below.
 
 - [ ] **Instances & structure:** components, sub-assemblies, flexible
       sub-assemblies, replace/pattern/mirror component
@@ -705,6 +715,9 @@ joints, then 5.5-5.6 below.
 - [ ] **Joints (DoF-bearing):** **fixed/rigid**, **revolute/pin**,
       **slider/prismatic**, cylindrical, planar, **ball/spherical**, universal,
       screw, gear, rack-pinion, cam, belt, point-on-line/slot
+      (5.4a shipped the 7 lower pairs: fixed/revolute/slider/cylindrical/planar/ball/point_on_line
+      + DoF signature + static solve; coupled/higher joints screw/gear/rack-pinion/belt/cam/universal
+      = 5.4b; time-varying driving = Phase 6)
 - [ ] **Top-down / in-context:** skeleton / master model; publish geometry; change
       propagation
 - [ ] **Interference / clearance** (static): exact (`BRepExtrema_DistShapeShape`)
@@ -756,8 +769,22 @@ STEP (AP242) and opens in FreeCAD; interference check is correct.
   per-body screw-motion characterization + the full rigidity-matrix rank/null-space analysis
   (overlaps Phase 6); leave-one-out redundancy root-causing (upgrade if py-slvs's own set proves
   unintuitive).
-- **Joints (5.4):** fixed/revolute/slider/cylindrical/planar/ball/universal/screw/gear/
-  rack-pinion/cam/belt/point-on-line/slot, DoF-bearing (Phase 6 motion drives them).
+- **Joints, lower pairs (5.4a): DONE.** fixed/revolute/slider/cylindrical/planar/ball/
+  point_on_line(slot) as a parallel `joints[]` family: `JointLowering` >> the existing primitive
+  core (+ a `secondary_parallel` primitive + a per-connector X axis line for anti-spin), a declared
+  DoF signature (free-axis records from a static `SIGNATURES` table), an optional static value
+  (1-DoF joints + cylindrical fully; planar/ball value-pinning deferred), one unified mate+joint
+  solve (shared id space), sidecar `joints[]` block + viewer joint chips. **Execution finding:** the
+  raw py-slvs `Dof` runs +1 above textbook for under-constrained joints (a movable body carries 4
+  quaternion params for 3 rotational DoF; gauge freedom pinned only when fully constrained), so the
+  DECLARED signature is the authoritative DoF statement and the solver dof is a coarse rigid/free
+  cross-check. **5.4a follow-ups (deferred):** valued planar/ball multi-DoF pinning; joint `limits`
+  enforcement; 3D free-axis viewport arrows (>> 5.5).
+- **Joints, coupled/higher (5.4b):** screw, gear, rack-pinion, belt, cam, universal. These are not
+  frame-to-frame relations: screw couples rotation-to-translation by a pitch; gear/rack-pinion/belt
+  couple two OTHER joints' rates by a ratio (joints referencing joints); universal is two coupled
+  revolutes; cam is curved contact. They need DoF-coupling machinery (a DoF as a function of another
+  DoF, overlapping Phase 6's driver-functions) + cam contact geometry. Depends on 5.4a.
 - **Viewer polish (5.5):** exploded views, mate/DoF display, richer instance-tree interactions
   (select/highlight/isolate); the 5.0 instance tree is minimal. Also a browser-side assemble
   action (like the part Build button): 5.0 composes via the `ncad assemble` CLI and the viewer

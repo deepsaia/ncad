@@ -397,6 +397,12 @@
     display: inline-block; }
   .mate-chip.mate-chip-bad { color: var(--log-error); border-color: var(--log-error); }
   .mate-chip.mate-chip-redundant { color: var(--log-warn); border-color: var(--log-warn); }
+  /* Joint chips (bucket 5.4a): the mechanism family, an accent border to read distinct from mates. */
+  .joint-chip { margin: 2px 0 2px 22px; padding: 1px 7px; border-radius: 8px; font-size: 10.5px;
+    color: var(--accent); background: var(--panel-2); border: 1px solid var(--accent);
+    display: inline-block; }
+  .joint-chip.mate-chip-bad { color: var(--log-error); border-color: var(--log-error); }
+  .joint-chip.mate-chip-redundant { color: var(--log-warn); border-color: var(--log-warn); }
 
   /* --- Orientation gizmo (top-right of the viewport). 128px matches the ViewHelper's
      fixed draw size; non-interactive (orientation readout only). --- */
@@ -1846,6 +1852,7 @@ function renderInstanceTree(sceneDoc) {
   body.innerHTML = "";
   const instances = sceneDoc.instances || [];
   const mates = sceneDoc.mates || [];
+  const joints = sceneDoc.joints || [];
   const solve = sceneDoc.solve || null;
   // Solved-status line (bucket 5.3): four states - green well-constrained, red over-constrained
   // (failing ids), amber redundant (removable ids) / under-constrained (free DoF). The DoF
@@ -1898,6 +1905,24 @@ function renderInstanceTree(sceneDoc) {
       chip.textContent = `${m.type} -- ${otherLabel} [${m.id}]`;
       if (m.role === "failing") chip.title = "over-constrained / failing mate";
       else if (m.role === "redundant") chip.title = "redundant - removable without changing the result";
+      body.appendChild(chip);
+    }
+    // One joint chip per joint this instance participates in (bucket 5.4a): distinct accent, shows
+    // the joint type + its DoF signature (the free motion it leaves) + the static value if set.
+    for (const j of joints) {
+      const sides = j.between || [];
+      const mine = sides.findIndex(b => b.instance === inst.id);
+      if (mine < 0) continue;
+      const other = sides[mine === 0 ? 1 : 0];
+      const chip = document.createElement("div");
+      const roleCls = j.role === "failing" ? " mate-chip-bad"
+        : j.role === "redundant" ? " mate-chip-redundant" : "";
+      chip.className = "joint-chip" + roleCls;
+      const sig = (j.signature || [])
+        .map(a => `${a.motion === "rotation" ? "rot" : "trans"} ${a.axis}`).join(", ");
+      const otherLabel = other ? `${other.instance}.${other.connector}` : "(self)";
+      const val = (j.value !== null && j.value !== undefined) ? ` = ${j.value}` : "";
+      chip.textContent = `${j.type}${sig ? " [" + sig + "]" : ""} -- ${otherLabel} [${j.id}]${val}`;
       body.appendChild(chip);
     }
   }

@@ -36,6 +36,8 @@ class AssemblySchemaValidator:
         ]
         issues.extend(self._duplicate_ids(document))
         issues.extend(self._duplicate_constraint_ids(document))
+        issues.extend(self._duplicate_joint_ids(document))
+        issues.extend(self._joint_constraint_id_collisions(document))
         return issues
 
     def _duplicate_ids(self, document: dict) -> list[SchemaIssue]:
@@ -66,4 +68,32 @@ class AssemblySchemaValidator:
                 out.append(SchemaIssue(location="assembly.constraints",
                                        message=f"duplicate constraint id {constraint_id!r}"))
             seen.add(constraint_id)
+        return out
+
+    def _duplicate_joint_ids(self, document: dict) -> list[SchemaIssue]:
+        """One issue per repeated joint id (author-controlled reference names)."""
+        seen: set[str] = set()
+        out: list[SchemaIssue] = []
+        joints = document.get("assembly", {}).get("joints", [])
+        for joint in joints:
+            joint_id = joint.get("id")
+            if joint_id is None:
+                continue
+            if joint_id in seen:
+                out.append(SchemaIssue(location="assembly.joints",
+                                       message=f"duplicate joint id {joint_id!r}"))
+            seen.add(joint_id)
+        return out
+
+    def _joint_constraint_id_collisions(self, document: dict) -> list[SchemaIssue]:
+        """A joint id must not collide with a constraint id (they share one solve id space)."""
+        assembly = document.get("assembly", {})
+        constraint_ids = {c.get("id") for c in assembly.get("constraints", [])}
+        out: list[SchemaIssue] = []
+        for joint in assembly.get("joints", []):
+            joint_id = joint.get("id")
+            if joint_id is not None and joint_id in constraint_ids:
+                out.append(SchemaIssue(
+                    location="assembly.joints",
+                    message=f"joint id {joint_id!r} collides with a constraint id"))
         return out
