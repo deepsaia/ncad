@@ -16,10 +16,14 @@ class FreeAxis:
 
     motion: str
     axis: str
+    pitch: float | None = None  # screw pitch (mm per turn); None for the lower pairs
 
     def to_dict(self) -> dict:
         """A JSON-serializable record for the sidecar joints block."""
-        return {"motion": self.motion, "axis": self.axis}
+        out: dict[str, object] = {"motion": self.motion, "axis": self.axis}
+        if self.pitch is not None:
+            out["pitch"] = self.pitch
+        return out
 
 
 # The declared DoF signature per joint type (the free axes each lower pair leaves). Axes name the
@@ -33,6 +37,9 @@ SIGNATURES: dict[str, list[FreeAxis]] = {
                FreeAxis("rotation", "Z")],
     "ball": [FreeAxis("rotation", "X"), FreeAxis("rotation", "Y"), FreeAxis("rotation", "Z")],
     "point_on_line": [FreeAxis("translation", "line")],
+    # A screw is 1 independent DoF (the turn) with axial travel coupled by pitch; the pitch is
+    # per-joint, so the lowering rebuilds this FreeAxis with the joint's pitch (table holds None).
+    "screw": [FreeAxis("screw", "Z")],
 }
 # `slot` is an alias of point_on_line (same signature + lowering).
 SIGNATURES["slot"] = SIGNATURES["point_on_line"]

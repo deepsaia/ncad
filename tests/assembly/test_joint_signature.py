@@ -28,3 +28,16 @@ def test_revolute_signature_is_rotation_about_z() -> None:
 
 def test_slot_alias_matches_point_on_line() -> None:
     assert SIGNATURES["slot"] == SIGNATURES["point_on_line"]
+
+
+def test_free_axis_pitch_omitted_when_none() -> None:
+    assert FreeAxis(motion="rotation", axis="Z").to_dict() == {"motion": "rotation", "axis": "Z"}
+
+
+def test_free_axis_pitch_included_when_set() -> None:
+    assert FreeAxis(motion="screw", axis="Z", pitch=2.0).to_dict() == {
+        "motion": "screw", "axis": "Z", "pitch": 2.0}
+
+
+def test_screw_in_signatures() -> None:
+    assert SIGNATURES["screw"] == [FreeAxis("screw", "Z")]
