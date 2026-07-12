@@ -27,6 +27,7 @@ def test_tree_reflects_directory_structure(tmp_path) -> None:
         "type": "spec",
         "name": "block.hocon",
         "path": "gate-0.1-first-shape/block.hocon",
+        "kind": "part",
     }
 
 
@@ -67,3 +68,19 @@ def test_resolve_rejects_non_spec_extension(tmp_path) -> None:
     catalog = SpecCatalog(str(_make_examples(tmp_path)))
 
     assert catalog.resolve("notes.txt") is None
+
+
+def test_assembly_document_tagged_assembly_kind(tmp_path) -> None:
+    # A .asm.hocon appears in the tree tagged kind="assembly" so the viewer filters the combobox
+    # by mode and routes it to the assemble path (never the part builder).
+    _make_examples(tmp_path)
+    (tmp_path / "gearbox.asm.hocon").write_text("x")
+    catalog = SpecCatalog(str(tmp_path))
+
+    specs = [n for n in catalog.tree() if n["type"] == "spec"]
+    asm = next(n for n in specs if n["name"] == "gearbox.asm.hocon")
+    assert asm["kind"] == "assembly"
+    part = next(n for n in specs if n["name"] == "top.hocon")
+    assert part["kind"] == "part"
+    # It resolves (it is a valid spec path), but as an assembly, not a part build.
+    assert catalog.resolve("gearbox.asm.hocon") is not None

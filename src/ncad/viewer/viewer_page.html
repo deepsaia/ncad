@@ -296,6 +296,12 @@
   .rs-icon-btn[hidden] { display: none; }
   .tab-panel { display: none; flex: 1; overflow: auto; padding: 12px 14px; }
   .tab-panel.active { display: block; }
+  /* Session log (Logs tab): monospace lines, newest at the bottom; not persisted across reloads. */
+  #logs-body { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 11.5px; }
+  .log-line { padding: 2px 0; border-bottom: 1px solid var(--border); white-space: pre-wrap;
+    word-break: break-word; }
+  .log-line.log-error { color: #e74c3c; }
+  .log-line .log-time { color: var(--muted); margin-right: 6px; }
   #tab-plan.tab-panel { padding: 0; }
   /* The plan SVG is drawn dark-on-white, so its container is white only when it holds
      a plan; the empty/placeholder state uses the normal panel padding + theme colors. */
@@ -390,6 +396,10 @@
         <span id="theme-icon"></span>
       </button>
     </div>
+    <div id="view-mode-switch" class="view-mode-switch">
+      <button id="mode-parts" class="mode-btn active" data-mode="parts">Parts</button>
+      <button id="mode-assemblies" class="mode-btn" data-mode="assemblies">Assemblies</button>
+    </div>
     <div>
       <div class="label">Spec</div>
       <div class="spec-row">
@@ -407,10 +417,6 @@
     </div>
     <div>
       <div class="label">Models</div>
-      <div id="view-mode-switch" class="view-mode-switch">
-        <button id="mode-parts" class="mode-btn active" data-mode="parts">Parts</button>
-        <button id="mode-assemblies" class="mode-btn" data-mode="assemblies">Assemblies</button>
-      </div>
       <div id="model-list" class="model-list"></div>
     </div>
     <div class="spacer"></div>
@@ -527,6 +533,16 @@
         </button>
       </div>
 
+      <div class="vc-sep" id="vc-asm-sep" hidden></div>
+
+      <!-- Assembly-only controls: shown in Assemblies mode. -->
+      <div class="vc-group" id="vc-assembly" hidden aria-label="Assembly">
+        <button class="vc-btn vc-toggle" data-toggle="origins" title="Instance origins (pickup-point axes)">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21V6M12 6l-3 3M12 6l3 3M12 21H4M4 21l3-3M4 21l3 3M12 21h5l3-4"/></svg>
+          <span class="vc-label">Origins</span>
+        </button>
+      </div>
+
       <div class="vc-sep"></div>
 
       <div class="vc-group" id="vc-panels">
@@ -549,6 +565,7 @@
       <button class="tab active" data-tab="hierarchy" role="tab">Hierarchy</button>
       <button class="tab" data-tab="bom" role="tab">BOM</button>
       <button class="tab" data-tab="plan" role="tab">Plan</button>
+      <button class="tab" data-tab="logs" role="tab">Logs</button>
     </div>
     <div class="tab-head">
       <span class="grow"></span>
@@ -564,6 +581,9 @@
     </div>
     <div class="tab-panel" id="tab-plan" role="tabpanel">
       <div id="plan-body"><div class="panel-empty">select a model</div></div>
+    </div>
+    <div class="tab-panel" id="tab-logs" role="tabpanel">
+      <div id="logs-body"><div class="panel-empty">no log entries yet</div></div>
     </div>
   </aside>
 
@@ -781,6 +801,13 @@ let grid = new THREE.GridHelper(80, 80, cssColor("--grid-major"), cssColor("--gr
 grid.rotation.x = Math.PI / 2;
 scene.add(grid);
 
+// A small colored axes marker fixed at the WORLD origin (X=red, Y=green, Z=blue), so the global
+// origin is always visible as a reference. Its size is refreshed to the current model in
+// frameModel (a fraction of the model extent) so it reads as a small marker at any zoom.
+const worldOrigin = new THREE.AxesHelper(0.02);
+worldOrigin.name = "worldOrigin";
+scene.add(worldOrigin);
+
 // Recolor the 3D scene from the current theme's CSS variables. Called on theme change.
 function applySceneTheme() {
   const bg = cssColor("--scene-bg");
@@ -865,11 +892,16 @@ function meshInfo(i) {
 
 let modelRoot = null, edges = [], mode = "solid", showEdges = true, castShadows = true;
 let pickParts = [], elementMap = null;
+// Assembly origin gizmos + their toggle state, declared here (before bindVcToggle uses them,
+// which runs at load) to avoid a temporal-dead-zone error.
+let originGizmos = [];  // per-instance origin axes helpers (toggled by the Origins control)
+let showOrigins = localStorage.getItem("ncad.origins") === "1";
 const loader = new GLTFLoader();
 
 function clearModel() {
   if (modelRoot) { scene.remove(modelRoot); modelRoot = null; }
   edges.forEach(e => scene.remove(e)); edges = [];
+  originGizmos = [];  // gizmos are children of modelRoot, removed with it above
   pickParts = []; elementMap = null;
   const picked = document.getElementById("i-picked");
   if (picked) picked.textContent = "-";
@@ -974,6 +1006,11 @@ function frameModel() {
   camera.position.set(radius * 1.4, -radius * 1.6, radius * 1.05);
   camera.near = radius / 100; camera.far = radius * 50; camera.updateProjectionMatrix();
   controls.target.set(0, 0, half); controls.update();
+  // Size the world-origin marker to a fraction of the model extent so it reads as a small
+  // reference at any scale. modelRoot is re-centered above, so the marker (at the scene origin)
+  // sits under the model's center, marking where world (0,0,0) is for the current view.
+  const originHelper = scene.getObjectByName("worldOrigin");
+  if (originHelper) originHelper.scale.setScalar(Math.max(radius * 0.15, 1e-4) / 0.02);
   // Scene axes now equal part axes (X, Y, Z), so the size readout is direct.
   document.getElementById("i-size").textContent =
     `${size.x.toFixed(1)} × ${size.y.toFixed(1)} × ${size.z.toFixed(1)} m`;
@@ -1305,7 +1342,18 @@ bindVcToggle("rotate", "ncad.rotate", v => {
   if (orientationMode === "axis") controls.autoRotate = v;
 });
 bindVcToggle("freelook", "ncad.freelook", v => { setOrientationMode(v ? "free" : "axis"); });
+bindVcToggle("origins", "ncad.origins", v => {
+  showOrigins = v;
+  originGizmos.forEach(g => { g.visible = v; });
+});
 document.getElementById("vc-reset").addEventListener("click", () => { if (modelRoot) frameModel(); });
+
+// The assembly-only floating controls show only in Assemblies mode.
+function syncAssemblyControls() {
+  const on = viewMode === "assemblies";
+  document.getElementById("vc-assembly").hidden = !on;
+  document.getElementById("vc-asm-sep").hidden = !on;
+}
 
 // Restore the saved display mode (default solid). Buttons reflect it; applyMode on load.
 setMode(localStorage.getItem("ncad.mode") || "solid");
@@ -1456,7 +1504,25 @@ let specTree = [], selectedSpec = null, activeModel = null;
 const REGEN_SVG = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>';
 const DELETE_SVG = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>';
 
+// Session log: appended to the Logs tab (newest at the bottom), not persisted across reloads.
+function log(message, isError) {
+  const body = document.getElementById("logs-body");
+  if (!body) return;
+  const empty = body.querySelector(".panel-empty");
+  if (empty) empty.remove();
+  const line = document.createElement("div");
+  line.className = "log-line" + (isError ? " log-error" : "");
+  const now = new Date();
+  const t = now.toTimeString().slice(0, 8);
+  line.innerHTML = '<span class="log-time"></span>';
+  line.querySelector(".log-time").textContent = t;
+  line.appendChild(document.createTextNode(message));
+  body.appendChild(line);
+  body.scrollTop = body.scrollHeight;
+}
+
 function toast(message, isError) {
+  log(message, isError);  // every toast also lands in the persistent Logs tab
   const el = document.getElementById("toast");
   el.textContent = message;
   el.classList.toggle("error", !!isError);
@@ -1467,7 +1533,7 @@ function toast(message, isError) {
 function flattenSpecs(nodes, out) {
   for (const node of nodes) {
     if (node.type === "dir") flattenSpecs(node.children, out);
-    else out.push({ name: node.name, path: node.path });
+    else out.push({ name: node.name, path: node.path, kind: node.kind || "part" });
   }
   return out;
 }
@@ -1476,7 +1542,10 @@ function renderSpecTree(filter) {
   const box = document.getElementById("spec-tree");
   const all = flattenSpecs(specTree, []);
   const q = (filter || "").toLowerCase();
-  const matches = all.filter(s => s.path.toLowerCase().includes(q));
+  // The combobox shows only specs of the current mode's kind: Assemblies mode lists .asm.hocon
+  // documents, Parts mode lists part documents.
+  const wantKind = viewMode === "assemblies" ? "assembly" : "part";
+  const matches = all.filter(s => s.kind === wantKind && s.path.toLowerCase().includes(q));
   box.innerHTML = "";
   let currentDir = null;
   for (const s of matches) {
@@ -1550,6 +1619,7 @@ function selectModel(name) {
 // matrices). The choice persists in localStorage, like the theme and sidebar width.
 let viewMode = localStorage.getItem("ncad.viewMode") || "parts";
 const partGlbCache = {};  // part_glb filename -> loaded THREE.Object3D (loaded once, instanced)
+const assemblySources = {};  // assembly name -> source .asm.hocon path (for regenerate)
 
 function refreshAssemblies() {
   return fetch("/api/assemblies").then(r => r.json()).then(data => {
@@ -1566,6 +1636,15 @@ function renderAssemblyList(names) {
     const label = document.createElement("div");
     label.className = "name"; label.textContent = name; label.title = name;
     row.appendChild(label);
+    // Same row actions as parts: regenerate (recompose from the recorded source) + delete.
+    const actions = document.createElement("div");
+    actions.className = "row-actions";
+    const regen = iconButton("Regenerate", REGEN_SVG, "act-regen");
+    regen.addEventListener("click", ev => { ev.stopPropagation(); regenerateAssembly(name); });
+    const del = iconButton("Delete", DELETE_SVG, "act-delete");
+    del.addEventListener("click", ev => { ev.stopPropagation(); removeAssembly(name); });
+    actions.appendChild(regen); actions.appendChild(del);
+    row.appendChild(actions);
     row.addEventListener("click", () => selectAssembly(name));
     list.appendChild(row);
   }
@@ -1577,45 +1656,125 @@ function selectAssembly(name) {
   refreshAssemblies();
 }
 
+function assembleSpec(spec) {
+  if (!spec) { toast("select an assembly spec first", true); return; }
+  spinner.style.display = "block";
+  fetch("/api/assemble", { method: "POST", headers: { "Content-Type": "application/json" },
+                           body: JSON.stringify({ spec }) })
+    .then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.error || "assemble failed"); return d; })
+    .then(d => {
+      renderAssemblyList(d.assemblies || []);
+      assemblySources[d.assembled] = spec;  // remember the source for regenerate
+      if (d.assembled) selectAssembly(d.assembled);
+      const issues = (d.issues || []).length;
+      toast("assembled " + d.assembled + (issues ? ` (${issues} issue(s))` : ""));
+    })
+    .catch(e => toast(e.message, true))
+    .finally(() => { spinner.style.display = "none"; });
+}
+
+function regenerateAssembly(name) {
+  const source = assemblySources[name];
+  if (!source) { toast("no source recorded for " + name + "; pick it in the Spec box", true); return; }
+  assembleSpec(source);
+}
+
+function removeAssembly(name) {
+  // Delete the assembly scene sidecar (the composed part glbs are shared build output, left in
+  // place). No confirmation: recomposing from the spec is cheap, and the toast reports it.
+  fetch("/api/assembly/" + encodeURIComponent(name) + "/delete", { method: "POST" })
+    .then(r => r.json())
+    .then(d => { if (activeModel === name) { activeModel = null; clearModel(); } renderAssemblyList(d.assemblies || []); toast("deleted " + name); })
+    .catch(() => toast("could not delete " + name, true));
+}
+
 function loadAssembly(name) {
   spinner.style.display = "flex";
-  fetch(`/api/assembly/${name}`).then(r => r.json()).then(scene => {
+  // NB: name the payload `sceneDoc`, NOT `scene` - `scene` is the global THREE.Scene, and
+  // shadowing it here would make `scene.add(...)` add to the JSON instead of the 3D scene.
+  fetch(`/api/assembly/${name}`).then(r => r.json()).then(sceneDoc => {
     clearModel();
+    // The scene sidecar records its source .asm.hocon, so Regenerate works after a reload
+    // (the in-memory map alone would be empty on a fresh page).
+    if (sceneDoc.source) assemblySources[name] = sceneDoc.source;
     for (const key in partGlbCache) delete partGlbCache[key];
+    // The root carries NO rotation: each part clone is individually rotated to Z-up (exactly as
+    // loadModel does to a single glb), and each placement is authored in that Z-up modeled frame,
+    // so placement and geometry share one frame (no double rotation).
     const root = new THREE.Group();
-    // Match the part loader's Z-up correction so assembly space equals modeled coordinates.
-    root.rotation.x = Math.PI / 2;
-    modelRoot = root; scene_add_root(root);
+    modelRoot = root;
+    scene.add(root);
+    log(`assembly ${name}: ${(sceneDoc.instances || []).length} instances`);
     let pending = 0, done = false;
-    const finish = () => { if (done && pending === 0) { applyMode(); frameModel(); spinner.style.display = "none"; } };
-    for (const inst of scene.instances) {
+    const finish = () => {
+      if (!(done && pending === 0)) return;
+      root.updateMatrixWorld(true);
+      applyMode();
+      frameModel();
+      const box = new THREE.Box3().setFromObject(modelRoot);
+      const sz = box.getSize(new THREE.Vector3());
+      log(`assembly rendered: ${pickParts.length} meshes, bbox ${sz.x.toFixed(1)} x ${sz.y.toFixed(1)} x ${sz.z.toFixed(1)}`);
+      document.getElementById("i-meshes").textContent = pickParts.length;
+      spinner.style.display = "none";
+    };
+    for (const inst of sceneDoc.instances) {
       pending++;
       loadPartGlb(inst.part_glb, obj => {
-        const node = obj.clone(true);
+        // Placement node (Z-up modeled frame) contains an inner group that rotates the raw glb
+        // (Y-up) to Z-up, so: glb Y-up >> inner Rx(+90) >> Z-up >> node placement >> world.
+        const node = new THREE.Group();
         node.applyMatrix4(matrixFromRowMajor(inst.placement));
+        const inner = new THREE.Group();
+        inner.rotation.x = Math.PI / 2;
+        inner.add(obj.clone(true));
+        node.add(inner);
+        // Pickup-point aid: an axes gizmo AT the instance origin (the point the placement moves),
+        // so the author can see where a part is grabbed. Sized to the instance's own extent;
+        // visibility follows the Origins toggle (assembly-only floating control).
+        const partBox = new THREE.Box3().setFromObject(inner);
+        const partSz = partBox.getSize(new THREE.Vector3());
+        // Gizmo ~60% of the part's largest extent (min 1mm = 0.001 glb-units), so it reads as a
+        // small origin marker, not a scene-spanning axis. No 1-unit floor (that was 1 METRE).
+        const axisLen = Math.max(partSz.x, partSz.y, partSz.z, 0.001) * 0.6;
+        const gizmo = new THREE.AxesHelper(axisLen);
+        gizmo.visible = showOrigins;
+        originGizmos.push(gizmo);
+        node.add(gizmo);
         root.add(node);
+        node.updateMatrixWorld(true);
+        node.traverse(o => { if (o.isMesh) pickParts.push(o); });
+        // Log the pickup point: where this instance's origin lands in world space.
+        const p = inst.placement;
+        log(`  ${inst.id} (${inst.part_name}): origin at [${p[3][0]}, ${p[3][1]}, ${p[3][2]}]`);
         pending--; finish();
-      });
+      }, () => { pending--; toast("part glb failed: " + inst.part_glb, true); finish(); });
     }
     done = true; finish();
-    renderInstanceTree(scene.instances);
-  }).catch(err => { spinner.textContent = "failed to load assembly"; console.error(err); });
+    renderInstanceTree(sceneDoc.instances);
+  }).catch(err => {
+    spinner.style.display = "none";
+    toast("assembly load error: " + (err && err.message ? err.message : err), true);
+    console.error(err);
+  });
 }
 
-function scene_add_root(root) { scene.add(root); }
-
-function loadPartGlb(glbName, cb) {
+function loadPartGlb(glbName, cb, onErr) {
   if (partGlbCache[glbName]) { cb(partGlbCache[glbName]); return; }
   loader.load(`/models/${glbName}`, gltf => { partGlbCache[glbName] = gltf.scene; cb(gltf.scene); },
-    undefined, err => { console.error("part glb failed", glbName, err); });
+    undefined, err => { console.error("part glb failed", glbName, err); if (onErr) onErr(err); });
 }
 
-// The sidecar placement is a ROW-MAJOR 4x4; three.js Matrix4.set takes row-major args directly.
+// The sidecar placement is a ROW-MAJOR 4x4 in mm (the document's authored unit); three.js
+// Matrix4.set takes row-major args (translation in the last column). The part glbs are exported
+// in METERS (export_gltf(unit=MM) scales mm -> m), so the placement TRANSLATION is scaled by
+// MM_TO_M to match the geometry unit; rotation is unit-free. Without this, a 60mm part (0.06 in
+// glb units) placed at "15" lands 15 metres away and is an invisible speck.
+const MM_TO_M = 0.001;
 function matrixFromRowMajor(m) {
   const M = new THREE.Matrix4();
-  M.set(m[0][0], m[0][1], m[0][2], m[3][0],
-        m[1][0], m[1][1], m[1][2], m[3][1],
-        m[2][0], m[2][1], m[2][2], m[3][2],
+  M.set(m[0][0], m[0][1], m[0][2], m[3][0] * MM_TO_M,
+        m[1][0], m[1][1], m[1][2], m[3][1] * MM_TO_M,
+        m[2][0], m[2][1], m[2][2], m[3][2] * MM_TO_M,
         0, 0, 0, 1);
   return M;
 }
@@ -1637,6 +1796,8 @@ function setViewMode(next) {
   localStorage.setItem("ncad.viewMode", next);
   document.getElementById("mode-parts").classList.toggle("active", next === "parts");
   document.getElementById("mode-assemblies").classList.toggle("active", next === "assemblies");
+  syncAssemblyControls();
+  renderSpecTree(document.getElementById("spec-search").value);
   activeModel = null;
   if (next === "assemblies") {
     refreshAssemblies().then(names => { if (names.length) selectAssembly(names[0]); });
@@ -1689,7 +1850,10 @@ specClearEl.addEventListener("mousedown", ev => {
   renderSpecTree("");
   specSearchEl.focus();
 });
-document.getElementById("spec-build").addEventListener("click", () => build(selectedSpec));
+document.getElementById("spec-build").addEventListener("click", () => {
+  // Dispatch by mode: Parts builds a part spec; Assemblies composes an assembly document.
+  if (viewMode === "assemblies") assembleSpec(selectedSpec); else build(selectedSpec);
+});
 
 // ---- Color theme: one toggle cycling light -> system -> dark (persisted) ----
 const THEME_ORDER = ["light", "system", "dark"];
@@ -1726,6 +1890,7 @@ document.getElementById("mode-parts").addEventListener("click", () => setViewMod
 document.getElementById("mode-assemblies").addEventListener("click", () => setViewMode("assemblies"));
 document.getElementById("mode-parts").classList.toggle("active", viewMode === "parts");
 document.getElementById("mode-assemblies").classList.toggle("active", viewMode === "assemblies");
+syncAssemblyControls();
 if (viewMode === "assemblies") {
   refreshAssemblies().then(names => { if (names.length) selectAssembly(names[0]); });
 } else {
