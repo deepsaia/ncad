@@ -64,3 +64,26 @@ def test_signature_returned_for_ball() -> None:
 def test_unknown_type_raises() -> None:
     with pytest.raises(JointError):
         JointLowering().lower({"id": "j", "type": "warp"}, _f(), _f())
+
+
+def test_screw_valueless_positioning_and_signature() -> None:
+    prims, sig = JointLowering().lower({"id": "j", "type": "screw", "pitch": 2}, _f(), _f())
+    assert [p["kind"] for p in prims] == ["axes_coincident"]
+    assert len(sig) == 1 and sig[0].motion == "screw" and sig[0].pitch == 2.0
+
+
+def test_screw_valued_adds_angle_and_axial_pins() -> None:
+    prims, _ = JointLowering().lower(
+        {"id": "j", "type": "screw", "pitch": 2, "value": 360}, _f(), _f())
+    kinds = [p["kind"] for p in prims]
+    assert kinds == ["axes_coincident", "dirs_angle", "point_plane_distance"]
+    # One full turn (360 deg) advances by exactly one pitch (2mm).
+    axial = next(p for p in prims if p["kind"] == "point_plane_distance")
+    assert axial["value"] == 2.0
+    angle = next(p for p in prims if p["kind"] == "dirs_angle")
+    assert angle["value"] == 360.0
+
+
+def test_valued_screw_without_pitch_raises() -> None:
+    with pytest.raises(JointError):
+        JointLowering().lower({"id": "j", "type": "screw", "value": 90}, _f(), _f())
