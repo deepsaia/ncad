@@ -403,6 +403,10 @@
     display: inline-block; }
   .joint-chip.mate-chip-bad { color: var(--log-error); border-color: var(--log-error); }
   .joint-chip.mate-chip-redundant { color: var(--log-warn); border-color: var(--log-warn); }
+  /* Coupling chips (bucket 5.4b): declared joint-to-joint, dashed + muted (enforced in Phase 6). */
+  .coupling-chip { margin: 2px 0 2px 22px; padding: 1px 7px; border-radius: 8px; font-size: 10.5px;
+    color: var(--muted); background: transparent; border: 1px dashed var(--muted);
+    display: inline-block; }
 
   /* --- Orientation gizmo (top-right of the viewport). 128px matches the ViewHelper's
      fixed draw size; non-interactive (orientation readout only). --- */
@@ -1853,6 +1857,11 @@ function renderInstanceTree(sceneDoc) {
   const instances = sceneDoc.instances || [];
   const mates = sceneDoc.mates || [];
   const joints = sceneDoc.joints || [];
+  const couplings = sceneDoc.couplings || [];
+  // A coupling references joint ids; each joint references instances via its `between`. Map joint id
+  // -> its instances so a coupling chip can show under any instance in either coupled joint.
+  const jointInstances = {};
+  for (const j of joints) jointInstances[j.id] = (j.between || []).map(b => b.instance);
   const solve = sceneDoc.solve || null;
   // Solved-status line (bucket 5.3): four states - green well-constrained, red over-constrained
   // (failing ids), amber redundant (removable ids) / under-constrained (free DoF). The DoF
@@ -1921,11 +1930,26 @@ function renderInstanceTree(sceneDoc) {
       const roleCls = j.role === "failing" ? " mate-chip-bad"
         : j.role === "redundant" ? " mate-chip-redundant" : "";
       chip.className = "joint-chip" + roleCls;
-      const sig = (j.signature || [])
-        .map(a => `${a.motion === "rotation" ? "rot" : "trans"} ${a.axis}`).join(", ");
+      const sig = (j.signature || []).map(a => {
+        const m = a.motion === "rotation" ? "rot" : a.motion === "translation" ? "trans" : "screw";
+        return a.pitch != null ? `${m} ${a.axis} p${a.pitch}` : `${m} ${a.axis}`;
+      }).join(", ");
       const otherLabel = other ? `${other.instance}.${other.connector}` : "(self)";
       const val = (j.value !== null && j.value !== undefined) ? ` = ${j.value}` : "";
       chip.textContent = `${j.type}${sig ? " [" + sig + "]" : ""} -- ${otherLabel} [${j.id}]${val}`;
+      body.appendChild(chip);
+    }
+    // Coupling chips (bucket 5.4b): a declared joint-to-joint relation (gear/belt/...), dashed +
+    // muted to read as "enforced in motion (Phase 6)". Shown under any instance in either coupled joint.
+    for (const c of couplings) {
+      const involves = (c.between || []).some(jid => (jointInstances[jid] || []).includes(inst.id));
+      if (!involves) continue;
+      const chip = document.createElement("div");
+      chip.className = "coupling-chip";
+      const ratio = (c.ratio != null) ? ` x${c.ratio}` : "";
+      const others = (c.between || []).join(" <> ");
+      chip.textContent = `${c.type}${ratio} -- ${others} [${c.id}]`;
+      chip.title = "enforced during motion (Phase 6)";
       body.appendChild(chip);
     }
   }
