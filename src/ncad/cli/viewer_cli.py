@@ -113,6 +113,16 @@ class ViewerCli:
         finally:
             os.unlink(handle.name)
 
+    def assemble_document(self, file: str, out: str | None) -> dict:
+        """Compose an assembly document into the models directory; return the assemble result."""
+        from ncad.assembly.assembly_builder import AssemblyBuilder
+        from ncad.kernel.build123d_kernel import Build123dKernel
+
+        logging.basicConfig(level=logging.INFO, format="%(message)s")
+        logging.getLogger("build123d").setLevel(logging.WARNING)
+        out_dir = self.resolve_models_dir(out)
+        return AssemblyBuilder(Build123dKernel()).assemble(file, str(out_dir))
+
 
 app = typer.Typer(
     help="ncad: build and view parametric CAD models.",
@@ -185,6 +195,22 @@ def import_(
         print(f"\nview with:  ncad view {out_dir}\n")
     else:
         print("  no parts built\n")
+
+
+@app.command()
+def assemble(
+    document: str = typer.Argument(..., help="path to a .asm.hocon assembly document"),
+    out: str = typer.Option(None, help="output directory (default: out/)"),
+) -> None:
+    """Compose an assembly (instances of parts, placed) into a viewable scene."""
+    result = cli.assemble_document(document, out)
+    print(f"\nncad assemble: {document}")
+    for instance_id in result["instances"]:
+        print(f"  instance {instance_id}")
+    for issue in result["issues"]:
+        print(f"  ISSUE [{issue['instance_id']}] {issue['message']}")
+    out_dir = result["sidecar"].rsplit("/", 1)[0]
+    print(f"\nview with:  ncad view {out_dir}\n")
 
 
 def main() -> None:
