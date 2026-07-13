@@ -564,6 +564,10 @@ class FakeKernel(Kernel):
             return solid.face.area * solid.distance
         return _polygon_area(solid.face.points) * solid.distance
 
+    def place(self, shape: Any, matrix: list[list[float]]) -> Any:
+        """Placing solids for interference/STEP is real-kernel only (FakeKernel is analytic)."""
+        raise NotImplementedError("FakeKernel does not implement place (real-kernel only)")
+
     def distance(self, shape_a: Any, shape_b: Any) -> float:
         """Interference is a real-kernel concern (analytic FakeKernel has no B-rep distance)."""
         raise NotImplementedError("FakeKernel does not implement distance (real-kernel only)")

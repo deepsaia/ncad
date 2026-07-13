@@ -257,6 +257,11 @@ class Kernel(ABC):
         """Axis-aligned bounds of ``solid`` as ``((minx,miny,minz),(maxx,maxy,maxz))``."""
 
     @abstractmethod
+    def place(self, shape: Any, matrix: list[list[float]]) -> Any:
+        """Return ``shape`` placed by a row-major 4x4 rigid matrix (rotation top-left, translation
+        in the last row): the assembly placement convention, to world-place an instance solid."""
+
+    @abstractmethod
     def distance(self, shape_a: Any, shape_b: Any) -> float:
         """Minimum distance between two solids (0.0 if touching or overlapping)."""
 

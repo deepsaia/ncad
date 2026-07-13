@@ -590,6 +590,10 @@ class Build123dKernel(Kernel):
         box = solid.bounding_box()
         return (tuple(box.min), tuple(box.max))
 
+    def place(self, shape: Any, matrix: list[list[float]]) -> Any:
+        """Place a solid by a row-major 4x4 rigid matrix (assembly placement convention)."""
+        return Location(_trsf_from(matrix)) * shape
+
     def distance(self, shape_a: Any, shape_b: Any) -> float:
         """Minimum distance between two solids via BRepExtrema_DistShapeShape (mm)."""
         calc = BRepExtrema_DistShapeShape(_wrapped(shape_a), _wrapped(shape_b))
