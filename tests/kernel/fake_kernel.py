@@ -106,6 +106,17 @@ class FakeKernel(Kernel):
     def wire(self, edges: list, plane: str, offset: float = 0.0) -> Any:
         return _FakeWire(edges, plane, offset)
 
+    def text_face(self, text: str, size: float, plane: str, *, font: str = "",
+                  style: str = "", offset: float = 0.0, at: Point2 = (0.0, 0.0),
+                  rotation: float = 0.0) -> Any:
+        # Fake model: a rectangle ~ (0.6*size per char) wide x size tall (area only). The real
+        # kernel builds the true glyph faces with counter holes; the fake just needs a face
+        # with a positive area so non-slow op tests that call it do not crash.
+        w = max(len(text), 1) * 0.6 * size
+        ox, oy = at
+        pts = [(ox, oy), (ox + w, oy), (ox + w, oy + size), (ox, oy + size)]
+        return _FakeFace(pts, plane, offset)
+
     def wire_length(self, wire: Any) -> float:
         """Path length of a fake open wire (test helper)."""
         return wire.length

@@ -206,6 +206,22 @@ class Build123dKernel(Kernel):
         occ_edges = [_build_edge(edge, basis) for edge in edges]
         return Face(Wire(occ_edges))
 
+    def text_face(self, text: str, size: float, plane: str, *, font: str = "",
+                  style: str = "", offset: float = 0.0, at: Point2 = (0.0, 0.0),
+                  rotation: float = 0.0) -> Any:
+        if plane not in _PLANES:
+            raise ValueError(f"plane must be one of {tuple(_PLANES)}, got {plane!r}")
+        basis = _PLANES[plane].offset(offset)
+        font_style = _FONT_STYLES.get(style, FontStyle.REGULAR)
+        # build123d Text yields a Sketch of glyph faces whose letter counters are inner-loop
+        # holes (multi-loop faces). font defaults to build123d's when unspecified. Placed on
+        # the sketch plane at (u, v) with in-plane rotation, matching the wrap-op placement.
+        kwargs: dict = {"font_size": size, "font_style": font_style}
+        if font:
+            kwargs["font"] = font
+        glyphs = Text(text, **kwargs)
+        return basis * Pos(at[0], at[1]) * Rot(0, 0, rotation) * glyphs  # pyrefly: ignore[unsupported-operation]
+
     def wire(self, edges: list, plane: str, offset: float = 0.0) -> Any:
         if plane not in _PLANES:
             raise ValueError(f"plane must be one of {tuple(_PLANES)}, got {plane!r}")

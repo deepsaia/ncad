@@ -114,6 +114,18 @@ class Kernel(ABC):
         """
 
     @abstractmethod
+    def text_face(self, text: str, size: float, plane: str, *, font: str = "",
+                  style: str = "", offset: float = 0.0, at: Point2 = (0.0, 0.0),
+                  rotation: float = 0.0) -> Any:
+        """A planar face (with glyph-counter holes) for ``text`` at ``size`` on ``plane``.
+
+        The glyphs are built as a set of faces whose letter counters ("A", "o") are real
+        inner-loop holes (multi-loop faces), placed at ``at`` (u, v) on the plane and rotated
+        ``rotation`` degrees; ``offset`` shifts the plane along its normal. Extrudable/cuttable
+        like any sketch profile (distinct from the ``wrap`` op, which lands text on a face).
+        """
+
+    @abstractmethod
     def wire(self, edges: list, plane: str, offset: float = 0.0) -> Any:
         """An OPEN wire (a path) from ordered edge descriptors on ``plane``.
 
