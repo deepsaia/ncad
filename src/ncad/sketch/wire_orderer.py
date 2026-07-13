@@ -12,7 +12,7 @@ import math
 
 logger = logging.getLogger(__name__)
 
-_CONNECTIVE = frozenset({"line", "arc", "bezier", "interpolated"})
+_CONNECTIVE = frozenset({"line", "arc", "bezier", "interpolated", "ellipse_arc"})
 
 
 class WireOrderer:
@@ -24,17 +24,21 @@ class WireOrderer:
         # Construction/reference entities (e.g. projected edges) anchor the sketch but
         # are not part of the built wire.
         entities = [e for e in entities if not e.get("construction")]
-        circles = [e for e in entities if e.get("type") == "circle"]
+        closed = [e for e in entities if e.get("type") in ("circle", "ellipse")]
         connective = [e for e in entities if e.get("type") in _CONNECTIVE]
-        if circles and connective:
-            return [], "a circle must be the only entity in its sketch loop"
-        if circles:
-            if len(circles) != 1:
-                return [], "a sketch loop supports a single circle"
-            circle = circles[0]
-            center = positions[circle["center"]]
-            return [{"kind": "circle", "center": center,
-                     "radius": radii.get(circle["id"], circle.get("radius", 0.0))}], None
+        if closed and connective:
+            return [], "a full circle/ellipse must be the only entity in its sketch loop"
+        if closed:
+            if len(closed) != 1:
+                return [], "a sketch loop supports a single full circle/ellipse"
+            entity = closed[0]
+            if entity["type"] == "circle":
+                center = positions[entity["center"]]
+                return [{"kind": "circle", "center": center,
+                         "radius": radii.get(entity["id"], entity.get("radius", 0.0))}], None
+            return [{"kind": "ellipse", "center": positions[entity["center"]],
+                     "major_axis_end": positions[entity["major_axis_end"]],
+                     "minor_radius": float(entity["minor_radius"])}], None
         if not connective:
             return [], "sketch has no entities to form a loop"
         return self._order_connective(connective, positions)
@@ -51,8 +55,8 @@ class WireOrderer:
         connective = [e for e in entities if e.get("type") in _CONNECTIVE]
         if not connective:
             return [], "open sketch has no line/arc entities to form a path"
-        if any(e.get("type") == "circle" for e in entities):
-            return [], "an open sketch path cannot contain a circle"
+        if any(e.get("type") in ("circle", "ellipse") for e in entities):
+            return [], "an open sketch path cannot contain a full circle/ellipse"
         endpoints = {e["id"]: _endpoints(e) for e in connective}
         adjacency: dict[str, list[str]] = {}
         for eid, (a, b) in endpoints.items():
@@ -138,6 +142,12 @@ class WireOrderer:
             if point_ids[0] == to_point:
                 point_ids = list(reversed(point_ids))
             return {"kind": kind, "points": [positions[p] for p in point_ids]}, None
+        if edge["type"] == "ellipse_arc":
+            return {"kind": "ellipse_arc",
+                    "center": positions[edge["center"]],
+                    "major_axis_end": positions[edge["major_axis_end"]],
+                    "minor_radius": float(edge["minor_radius"]),
+                    "points": [start, end]}, None
         center = positions[edge["center"]]
         mid, err = _arc_mid(center, positions[edge["start"]], positions[edge["end"]])
         if err is not None:
@@ -190,7 +200,7 @@ def _endpoints(edge: dict) -> tuple[str, str]:
     kind = edge["type"]
     if kind == "line":
         return edge["p1"], edge["p2"]
-    if kind == "arc":
+    if kind in ("arc", "ellipse_arc"):
         return edge["start"], edge["end"]
     points = edge["points"]
     return points[0], points[-1]
