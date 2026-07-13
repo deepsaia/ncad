@@ -33,7 +33,7 @@ definitions {
     required = ["id", "type"]
     properties {
       id { type = string }
-      type { enum = ["rectangle", "circle", "polygon"] }
+      type { enum = ["rectangle", "circle", "polygon", "text"] }
       w { type = number, exclusiveMinimum = 0 }
       h { type = number, exclusiveMinimum = 0 }
       d { type = number, exclusiveMinimum = 0 }
@@ -41,6 +41,12 @@ definitions {
       sides { type = integer, minimum = 3 }
       points { type = array, items = ${definitions.vec2} }
       at = ${definitions.vec2}
+      # A `text` element (an extrudable text profile): the glyph string + font controls.
+      text { type = string }
+      font_size { type = number, exclusiveMinimum = 0 }
+      font { type = string }
+      font_style { enum = ["regular", "bold", "italic"] }
+      rotation { type = number }
     }
   }
 

@@ -106,6 +106,17 @@ class FakeKernel(Kernel):
     def wire(self, edges: list, plane: str, offset: float = 0.0) -> Any:
         return _FakeWire(edges, plane, offset)
 
+    def text_face(self, text: str, size: float, plane: str, *, font: str = "",
+                  style: str = "", offset: float = 0.0, at: Point2 = (0.0, 0.0),
+                  rotation: float = 0.0) -> Any:
+        # Fake model: a rectangle ~ (0.6*size per char) wide x size tall (area only). The real
+        # kernel builds the true glyph faces with counter holes; the fake just needs a face
+        # with a positive area so non-slow op tests that call it do not crash.
+        w = max(len(text), 1) * 0.6 * size
+        ox, oy = at
+        pts = [(ox, oy), (ox + w, oy), (ox + w, oy + size), (ox, oy + size)]
+        return _FakeFace(pts, plane, offset)
+
     def wire_length(self, wire: Any) -> float:
         """Path length of a fake open wire (test helper)."""
         return wire.length
@@ -186,6 +197,21 @@ class FakeKernel(Kernel):
         # FakeKernel edges in tests are already 2D descriptors; identity projection. The
         # fake projection is offset-agnostic (it does not model the plane's world placement).
         return list(edges)
+
+    def vertices_of(self, shape: Any) -> list:
+        # A fake face's corner ring doubles as its "vertices" (2D tuples); good enough for the
+        # vertex-projection path in fake-kernel tests.
+        return list(getattr(shape, "points", []))
+
+    def project_vertices(self, vertices: list, plane: str, offset: float = 0.0) -> list:
+        # FakeKernel vertices in tests are already (x, y) tuples; identity projection. The fake
+        # kernel does not model the plane's world placement.
+        return [(float(v[0]), float(v[1])) for v in vertices]
+
+    def intersection_curve(self, shape: Any, plane: str, offset: float = 0.0) -> list:
+        # The fake kernel does not compute analytic sections; a real section curve needs the
+        # OCCT kernel. Return empty so callers degrade gracefully in fake-only tests.
+        return []
 
     def extrude(self, face: Any, distance: float | None = None, *,
                 symmetric: bool = False, second_distance: float | None = None,
@@ -723,24 +749,44 @@ def _wire_ring(edges: list) -> list[Point2]:
         cx, cy = edges[0]["center"]
         r = edges[0]["radius"]
         return [(cx - r, cy - r), (cx + r, cy - r), (cx + r, cy + r), (cx - r, cy + r)]
+    if len(edges) == 1 and edges[0]["kind"] == "ellipse":
+        cx, cy, rx, ry = _ellipse_params(edges[0])
+        return [(cx - rx, cy - ry), (cx + rx, cy - ry),
+                (cx + rx, cy + ry), (cx - rx, cy + ry)]
     ring: list[Point2] = []
     for edge in edges:
-        if edge["kind"] in ("bezier", "spline"):
+        if edge["kind"] in ("bezier", "spline", "conic"):
             ring.extend(edge["points"])
         else:
             ring.append(edge["points"][0])
     return ring
 
 
+def _ellipse_params(edge: dict) -> tuple[float, float, float, float]:
+    """Fake-kernel ellipse bounds: (center x, center y, x_radius, minor_radius).
+
+    ``x_radius`` is the distance from center to the major-axis end; orientation is ignored
+    (the fake kernel only needs deterministic, non-zero, axis-aligned bounds/area, not the
+    true rotated extent). The real kernel builds the exact ellipse.
+    """
+    cx, cy = edge["center"]
+    mx, my = edge["major_axis_end"]
+    x_radius = math.hypot(mx - cx, my - cy)
+    return cx, cy, x_radius, float(edge["minor_radius"])
+
+
 def _wire_face_area(edges: list) -> float:
     """Area of a closed wire loop; arcs are tessellated so the bulge sign is correct."""
     if len(edges) == 1 and edges[0]["kind"] == "circle":
         return math.pi * edges[0]["radius"] ** 2
+    if len(edges) == 1 and edges[0]["kind"] == "ellipse":
+        _, _, rx, ry = _ellipse_params(edges[0])
+        return math.pi * rx * ry
     dense: list[Point2] = []
     for edge in edges:
         if edge["kind"] == "arc":
             dense.extend(_arc_samples(edge["points"], 24)[:-1])
-        elif edge["kind"] in ("bezier", "spline"):
+        elif edge["kind"] in ("bezier", "spline", "conic"):
             # Defining-polygon approximation: the fake kernel does not evaluate the true
             # curve, so a spline's contribution to the loop area is its control/through
             # points. Deterministic and non-zero for a bulging curve; exact area is the

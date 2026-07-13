@@ -50,6 +50,7 @@ class SlvsSolver(SketchSolver):
         "point_on": "_c_point_on", "collinear": "_c_collinear",
         "concentric": "_c_concentric", "tangent": "_c_tangent", "fix": "_c_fix",
         "angle": "_c_angle", "diameter": "_c_diameter",
+        "minor_radius": "_c_minor_radius", "smooth": "_c_smooth",
     }
 
     def solve(self, entities: list[dict], constraints: list[dict],
@@ -90,8 +91,16 @@ class SlvsSolver(SketchSolver):
                     workplane, point_handles[entity["center"]],
                     point_handles[entity["start"]], point_handles[entity["end"]],
                     group=_SKETCH_GROUP)
+            elif kind == "ellipse":
+                # A full ellipse has no solver curve entity (py-slvs has no ellipse), but its
+                # minor radius is a solved distance so it can be dimensioned/measured like a
+                # circle radius; its center + major_axis_end points carry the rest of the DOF.
+                circle_dist[entity["id"]] = system.addDistanceV(
+                    float(entity["minor_radius"]), group=_SKETCH_GROUP)
             # bezier/interpolated are NOT registered as solver curves: their defining
             # points (registered above) carry all DOF; the curve is derived downstream.
+            # ellipse_arc/conic are the same: py-slvs has no such primitive, so their
+            # defining points carry the DOF and the analytic curve is derived by the kernel.
 
         # Construction (reference) and fixed (offset-derived) entities are dimensionally
         # locked: pin each defining point once (a point may back several such entities),
@@ -136,6 +145,11 @@ class SlvsSolver(SketchSolver):
             cid: system.getParam(system.getEntityParam(system.getEntity(handle).distance, 0)).val
             for cid, handle in curve_handles.items() if cid in circle_dist
         }
+        # An ellipse's minor radius lives in circle_dist but has no curve handle (it is not a
+        # solver curve); read it straight from its distance param.
+        for eid, dist in circle_dist.items():
+            if eid not in radii:
+                radii[eid] = system.getParam(system.getEntityParam(dist, 0)).val
         measurements: dict[str, float] = {}
         for constraint in constraints:
             if constraint.get("driven"):
@@ -276,12 +290,55 @@ class SlvsSolver(SketchSolver):
         system.addDiameter(float(constraint["value"]), ctx.curves[constraint["of"]],
                            group=_SKETCH_GROUP)
 
+    def _c_smooth(self, system: Any, constraint: dict, ctx: _Ctx) -> None:
+        """G1 tangent continuity between two curves sharing an endpoint.
+
+        py-slvs expresses G1 (tangent), not G2 (curvature), so a ``continuity: g2`` request is
+        refused clearly rather than silently solved as G1. Point-defined curves (spline /
+        ellipse / ellipse_arc / conic) have no solver curve entity (their shape is carried by
+        their points), so continuity on them is not solver-expressible and is refused too.
+        """
+        if str(constraint.get("continuity", "g1")).lower() == "g2":
+            raise ConstraintError("g2 curvature continuity is not supported by the sketch "
+                                  "solver (py-slvs expresses g1 tangent only)")
+        a, b = constraint["of"]
+        for cid in (a, b):
+            if cid not in ctx.curves:
+                raise ConstraintError(
+                    f"smooth needs two solver curves (line/arc/circle); {cid!r} is a "
+                    "point-defined curve (spline/ellipse/conic) with no tangent handle")
+        ta, tb = ctx.entities[a]["type"], ctx.entities[b]["type"]
+        if ta == "arc" and tb == "line":
+            system.addArcLineTangent(_touches_arc_end(ctx.entities[a], ctx.entities[b]),
+                                     ctx.curves[a], ctx.curves[b], group=_SKETCH_GROUP)
+        elif ta == "line" and tb == "arc":
+            system.addArcLineTangent(_touches_arc_end(ctx.entities[b], ctx.entities[a]),
+                                     ctx.curves[b], ctx.curves[a], group=_SKETCH_GROUP)
+        elif ta in ("arc", "circle") and tb in ("arc", "circle"):
+            system.addCurvesTangent(True, False, ctx.curves[a], ctx.curves[b],
+                                    wrkpln=ctx.workplane, group=_SKETCH_GROUP)
+        else:
+            raise ConstraintError(f"smooth (g1) needs arc/line/circle curves, got {ta}+{tb}")
+
+    def _c_minor_radius(self, system: Any, constraint: dict, ctx: _Ctx) -> None:
+        # A DRIVEN minor_radius is measured post-solve (handled in _apply, never reaches here).
+        # A DRIVING minor_radius would force the ellipse's minor-axis distance to a value, but
+        # py-slvs offers no value-equality on a bare distance handle (only diameter/radius on a
+        # circle/arc curve entity, and an ellipse has none). The entity's own `minor_radius`
+        # seed already sets it, so a driving dimension is refused clearly rather than ignored.
+        raise ConstraintError(
+            "a driving minor_radius dimension is not supported (author it as driven, or set "
+            "minor_radius on the ellipse entity)")
+
 
 def _missing_reference(entities: list[dict], constraints: list[dict],
                        by_id: dict[str, dict]) -> str | None:
     """The first dangling entity reference, as an error message, or None."""
     ref_keys = {"line": ("p1", "p2"), "circle": ("center",),
-                "arc": ("center", "start", "end")}
+                "arc": ("center", "start", "end"),
+                "ellipse": ("center", "major_axis_end"),
+                "ellipse_arc": ("center", "major_axis_end", "start", "end"),
+                "conic": ("start", "apex", "end")}
     # A spline/bezier references its defining points as a LIST under "points", not as
     # scalar fields, so it is checked separately from the scalar ref_keys above.
     list_ref_keys = {"bezier": ("points",), "interpolated": ("points",)}
@@ -336,6 +393,12 @@ def _defining_points(entity: dict) -> list[str]:
         return [entity["center"]]
     if kind in ("bezier", "interpolated"):
         return list(entity["points"])
+    if kind == "ellipse":
+        return [entity["center"], entity["major_axis_end"]]
+    if kind == "ellipse_arc":
+        return [entity["center"], entity["major_axis_end"], entity["start"], entity["end"]]
+    if kind == "conic":
+        return [entity["start"], entity["apex"], entity["end"]]
     return []
 
 
@@ -354,6 +417,8 @@ def _measure(constraint: dict, positions: dict, radii: dict, entities: dict) -> 
     if kind in ("radius", "diameter"):
         radius = radii.get(constraint["of"], 0.0)
         return radius if kind == "radius" else 2.0 * radius
+    if kind == "minor_radius":
+        return radii.get(constraint["of"], 0.0)
     if kind == "angle":
         a, b = constraint["lines"]
         return _line_angle_degrees(entities[a], entities[b], positions)

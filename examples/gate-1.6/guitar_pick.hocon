@@ -1,0 +1,35 @@
+schema_version = 2
+units = mm
+# A guitar pick: the classic rounded triangle, extruded to a thin plectrum. A real,
+# recognizable part whose three bulging sides are naturally CONIC arcs (the 1.6 conic entity,
+# rho model). Three corner points, joined by three `conic` edges whose apex points bulge each
+# side outward; rho 0.55 gives the slightly-fuller-than-parabola profile a real pick has. The
+# corner points are fixed so the closed conic loop is well-constrained (dof 0), and the loop
+# extrudes 2.5mm and round-trips to STEP.
+parts {
+  guitar_pick {
+    profile = solid
+    material = aluminium_6061
+    features = [
+      { id = pick_sk, op = sketch, plane = XY,
+        entities = [
+          # Two shoulders at top and a rounded point at the bottom.
+          { id = tl, type = point, at = [ -14, 10 ] }
+          { id = tr, type = point, at = [ 14, 10 ] }
+          { id = bot, type = point, at = [ 0, -18 ] }
+          # Apex (shoulder) points bulge each side outward from its chord midpoint.
+          { id = a_top, type = point, at = [ 0, 15 ] }
+          { id = a_right, type = point, at = [ 10, -6 ] }
+          { id = a_left, type = point, at = [ -10, -6 ] }
+          { id = top, type = conic, start = tl, apex = a_top, end = tr, rho = 0.55 }
+          { id = right, type = conic, start = tr, apex = a_right, end = bot, rho = 0.55 }
+          { id = left, type = conic, start = bot, apex = a_left, end = tl, rho = 0.55 }
+        ]
+        constraints = [
+          { type = fix, of = tl }, { type = fix, of = tr }, { type = fix, of = bot },
+          { type = fix, of = a_top }, { type = fix, of = a_right }, { type = fix, of = a_left }
+        ] }
+      { id = pick, op = extrude, profile = pick_sk, distance = 2.5 }
+    ]
+  }
+}

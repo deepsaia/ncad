@@ -114,12 +114,46 @@ class Kernel(ABC):
         """
 
     @abstractmethod
+    def text_face(self, text: str, size: float, plane: str, *, font: str = "",
+                  style: str = "", offset: float = 0.0, at: Point2 = (0.0, 0.0),
+                  rotation: float = 0.0) -> Any:
+        """A planar face (with glyph-counter holes) for ``text`` at ``size`` on ``plane``.
+
+        The glyphs are built as a set of faces whose letter counters ("A", "o") are real
+        inner-loop holes (multi-loop faces), placed at ``at`` (u, v) on the plane and rotated
+        ``rotation`` degrees; ``offset`` shifts the plane along its normal. Extrudable/cuttable
+        like any sketch profile (distinct from the ``wrap`` op, which lands text on a face).
+        """
+
+    @abstractmethod
     def wire(self, edges: list, plane: str, offset: float = 0.0) -> Any:
         """An OPEN wire (a path) from ordered edge descriptors on ``plane``.
 
         Same descriptor shape as ``wire_face`` but not closed into a face; used as a sweep
         path (an open sketch, ``open = true``). ``offset`` shifts the plane along its normal
         by that signed distance (default 0.0).
+        """
+
+    @abstractmethod
+    def vertices_of(self, shape: Any) -> list:
+        """The vertex handles of ``shape`` (a face/edge/solid). Corners for projection."""
+
+    @abstractmethod
+    def project_vertices(self, vertices: list, plane: str, offset: float = 0.0) -> list:
+        """Project ``vertices`` (kernel vertex handles) onto ``plane``, returning 2D points.
+
+        Each result is a ``(u, v)`` tuple in the sketch plane's local coords. Used to bring a
+        prior feature's vertex into a sketch as a fixed construction reference point.
+        """
+
+    @abstractmethod
+    def intersection_curve(self, shape: Any, plane: str, offset: float = 0.0) -> list:
+        """Intersect ``shape`` with ``plane``, returning 2D sketch-edge descriptors.
+
+        The section of the solid/face by the sketch plane, each edge projected to a
+        ``wire_face``-shaped 2D descriptor. Curved section edges are refused (shared with the
+        spline-projection deferral). Used to reference an intersection curve as construction
+        geometry in a sketch.
         """
 
     @abstractmethod

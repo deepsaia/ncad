@@ -47,14 +47,21 @@ from build123d import (
 # they resolve at runtime (see the [tool.pyrefly] OCP-boundary note). Used for the per-edge
 # distance-angle chamfer that build123d cannot express.
 from OCP.BRep import BRep_Tool  # pyrefly: ignore[missing-module-attribute]
-from OCP.BRepAlgoAPI import BRepAlgoAPI_Defeaturing  # pyrefly: ignore[missing-module-attribute]
+from OCP.BRepAlgoAPI import (
+    BRepAlgoAPI_Defeaturing,  # pyrefly: ignore[missing-module-attribute]
+    BRepAlgoAPI_Section,  # pyrefly: ignore[missing-module-attribute]
+)
 from OCP.BRepBuilderAPI import (
     BRepBuilderAPI_GTransform,  # pyrefly: ignore[missing-module-attribute]
+    BRepBuilderAPI_MakeEdge,  # pyrefly: ignore[missing-module-attribute]
 )
 from OCP.BRepExtrema import BRepExtrema_DistShapeShape  # pyrefly: ignore[missing-module-attribute]
 from OCP.BRepFilletAPI import BRepFilletAPI_MakeChamfer  # pyrefly: ignore[missing-module-attribute]
+from OCP.Geom import Geom_BezierCurve  # pyrefly: ignore[missing-module-attribute]
 from OCP.GeomAbs import GeomAbs_G1  # pyrefly: ignore[missing-module-attribute]
-from OCP.gp import gp_GTrsf  # pyrefly: ignore[missing-module-attribute]
+from OCP.gp import gp_GTrsf, gp_Pnt  # pyrefly: ignore[missing-module-attribute]
+from OCP.TColgp import TColgp_Array1OfPnt  # pyrefly: ignore[missing-module-attribute]
+from OCP.TColStd import TColStd_Array1OfReal  # pyrefly: ignore[missing-module-attribute]
 from OCP.TopAbs import TopAbs_EDGE, TopAbs_FACE  # pyrefly: ignore[missing-module-attribute]
 from OCP.TopExp import TopExp, TopExp_Explorer  # pyrefly: ignore[missing-module-attribute]
 from OCP.TopoDS import TopoDS  # pyrefly: ignore[missing-module-attribute]
@@ -202,6 +209,22 @@ class Build123dKernel(Kernel):
         occ_edges = [_build_edge(edge, basis) for edge in edges]
         return Face(Wire(occ_edges))
 
+    def text_face(self, text: str, size: float, plane: str, *, font: str = "",
+                  style: str = "", offset: float = 0.0, at: Point2 = (0.0, 0.0),
+                  rotation: float = 0.0) -> Any:
+        if plane not in _PLANES:
+            raise ValueError(f"plane must be one of {tuple(_PLANES)}, got {plane!r}")
+        basis = _PLANES[plane].offset(offset)
+        font_style = _FONT_STYLES.get(style, FontStyle.REGULAR)
+        # build123d Text yields a Sketch of glyph faces whose letter counters are inner-loop
+        # holes (multi-loop faces). font defaults to build123d's when unspecified. Placed on
+        # the sketch plane at (u, v) with in-plane rotation, matching the wrap-op placement.
+        kwargs: dict = {"font_size": size, "font_style": font_style}
+        if font:
+            kwargs["font"] = font
+        glyphs = Text(text, **kwargs)
+        return basis * Pos(at[0], at[1]) * Rot(0, 0, rotation) * glyphs  # pyrefly: ignore[unsupported-operation]
+
     def wire(self, edges: list, plane: str, offset: float = 0.0) -> Any:
         if plane not in _PLANES:
             raise ValueError(f"plane must be one of {tuple(_PLANES)}, got {plane!r}")
@@ -213,6 +236,36 @@ class Build123dKernel(Kernel):
             raise ValueError(f"plane must be one of {tuple(_PLANES)}, got {plane!r}")
         basis = _PLANES[plane].offset(offset)
         return [_project_edge(edge, basis) for edge in edges]
+
+    def vertices_of(self, shape: Any) -> list:
+        return list(shape.vertices())
+
+    def project_vertices(self, vertices: list, plane: str, offset: float = 0.0) -> list:
+        if plane not in _PLANES:
+            raise ValueError(f"plane must be one of {tuple(_PLANES)}, got {plane!r}")
+        basis = _PLANES[plane].offset(offset)
+        out: list = []
+        for v in vertices:
+            local = basis.to_local_coords(Vector(v.X, v.Y, v.Z))
+            out.append((local.X, local.Y))  # pyrefly: ignore[missing-attribute]
+        return out
+
+    def intersection_curve(self, shape: Any, plane: str, offset: float = 0.0) -> list:
+        if plane not in _PLANES:
+            raise ValueError(f"plane must be one of {tuple(_PLANES)}, got {plane!r}")
+        basis = _PLANES[plane].offset(offset)
+        # OCCT section of the shape with the sketch plane; each resulting edge is projected to
+        # a 2D sketch-plane descriptor (curved edges are refused by _project_edge, matching the
+        # existing spline-projection deferral).
+        section = BRepAlgoAPI_Section(_wrapped(shape), basis.wrapped)
+        section.Build()
+        descriptors: list = []
+        explorer = TopExp_Explorer(section.Shape(), TopAbs_EDGE)
+        while explorer.More():
+            edge = Edge(TopoDS.Edge_s(explorer.Current()))
+            descriptors.append(_project_edge(edge, basis))
+            explorer.Next()
+        return descriptors
 
     def cylinder(self, center: Point3, axis: str, diameter: float, length: float) -> Any:
         if axis not in _AXES:
@@ -848,6 +901,26 @@ def _geom_name(shape: Any) -> str:
     return str(name).lower()
 
 
+def _ellipse_angle_degrees(cx: float, cy: float, mx: float, my: float,
+                           px: float, py: float) -> float:
+    """Parametric angle (degrees) of point (px,py) about an ellipse frame.
+
+    The frame's X axis points from center (cx,cy) to the major-axis end (mx,my). The angle is
+    measured in that frame (0 deg at the major-axis end), which is the convention
+    ``Edge.make_ellipse`` uses for ``start_angle`` / ``end_angle``.
+    """
+    ax, ay = mx - cx, my - cy
+    axis_angle = math.atan2(ay, ax)
+    point_angle = math.atan2(py - cy, px - cx)
+    return math.degrees((point_angle - axis_angle) % (2.0 * math.pi))
+
+
+def _gp_pnt(basis: Any, x: float, y: float) -> Any:
+    """A gp_Pnt for sketch-plane point (x, y) placed in world coords on ``basis``."""
+    v = basis.from_local_coords(Vector(x, y, 0))
+    return gp_Pnt(v.X, v.Y, v.Z)
+
+
 def _build_edge(edge: dict, basis: Any) -> Any:
     """Build a build123d Edge from a sketch edge descriptor on the ``basis`` plane."""
     kind = edge["kind"]
@@ -874,6 +947,37 @@ def _build_edge(edge: dict, basis: Any) -> Any:
         if kind == "bezier":
             return Edge.make_bezier(*pts)  # pyrefly: ignore[bad-argument-type]
         return Edge.make_spline(pts)  # pyrefly: ignore[bad-argument-type]
+    if kind in ("ellipse", "ellipse_arc"):
+        cx, cy = edge["center"]
+        mx, my = edge["major_axis_end"]
+        x_radius = math.hypot(mx - cx, my - cy)
+        y_radius = float(edge["minor_radius"])
+        origin = basis.from_local_coords(Vector(cx, cy, 0))
+        major_dir = basis.from_local_coords(Vector(mx, my, 0)) - origin
+        frame = Plane(origin=origin, x_dir=major_dir, z_dir=basis.z_dir)  # pyrefly: ignore[no-matching-overload]
+        if kind == "ellipse":
+            return Edge.make_ellipse(x_radius, y_radius, frame)  # pyrefly: ignore[bad-argument-type]
+        (sx, sy), (ex, ey) = edge["points"]
+        start_angle = _ellipse_angle_degrees(cx, cy, mx, my, sx, sy)
+        end_angle = _ellipse_angle_degrees(cx, cy, mx, my, ex, ey)
+        return Edge.make_ellipse(  # pyrefly: ignore[bad-argument-type]
+            x_radius, y_radius, frame, start_angle=start_angle, end_angle=end_angle)
+    if kind == "conic":
+        (sx, sy), (apx, apy), (ex, ey) = edge["points"]
+        rho = float(edge["rho"])
+        # Rational quadratic Bezier: 3 control poles with the apex weighted rho/(1-rho); the
+        # curve passes through start/end (weight 1) and bows toward the apex. rho<0.5 traces an
+        # ellipse arc, =0.5 a parabola, >0.5 a hyperbola (the reference-tool conic model).
+        poles = TColgp_Array1OfPnt(1, 3)
+        poles.SetValue(1, _gp_pnt(basis, sx, sy))
+        poles.SetValue(2, _gp_pnt(basis, apx, apy))
+        poles.SetValue(3, _gp_pnt(basis, ex, ey))
+        weights = TColStd_Array1OfReal(1, 3)
+        weights.SetValue(1, 1.0)
+        weights.SetValue(2, rho / (1.0 - rho))
+        weights.SetValue(3, 1.0)
+        curve = Geom_BezierCurve(poles, weights)
+        return Edge(BRepBuilderAPI_MakeEdge(curve).Edge())  # pyrefly: ignore[bad-argument-type]
     raise ValueError(f"unknown sketch edge kind {kind!r}")
 
 

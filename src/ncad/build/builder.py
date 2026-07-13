@@ -50,7 +50,7 @@ _REF_FIELDS: dict[str, dict[str, str]] = {
     "hole": {"on": "face"},
     "fillet": {"edges": "edges"},
     "chamfer": {"edges": "edges"},
-    "sketch": {"project": "edges"},
+    "sketch": {"project": "edges", "project_vertices": "vertices", "intersect": "shape"},
     "defeature": {"face": "face"},
     # offset ignores the face today (whole-solid); declaring it future-proofs per-face offset.
     "offset": {"face": "face"},
@@ -230,6 +230,9 @@ class Builder:
                 elif role == "face_list":
                     shapes, error = self._resolve_face_list(
                         value, shape_by_id, element_map, resolver)
+                elif role == "vertices":
+                    shapes, error = self._resolve_vertex_list(
+                        value, shape_by_id, element_map, resolver)
                 else:
                     shapes, error = self._resolve_edge_list(
                         value, shape_by_id, element_map, resolver)
@@ -277,6 +280,25 @@ class Builder:
                 return shapes, resolution.error
             shapes.append(resolution.shapes[0] if resolution.shapes else None)
         return shapes, None
+
+    def _resolve_vertex_list(self, references: list, shape_by_id: dict,
+                             element_map: ElementMap,
+                             resolver: ReferenceResolver) -> tuple[list, str | None]:
+        """Resolve references to the vertex handles of their referenced elements.
+
+        Each reference names an addressable face/edge (or a prior feature's shape); its corner
+        vertices are collected via ``kernel.vertices_of`` for projection into the sketch.
+        """
+        handles: list = []
+        for reference in references:
+            resolution = resolver.resolve(
+                Reference.parse(str(reference)), shape_by_id, element_map.elements())
+            if resolution.error is not None:
+                return handles, resolution.error
+            targets = [e.handle for e in resolution.elements] or list(resolution.shapes)
+            for target in targets:
+                handles.extend(self._kernel.vertices_of(target))
+        return handles, None
 
     def _resolve_keyword_edges(self, shape_in: Any, keyword: str) -> list:
         """Keyword sugar: resolve one of the five edge keywords to edge handles."""
