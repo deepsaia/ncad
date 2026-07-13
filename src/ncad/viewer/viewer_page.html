@@ -395,6 +395,7 @@
   .tree-badge { margin-left: 6px; padding: 0 6px; border-radius: 8px; font-size: 10px;
     color: var(--muted); background: var(--panel-2); border: 1px solid var(--border);
     white-space: nowrap; }
+  .tree-badge-bad { color: var(--log-error); border-color: var(--log-error); }
   .mate-chip { margin: 2px 0 2px 22px; padding: 1px 7px; border-radius: 8px; font-size: 10.5px;
     color: var(--muted); background: var(--panel-2); border: 1px solid var(--border);
     display: inline-block; }
@@ -1044,6 +1045,9 @@ let showConnectors = localStorage.getItem("ncad.connectors") === "1";
 // by the Joints control. Declared before bindVcToggle runs to avoid a temporal-dead-zone error.
 let jointGizmos = [];
 let showJoints = localStorage.getItem("ncad.joints") === "1";
+// Per-instance material {instanceId: {material, appearance_color}} from the sidecar, for the
+// assembly By-Material view (bucket 5.6). Empty in Parts mode (that path uses the element map).
+let assemblyMaterials = {};
 // Assembly selection / highlight / isolate (bucket 5.5). instanceMeshMap: instanceId -> [meshes],
 // published by loadAssembly once all glbs load. Declared before bindVcToggle (isolate) runs.
 let instanceMeshMap = {};
@@ -1101,6 +1105,7 @@ function clearModel() {
   connectorGizmos = [];  // connector triads are children of modelRoot too, removed with it
   jointGizmos = [];  // joint glyphs + coupling links are children of modelRoot, removed with it
   instanceMeshMap = {}; selectedInstances = [];  // drop selection state with the old scene
+  assemblyMaterials = {};  // drop per-instance material state with the old scene
   pickParts = []; elementMap = null;
   const picked = document.getElementById("i-picked");
   if (picked) picked.textContent = "-";
@@ -1109,17 +1114,30 @@ function clearModel() {
 function applyMode() {
   if (!modelRoot) return;
   if (mode === "bymaterial") {
-    // Color each mesh by ITS BODY's material via the sidecar `meshes` list (mesh index i ->
-    // body/material), since pickParts is in glb mesh (export) order. A mesh with no sidecar
-    // entry falls back to the "(no material)" color. Color only; metalness/roughness stay the
-    // neutral solid defaults.
-    pickParts.forEach((mesh, i) => {
-      const info = meshInfo(i);
-      mesh.material = new THREE.MeshStandardMaterial({
-        color: new THREE.Color(colorFor(info.material, info.appearance_color)),
-        metalness: 0.05, roughness: 0.85 });
-      mesh.castShadow = castShadows;
-    });
+    if (viewMode === "assemblies") {
+      // Assemblies: color each instance's meshes by that INSTANCE's part material (from the
+      // sidecar), since an assembly has no per-part element map. Each instance is one part.
+      for (const id in instanceMeshMap) {
+        const info = assemblyMaterials[id] || {};
+        const col = new THREE.Color(colorFor(info.material, info.appearance_color));
+        for (const mesh of instanceMeshMap[id]) {
+          mesh.material = new THREE.MeshStandardMaterial({
+            color: col, metalness: 0.05, roughness: 0.85 });
+          mesh.castShadow = castShadows;
+        }
+      }
+    } else {
+      // Parts: color each mesh by ITS BODY's material via the sidecar `meshes` list (mesh index i
+      // -> body/material), since pickParts is in glb mesh (export) order. A mesh with no sidecar
+      // entry falls back to the "(no material)" color.
+      pickParts.forEach((mesh, i) => {
+        const info = meshInfo(i);
+        mesh.material = new THREE.MeshStandardMaterial({
+          color: new THREE.Color(colorFor(info.material, info.appearance_color)),
+          metalness: 0.05, roughness: 0.85 });
+        mesh.castShadow = castShadows;
+      });
+    }
     edges.forEach(e => { e.visible = showEdges; });
     captureInstanceBases(); refreshInstanceVisuals();
     return;
@@ -1133,23 +1151,40 @@ function applyMode() {
 }
 
 function hasMaterials() {
+  if (viewMode === "assemblies") {
+    return Object.values(assemblyMaterials).some(m => m.material);
+  }
   const els = (elementMap && elementMap.elements) || [];
   return els.some(e => e.material);
 }
 
 // Materials present in the loaded model, first-seen order, plus a trailing "(no material)"
-// entry when any face is unassigned. Each entry carries the authored appearance color (if any).
+// entry when any face/instance is unassigned. Each entry carries the appearance color (if any).
+// In Assemblies mode the source is the per-instance materials; in Parts mode the element map.
 function distinctMaterials() {
-  const els = (elementMap && elementMap.elements) || [];
   const seen = new Map();
   let hasNone = false;
-  els.forEach(e => {
+  const entries = viewMode === "assemblies"
+    ? Object.values(assemblyMaterials).map(m => ({material: m.material,
+                                                  appearance_color: m.appearance_color}))
+    : ((elementMap && elementMap.elements) || []);
+  entries.forEach(e => {
     if (e.material) { if (!seen.has(e.material)) seen.set(e.material, e.appearance_color); }
     else hasNone = true;
   });
   const out = [...seen.entries()].map(([name, appearance]) => ({ name, appearance }));
   if (hasNone) out.push({ name: null, appearance: null });
   return out;
+}
+
+// Show/hide the By-Material mode button by whether the current model (part OR assembly) has
+// materials; drop out of the mode if it no longer applies. Shared by the part + assembly paths.
+function updateByMaterialButton() {
+  const byBtn = document.querySelector('#vc-modes .vc-btn[data-mode="bymaterial"]');
+  if (byBtn) byBtn.hidden = !hasMaterials();
+  if (mode === "bymaterial" && !hasMaterials()) { setMode("solid"); return; }
+  syncMaterialBlock();
+  applyMode();
 }
 
 function renderMaterialColors() {
@@ -1189,11 +1224,7 @@ function syncMaterialBlock() {
 // By-material mode only if this model has materials, re-render the panel, and re-apply the
 // mode so a by-material recolor now has both the meshes and the material data.
 function onElementMapReady() {
-  const byBtn = document.querySelector('#vc-modes .vc-btn[data-mode="bymaterial"]');
-  if (byBtn) byBtn.hidden = !hasMaterials();
-  if (mode === "bymaterial" && !hasMaterials()) { setMode("solid"); return; }
-  syncMaterialBlock();
-  applyMode();
+  updateByMaterialButton();
 }
 
 function frameModel() {
@@ -1949,7 +1980,13 @@ function loadAssembly(name, verbose, timing) {
       // All instance meshes are loaded now (glb callbacks done): publish the per-instance mesh map
       // for selection highlight/isolate, and re-apply any active selection.
       instanceMeshMap = instanceMeshes;
+      assemblyMaterials = {};
+      for (const inst of sceneDoc.instances) {
+        assemblyMaterials[inst.id] = {material: inst.material || null,
+                                      appearance_color: inst.appearance_color || null};
+      }
       buildJointOverlay(sceneDoc, root);
+      updateByMaterialButton();  // show the By-Material control if this assembly has materials
       applyMode();   // assigns base materials, captures them, and re-applies selection visuals
       frameModel();
       // Verbose bbox line only on an explicit assemble/first-load, not on every plain re-select
@@ -2038,6 +2075,8 @@ function loadAssembly(name, verbose, timing) {
     }
     done = true; finish();
     renderInstanceTree(sceneDoc);
+    renderAssemblyBom(sceneDoc);
+    logInterference(sceneDoc, verbose);
   }).catch(err => {
     spinner.style.display = "none";
     toast("assembly load error: " + (err && err.message ? err.message : err), true);
@@ -2113,6 +2152,11 @@ function renderInstanceTree(sceneDoc) {
   // -> its instances so a coupling chip can show under any instance in either coupled joint.
   const jointInstances = {};
   for (const j of joints) jointInstances[j.id] = (j.between || []).map(b => b.instance);
+  // Instances in an `interfering` pair get a red CLASH badge (bucket 5.6).
+  const clashing = new Set();
+  for (const f of (sceneDoc.interference || [])) {
+    if (f.status === "interfering") { clashing.add(f.a); clashing.add(f.b); }
+  }
   const solve = sceneDoc.solve || null;
   // Solved-status line (bucket 5.3): four states - green well-constrained, red over-constrained
   // (failing ids), amber redundant (removable ids) / under-constrained (free DoF). The DoF
@@ -2155,6 +2199,11 @@ function renderInstanceTree(sceneDoc) {
     } else if (!inRelation(inst.id)) {
       const badge = document.createElement("span");
       badge.className = "tree-badge"; badge.textContent = "floating";
+      row.appendChild(badge);
+    }
+    if (clashing.has(inst.id)) {
+      const badge = document.createElement("span");
+      badge.className = "tree-badge tree-badge-bad"; badge.textContent = "CLASH";
       row.appendChild(badge);
     }
     body.appendChild(row);
@@ -2226,6 +2275,45 @@ function renderInstanceTree(sceneDoc) {
         selectInstances(ids);
       });
       body.appendChild(chip);
+    }
+  }
+}
+
+// Assembly BOM + roll-up mass in the BOM panel (bucket 5.6): part-grouped line items (part | qty |
+// material | total mass) + a roll-up total mass + COG. Parts-mode per-part BOM is unaffected.
+function renderAssemblyBom(sceneDoc) {
+  const body = document.getElementById("bom-body");
+  if (!body) return;
+  const bom = sceneDoc.bom, mass = sceneDoc.mass;
+  if (!bom || !(bom.items || []).length) {
+    body.innerHTML = '<div class="panel-empty">no BOM for this assembly</div>';
+    return;
+  }
+  body.innerHTML = "";
+  for (const it of bom.items) {
+    const row = document.createElement("div"); row.className = "bom-row";
+    const massTxt = it.total_mass != null ? `${it.total_mass.toFixed(4)} kg` : "-";
+    row.innerHTML = `<span class="k">${it.part} x${it.quantity}` +
+      `${it.material ? " (" + it.material + ")" : ""}</span>` +
+      `<span class="v">${massTxt}</span>`;
+    body.appendChild(row);
+  }
+  if (mass) {
+    const row = document.createElement("div"); row.className = "bom-row";
+    row.innerHTML = `<span class="k">total</span>` +
+      `<span class="v">${(mass.total_mass || 0).toFixed(4)}<span class="u">kg</span></span>`;
+    body.appendChild(row);
+  }
+}
+
+// Log interference findings (bucket 5.6): interfering pairs as errors (with volume), clearances as
+// info. Touching pairs (expected mates) are only logged when verbose, to avoid noise.
+function logInterference(sceneDoc, verbose) {
+  for (const f of (sceneDoc.interference || [])) {
+    if (f.status === "interfering") {
+      log(`interference ${f.a} <> ${f.b}: vol ${f.volume} mm3`, "error");
+    } else if (f.status === "clearance" && verbose) {
+      log(`clearance ${f.a} <> ${f.b}: ${f.distance} mm`, "info");
     }
   }
 }

@@ -157,6 +157,23 @@ class DocumentBuilder:
             written[name] = self._write_element_map(element_map, out_dir, name)
         return written
 
+    def resolve_part_builds(self, path: str) -> dict[str, tuple]:
+        """Return ``{part_name: (shape, resolver)}`` for the document at ``path``.
+
+        Used by the assembly layer for interference + mass + STEP: it needs each part's built
+        SHAPE plus a MaterialResolver over the part's materials. Reuses the feature cache (built
+        once per file), like resolve_part_elements. ``shape`` is None for a part that did not build.
+        """
+        document = self._loader.load(path)
+        resolved = self._resolve_and_validate(document)
+        material_library = MaterialLibrary(document, base_dir=os.path.dirname(path))
+        out: dict[str, tuple] = {}
+        for name, part in resolved["parts"].items():
+            result, _, _ = self._builder.build_part_mapped(part)
+            resolver = MaterialResolver(part, material_library)
+            out[name] = (result.shape, resolver)
+        return out
+
     def resolve_part_elements(self, path: str) -> dict[str, tuple[dict, list]]:
         """Return ``{part_name: (resolved_part_dict, elements)}`` for the document at ``path``.
 

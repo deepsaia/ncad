@@ -1,0 +1,25 @@
+schema_version = 2
+units = mm
+parts {
+  # A round bracket (steel) with a central bored hole; the bore cylinder is the pivot connector a
+  # pin passes through. Grounded. The bore means the pin does not share volume with the bracket
+  # (a realistic revolute: pin THROUGH a hole, not into solid), so the pair reads clearance.
+  bracket { profile = solid, material = steel_1018,
+    connectors = [ { id = pivot, at = "select faces where type = 'cylinder'" } ],
+    features = [
+      { id = sk, op = sketch, plane = XY, elements = [ { id = c, type = circle, d = 40 } ] }
+      { id = disk, op = extrude, profile = sk, distance = 6 }
+      { id = hole_sk, op = sketch, plane = XY, elements = [ { id = h, type = circle, d = 14 } ] }
+      { id = hole_tool, op = extrude, profile = hole_sk, distance = 6 }
+      { id = bore, op = boolean, operation = cut, target = disk, tool = hole_tool }
+    ] }
+  # A lever pin (aluminium), distinct geometry from the bracket (so the STEP round-trips as a
+  # 2-component assembly); a revolute pins its hub to the bracket pivot bore, free to rotate. The
+  # pin is d=12 in the d=14 bore (radial clearance), so pin and bracket do not interfere.
+  lever { profile = solid, material = aluminium_6061,
+    connectors = [ { id = hub, at = "select faces where type = 'cylinder'" } ],
+    features = [
+      { id = sk, op = sketch, plane = XY, elements = [ { id = c, type = circle, d = 12 } ] }
+      { id = ext, op = extrude, profile = sk, distance = 25 }
+    ] }
+}

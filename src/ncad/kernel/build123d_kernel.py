@@ -51,6 +51,7 @@ from OCP.BRepAlgoAPI import BRepAlgoAPI_Defeaturing  # pyrefly: ignore[missing-m
 from OCP.BRepBuilderAPI import (
     BRepBuilderAPI_GTransform,  # pyrefly: ignore[missing-module-attribute]
 )
+from OCP.BRepExtrema import BRepExtrema_DistShapeShape  # pyrefly: ignore[missing-module-attribute]
 from OCP.BRepFilletAPI import BRepFilletAPI_MakeChamfer  # pyrefly: ignore[missing-module-attribute]
 from OCP.GeomAbs import GeomAbs_G1  # pyrefly: ignore[missing-module-attribute]
 from OCP.gp import gp_GTrsf  # pyrefly: ignore[missing-module-attribute]
@@ -589,6 +590,21 @@ class Build123dKernel(Kernel):
         box = solid.bounding_box()
         return (tuple(box.min), tuple(box.max))
 
+    def place(self, shape: Any, matrix: list[list[float]]) -> Any:
+        """Place a solid by a row-major 4x4 rigid matrix (assembly placement convention)."""
+        return Location(_trsf_from(matrix)) * shape
+
+    def distance(self, shape_a: Any, shape_b: Any) -> float:
+        """Minimum distance between two solids via BRepExtrema_DistShapeShape (mm)."""
+        calc = BRepExtrema_DistShapeShape(_wrapped(shape_a), _wrapped(shape_b))
+        calc.Perform()
+        return float(calc.Value())
+
+    def common_volume(self, shape_a: Any, shape_b: Any) -> float:
+        """Volume of the boolean intersection (mm^3); 0.0 when disjoint or merely touching."""
+        inter = _b3d(shape_a) & _b3d(shape_b)
+        return float(inter.volume) if inter is not None else 0.0
+
     def _export_solids(self, shape: Any) -> list:
         """(body_id, solid) per exported solid, in export order (body -> solid).
 
@@ -753,6 +769,13 @@ class Build123dKernel(Kernel):
             )
         logger.debug("exported solid to %s", path)
 
+    def export_assembly(self, components: list[dict], path: str) -> None:
+        """Structured AP242 STEP via XCAF/XDE: one label per part (name+color), instances as
+        located components under a root assembly. See _write_step_assembly for the verified XCAF
+        recipe (UpdateAssemblies before write is REQUIRED, else the output is a flat shape)."""
+        _write_step_assembly(components, path)
+        logger.debug("exported assembly (%d components) to %s", len(components), path)
+
     def _deflection(self, solid: Any) -> float:
         """Tessellation linear deflection scaled to the model size (design §4a, §13).
 
@@ -891,3 +914,82 @@ def _thin_ring(face: Any, thin: float) -> Any:
     """A wall-thick ring: the face minus its inward offset by ``thin`` (a hollow profile)."""
     inner = offset(face, amount=-abs(thin))  # pyrefly: ignore[no-matching-overload]
     return face - inner
+
+
+def _wrapped(shape: Any) -> Any:
+    """The OCP TopoDS_Shape for a build123d object or an already-wrapped shape."""
+    return shape.wrapped if hasattr(shape, "wrapped") else shape
+
+
+def _b3d(shape: Any) -> Any:
+    """A build123d Solid for boolean ops, from a build123d object or a wrapped TopoDS_Shape."""
+    from build123d import Solid
+    return shape if hasattr(shape, "wrapped") else Solid(shape)
+
+
+def _write_step_assembly(components: list[dict], path: str) -> None:
+    """Build an XCAFDoc assembly from components + write AP242. OCP/XCAF boundary (Any-typed)."""
+    from OCP.Interface import Interface_Static  # pyrefly: ignore[missing-module-attribute]
+    from OCP.Quantity import (
+        Quantity_Color,  # pyrefly: ignore[missing-module-attribute]
+        Quantity_TOC_RGB,  # pyrefly: ignore[missing-module-attribute]
+    )
+    from OCP.STEPCAFControl import (
+        STEPCAFControl_Writer,  # pyrefly: ignore[missing-module-attribute]
+    )
+    from OCP.TCollection import (
+        TCollection_ExtendedString,  # pyrefly: ignore[missing-module-attribute]
+    )
+    from OCP.TDataStd import TDataStd_Name  # pyrefly: ignore[missing-module-attribute]
+    from OCP.TDocStd import TDocStd_Document  # pyrefly: ignore[missing-module-attribute]
+    from OCP.TopLoc import TopLoc_Location  # pyrefly: ignore[missing-module-attribute]
+    from OCP.XCAFApp import XCAFApp_Application  # pyrefly: ignore[missing-module-attribute]
+    from OCP.XCAFDoc import (
+        XCAFDoc_ColorType,  # pyrefly: ignore[missing-module-attribute]
+        XCAFDoc_DocumentTool,  # pyrefly: ignore[missing-module-attribute]
+    )
+
+    app = XCAFApp_Application.GetApplication_s()
+    doc = TDocStd_Document(TCollection_ExtendedString("XmlXCAF"))
+    app.InitDocument(doc)
+    shape_tool = XCAFDoc_DocumentTool.ShapeTool_s(doc.Main())
+    color_tool = XCAFDoc_DocumentTool.ColorTool_s(doc.Main())
+    root = shape_tool.NewShape()
+    TDataStd_Name.Set_s(root, TCollection_ExtendedString("assembly"))
+    part_labels: dict[str, Any] = {}  # name -> part label (dedup parts sharing a name)
+    for comp in components:
+        name = comp["name"]
+        label = part_labels.get(name)
+        if label is None:
+            label = shape_tool.AddShape(_wrapped(comp["shape"]), False)
+            TDataStd_Name.Set_s(label, TCollection_ExtendedString(name))
+            color = comp.get("color")
+            if color is not None:
+                color_tool.SetColor(
+                    label,
+                    Quantity_Color(float(color[0]), float(color[1]), float(color[2]),
+                                   Quantity_TOC_RGB),
+                    XCAFDoc_ColorType.XCAFDoc_ColorGen)
+            part_labels[name] = label
+        shape_tool.AddComponent(root, label, TopLoc_Location(_trsf_from(comp["placement"])))
+    # REQUIRED: without UpdateAssemblies the writer emits a flat shape, not an assembly tree.
+    shape_tool.UpdateAssemblies()
+    Interface_Static.SetCVal_s("write.step.schema", "AP242")
+    writer = STEPCAFControl_Writer()
+    writer.Transfer(doc)
+    writer.Write(path)
+
+
+def _trsf_from(matrix: list[list[float]]) -> Any:
+    """A gp_Trsf from a row-major 4x4 (rotation top-left, translation in the last row).
+
+    Our convention maps a point as ``p' = p . R + t`` (translation in row 3), while
+    ``gp_Trsf.SetValues`` expects the column-vector form ``p' = M . p``; so the rotation passed is
+    the TRANSPOSE of our R (note the ``matrix[j][i]`` order) and the translation is our last row.
+    """
+    from OCP.gp import gp_Trsf  # pyrefly: ignore[missing-module-attribute]
+    t = gp_Trsf()
+    t.SetValues(matrix[0][0], matrix[1][0], matrix[2][0], matrix[3][0],
+                matrix[0][1], matrix[1][1], matrix[2][1], matrix[3][1],
+                matrix[0][2], matrix[1][2], matrix[2][2], matrix[3][2])
+    return t

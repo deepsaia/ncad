@@ -14,16 +14,20 @@ import logging
 import os
 from typing import Any
 
+from ncad.assembly.assembly_bom import AssemblyBom
 from ncad.assembly.assembly_placement import AssemblyPlacement
 from ncad.assembly.connector_frame import ConnectorFrame
 from ncad.assembly.connector_resolver import ConnectorResolver
 from ncad.assembly.coupling import Coupling
 from ncad.assembly.dof_diagnostics import PRIMITIVE_DOF, DofDiagnostics
 from ncad.assembly.frame_snap import FrameSnap
+from ncad.assembly.interference_checker import InterferenceChecker
 from ncad.assembly.joint_lowering import JointError, JointLowering
 from ncad.assembly.mate_lowering import MateError, MateLowering
 from ncad.assembly.mate_solver import MateSolver
 from ncad.build.document_builder import DocumentBuilder
+from ncad.build.mass_calculator import MassCalculator
+from ncad.build.material_error import MaterialError
 from ncad.spec.assembly_schema_validator import AssemblySchemaValidator
 from ncad.spec.spec_loader import SpecLoader
 
@@ -49,6 +53,9 @@ class AssemblyBuilder:
         self._joint_lowering = JointLowering()
         self._solver = MateSolver()
         self._diagnostics = DofDiagnostics()
+        self._interference = InterferenceChecker(kernel)
+        self._bom = AssemblyBom()
+        self._mass = MassCalculator(kernel)
 
     def assemble(self, asm_path: str, out_dir: str) -> dict:
         """Compose the assembly at ``asm_path`` into ``out_dir``; return sidecar path + issues."""
@@ -95,6 +102,11 @@ class AssemblyBuilder:
         # connector frames in the sidecar list, and yields the solve status + mate records.
         solve_block, mates_out, joints_out, couplings_out = self._solve_constraints(
             document, local_frames, placements_mm, to_metres, instances, issues)
+        # Analysis over the solved assembly (bucket 5.6): interference + BOM + roll-up mass +
+        # structured STEP. Guarded so a failure is an id-attributed issue and the sidecar still
+        # writes (without the analysis blocks) rather than aborting the whole assemble.
+        interference, bom, mass = self._analyze(
+            document, asm_dir, instances, placements_mm, builders, out_dir, name, issues)
         sidecar = os.path.join(out_dir, f"{name}{_ASSEMBLY_SUFFIX}")
         # Record the source .asm.hocon so the viewer can regenerate this assembly after a reload
         # (the browser's in-memory source map is lost on reload; this survives it, like the part
@@ -102,7 +114,8 @@ class AssemblyBuilder:
         with open(sidecar, "w", encoding="utf-8") as handle:
             json.dump({"schema_version": 1, "name": name, "source": os.path.abspath(asm_path),
                        "instances": instances, "solve": solve_block, "mates": mates_out,
-                       "joints": joints_out, "couplings": couplings_out}, handle)
+                       "joints": joints_out, "couplings": couplings_out,
+                       "interference": interference, "bom": bom, "mass": mass}, handle)
         return {"sidecar": sidecar, "issues": issues, "instances": [i["id"] for i in instances]}
 
     def _place(self, instance: dict, placements_mm: dict,
@@ -200,6 +213,83 @@ class AssemblyBuilder:
                     report.status, report.dof, report.failing_ids, report.redundant_ids,
                     len(joints_out), report.explanation)
         return report.to_dict(), mates_out, joints_out, couplings_out
+
+    def _analyze(self, document: dict, asm_dir: str, instances: list, placements_mm: dict,
+                 builders: dict, out_dir: str, name: str, issues: list) -> tuple[list, dict, dict]:
+        """Interference + BOM + roll-up mass + structured STEP over the solved assembly.
+
+        Guarded: any failure is an id-attributed issue and the analysis blocks come back empty so
+        the sidecar still writes (partial-result discipline). Reuses the per-file DocumentBuilder
+        for each part's shape + a MaterialResolver (mass + STEP color), world-places each shape by
+        its solved mm placement, and dedups the per-part build across instances.
+        """
+        try:
+            return self._run_analysis(document, asm_dir, instances, placements_mm, builders,
+                                      out_dir, name)
+        except Exception as exc:  # noqa: BLE001 - analysis failure must not abort the assemble
+            logger.warning("assembly analysis failed for %s: %s", name, exc)
+            issues.append({"message": f"assembly analysis failed: {exc}"})
+            return [], {"items": []}, {"total_mass": 0.0, "cog": [0.0, 0.0, 0.0]}
+
+    def _run_analysis(self, document: dict, asm_dir: str, instances: list, placements_mm: dict,
+                      builders: dict, out_dir: str, name: str) -> tuple[list, dict, dict]:
+        # Per-file part builds (shape + resolver), cached across instances of the same file.
+        file_builds: dict[str, dict] = {}
+        placed: list[dict] = []          # {id, shape} world-placed, for interference
+        components: list[dict] = []      # {shape, name, color, material, placement} for STEP
+        part_mass: dict[tuple, dict] = {}  # (file, part) -> {mass, material, cog}
+        inst_meta: list[dict] = []       # {id, file, part} for the BOM
+        by_id = {i["id"]: i for i in instances}  # to stamp per-instance material onto the sidecar
+        for inst in document["assembly"]["instances"]:
+            iid = inst["id"]
+            if iid not in placements_mm:
+                continue  # a bad instance skipped upstream; not placed
+            file_key = os.path.abspath(os.path.join(asm_dir, inst["file"]))
+            builds = file_builds.get(file_key)
+            if builds is None:
+                builder = builders.setdefault(file_key, DocumentBuilder(self._kernel))
+                builds = builder.resolve_part_builds(os.path.join(asm_dir, inst["file"]))
+                file_builds[file_key] = builds
+            shape, resolver = builds.get(inst["part"], (None, None))
+            if shape is None:
+                continue
+            inst_meta.append({"id": iid, "file": inst["file"], "part": inst["part"]})
+            world = self._kernel.place(shape, placements_mm[iid])
+            placed.append({"id": iid, "shape": world})
+            part_key = (inst["file"], inst["part"])
+            if part_key not in part_mass:
+                part_mass[part_key] = self._part_mass(shape, resolver)
+            # Stamp the instance's material + appearance color onto the sidecar record so the viewer
+            # can color assemblies by material (per instance) without a per-part element map.
+            sidecar_inst = by_id.get(iid)
+            if sidecar_inst is not None:
+                sidecar_inst["material"] = part_mass[part_key].get("material")
+                sidecar_inst["appearance_color"] = part_mass[part_key].get("color")
+            components.append({
+                "shape": world, "name": iid,
+                "color": part_mass[part_key].get("color"),
+                "material": part_mass[part_key].get("material"),
+                "placement": placements_mm[iid]})
+        interference = self._interference.check(placed)
+        bom_out = self._bom.compute(inst_meta, part_mass, placements_mm)
+        self._kernel.export_assembly(components, os.path.join(out_dir, f"{name}.step"))
+        return interference, {"items": bom_out["items"]}, bom_out["mass"]
+
+    def _part_mass(self, shape: Any, resolver: Any) -> dict:
+        """A part's total mass + local COG + material + color; mass is None when no density."""
+        material = None
+        color = None
+        try:
+            props = self._mass.mass_properties(shape, resolver)
+            total = props["total"]
+            body = props["bodies"][0] if props["bodies"] else {}
+            material = body.get("material")
+            color = _appearance_color(resolver, shape, self._kernel)
+            return {"mass": total["mass"], "material": material, "cog": tuple(total["cog"]),
+                    "color": color}
+        except MaterialError:
+            # No density (or no material): counted in BOM quantity, omitted from the mass roll-up.
+            return {"mass": None, "material": material, "cog": (0.0, 0.0, 0.0), "color": color}
 
     def _lower_joint(self, joint: dict, local_frames: dict, issues: list):
         """Resolve a joint's refs + lower to primitives + signature; None on error."""
@@ -322,6 +412,22 @@ class AssemblyBuilder:
         glb = os.path.basename(artifacts[part_name])
         built_glbs[key] = glb
         return glb
+
+
+def _appearance_color(resolver: Any, shape: Any, kernel: Any) -> tuple | None:
+    """The first body's material appearance color (mat_data.appearance.color) as (r,g,b), or None.
+
+    Best-effort for the STEP part color; never raises (display-only, like the viewer material path).
+    """
+    try:
+        bodies = kernel.bodies(shape)
+        if not bodies:
+            return None
+        mat = resolver.for_body(bodies[0])
+        color = (mat or {}).get("appearance", {}).get("color")
+        return tuple(color) if color is not None else None
+    except Exception:  # noqa: BLE001 - color is optional; a failure just means no STEP color
+        return None
 
 
 def _apply_point(matrix: list[list[float]], p: tuple) -> tuple:
