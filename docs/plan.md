@@ -79,9 +79,12 @@ point_on_line) as a parallel `joints[]` family lowering to the primitive core + 
 signature + static solve, with sidecar joint records + viewer joint chips; bucket 5.4b
 (coupled/higher joints) is DONE - the screw joint fully shipped (coaxial + pitch signature + valued
 solve) + gear/belt/rack_pinion/universal as declarative `couplings[]` records (enforced in Phase 6),
-completing Phase 5's joint vocabulary (cam deferred). NEXT: 5.5 viewer polish (exploded views,
-mate/DoF/joint display, richer instance-tree interactions). Per-phase deferred items are gathered in the
-deferred-backlog sections below each phase's bucket list, so nothing is lost.
+completing Phase 5's joint vocabulary (cam deferred); bucket 5.5 (viewer polish) is DONE - poly
+world-origin gizmo, instance select/highlight/isolate with bidirectional 3D<>tree sync, a 3D
+joint-freedom glyph overlay + dashed coupling links, per-part edges in assemblies, and a
+build+render+total timing split (plus a real axes_coincident solver fix + a per-file resolve cache).
+NEXT: 5.6 (interference/BOM/STEP + Phase 5 capstone); exploded views are 5.5b. Per-phase deferred
+items are gathered in the deferred-backlog sections below each phase's bucket list, so nothing is lost.
 
 v1 proved the *pattern*: `spec >> build >> BOM >> view`, determinism, build123d/OCCT,
 HOCON+jsonschema, traversal BOM, the Three.js viewer, on the **building profile**
@@ -706,8 +709,17 @@ axial travel on the same body, fully solved with no cross-joint machinery); and 
 rack_pinion/universal as a declarative `couplings[]` family (`Coupling` records referencing two
 joint ids + a ratio, validated + stored + shown + reported-not-counted in diagnostics, ENFORCED in
 Phase 6). Cam deferred (needs curved-contact geometry). This COMPLETES Phase 5's joint vocabulary.
-NEXT: 5.5 viewer polish (exploded views, mate/DoF/joint display, richer instance-tree
-interactions), then 5.6 (interference/BOM/STEP + capstone).
+**Bucket 5.5 (viewer polish) is DONE:** a poly world-origin gizmo (fixes the AxesHelper GL-LINES
+stutter); instance selection with bidirectional 3D<>tree highlight + isolate + chip-selects-both
+(per-instance material clones, no shared-material bleed); a 3D joint-freedom overlay (thin
+color-coded rotation arcs / translation arrows / screw / ball / fixed glyphs + dashed coupling
+links, Joints toggle); per-part edge overlay in assemblies; assembly toggles hidden in Parts view;
+and a build+render+total timing split (00h00m00.0s) in the toast + logs. Also fixed a real
+`axes_coincident` solver bug (was grounding-asymmetric: a concentric mate / revolute / cylindrical /
+screw only pulled the body whose axis LINE was referenced, so a gear on an offset shaft stayed at
+the origin; now both origins are constrained onto both axis lines) and cached resolved part
+elements per file in AssemblyBuilder (was O(instances) reloads). NEXT: 5.6 (interference/BOM/STEP +
+capstone); exploded views are bucket 5.5b.
 
 - [ ] **Instances & structure:** components, sub-assemblies, flexible
       sub-assemblies, replace/pattern/mirror component
@@ -808,17 +820,33 @@ STEP (AP242) and opens in FreeCAD; interference check is correct.
   slider distance, point_on_line distance, and screw DEPTH (theta/360 * pitch). gate-5.4a's revolute
   is valueless; gate-5.4b's screw pins depth (not turn); the two gears mount on parallel OFFSET
   shafts (distinct axes) so the mesh is well-posed (no shared-axis redundancy).
-- **Viewer polish (5.5):** exploded views, mate/DoF display, richer instance-tree interactions
-  (select/highlight/isolate); the 5.0 instance tree is minimal. Also a browser-side assemble
-  action (like the part Build button): 5.0 composes via the `ncad assemble` CLI and the viewer
-  loads the already-composed scene; assembling from the browser is a small follow-up. Plus 3D
-  joint/coupling visualization (free-axis arrows/arcs at a joint, gear-mesh/cam profiles) deferred
-  from 5.4a/5.4b. **Two gizmo issues found during 5.4b viewer checks:** (1) the world-origin marker
-  (a `THREE.AxesHelper`, GL LINES) stutters/z-fights because WebGL caps line width at 1px, so
-  thickening does not help - swap it for a small poly gizmo (thin box/cylinder meshes) and/or tune
-  depthTest; (2) confirm whether instance-origin gizmos and mate-connector-frame triads visually
-  overlapping is correct (for centered-sketch parts a connector often sits AT the part origin, so
-  overlap is expected) or needs a visual offset/toggle to disambiguate.
+- **Viewer polish (5.5): DONE.** Poly world-origin gizmo (fixed the AxesHelper GL-LINES stutter);
+  instance select/highlight/isolate with bidirectional 3D<>tree sync + chip-selects-both (per-
+  instance material clones, no shared-material bleed); a 3D joint-freedom overlay (thin color-coded
+  rotation arcs / translation arrows / screw / ball / fixed glyphs + dashed coupling links, Joints
+  toggle); per-part edge overlay in assemblies (Edge toggle now works there); assembly toggles
+  hidden in Parts view (a `.vc-group[hidden]` CSS fix); build+render+total timing split
+  (00h00m00.0s) in the toast + logs. The two 5.4b gizmo items are RESOLVED: (1) world-origin stutter
+  fixed via the poly gizmo; (2) instance-origin vs connector-frame overlap CONFIRMED correct/expected
+  (they coincide in position; the "diagonally opposite" look is the connector's face-derived
+  orientation vs world axes, not a bug) - left co-located, not artificially offset. **5.5 follow-ups
+  (deferred):** exploded views -> **5.5b**; browser-side assemble already shipped in 5.0; per-row
+  eye-icon visibility a possible later add.
+- **Profiling / observability (future, near Phase 12):** the 5.5 build+render timing split is a
+  starting point. A fuller version = OpenTelemetry spans across generate>>build>>solve>>tessellate>>
+  export + a profiling dashboard. Deferred until we know which spans matter (needs a
+  backend/collector decision); do not lock it in early.
+- **AssemblyBuilder build_file redundancy (found in 5.5):** 5.5 cached resolved part elements per
+  file (killed the O(instances) reload blowup), but `build_file` still builds EVERY part in a file
+  on each distinct {file, part} glb call, so a multi-part file re-runs the sketch solver for parts
+  it was not asked for (20 sketch-solves for gate-5.4b, cache-hit but still work + log). Fix = a
+  `DocumentBuilder` "build only these parts" filter + tests.
+- **Kernel cold-start warmup (found in 5.5):** the first build/assemble in a fresh `ncad view`
+  process takes ~11s (one-time OCP/build123d import + kernel + py-slvs warmup); subsequent builds are
+  near-instant. Optionally warm the kernel at server startup so the user's first real build is warm.
+- **Exploded views (5.5b):** an exploded-view definition (per-instance offset along an axis, in the
+  sidecar or an auto-explode) rendered with a slider. Split from 5.5 because it carries a real
+  data-model + Python side (its own spec); the 5.5 viewer interaction work is its foundation.
 - **Interference/clearance + BOM + STEP (5.6):** static interference
   (`BRepExtrema_DistShapeShape` or Manifold), assembly BOM + roll-up mass across instances,
   structured STEP AP242 export (XCAF/XDE), and the Phase 5 capstone gate.
