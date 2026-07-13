@@ -135,6 +135,24 @@ class Kernel(ABC):
         """
 
     @abstractmethod
+    def project_vertices(self, vertices: list, plane: str, offset: float = 0.0) -> list:
+        """Project ``vertices`` (kernel vertex handles) onto ``plane``, returning 2D points.
+
+        Each result is a ``(u, v)`` tuple in the sketch plane's local coords. Used to bring a
+        prior feature's vertex into a sketch as a fixed construction reference point.
+        """
+
+    @abstractmethod
+    def intersection_curve(self, shape: Any, plane: str, offset: float = 0.0) -> list:
+        """Intersect ``shape`` with ``plane``, returning 2D sketch-edge descriptors.
+
+        The section of the solid/face by the sketch plane, each edge projected to a
+        ``wire_face``-shaped 2D descriptor. Curved section edges are refused (shared with the
+        spline-projection deferral). Used to reference an intersection curve as construction
+        geometry in a sketch.
+        """
+
+    @abstractmethod
     def project_edges(self, edges: list, plane: str, offset: float = 0.0) -> list:
         """Project ``edges`` (kernel edge handles) onto ``plane``, returning 2D descriptors.
 

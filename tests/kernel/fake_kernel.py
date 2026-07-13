@@ -198,6 +198,16 @@ class FakeKernel(Kernel):
         # fake projection is offset-agnostic (it does not model the plane's world placement).
         return list(edges)
 
+    def project_vertices(self, vertices: list, plane: str, offset: float = 0.0) -> list:
+        # FakeKernel vertices in tests are already (x, y) tuples; identity projection. The fake
+        # kernel does not model the plane's world placement.
+        return [(float(v[0]), float(v[1])) for v in vertices]
+
+    def intersection_curve(self, shape: Any, plane: str, offset: float = 0.0) -> list:
+        # The fake kernel does not compute analytic sections; a real section curve needs the
+        # OCCT kernel. Return empty so callers degrade gracefully in fake-only tests.
+        return []
+
     def extrude(self, face: Any, distance: float | None = None, *,
                 symmetric: bool = False, second_distance: float | None = None,
                 draft: float = 0.0, thin: float | None = None,

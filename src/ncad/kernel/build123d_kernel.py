@@ -47,7 +47,10 @@ from build123d import (
 # they resolve at runtime (see the [tool.pyrefly] OCP-boundary note). Used for the per-edge
 # distance-angle chamfer that build123d cannot express.
 from OCP.BRep import BRep_Tool  # pyrefly: ignore[missing-module-attribute]
-from OCP.BRepAlgoAPI import BRepAlgoAPI_Defeaturing  # pyrefly: ignore[missing-module-attribute]
+from OCP.BRepAlgoAPI import (
+    BRepAlgoAPI_Defeaturing,  # pyrefly: ignore[missing-module-attribute]
+    BRepAlgoAPI_Section,  # pyrefly: ignore[missing-module-attribute]
+)
 from OCP.BRepBuilderAPI import (
     BRepBuilderAPI_GTransform,  # pyrefly: ignore[missing-module-attribute]
     BRepBuilderAPI_MakeEdge,  # pyrefly: ignore[missing-module-attribute]
@@ -233,6 +236,33 @@ class Build123dKernel(Kernel):
             raise ValueError(f"plane must be one of {tuple(_PLANES)}, got {plane!r}")
         basis = _PLANES[plane].offset(offset)
         return [_project_edge(edge, basis) for edge in edges]
+
+    def project_vertices(self, vertices: list, plane: str, offset: float = 0.0) -> list:
+        if plane not in _PLANES:
+            raise ValueError(f"plane must be one of {tuple(_PLANES)}, got {plane!r}")
+        basis = _PLANES[plane].offset(offset)
+        out: list = []
+        for v in vertices:
+            local = basis.to_local_coords(Vector(v.X, v.Y, v.Z))
+            out.append((local.X, local.Y))  # pyrefly: ignore[missing-attribute]
+        return out
+
+    def intersection_curve(self, shape: Any, plane: str, offset: float = 0.0) -> list:
+        if plane not in _PLANES:
+            raise ValueError(f"plane must be one of {tuple(_PLANES)}, got {plane!r}")
+        basis = _PLANES[plane].offset(offset)
+        # OCCT section of the shape with the sketch plane; each resulting edge is projected to
+        # a 2D sketch-plane descriptor (curved edges are refused by _project_edge, matching the
+        # existing spline-projection deferral).
+        section = BRepAlgoAPI_Section(_wrapped(shape), basis.wrapped)
+        section.Build()
+        descriptors: list = []
+        explorer = TopExp_Explorer(section.Shape(), TopAbs_EDGE)
+        while explorer.More():
+            edge = Edge(TopoDS.Edge_s(explorer.Current()))
+            descriptors.append(_project_edge(edge, basis))
+            explorer.Next()
+        return descriptors
 
     def cylinder(self, center: Point3, axis: str, diameter: float, length: float) -> Any:
         if axis not in _AXES:
