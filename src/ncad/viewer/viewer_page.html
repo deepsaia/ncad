@@ -1862,6 +1862,14 @@ function renderModelList(models) {
     row.addEventListener("click", () => selectModel(m.name));
     list.appendChild(row);
   }
+  scrollActiveIntoView(list);
+}
+
+// Scroll the list so the active row is visible (nearest edge, no animation), rather than
+// leaving it scrolled to the top. Safe when nothing is active (no-op).
+function scrollActiveIntoView(list) {
+  const active = list.querySelector(".model-row.active");
+  if (active) active.scrollIntoView({ block: "nearest" });
 }
 
 function refreshModels() {
@@ -1870,6 +1878,9 @@ function refreshModels() {
 
 function selectModel(name) {
   activeModel = name;
+  // Persist the selection so a page refresh restores it (see the boot logic). Keyed by mode
+  // so Parts and Assemblies each remember their own last-viewed model independently.
+  localStorage.setItem("ncad.active.parts", name);
   loadModel(name);
   refreshModels();
 }
@@ -1909,10 +1920,12 @@ function renderAssemblyList(names) {
     row.addEventListener("click", () => selectAssembly(name));
     list.appendChild(row);
   }
+  scrollActiveIntoView(list);
 }
 
 function selectAssembly(name, verbose, timing) {
   activeModel = name;
+  localStorage.setItem("ncad.active.assemblies", name);
   loadAssembly(name, verbose, timing);
   refreshAssemblies();
 }
@@ -1949,9 +1962,14 @@ function removeAssembly(name) {
   // place). No confirmation: recomposing from the spec is cheap, and the toast reports it.
   fetch("/api/assembly/" + encodeURIComponent(name) + "/delete", { method: "POST" })
     .then(r => r.json())
-    .then(d => { if (activeModel === name) { activeModel = null; clearModel(); } renderAssemblyList(d.assemblies || []); toast("deleted " + name); })
+    .then(d => { if (activeModel === name) { activeModel = null; clearActive("assemblies"); clearModel(); } renderAssemblyList(d.assemblies || []); toast("deleted " + name); })
     .catch(() => toast("could not delete " + name, true));
 }
+
+// Persisted last-viewed model per mode: the boot logic restores it, falling back to the first
+// available model when the saved one is gone, or to nothing when nothing was ever selected.
+function savedActive(mode) { return localStorage.getItem("ncad.active." + mode); }
+function clearActive(mode) { localStorage.removeItem("ncad.active." + mode); }
 
 function loadAssembly(name, verbose, timing) {
   spinner.style.display = "flex";
@@ -2331,10 +2349,19 @@ function setViewMode(next) {
   syncSpecClear();
   document.getElementById("spec-tree").hidden = true;
   activeModel = null;
+  // Switching mode restores that mode's saved last-viewed model (falling back to the first
+  // available), matching the page-refresh behavior.
   if (next === "assemblies") {
-    refreshAssemblies().then(names => { if (names.length) selectAssembly(names[0]); });
+    refreshAssemblies().then(names => {
+      if (!names || !names.length) return;
+      selectAssembly(bootModel(names, "assemblies", null) || names[0]);
+    });
   } else {
-    refreshModels().then(models => { if (models && models.length) selectModel(models[0].name); });
+    refreshModels().then(models => {
+      if (!models || !models.length) return;
+      const names = models.map(m => m.name);
+      selectModel(bootModel(names, "parts", null) || names[0]);
+    });
   }
 }
 
@@ -2372,7 +2399,7 @@ function removeModel(name) {
   // to trigger by accident.
   fetch("/api/models/" + encodeURIComponent(name) + "/delete", { method: "POST" })
     .then(r => r.json())
-    .then(d => { if (activeModel === name) { activeModel = null; clearModel(); } renderModelList(d.models); toast("deleted " + name); })
+    .then(d => { if (activeModel === name) { activeModel = null; clearActive("parts"); clearModel(); } renderModelList(d.models); toast("deleted " + name); })
     .catch(() => toast("could not delete " + name, true));
 }
 
@@ -2436,15 +2463,30 @@ document.getElementById("mode-assemblies").addEventListener("click", () => setVi
 document.getElementById("mode-parts").classList.toggle("active", viewMode === "parts");
 document.getElementById("mode-assemblies").classList.toggle("active", viewMode === "assemblies");
 syncAssemblyControls();
+// Pick the model to show on boot for a mode. Priority: an explicit URL-path request >> the
+// saved last-viewed model (page-refresh restore) >> the first available. Returns null when
+// nothing was ever selected and nothing was requested (show nothing, per the refresh spec);
+// but if the saved model is gone (deleted since), fall back to the first available.
+function bootModel(names, mode, requested) {
+  if (requested && names.includes(requested)) return requested;
+  const saved = savedActive(mode);
+  if (saved !== null) return names.includes(saved) ? saved : names[0];
+  if (requested) return names[0];  // requested-but-missing still shows something
+  return null;                     // nothing selected before >> show nothing
+}
 if (viewMode === "assemblies") {
-  refreshAssemblies().then(names => { if (names.length) selectAssembly(names[0]); });
+  refreshAssemblies().then(names => {
+    if (!names || !names.length) return;
+    const initial = bootModel(names, "assemblies", null);
+    if (initial) selectAssembly(initial);
+  });
 } else {
   refreshModels().then(models => {
     if (!models || !models.length) return;
     const requested = decodeURIComponent(location.pathname.replace(/^\//, ""));
     const names = models.map(m => m.name);
-    const initial = names.includes(requested) ? requested : names[0];
-    selectModel(initial);
+    const initial = bootModel(names, "parts", requested);
+    if (initial) selectModel(initial);
   });
 }
 
