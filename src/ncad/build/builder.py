@@ -38,8 +38,8 @@ _REF_FIELDS: dict[str, dict[str, str]] = {
     "extrude": {"profile": "input", "to": "face"},
     "pocket": {"profile": "shape", "target": "shape", "to": "face"},
     "boolean": {"target": "shape", "tool": "shape", "tools": "shape_list"},
-    "revolve": {"profile": "input"},
-    "groove": {"profile": "shape", "target": "shape"},
+    "revolve": {"profile": "input", "axis": "datum"},
+    "groove": {"profile": "shape", "target": "shape", "axis": "datum"},
     "sweep": {"profile": "input", "path": "shape", "sections": "shape_list",
               "guides": "shape_list"},
     "loft": {"sections": "shape_list"},
@@ -50,7 +50,8 @@ _REF_FIELDS: dict[str, dict[str, str]] = {
     "hole": {"on": "face"},
     "fillet": {"edges": "edges"},
     "chamfer": {"edges": "edges"},
-    "sketch": {"project": "edges", "project_vertices": "vertices", "intersect": "shape"},
+    "sketch": {"project": "edges", "project_vertices": "vertices", "intersect": "shape",
+               "plane": "datum"},
     "defeature": {"face": "face"},
     # offset ignores the face today (whole-solid); declaring it future-proofs per-face offset.
     "offset": {"face": "face"},
@@ -252,6 +253,19 @@ class Builder:
                 continue
             if role == "face_list" and value in _FACE_KEYWORDS:
                 refs[field] = self._resolve_keyword_faces(previous_shape, value)
+                continue
+            # A `datum` field (sketch plane, revolve axis) is resolved ONLY when it names a
+            # datum (`datums.<id>`); a literal base-plane string / axis object is left alone
+            # for the op to interpret. This keeps the base-plane path unchanged.
+            if role == "datum":
+                if not (isinstance(value, str) and value.startswith("datums.")):
+                    continue
+                resolution = resolver.resolve(
+                    Reference.parse(value[len("datums."):]), shape_by_id,
+                    element_map.elements())
+                if resolution.error is not None:
+                    return refs, shape_in, resolution.error
+                refs[field] = resolution.shapes[0] if resolution.shapes else None
                 continue
             resolution = resolver.resolve(
                 Reference.parse(str(value)), shape_by_id, element_map.elements())

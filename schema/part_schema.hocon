@@ -58,10 +58,11 @@ definitions {
     properties {
       id { type = string }
       op { type = string }
-      # plane is a base-plane string (sketch/shell/draft/mirror) or a {point, normal}
-      # object (mirror across an arbitrary plane). oneOf keeps the base-plane string valid
-      # for every existing op that names a plane.
-      plane { oneOf = [ { enum = ["XY", "XZ", "YZ"] }, { type = object } ] }
+      # plane is a base-plane string (sketch/shell/draft/mirror), a {point, normal} object
+      # (mirror across an arbitrary plane), or a datum reference (a `datums.<id>` string that
+      # resolves to a datum_plane feature). The pattern branch accepts the datum reference.
+      plane { oneOf = [ { enum = ["XY", "XZ", "YZ"] }, { type = object },
+                        { type = string, pattern = "^datums\\." } ] }
       plane_offset { type = number }
       elements {
         type = array

@@ -7,9 +7,9 @@ reference string, deferred) plus optional ``angle`` (default 360, in ``(0, 360]`
 vocabulary lives in one place. A contract violation raises RevolveParamError (the op wraps
 it into a BuildIssue).
 
-Axis-by-reference (a datum axis or a sketch line) is accepted by the field shape but not
-yet resolvable: datums do not exist in the codebase yet, so a reference string raises a
-clear deferral error rather than silently doing the wrong thing.
+Axis-by-reference (a ``datums.<id>`` datum axis) resolves via the builder into
+``refs["axis"]`` as an ``((ox,oy,oz),(dx,dy,dz))`` tuple; a literal X/Y/Z name or
+``{point, dir}`` object is resolved here.
 """
 
 import logging
@@ -27,8 +27,14 @@ class RevolveParamError(Exception):
 def revolve_kwargs(params: dict, refs: dict) -> dict:
     """Return the ``Kernel.revolve`` keyword args for a revolve/groove feature."""
     if "axis" not in params:
-        raise RevolveParamError("revolve needs an 'axis' (X/Y/Z or {point, dir})")
-    axis_point, axis_dir = resolve_axis(params["axis"])
+        raise RevolveParamError("revolve needs an 'axis' (X/Y/Z, {point, dir}, or datums.<id>)")
+    # A `datums.<id>` axis resolves (via the builder) to an ((ox,oy,oz),(dx,dy,dz)) tuple in
+    # refs["axis"]; a base name / {point, dir} is resolved literally.
+    resolved = refs.get("axis")
+    if resolved is not None:
+        axis_point, axis_dir = resolved
+    else:
+        axis_point, axis_dir = resolve_axis(params["axis"])
     angle = float(params.get("angle", 360.0))
     if not 0.0 < angle <= 360.0:
         raise RevolveParamError(f"revolve angle must be in (0, 360]; got {angle}")
@@ -43,12 +49,16 @@ def revolve_kwargs(params: dict, refs: dict) -> dict:
 
 
 def resolve_axis(axis) -> tuple[tuple, tuple]:
-    """Resolve an axis spec to (point, unit-dir). Reference strings are deferred."""
+    """Resolve a LITERAL axis spec to (point, unit-dir).
+
+    A `datums.<id>` axis reference is resolved earlier (via the builder into refs["axis"]);
+    this handles the literal X/Y/Z names and {point, dir} objects.
+    """
     if isinstance(axis, str):
         if axis in _NAMED_AXES:
             return (0.0, 0.0, 0.0), _NAMED_AXES[axis]
         raise RevolveParamError(
-            f"axis references not yet supported; use X/Y/Z or {{point, dir}} (got {axis!r})")
+            f"unknown axis {axis!r}; use X/Y/Z, {{point, dir}}, or a datums.<id> reference")
     if isinstance(axis, dict) and "point" in axis and "dir" in axis:
         point = tuple(float(c) for c in axis["point"])
         dx, dy, dz = (float(c) for c in axis["dir"])

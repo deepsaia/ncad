@@ -50,7 +50,10 @@ class SketchOp:
                 or params.get("transforms") or params.get("modify")):
             return self._build_from_entities(params, kernel)
         feature_id = params["id"]
-        plane = params.get("plane", "XY")
+        # A `datums.<id>` plane resolves (via the builder) to a datum Plane in refs["plane"];
+        # otherwise the plane is a base-plane string. plane_offset is authoring sugar for a
+        # base plane (a datum already bakes in its own offset).
+        plane = params.get("__refs__", {}).get("plane") or params.get("plane", "XY")
         offset = float(params.get("plane_offset", 0.0))
         elements = params.get("elements", [])
         if len(elements) != 1:
@@ -102,7 +105,7 @@ class SketchOp:
         construction entities) and offset (derive real entities), then expand/solve/order.
         """
         feature_id = params["id"]
-        plane = params.get("plane", "XY")
+        plane = params.get("__refs__", {}).get("plane") or params.get("plane", "XY")
         offset = float(params.get("plane_offset", 0.0))
         entities = list(params.get("entities", []))
         projected_issue = None

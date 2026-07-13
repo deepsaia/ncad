@@ -95,14 +95,27 @@ _TRANSITIONS = {"transformed": Transition.TRANSFORMED, "round": Transition.ROUND
 _ANGULAR_DEFLECTION = 0.2
 
 
+def _basis(plane: Any, offset: float) -> Any:
+    """The build123d Plane to sketch on: a base-plane string (+ offset), or a datum Plane.
+
+    A datum plane (from a `datum_plane` feature, resolved via `datums.<id>`) arrives as a
+    build123d Plane and is used directly (its own offset already baked in); a base-plane
+    string is looked up and shifted along its normal by ``offset``.
+    """
+    if isinstance(plane, str):
+        if plane not in _PLANES:
+            raise ValueError(f"plane must be one of {tuple(_PLANES)}, got {plane!r}")
+        return _PLANES[plane].offset(offset)
+    return plane if offset == 0.0 else plane.offset(offset)
+
+
 class Build123dKernel(Kernel):
     """build123d-backed kernel. Shapes are build123d ``Face``/``Solid`` objects."""
 
-    def polygon_face(self, points: list[Point2], plane: str, offset: float = 0.0) -> Any:
-        if plane not in _PLANES:
-            raise ValueError(f"plane must be one of {tuple(_PLANES)}, got {plane!r}")
-        # offset shifts the base plane along its normal; default 0.0 keeps prior behavior.
-        basis = _PLANES[plane].offset(offset)
+    def polygon_face(self, points: list[Point2], plane: Any, offset: float = 0.0) -> Any:
+        # offset shifts the base plane along its normal; default 0.0 keeps prior behavior. A
+        # datum plane (resolved from datums.<id>) may arrive as a build123d Plane.
+        basis = _basis(plane, offset)
         world = [basis.from_local_coords(Vector(x, y, 0)) for x, y in points]
         closed = world + [world[0]]
         # build123d's from_local_coords is stubbed as a wide union; at runtime these are
@@ -191,30 +204,24 @@ class Build123dKernel(Kernel):
         normal = ribbon.faces()[0].normal_at()  # pyrefly: ignore[bad-argument-type]
         return extrude(ribbon, amount=depth, dir=normal)
 
-    def circle_face(self, center: Point2, diameter: float, plane: str,
+    def circle_face(self, center: Point2, diameter: float, plane: Any,
                     offset: float = 0.0) -> Any:
-        if plane not in _PLANES:
-            raise ValueError(f"plane must be one of {tuple(_PLANES)}, got {plane!r}")
-        basis = _PLANES[plane].offset(offset)
+        basis = _basis(plane, offset)
         # from_local_coords is stubbed as a wide union but returns a Vector at runtime;
         # this is the untyped-OCP boundary (see the [tool.pyrefly] note in pyproject).
         origin = basis.from_local_coords(Vector(center[0], center[1], 0))
         face_plane = Plane(origin=origin, z_dir=basis.z_dir)  # pyrefly: ignore[no-matching-overload]
         return Face(Wire(Edge.make_circle(diameter / 2.0, face_plane)))
 
-    def wire_face(self, edges: list, plane: str, offset: float = 0.0) -> Any:
-        if plane not in _PLANES:
-            raise ValueError(f"plane must be one of {tuple(_PLANES)}, got {plane!r}")
-        basis = _PLANES[plane].offset(offset)
+    def wire_face(self, edges: list, plane: Any, offset: float = 0.0) -> Any:
+        basis = _basis(plane, offset)
         occ_edges = [_build_edge(edge, basis) for edge in edges]
         return Face(Wire(occ_edges))
 
-    def text_face(self, text: str, size: float, plane: str, *, font: str = "",
+    def text_face(self, text: str, size: float, plane: Any, *, font: str = "",
                   style: str = "", offset: float = 0.0, at: Point2 = (0.0, 0.0),
                   rotation: float = 0.0) -> Any:
-        if plane not in _PLANES:
-            raise ValueError(f"plane must be one of {tuple(_PLANES)}, got {plane!r}")
-        basis = _PLANES[plane].offset(offset)
+        basis = _basis(plane, offset)
         font_style = _FONT_STYLES.get(style, FontStyle.REGULAR)
         # build123d Text yields a Sketch of glyph faces whose letter counters are inner-loop
         # holes (multi-loop faces). font defaults to build123d's when unspecified. Placed on
@@ -280,35 +287,27 @@ class Build123dKernel(Kernel):
             return ((origin.X, origin.Y, origin.Z), (direction.X, direction.Y, direction.Z))
         raise KernelOpError(f"unknown datum_axis method {method!r}")
 
-    def wire(self, edges: list, plane: str, offset: float = 0.0) -> Any:
-        if plane not in _PLANES:
-            raise ValueError(f"plane must be one of {tuple(_PLANES)}, got {plane!r}")
-        basis = _PLANES[plane].offset(offset)
+    def wire(self, edges: list, plane: Any, offset: float = 0.0) -> Any:
+        basis = _basis(plane, offset)
         return Wire([_build_edge(edge, basis) for edge in edges])
 
-    def project_edges(self, edges: list, plane: str, offset: float = 0.0) -> list:
-        if plane not in _PLANES:
-            raise ValueError(f"plane must be one of {tuple(_PLANES)}, got {plane!r}")
-        basis = _PLANES[plane].offset(offset)
+    def project_edges(self, edges: list, plane: Any, offset: float = 0.0) -> list:
+        basis = _basis(plane, offset)
         return [_project_edge(edge, basis) for edge in edges]
 
     def vertices_of(self, shape: Any) -> list:
         return list(shape.vertices())
 
-    def project_vertices(self, vertices: list, plane: str, offset: float = 0.0) -> list:
-        if plane not in _PLANES:
-            raise ValueError(f"plane must be one of {tuple(_PLANES)}, got {plane!r}")
-        basis = _PLANES[plane].offset(offset)
+    def project_vertices(self, vertices: list, plane: Any, offset: float = 0.0) -> list:
+        basis = _basis(plane, offset)
         out: list = []
         for v in vertices:
             local = basis.to_local_coords(Vector(v.X, v.Y, v.Z))
             out.append((local.X, local.Y))  # pyrefly: ignore[missing-attribute]
         return out
 
-    def intersection_curve(self, shape: Any, plane: str, offset: float = 0.0) -> list:
-        if plane not in _PLANES:
-            raise ValueError(f"plane must be one of {tuple(_PLANES)}, got {plane!r}")
-        basis = _PLANES[plane].offset(offset)
+    def intersection_curve(self, shape: Any, plane: Any, offset: float = 0.0) -> list:
+        basis = _basis(plane, offset)
         # OCCT section of the shape with the sketch plane; each resulting edge is projected to
         # a 2D sketch-plane descriptor (curved edges are refused by _project_edge, matching the
         # existing spline-projection deferral).

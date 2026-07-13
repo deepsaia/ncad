@@ -160,6 +160,20 @@ well-defined, and both are enforced by the executor (not left to chance):
 - **Seen in:** the spaced multibody parts (pattern of studs + a separate boss) and gate-2.8b
   `embossed_logo` (wrap after a marker sketch).
 
+### 11. A datum-referencing op must come after the datum it names
+
+A `sketch` on a datum plane, or a `revolve`/`groove` about a datum axis, references the datum
+via `datums.<id>`. The datum feature (`datum_plane` / `datum_axis`) must appear earlier in the
+tree so its geometry exists when the reference resolves.
+
+- **Why:** datums are non-solid reference features recorded into the element map; the resolver
+  looks up the datum's stored shape by feature id at build time.
+- **Failure mode:** a sketch that names `datums.d` before `d` is authored fails resolution
+  with an id-attributed "unresolved semantic reference" issue (skip-and-suppress).
+- **Note:** datums are non-solid (like `sketch`), so they never become the running solid, and
+  the part's built shape is the last SOLID feature (rule 10), never a trailing datum.
+- **Seen in:** gate-2.10 `cast_bracket` (a sketch/feature on a datum plane).
+
 ---
 
 ### 11. Direct-edit ops (`defeature`, `offset`) come AFTER the geometry they act on
