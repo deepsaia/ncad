@@ -211,7 +211,13 @@ class Kernel(ABC):
 
     @abstractmethod
     def fillet_edges(self, solid: Any, edges: list, radius: float) -> Any:
-        """Round the given ``edges`` of ``solid`` with ``radius``."""
+        """Round the given ``edges`` of ``solid`` with a constant ``radius``."""
+
+    @abstractmethod
+    def fillet_variable(self, solid: Any, edges: list, radius_start: float,
+                        radius_end: float) -> Any:
+        """Round ``edges`` with a radius that ramps ``radius_start`` >> ``radius_end`` along
+        each edge (a variable-radius fillet)."""
 
     @abstractmethod
     def chamfer_edges(self, solid: Any, edges: list, distance: float, *,

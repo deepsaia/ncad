@@ -322,6 +322,13 @@ class FakeKernel(Kernel):
         return _FakeCombined(self.volume(solid) - radius * len(edges),
                              self.bounding_box(solid))
 
+    def fillet_variable(self, solid: Any, edges: list, radius_start: float,
+                        radius_end: float) -> Any:
+        # Analytic model: a ramped radius removes ~ the mean radius per edge.
+        mean_r = (radius_start + radius_end) / 2.0
+        return _FakeCombined(self.volume(solid) - mean_r * len(edges),
+                             self.bounding_box(solid))
+
     def chamfer_edges(self, solid: Any, edges: list, distance: float, *,
                       distance2: float | None = None,
                       angle: float | None = None) -> Any:

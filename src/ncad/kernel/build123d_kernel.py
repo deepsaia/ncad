@@ -56,7 +56,10 @@ from OCP.BRepBuilderAPI import (
     BRepBuilderAPI_MakeEdge,  # pyrefly: ignore[missing-module-attribute]
 )
 from OCP.BRepExtrema import BRepExtrema_DistShapeShape  # pyrefly: ignore[missing-module-attribute]
-from OCP.BRepFilletAPI import BRepFilletAPI_MakeChamfer  # pyrefly: ignore[missing-module-attribute]
+from OCP.BRepFilletAPI import (
+    BRepFilletAPI_MakeChamfer,  # pyrefly: ignore[missing-module-attribute]
+    BRepFilletAPI_MakeFillet,  # pyrefly: ignore[missing-module-attribute]
+)
 from OCP.Geom import Geom_BezierCurve  # pyrefly: ignore[missing-module-attribute]
 from OCP.GeomAbs import GeomAbs_G1  # pyrefly: ignore[missing-module-attribute]
 from OCP.gp import gp_GTrsf, gp_Pnt  # pyrefly: ignore[missing-module-attribute]
@@ -347,6 +350,11 @@ class Build123dKernel(Kernel):
     def fillet_edges(self, solid: Any, edges: list, radius: float) -> Any:
         return self._robust(self._do_fillet, solid, edges, radius, name="fillet")
 
+    def fillet_variable(self, solid: Any, edges: list, radius_start: float,
+                        radius_end: float) -> Any:
+        return self._robust(self._do_fillet_variable, solid, edges, radius_start,
+                            radius_end, name="fillet")
+
     def chamfer_edges(self, solid: Any, edges: list, distance: float, *,
                       distance2: float | None = None,
                       angle: float | None = None) -> Any:
@@ -493,6 +501,19 @@ class Build123dKernel(Kernel):
     @staticmethod
     def _do_fillet(solid: Any, edges: list, radius: float) -> Any:
         return solid.fillet(radius, edges)
+
+    @staticmethod
+    def _do_fillet_variable(solid: Any, edges: list, radius_start: float,
+                            radius_end: float) -> Any:
+        # A radius that ramps r_start -> r_end along each edge, via raw OCP
+        # BRepFilletAPI_MakeFillet.Add(r1, r2, edge) (build123d's fillet is constant-radius
+        # only). This is the NX/Creo/Fusion variable-radius fillet.
+        from build123d import Solid
+        maker = BRepFilletAPI_MakeFillet(solid.wrapped)
+        for edge in edges:
+            maker.Add(radius_start, radius_end, edge.wrapped)
+        maker.Build()
+        return Solid(maker.Shape())
 
     @staticmethod
     def _do_chamfer(solid: Any, edges: list, distance: float,

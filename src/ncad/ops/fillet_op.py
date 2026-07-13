@@ -6,6 +6,7 @@ from ncad.kernel.kernel import Kernel
 from ncad.kernel.kernel_op_error import KernelOpError
 from ncad.ops.build_issue import BuildIssue
 from ncad.ops.edge_selector import EdgeSelector
+from ncad.ops.fillet_params import FilletParamError, fillet_kwargs
 from ncad.ops.op_result import OpResult
 
 
@@ -33,7 +34,16 @@ class FilletOp:
                             issues=[BuildIssue(node_id=feature_id,
                                                message="fillet: no edges to round")])
         try:
-            result = kernel.fillet_edges(shape_in, edges, params["radius"])
+            kwargs = fillet_kwargs(params)
+        except FilletParamError as exc:
+            return OpResult(shape=None, provenance={},
+                            issues=[BuildIssue(node_id=feature_id, message=str(exc))])
+        try:
+            if kwargs["variable"]:
+                result = kernel.fillet_variable(shape_in, edges, kwargs["radius_start"],
+                                                kwargs["radius_end"])
+            else:
+                result = kernel.fillet_edges(shape_in, edges, kwargs["radius"])
         except KernelOpError as exc:
             return OpResult(shape=None, provenance={},
                             issues=[BuildIssue(node_id=feature_id, message=str(exc))])

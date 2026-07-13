@@ -96,6 +96,9 @@ definitions {
       rotation { type = number }
       through { type = boolean }
       radius { type = number, exclusiveMinimum = 0 }
+      # Variable-radius fillet: a radius that ramps from radius_start to radius_end per edge.
+      radius_start { type = number, exclusiveMinimum = 0 }
+      radius_end { type = number, exclusiveMinimum = 0 }
       edges { type = string }
       on { type = string }
       operation { enum = ["cut", "union", "intersect"] }
