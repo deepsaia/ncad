@@ -395,6 +395,7 @@
   .tree-badge { margin-left: 6px; padding: 0 6px; border-radius: 8px; font-size: 10px;
     color: var(--muted); background: var(--panel-2); border: 1px solid var(--border);
     white-space: nowrap; }
+  .tree-badge-bad { color: var(--log-error); border-color: var(--log-error); }
   .mate-chip { margin: 2px 0 2px 22px; padding: 1px 7px; border-radius: 8px; font-size: 10.5px;
     color: var(--muted); background: var(--panel-2); border: 1px solid var(--border);
     display: inline-block; }
@@ -2038,6 +2039,8 @@ function loadAssembly(name, verbose, timing) {
     }
     done = true; finish();
     renderInstanceTree(sceneDoc);
+    renderAssemblyBom(sceneDoc);
+    logInterference(sceneDoc, verbose);
   }).catch(err => {
     spinner.style.display = "none";
     toast("assembly load error: " + (err && err.message ? err.message : err), true);
@@ -2113,6 +2116,11 @@ function renderInstanceTree(sceneDoc) {
   // -> its instances so a coupling chip can show under any instance in either coupled joint.
   const jointInstances = {};
   for (const j of joints) jointInstances[j.id] = (j.between || []).map(b => b.instance);
+  // Instances in an `interfering` pair get a red CLASH badge (bucket 5.6).
+  const clashing = new Set();
+  for (const f of (sceneDoc.interference || [])) {
+    if (f.status === "interfering") { clashing.add(f.a); clashing.add(f.b); }
+  }
   const solve = sceneDoc.solve || null;
   // Solved-status line (bucket 5.3): four states - green well-constrained, red over-constrained
   // (failing ids), amber redundant (removable ids) / under-constrained (free DoF). The DoF
@@ -2155,6 +2163,11 @@ function renderInstanceTree(sceneDoc) {
     } else if (!inRelation(inst.id)) {
       const badge = document.createElement("span");
       badge.className = "tree-badge"; badge.textContent = "floating";
+      row.appendChild(badge);
+    }
+    if (clashing.has(inst.id)) {
+      const badge = document.createElement("span");
+      badge.className = "tree-badge tree-badge-bad"; badge.textContent = "CLASH";
       row.appendChild(badge);
     }
     body.appendChild(row);
@@ -2226,6 +2239,45 @@ function renderInstanceTree(sceneDoc) {
         selectInstances(ids);
       });
       body.appendChild(chip);
+    }
+  }
+}
+
+// Assembly BOM + roll-up mass in the BOM panel (bucket 5.6): part-grouped line items (part | qty |
+// material | total mass) + a roll-up total mass + COG. Parts-mode per-part BOM is unaffected.
+function renderAssemblyBom(sceneDoc) {
+  const body = document.getElementById("bom-body");
+  if (!body) return;
+  const bom = sceneDoc.bom, mass = sceneDoc.mass;
+  if (!bom || !(bom.items || []).length) {
+    body.innerHTML = '<div class="panel-empty">no BOM for this assembly</div>';
+    return;
+  }
+  body.innerHTML = "";
+  for (const it of bom.items) {
+    const row = document.createElement("div"); row.className = "bom-row";
+    const massTxt = it.total_mass != null ? `${it.total_mass.toFixed(4)} kg` : "-";
+    row.innerHTML = `<span class="k">${it.part} x${it.quantity}` +
+      `${it.material ? " (" + it.material + ")" : ""}</span>` +
+      `<span class="v">${massTxt}</span>`;
+    body.appendChild(row);
+  }
+  if (mass) {
+    const row = document.createElement("div"); row.className = "bom-row";
+    row.innerHTML = `<span class="k">total</span>` +
+      `<span class="v">${(mass.total_mass || 0).toFixed(4)}<span class="u">kg</span></span>`;
+    body.appendChild(row);
+  }
+}
+
+// Log interference findings (bucket 5.6): interfering pairs as errors (with volume), clearances as
+// info. Touching pairs (expected mates) are only logged when verbose, to avoid noise.
+function logInterference(sceneDoc, verbose) {
+  for (const f of (sceneDoc.interference || [])) {
+    if (f.status === "interfering") {
+      log(`interference ${f.a} <> ${f.b}: vol ${f.volume} mm3`, "error");
+    } else if (f.status === "clearance" && verbose) {
+      log(`clearance ${f.a} <> ${f.b}: ${f.distance} mm`, "info");
     }
   }
 }
