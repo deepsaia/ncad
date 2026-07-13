@@ -729,7 +729,7 @@ def _wire_ring(edges: list) -> list[Point2]:
                 (cx + rx, cy + ry), (cx - rx, cy + ry)]
     ring: list[Point2] = []
     for edge in edges:
-        if edge["kind"] in ("bezier", "spline"):
+        if edge["kind"] in ("bezier", "spline", "conic"):
             ring.extend(edge["points"])
         else:
             ring.append(edge["points"][0])
@@ -760,7 +760,7 @@ def _wire_face_area(edges: list) -> float:
     for edge in edges:
         if edge["kind"] == "arc":
             dense.extend(_arc_samples(edge["points"], 24)[:-1])
-        elif edge["kind"] in ("bezier", "spline"):
+        elif edge["kind"] in ("bezier", "spline", "conic"):
             # Defining-polygon approximation: the fake kernel does not evaluate the true
             # curve, so a spline's contribution to the loop area is its control/through
             # points. Deterministic and non-zero for a bulging curve; exact area is the

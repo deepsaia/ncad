@@ -50,11 +50,15 @@ from OCP.BRep import BRep_Tool  # pyrefly: ignore[missing-module-attribute]
 from OCP.BRepAlgoAPI import BRepAlgoAPI_Defeaturing  # pyrefly: ignore[missing-module-attribute]
 from OCP.BRepBuilderAPI import (
     BRepBuilderAPI_GTransform,  # pyrefly: ignore[missing-module-attribute]
+    BRepBuilderAPI_MakeEdge,  # pyrefly: ignore[missing-module-attribute]
 )
 from OCP.BRepExtrema import BRepExtrema_DistShapeShape  # pyrefly: ignore[missing-module-attribute]
 from OCP.BRepFilletAPI import BRepFilletAPI_MakeChamfer  # pyrefly: ignore[missing-module-attribute]
+from OCP.Geom import Geom_BezierCurve  # pyrefly: ignore[missing-module-attribute]
 from OCP.GeomAbs import GeomAbs_G1  # pyrefly: ignore[missing-module-attribute]
-from OCP.gp import gp_GTrsf  # pyrefly: ignore[missing-module-attribute]
+from OCP.gp import gp_GTrsf, gp_Pnt  # pyrefly: ignore[missing-module-attribute]
+from OCP.TColgp import TColgp_Array1OfPnt  # pyrefly: ignore[missing-module-attribute]
+from OCP.TColStd import TColStd_Array1OfReal  # pyrefly: ignore[missing-module-attribute]
 from OCP.TopAbs import TopAbs_EDGE, TopAbs_FACE  # pyrefly: ignore[missing-module-attribute]
 from OCP.TopExp import TopExp, TopExp_Explorer  # pyrefly: ignore[missing-module-attribute]
 from OCP.TopoDS import TopoDS  # pyrefly: ignore[missing-module-attribute]
@@ -862,6 +866,12 @@ def _ellipse_angle_degrees(cx: float, cy: float, mx: float, my: float,
     return math.degrees((point_angle - axis_angle) % (2.0 * math.pi))
 
 
+def _gp_pnt(basis: Any, x: float, y: float) -> Any:
+    """A gp_Pnt for sketch-plane point (x, y) placed in world coords on ``basis``."""
+    v = basis.from_local_coords(Vector(x, y, 0))
+    return gp_Pnt(v.X, v.Y, v.Z)
+
+
 def _build_edge(edge: dict, basis: Any) -> Any:
     """Build a build123d Edge from a sketch edge descriptor on the ``basis`` plane."""
     kind = edge["kind"]
@@ -903,6 +913,22 @@ def _build_edge(edge: dict, basis: Any) -> Any:
         end_angle = _ellipse_angle_degrees(cx, cy, mx, my, ex, ey)
         return Edge.make_ellipse(  # pyrefly: ignore[bad-argument-type]
             x_radius, y_radius, frame, start_angle=start_angle, end_angle=end_angle)
+    if kind == "conic":
+        (sx, sy), (apx, apy), (ex, ey) = edge["points"]
+        rho = float(edge["rho"])
+        # Rational quadratic Bezier: 3 control poles with the apex weighted rho/(1-rho); the
+        # curve passes through start/end (weight 1) and bows toward the apex. rho<0.5 traces an
+        # ellipse arc, =0.5 a parabola, >0.5 a hyperbola (the reference-tool conic model).
+        poles = TColgp_Array1OfPnt(1, 3)
+        poles.SetValue(1, _gp_pnt(basis, sx, sy))
+        poles.SetValue(2, _gp_pnt(basis, apx, apy))
+        poles.SetValue(3, _gp_pnt(basis, ex, ey))
+        weights = TColStd_Array1OfReal(1, 3)
+        weights.SetValue(1, 1.0)
+        weights.SetValue(2, rho / (1.0 - rho))
+        weights.SetValue(3, 1.0)
+        curve = Geom_BezierCurve(poles, weights)
+        return Edge(BRepBuilderAPI_MakeEdge(curve).Edge())  # pyrefly: ignore[bad-argument-type]
     raise ValueError(f"unknown sketch edge kind {kind!r}")
 
 
