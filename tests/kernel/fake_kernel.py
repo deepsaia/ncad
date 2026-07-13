@@ -329,6 +329,16 @@ class FakeKernel(Kernel):
         return _FakeCombined(self.volume(solid) - mean_r * len(edges),
                              self.bounding_box(solid))
 
+    def fillet_face(self, solid: Any, faces: list, radius: float) -> Any:
+        # Rounds the faces' bounding edges; the fake models ~4 edges per face.
+        return _FakeCombined(self.volume(solid) - radius * 4 * len(faces),
+                             self.bounding_box(solid))
+
+    def chamfer_vertices(self, solid: Any, vertices: list, distance: float) -> Any:
+        # A corner facet removes ~ a small tetrahedral volume per vertex.
+        return _FakeCombined(self.volume(solid) - distance * len(vertices),
+                             self.bounding_box(solid))
+
     def chamfer_edges(self, solid: Any, edges: list, distance: float, *,
                       distance2: float | None = None,
                       angle: float | None = None) -> Any:

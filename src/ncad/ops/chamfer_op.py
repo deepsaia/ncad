@@ -20,6 +20,21 @@ class ChamferOp:
             return OpResult(shape=None, provenance={},
                             issues=[BuildIssue(node_id=feature_id, message="chamfer has no solid")])
         refs = params.get("__refs__", {})
+        # A vertex chamfer facets the corner vertices of the referenced geometry (bevels the
+        # edges meeting each). Distinct from an edge chamfer.
+        vertices = refs.get("vertices")
+        if vertices:
+            try:
+                kwargs = chamfer_kwargs(params)
+            except ChamferParamError as exc:
+                return OpResult(shape=None, provenance={},
+                                issues=[BuildIssue(node_id=feature_id, message=str(exc))])
+            try:
+                result = kernel.chamfer_vertices(shape_in, vertices, kwargs["distance"])
+            except KernelOpError as exc:
+                return OpResult(shape=None, provenance={},
+                                issues=[BuildIssue(node_id=feature_id, message=str(exc))])
+            return OpResult(shape=result, provenance={}, issues=[])
         if "edges" in refs:
             edges = refs["edges"] or []
         else:

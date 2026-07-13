@@ -20,6 +20,22 @@ class FilletOp:
             return OpResult(shape=None, provenance={},
                             issues=[BuildIssue(node_id=feature_id, message="fillet has no solid")])
         refs = params.get("__refs__", {})
+        # A face fillet rounds every edge bounding the referenced faces (distinct from an edge
+        # fillet). Face and edge selection are mutually exclusive on one feature.
+        faces = refs.get("faces")
+        if faces:
+            try:
+                kwargs = fillet_kwargs(params)
+            except FilletParamError as exc:
+                return OpResult(shape=None, provenance={},
+                                issues=[BuildIssue(node_id=feature_id, message=str(exc))])
+            radius = float(kwargs.get("radius") or kwargs["radius_start"])
+            try:
+                result = kernel.fillet_face(shape_in, faces, radius)
+            except KernelOpError as exc:
+                return OpResult(shape=None, provenance={},
+                                issues=[BuildIssue(node_id=feature_id, message=str(exc))])
+            return OpResult(shape=result, provenance={}, issues=[])
         if "edges" in refs:
             edges = refs["edges"] or []
         else:

@@ -220,6 +220,18 @@ class Kernel(ABC):
         each edge (a variable-radius fillet)."""
 
     @abstractmethod
+    def fillet_face(self, solid: Any, faces: list, radius: float) -> Any:
+        """Round every edge bounding the referenced ``faces`` with ``radius`` (a face fillet).
+
+        Note: a true two-face-set face fillet (rolling a ball tangent to two non-adjacent face
+        sets) is not native to OCCT; this rounds the faces' bounding edges.
+        """
+
+    @abstractmethod
+    def chamfer_vertices(self, solid: Any, vertices: list, distance: float) -> Any:
+        """Facet a corner ``vertex`` by bevelling the edges meeting it (a vertex chamfer)."""
+
+    @abstractmethod
     def chamfer_edges(self, solid: Any, edges: list, distance: float, *,
                       distance2: float | None = None,
                       angle: float | None = None) -> Any:

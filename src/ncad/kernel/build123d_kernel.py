@@ -355,6 +355,29 @@ class Build123dKernel(Kernel):
         return self._robust(self._do_fillet_variable, solid, edges, radius_start,
                             radius_end, name="fillet")
 
+    def fillet_face(self, solid: Any, faces: list, radius: float) -> Any:
+        # A "face fillet" here rounds every edge BOUNDING the referenced face(s). OCCT fillets
+        # shared edges only; a true NX-style face fillet between two NON-adjacent face sets
+        # (rolling a ball tangent to both) is not native to OCCT and is not supported (call it
+        # out rather than fake it). The bounding-edges form is the common case.
+        edges = [e for face in faces for e in face.edges()]
+        return self._robust(self._do_fillet, solid, edges, radius, name="fillet")
+
+    def chamfer_vertices(self, solid: Any, vertices: list, distance: float) -> Any:
+        # A vertex (corner) chamfer facets the corner by bevelling the edges meeting it.
+        edges = [e for v in vertices for e in self._edges_at_vertex(solid, v)]
+        return self._robust(self._do_chamfer, solid, edges, distance, None, name="chamfer")
+
+    @staticmethod
+    def _edges_at_vertex(solid: Any, vertex: Any) -> list:
+        """The edges of ``solid`` incident to ``vertex`` (by coincident position)."""
+        target = tuple(vertex)
+        incident = []
+        for edge in solid.edges():
+            if any(tuple(v) == target for v in edge.vertices()):
+                incident.append(edge)
+        return incident
+
     def chamfer_edges(self, solid: Any, edges: list, distance: float, *,
                       distance2: float | None = None,
                       angle: float | None = None) -> Any:

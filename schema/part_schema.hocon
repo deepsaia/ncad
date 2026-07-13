@@ -79,7 +79,10 @@ definitions {
       distance2 { type = number, exclusiveMinimum = 0 }
       angle { type = number }
       openings { type = string }
-      faces { type = string }
+      # faces is a selector string (shell/draft) or a list of face references (face fillet);
+      # vertices is a list of references whose corner vertices a vertex chamfer bevels.
+      faces { type = ["string", "array"] }
+      vertices { type = array, items { type = string } }
       neutral { enum = ["XY", "XZ", "YZ"] }
       neutral_offset { type = number }
       size { type = string }
