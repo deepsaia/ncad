@@ -82,8 +82,11 @@ solve) + gear/belt/rack_pinion/universal as declarative `couplings[]` records (e
 completing Phase 5's joint vocabulary (cam deferred); bucket 5.5 (viewer polish) is DONE - poly
 world-origin gizmo, instance select/highlight/isolate with bidirectional 3D<>tree sync, a 3D
 joint-freedom glyph overlay + dashed coupling links, per-part edges in assemblies, and a
-build+render+total timing split (plus a real axes_coincident solver fix + a per-file resolve cache).
-NEXT: 5.6 (interference/BOM/STEP + Phase 5 capstone); exploded views are 5.5b. Per-phase deferred
+build+render+total timing split (plus a real axes_coincident solver fix + a per-file resolve cache);
+bucket 5.6 (interference + BOM + AP242 + capstone) is DONE, CLOSING PHASE 5 - exact OCCT
+interference (distance + boolean-volume arbiter), assembly BOM + roll-up mass, structured STEP AP242
+(XCAF/XDE), viewer surfacing, and the gate-5.6 capstone (revolute-mated bracket+lever, STEP round-
+trip). **PHASE 5 IS COMPLETE.** NEXT: Phase 6 (motion) or 5.5b (exploded views). Per-phase deferred
 items are gathered in the deferred-backlog sections below each phase's bucket list, so nothing is lost.
 
 v1 proved the *pattern*: `spec >> build >> BOM >> view`, determinism, build123d/OCCT,
@@ -121,7 +124,7 @@ modeling, the domain profiles, CAM/PCB seams, and a plugin layer.
 | 2 | Core solid features (sketched + dress-up) | solid | `[ ]` |
 | 3 | Patterns, transforms, booleans, multibody | solid | `[x]` |
 | 4 | Persistent-name layer + direct/synchronous modeling | core | `[x]` |
-| 5 | Assemblies: constraints, joints, in-context | assembly | `[ ]` |
+| 5 | Assemblies: constraints, joints, in-context | assembly | `[x]` |
 | 6 | Motion & kinematics | motion | `[ ]` |
 | 7 | Drafting & documentation (2D drawings) | docs | `[ ]` |
 | 8 | PMI / GD&T | docs | `[ ]` |
@@ -717,9 +720,18 @@ links, Joints toggle); per-part edge overlay in assemblies; assembly toggles hid
 and a build+render+total timing split (00h00m00.0s) in the toast + logs. Also fixed a real
 `axes_coincident` solver bug (was grounding-asymmetric: a concentric mate / revolute / cylindrical /
 screw only pulled the body whose axis LINE was referenced, so a gear on an offset shaft stayed at
-the origin; now both origins are constrained onto both axis lines) and cached resolved part
-elements per file in AssemblyBuilder (was O(instances) reloads). NEXT: 5.6 (interference/BOM/STEP +
-capstone); exploded views are bucket 5.5b.
+the origin; fixed to a single point-on-line on the placed body, non-redundant + grounding-correct)
+and cached resolved part elements per file in AssemblyBuilder (was O(instances) reloads). **Bucket
+5.6 (interference + BOM + AP242 + capstone) is DONE, CLOSING PHASE 5:** kernel `distance` +
+`common_volume` + `export_assembly` (structured AP242 via XCAF/XDE); an `InterferenceChecker`
+(pairwise, exact OCCT distance + boolean-volume arbiter -> interfering/touching/clearance,
+id-attributed) + pure `InterferenceClassifier`; `AssemblyBom` (part-grouped line items + roll-up
+mass/world-COG via solved placements); AssemblyBuilder writes `interference`/`bom`/`mass` sidecar
+blocks + a structured `.step`; viewer surfacing (interference in Logs + Hierarchy clash badges,
+assembly BOM/mass panel, assembly By-Material view) + a build/render timing split; and the gate-5.6
+capstone (a revolute-mated bracket+lever: clearance-correct interference, BOM/mass, STEP AP242
+write>>read round-trip). FreeCAD-opens is a documented manual step. **Phase 5 is COMPLETE.** NEXT:
+Phase 6 (motion) or 5.5b (exploded views).
 
 - [ ] **Instances & structure:** components, sub-assemblies, flexible
       sub-assemblies, replace/pattern/mirror component
@@ -742,14 +754,17 @@ capstone); exploded views are bucket 5.5b.
       (Phase 6) + time-varying driving (Phase 6) remain)
 - [ ] **Top-down / in-context:** skeleton / master model; publish geometry; change
       propagation
-- [ ] **Interference / clearance** (static): exact (`BRepExtrema_DistShapeShape`)
-      or fast mesh (Manifold)
-- [ ] **Assembly BOM** across instances + roll-up mass properties; balloons later
-      (Phase 7)
-- [ ] **Exploded views** (definition; rendered in viewer)
+- [x] **Interference / clearance** (static): exact (`BRepExtrema_DistShapeShape`)
+      (5.6: pairwise distance + boolean-common-volume arbiter -> interfering/touching/clearance;
+      mesh/Manifold path deferred to Phase 6/12)
+- [x] **Assembly BOM** across instances + roll-up mass properties; balloons later
+      (Phase 7) (5.6: part-grouped line items + qty + roll-up mass/world-COG via solved placements)
+- [ ] **Exploded views** (definition; rendered in viewer) (deferred to 5.5b)
 
-**Gate:** a two-part mated assembly with one revolute joint exports as structured
-STEP (AP242) and opens in FreeCAD; interference check is correct.
+**Gate: MET (5.6 capstone).** A two-part revolute-mated assembly (bracket + lever, gate-5.6) exports
+as structured STEP AP242 (round-trips as a 2-component assembly tree; opens in FreeCAD = documented
+manual step) and its interference check is correct (the pin-through-bore reads clearance). **Phase 5
+is COMPLETE.**
 
 **Deferred backlog (Phase 5 buckets, gather here so nothing is lost):**
 - **Mate connector follow-ups (post-5.1):** 5.1 shipped part-level connectors (planar/cylindrical
@@ -847,9 +862,17 @@ STEP (AP242) and opens in FreeCAD; interference check is correct.
 - **Exploded views (5.5b):** an exploded-view definition (per-instance offset along an axis, in the
   sidecar or an auto-explode) rendered with a slider. Split from 5.5 because it carries a real
   data-model + Python side (its own spec); the 5.5 viewer interaction work is its foundation.
-- **Interference/clearance + BOM + STEP (5.6):** static interference
-  (`BRepExtrema_DistShapeShape` or Manifold), assembly BOM + roll-up mass across instances,
-  structured STEP AP242 export (XCAF/XDE), and the Phase 5 capstone gate.
+- **Interference/clearance + BOM + STEP (5.6): DONE.** Exact OCCT pairwise interference
+  (`BRepExtrema_DistShapeShape` + boolean-common-volume arbiter -> interfering/touching/clearance),
+  assembly BOM + roll-up mass/world-COG across instances, structured STEP AP242 (XCAF/XDE,
+  `UpdateAssemblies` before write), viewer surfacing (Logs + clash badges + BOM panel +
+  By-Material view), a build/render timing split, and the gate-5.6 capstone. **5.6 follow-ups
+  (deferred):** 3D clash-highlight toggle (findings are in Logs + Hierarchy); interference
+  intersection-FACE geometry (we report the volume); mesh/Manifold interference (Phase 6/12,
+  motion-time + large-assembly); STEP component-NAME transfer through the OCCT reader is
+  version-fragile on real B-rep (the tree/colors survive; names verified at the kernel-test level).
+  Also still open from earlier buckets: OpenTelemetry spans + profiling dashboard; the
+  `build_file`-builds-all-parts redundancy; kernel cold-start warmup.
 - **Structure:** nested sub-assembly RENDERING (the 5.0 doc model allows a `.asm.hocon` instance
   ref; recursive compose deferred); component pattern/mirror/replace; flexible sub-assemblies;
   top-down / in-context skeleton + published geometry + change propagation.

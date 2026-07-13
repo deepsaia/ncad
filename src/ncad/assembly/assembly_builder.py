@@ -239,6 +239,7 @@ class AssemblyBuilder:
         components: list[dict] = []      # {shape, name, color, material, placement} for STEP
         part_mass: dict[tuple, dict] = {}  # (file, part) -> {mass, material, cog}
         inst_meta: list[dict] = []       # {id, file, part} for the BOM
+        by_id = {i["id"]: i for i in instances}  # to stamp per-instance material onto the sidecar
         for inst in document["assembly"]["instances"]:
             iid = inst["id"]
             if iid not in placements_mm:
@@ -258,6 +259,12 @@ class AssemblyBuilder:
             part_key = (inst["file"], inst["part"])
             if part_key not in part_mass:
                 part_mass[part_key] = self._part_mass(shape, resolver)
+            # Stamp the instance's material + appearance color onto the sidecar record so the viewer
+            # can color assemblies by material (per instance) without a per-part element map.
+            sidecar_inst = by_id.get(iid)
+            if sidecar_inst is not None:
+                sidecar_inst["material"] = part_mass[part_key].get("material")
+                sidecar_inst["appearance_color"] = part_mass[part_key].get("color")
             components.append({
                 "shape": world, "name": iid,
                 "color": part_mass[part_key].get("color"),
