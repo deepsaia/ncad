@@ -17,6 +17,8 @@ def test_arc_polar_lowers_to_arc_with_seeded_endpoints():
     assert start["type"] == "point" and end["type"] == "point"
     assert start["at"][0] == 10.0 and abs(start["at"][1]) < 1e-9          # angle 0 deg
     assert abs(end["at"][0]) < 1e-9 and abs(end["at"][1] - 10.0) < 1e-9   # angle 90 deg
+    # Derived endpoints are fixed, so an arc_polar is well-constrained by construction.
+    assert start["fixed"] is True and end["fixed"] is True
     # An arc referencing the center + the two child points.
     arc = by_id["a"]
     assert arc["type"] == "arc"

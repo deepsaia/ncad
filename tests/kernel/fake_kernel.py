@@ -723,6 +723,10 @@ def _wire_ring(edges: list) -> list[Point2]:
         cx, cy = edges[0]["center"]
         r = edges[0]["radius"]
         return [(cx - r, cy - r), (cx + r, cy - r), (cx + r, cy + r), (cx - r, cy + r)]
+    if len(edges) == 1 and edges[0]["kind"] == "ellipse":
+        cx, cy, rx, ry = _ellipse_params(edges[0])
+        return [(cx - rx, cy - ry), (cx + rx, cy - ry),
+                (cx + rx, cy + ry), (cx - rx, cy + ry)]
     ring: list[Point2] = []
     for edge in edges:
         if edge["kind"] in ("bezier", "spline"):
@@ -732,10 +736,26 @@ def _wire_ring(edges: list) -> list[Point2]:
     return ring
 
 
+def _ellipse_params(edge: dict) -> tuple[float, float, float, float]:
+    """Fake-kernel ellipse bounds: (center x, center y, x_radius, minor_radius).
+
+    ``x_radius`` is the distance from center to the major-axis end; orientation is ignored
+    (the fake kernel only needs deterministic, non-zero, axis-aligned bounds/area, not the
+    true rotated extent). The real kernel builds the exact ellipse.
+    """
+    cx, cy = edge["center"]
+    mx, my = edge["major_axis_end"]
+    x_radius = math.hypot(mx - cx, my - cy)
+    return cx, cy, x_radius, float(edge["minor_radius"])
+
+
 def _wire_face_area(edges: list) -> float:
     """Area of a closed wire loop; arcs are tessellated so the bulge sign is correct."""
     if len(edges) == 1 and edges[0]["kind"] == "circle":
         return math.pi * edges[0]["radius"] ** 2
+    if len(edges) == 1 and edges[0]["kind"] == "ellipse":
+        _, _, rx, ry = _ellipse_params(edges[0])
+        return math.pi * rx * ry
     dense: list[Point2] = []
     for edge in edges:
         if edge["kind"] == "arc":
