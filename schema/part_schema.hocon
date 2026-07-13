@@ -120,6 +120,9 @@ definitions {
       tool { type = string }
       sections { type = array, items { type = string } }
       ruled { type = boolean }
+      # loft/sweep guide (rail) curve references; closed = periodic loft (unsupported, refused).
+      guides { type = array, items { type = string } }
+      closed { type = boolean }
       start_point = ${definitions.vec3}
       end_point = ${definitions.vec3}
       kind { type = string }

@@ -150,10 +150,13 @@ class FakeKernel(Kernel):
 
     def loft(self, sections: list, *, ruled: bool = False,
              start_point: Point3 | None = None,
-             end_point: Point3 | None = None) -> Any:
+             end_point: Point3 | None = None, guides: list | None = None,
+             closed: bool = False) -> Any:
         # Prismatoid (trapezoidal) volume: sum over adjacent section pairs of
         # (A_i + A_{i+1})/2 * |offset gap|. A point cap contributes area 0 at its z.
         # ruled is a blend-shape choice, not volume-defining, so it does not change this.
+        if closed:
+            raise KernelOpError("closed/periodic loft is not supported")
         stack: list[tuple[float, float]] = []
         if start_point is not None:
             stack.append((0.0, start_point[2]))

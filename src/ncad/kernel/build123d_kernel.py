@@ -60,6 +60,9 @@ from OCP.BRepFilletAPI import (
     BRepFilletAPI_MakeChamfer,  # pyrefly: ignore[missing-module-attribute]
     BRepFilletAPI_MakeFillet,  # pyrefly: ignore[missing-module-attribute]
 )
+from OCP.BRepOffsetAPI import (
+    BRepOffsetAPI_MakePipeShell,  # pyrefly: ignore[missing-module-attribute]
+)
 from OCP.Geom import Geom_BezierCurve  # pyrefly: ignore[missing-module-attribute]
 from OCP.GeomAbs import GeomAbs_G1  # pyrefly: ignore[missing-module-attribute]
 from OCP.gp import gp_GTrsf, gp_Pnt  # pyrefly: ignore[missing-module-attribute]
@@ -184,7 +187,21 @@ class Build123dKernel(Kernel):
 
     def loft(self, sections: list, *, ruled: bool = False,
              start_point: Point3 | None = None,
-             end_point: Point3 | None = None) -> Any:
+             end_point: Point3 | None = None, guides: list | None = None,
+             closed: bool = False) -> Any:
+        # Closed/periodic loft (sections looping back to the first) is NOT supported: OCCT
+        # ThruSections does not build a valid periodic solid (a closed section loop yields
+        # zero volume). Called out rather than silently producing an empty solid.
+        if closed:
+            raise KernelOpError(
+                "closed/periodic loft is not supported (OCCT ThruSections has no periodic "
+                "mode); loft open sections, or model the closed form another way")
+        if guides:
+            # Guided loft: sweep the first section along an implicit spine while a guide rail
+            # steers the section (build123d's loft has no guide support; use OCCT
+            # MakePipeShell with the guide in binormal mode). This is the NX/Creo/Fusion
+            # rail-guided loft.
+            return self._robust(self._do_guided_loft, sections, guides, name="loft")
         # A vertex cap is a zero-area point section: build123d loft accepts Vertex in the
         # section list, giving a cone-like end. Order matters: caps bracket the faces.
         ordered: list = []
@@ -194,6 +211,23 @@ class Build123dKernel(Kernel):
         if end_point is not None:
             ordered.append(Vertex(*end_point))
         return loft(ordered, ruled=ruled)
+
+    @staticmethod
+    def _do_guided_loft(sections: list, guides: list) -> Any:
+        from build123d import Solid
+        # A spine from the first section's center to the last; each section added as a
+        # profile; the first guide steers the sweep (binormal mode).
+        first_center = sections[0].center()
+        last_center = sections[-1].center()
+        spine = Wire(Edge.make_line(first_center, last_center))
+        maker = BRepOffsetAPI_MakePipeShell(spine.wrapped)
+        maker.SetMode(guides[0].wrapped, True)
+        for section in sections:
+            outer = section.outer_wire() if hasattr(section, "outer_wire") else section
+            maker.Add(outer.wrapped, False, False)
+        maker.Build()
+        maker.MakeSolid()
+        return Solid(maker.Shape())
 
     def rib(self, wire: Any, *, thickness: float, depth: float) -> Any:
         # Planar-first (robust): thicken the open wire IN ITS OWN PLANE with trace into a
