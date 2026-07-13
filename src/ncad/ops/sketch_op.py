@@ -79,6 +79,18 @@ class SketchOp:
             return OpResult(shape=kernel.polygon_face(self._polygon_points(element), plane,
                                                       offset=offset),
                             provenance={}, issues=[], status_report=well)
+        if kind == "text":
+            # A first-class text profile (distinct from the wrap op, which lands text on a
+            # face): the glyph faces have letter counters as inner holes (multi-loop faces) and
+            # extrude/pocket like any sketch profile.
+            at = element.get("at", (0.0, 0.0))
+            face = kernel.text_face(
+                str(element["text"]), float(element.get("font_size", 10.0)), plane,
+                font=str(element.get("font", "")),
+                style=str(element.get("font_style", "")),
+                offset=offset, at=(float(at[0]), float(at[1])),
+                rotation=float(element.get("rotation", 0.0)))
+            return OpResult(shape=face, provenance={}, issues=[], status_report=well)
         issue = BuildIssue(node_id=feature_id, message=f"unknown sketch element type: {kind!r}")
         return OpResult(shape=None, provenance={}, issues=[issue])
 
