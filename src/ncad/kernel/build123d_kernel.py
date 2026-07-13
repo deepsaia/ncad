@@ -225,6 +225,28 @@ class Build123dKernel(Kernel):
         glyphs = Text(text, **kwargs)
         return basis * Pos(at[0], at[1]) * Rot(0, 0, rotation) * glyphs  # pyrefly: ignore[unsupported-operation]
 
+    def datum_plane(self, method: str, params: dict, refs: dict) -> Any:
+        if method == "offset":
+            face = refs.get("face")
+            src = Plane(face) if face is not None else _PLANES.get(params.get("base") or "XY",
+                                                                   Plane.XY)
+            return src.offset(params["distance"])
+        if method == "on_face":
+            face = refs.get("face")
+            if face is None:
+                raise KernelOpError("datum_plane on_face needs a face reference")
+            return Plane(face)
+        if method == "angled":
+            base = _PLANES.get(params.get("base") or "XY", Plane.XY)
+            return base.rotated((params["angle"], 0.0, 0.0))
+        if method == "three_point":
+            (ax, ay, az), (bx, by, bz), (cx, cy, cz) = params["points"]
+            a = Vector(ax, ay, az)
+            x_dir = Vector(bx, by, bz) - a
+            normal = x_dir.cross(Vector(cx, cy, cz) - a)
+            return Plane(origin=a, x_dir=x_dir, z_dir=normal)  # pyrefly: ignore[no-matching-overload]
+        raise KernelOpError(f"unknown datum_plane method {method!r}")
+
     def wire(self, edges: list, plane: str, offset: float = 0.0) -> Any:
         if plane not in _PLANES:
             raise ValueError(f"plane must be one of {tuple(_PLANES)}, got {plane!r}")

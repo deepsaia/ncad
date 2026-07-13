@@ -106,6 +106,11 @@ class FakeKernel(Kernel):
     def wire(self, edges: list, plane: str, offset: float = 0.0) -> Any:
         return _FakeWire(edges, plane, offset)
 
+    def datum_plane(self, method: str, params: dict, refs: dict) -> Any:
+        # A datum is reference geometry, not a solid; the fake kernel returns a marker dict
+        # carrying the method so op-through-build tests can assert it was produced.
+        return {"kind": "datum_plane", "method": method}
+
     def text_face(self, text: str, size: float, plane: str, *, font: str = "",
                   style: str = "", offset: float = 0.0, at: Point2 = (0.0, 0.0),
                   rotation: float = 0.0) -> Any:

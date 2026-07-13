@@ -56,12 +56,13 @@ _REF_FIELDS: dict[str, dict[str, str]] = {
     "offset": {"face": "face"},
     "move_face": {"face": "face"},
     "relate": {"reference": "face", "moving": "face"},
+    "datum_plane": {"face": "face"},
 }
 _EDGE_KEYWORDS = ("all", "top", "bottom", "vertical", "horizontal")
 _FACE_KEYWORDS = ("all", "top", "bottom", "vertical", "horizontal")
-# Ops whose output is not a model solid (a sketch produces an input face); the element
-# map tracks the working solid, so these do not rebuild it.
-_NON_SOLID_OPS = frozenset({"sketch"})
+# Ops whose output is not a model solid (a sketch produces a face; a datum is reference
+# geometry); the element map tracks the working solid, so these do not rebuild it.
+_NON_SOLID_OPS = frozenset({"sketch", "datum_plane"})
 
 
 class Builder:
@@ -103,6 +104,7 @@ class Builder:
         resolver = ReferenceResolver(element_map)
         previous_shape: Any = None
         last_id: str | None = None
+        last_solid_id: str | None = None
         failed: set[str] = set()
 
         for feature_id in order:
@@ -181,9 +183,13 @@ class Builder:
             # a sketch would grab the face as its base solid.
             if feature.get("op", "") not in _NON_SOLID_OPS:
                 previous_shape = result.shape
+                last_solid_id = feature_id
             last_id = feature_id
 
-        final_shape = shape_by_id.get(last_id) if last_id is not None else None
+        # The part's built shape is the last SOLID-producing feature (a trailing non-solid
+        # feature - a datum, or a sketch - is reference geometry, not the part body).
+        final_id = last_solid_id if last_solid_id is not None else last_id
+        final_shape = shape_by_id.get(final_id) if final_id is not None else None
         return (OpResult(shape=final_shape, provenance={}, issues=issues),
                 element_map, statuses)
 

@@ -19,7 +19,7 @@ _NAMED_DEP_FIELDS: dict[str, tuple[str, ...]] = {
     "boolean": ("target", "tool"),
 }
 # Ops that produce no solid and are therefore never a working-solid predecessor.
-_NON_SOLID_OPS = frozenset({"sketch"})
+_NON_SOLID_OPS = frozenset({"sketch", "datum_plane"})
 
 
 class GraphCycleError(Exception):

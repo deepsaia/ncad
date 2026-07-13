@@ -114,6 +114,15 @@ class Kernel(ABC):
         """
 
     @abstractmethod
+    def datum_plane(self, method: str, params: dict, refs: dict) -> Any:
+        """A referenceable construction Plane built by ``method``.
+
+        ``offset`` (a base plane or `refs["base"]` planar face + ``distance``), ``angled`` (a
+        base plane rotated by ``angle``), ``on_face`` (`refs["face"]`), or ``three_point``
+        (``params["points"]``). Non-solid reference geometry named via ``datums.<id>``.
+        """
+
+    @abstractmethod
     def text_face(self, text: str, size: float, plane: str, *, font: str = "",
                   style: str = "", offset: float = 0.0, at: Point2 = (0.0, 0.0),
                   rotation: float = 0.0) -> Any:
