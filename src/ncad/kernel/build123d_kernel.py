@@ -51,6 +51,7 @@ from OCP.BRepAlgoAPI import BRepAlgoAPI_Defeaturing  # pyrefly: ignore[missing-m
 from OCP.BRepBuilderAPI import (
     BRepBuilderAPI_GTransform,  # pyrefly: ignore[missing-module-attribute]
 )
+from OCP.BRepExtrema import BRepExtrema_DistShapeShape  # pyrefly: ignore[missing-module-attribute]
 from OCP.BRepFilletAPI import BRepFilletAPI_MakeChamfer  # pyrefly: ignore[missing-module-attribute]
 from OCP.GeomAbs import GeomAbs_G1  # pyrefly: ignore[missing-module-attribute]
 from OCP.gp import gp_GTrsf  # pyrefly: ignore[missing-module-attribute]
@@ -589,6 +590,17 @@ class Build123dKernel(Kernel):
         box = solid.bounding_box()
         return (tuple(box.min), tuple(box.max))
 
+    def distance(self, shape_a: Any, shape_b: Any) -> float:
+        """Minimum distance between two solids via BRepExtrema_DistShapeShape (mm)."""
+        calc = BRepExtrema_DistShapeShape(_wrapped(shape_a), _wrapped(shape_b))
+        calc.Perform()
+        return float(calc.Value())
+
+    def common_volume(self, shape_a: Any, shape_b: Any) -> float:
+        """Volume of the boolean intersection (mm^3); 0.0 when disjoint or merely touching."""
+        inter = _b3d(shape_a) & _b3d(shape_b)
+        return float(inter.volume) if inter is not None else 0.0
+
     def _export_solids(self, shape: Any) -> list:
         """(body_id, solid) per exported solid, in export order (body -> solid).
 
@@ -891,3 +903,14 @@ def _thin_ring(face: Any, thin: float) -> Any:
     """A wall-thick ring: the face minus its inward offset by ``thin`` (a hollow profile)."""
     inner = offset(face, amount=-abs(thin))  # pyrefly: ignore[no-matching-overload]
     return face - inner
+
+
+def _wrapped(shape: Any) -> Any:
+    """The OCP TopoDS_Shape for a build123d object or an already-wrapped shape."""
+    return shape.wrapped if hasattr(shape, "wrapped") else shape
+
+
+def _b3d(shape: Any) -> Any:
+    """A build123d Solid for boolean ops, from a build123d object or a wrapped TopoDS_Shape."""
+    from build123d import Solid
+    return shape if hasattr(shape, "wrapped") else Solid(shape)

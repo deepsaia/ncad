@@ -257,6 +257,14 @@ class Kernel(ABC):
         """Axis-aligned bounds of ``solid`` as ``((minx,miny,minz),(maxx,maxy,maxz))``."""
 
     @abstractmethod
+    def distance(self, shape_a: Any, shape_b: Any) -> float:
+        """Minimum distance between two solids (0.0 if touching or overlapping)."""
+
+    @abstractmethod
+    def common_volume(self, shape_a: Any, shape_b: Any) -> float:
+        """Volume of the boolean intersection of two solids (0.0 if disjoint or merely touching)."""
+
+    @abstractmethod
     def bodies(self, shape: Any) -> list:
         """The bodies of ``shape`` as a list of ``Body``.
 

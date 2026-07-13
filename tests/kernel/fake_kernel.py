@@ -564,6 +564,14 @@ class FakeKernel(Kernel):
             return solid.face.area * solid.distance
         return _polygon_area(solid.face.points) * solid.distance
 
+    def distance(self, shape_a: Any, shape_b: Any) -> float:
+        """Interference is a real-kernel concern (analytic FakeKernel has no B-rep distance)."""
+        raise NotImplementedError("FakeKernel does not implement distance (real-kernel only)")
+
+    def common_volume(self, shape_a: Any, shape_b: Any) -> float:
+        """Interference is a real-kernel concern (no boolean intersection in the FakeKernel)."""
+        raise NotImplementedError("FakeKernel does not implement common_volume (real-kernel only)")
+
     def bounding_box(self, solid: Any) -> Bounds:
         if isinstance(solid, BodySet):
             boxes = [self.bounding_box(b.shape) for b in solid.bodies]
