@@ -88,12 +88,15 @@ class Kernel(ABC):
         """
 
     @abstractmethod
-    def rib(self, wire: Any, *, thickness: float, depth: float) -> Any:
+    def rib(self, wire: Any, *, thickness: float, depth: float | None = None,
+            to: Any = None, side: str = "both", draft: float = 0.0) -> Any:
         """A thin structural blade from an OPEN sketch ``wire``.
 
-        The wire is thickened by ``thickness`` symmetrically about its curve into a thin
-        planar profile, then grown ``depth`` normal to the sketch plane into a blade solid.
-        The caller fuses the blade into the target body. Raises KernelOpError on failure.
+        The wire is thickened by ``thickness`` (symmetric about its curve, or ``side="one"``)
+        into a thin planar profile, then grown into a blade: by ``depth`` normal to the sketch
+        plane, or ``to`` a target solid (an until-material rib, auto-trimmed to the material it
+        braces). ``draft`` tapers the blade walls. The caller fuses the blade into the target
+        body. Raises KernelOpError on failure.
         """
 
     @abstractmethod

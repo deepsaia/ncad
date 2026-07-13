@@ -174,9 +174,21 @@ tree so its geometry exists when the reference resolves.
   the part's built shape is the last SOLID feature (rule 10), never a trailing datum.
 - **Seen in:** gate-2.10 `cast_bracket` (a sketch/feature on a datum plane).
 
+### 12. An until-material rib needs its target faces present (place it after the walls it grows to)
+
+An until-material rib (`until = true`) grows its blade until it meets the target solid's faces
+(auto-trimmed), replacing the manual boolean-trim workaround. The faces it grows to must exist
+when the rib runs.
+
+- **Why:** the blade is extruded with an until/target extent against the running solid; if the
+  bracing walls are not there yet, there is nothing to grow to.
+- **Failure mode:** an until rib authored before its adjacent walls grows no material and is
+  refused ("until-material rib grew no material toward the target").
+- **Seen in:** gate-2.10 `cast_bracket` (an until-material gusset rib after both walls).
+
 ---
 
-### 11. Direct-edit ops (`defeature`, `offset`) come AFTER the geometry they act on
+### 13. Direct-edit ops (`defeature`, `offset`) come AFTER the geometry they act on
 
 Direct/synchronous ops edit the *current* B-rep in place (design section 3): they consume the
 running solid and reference a baked face by persistent name (4.1), so they must be authored

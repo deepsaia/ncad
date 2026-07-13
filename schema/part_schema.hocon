@@ -76,6 +76,13 @@ definitions {
       diameter { type = number, exclusiveMinimum = 0 }
       depth { type = number, exclusiveMinimum = 0 }
       thickness { type = number, exclusiveMinimum = 0 }
+      # rib options: until = grow to material (until-material extent), side = thickness mode,
+      # profiles = a web (multi-blade) rib's profile references (in addition to a single profile).
+      until { type = boolean }
+      side { enum = ["both", "one"] }
+      profiles { type = array, items { type = string } }
+      # draft = wall taper angle (degrees) for a rib blade.
+      draft { type = number }
       distance2 { type = number, exclusiveMinimum = 0 }
       angle { type = number }
       openings { type = string }

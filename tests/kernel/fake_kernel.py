@@ -172,12 +172,15 @@ class FakeKernel(Kernel):
         zs = [z for _, z in stack]
         return ((0.0, 0.0, min(zs)), (1.0, 1.0, max(zs)))
 
-    def rib(self, wire: Any, *, thickness: float, depth: float) -> Any:
+    def rib(self, wire: Any, *, thickness: float, depth: float | None = None,
+            to: Any = None, side: str = "both", draft: float = 0.0) -> Any:
         # Straight-ribbon volume model: length x thickness x depth. thickness is applied
         # symmetrically about the curve (via the real kernel's trace); depth grows one way.
-        # Curve-corner overlap is ignored (consistent with the fake sweep/loft style).
-        volume = wire.length * thickness * depth
-        return _FakeCombined(volume, self._rib_bounds(wire, thickness, depth))
+        # An until-material rib (to=...) uses a nominal depth (the fake kernel does not
+        # compute the section against a target); enough for volume/shape tests.
+        effective_depth = depth if depth is not None else thickness * 4.0
+        volume = wire.length * thickness * effective_depth
+        return _FakeCombined(volume, self._rib_bounds(wire, thickness, effective_depth))
 
     def _rib_bounds(self, wire: Any, thickness: float, depth: float) -> Bounds:
         """A coarse envelope: the wire's 2D extent grown by thickness/2 and depth."""

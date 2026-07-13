@@ -16,9 +16,20 @@ class RibParamError(Exception):
 
 
 def rib_kwargs(params: dict, refs: dict) -> dict:
-    """Return the validated rib description for a rib feature."""
-    return {"thickness": _positive(params, "thickness"),
-            "depth": _positive(params, "depth")}
+    """Return the validated rib description for a rib feature.
+
+    A rib grows to a fixed ``depth`` OR until it meets material (``until = true``, an
+    until-material rib auto-trimmed to the target). ``side`` (both/one) sets the thickness
+    mode; ``draft`` tapers the blade walls.
+    """
+    until = bool(params.get("until", False))
+    thickness = _positive(params, "thickness")
+    depth = None if until else _positive(params, "depth")
+    side = params.get("side", "both")
+    if side not in ("both", "one"):
+        raise RibParamError(f"rib 'side' must be 'both' or 'one'; got {side!r}")
+    return {"thickness": thickness, "depth": depth, "until": until, "side": side,
+            "draft": float(params.get("draft", 0.0))}
 
 
 def _positive(params: dict, key: str) -> float:

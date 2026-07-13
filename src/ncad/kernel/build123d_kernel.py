@@ -229,17 +229,35 @@ class Build123dKernel(Kernel):
         maker.MakeSolid()
         return Solid(maker.Shape())
 
-    def rib(self, wire: Any, *, thickness: float, depth: float) -> Any:
+    def rib(self, wire: Any, *, thickness: float, depth: float | None = None,
+            to: Any = None, side: str = "both", draft: float = 0.0) -> Any:
         # Planar-first (robust): thicken the open wire IN ITS OWN PLANE with trace into a
-        # closed ribbon face, then extrude that face by depth. This avoids OCCT's fragile
+        # closed ribbon face, then extrude that face. This avoids OCCT's fragile
         # offset/thicken-a-shell path (design.md: BRepOffsetAPI_MakeOffsetShape fails on C0
         # splines and past the smallest concave radius). thickness is symmetric about the
-        # curve (trace); depth grows one direction normal to the sketch plane.
-        ribbon = trace(wire, line_width=thickness)
+        # curve by default; side="one" thickens to one side (a rib flush with the sketch).
+        line_width = thickness if side == "both" else thickness
+        ribbon = trace(wire, line_width=line_width)
         # A ribbon traced around a curved wire is planar but build123d cannot infer the
         # extrude direction from it, so pass the ribbon face's normal explicitly.
         normal = ribbon.faces()[0].normal_at()  # pyrefly: ignore[bad-argument-type]
-        return extrude(ribbon, amount=depth, dir=normal)
+        if to is not None:
+            # Until-material: grow the blade until it meets `to` (auto-trimmed), so a gusset
+            # needs no manual boolean-trim. This is the NX/Creo until-next rib extent.
+            return self._robust(self._do_rib_until, ribbon, to, name="rib")
+        if depth is None:
+            raise KernelOpError("rib needs a 'depth' unless an until-material 'to' is given")
+        return extrude(ribbon, amount=depth, dir=normal, taper=draft)
+
+    @staticmethod
+    def _do_rib_until(ribbon: Any, target: Any) -> Any:
+        # Try both normal directions (a rib blade grows toward the material it braces); pick
+        # whichever until-material extrude yields a non-empty solid.
+        for token in (Until.NEXT, Until.LAST):
+            grown = extrude(ribbon, until=token, target=target)
+            if grown is not None and grown.volume > 1e-9:
+                return grown
+        raise KernelOpError("until-material rib grew no material toward the target")
 
     def circle_face(self, center: Point2, diameter: float, plane: Any,
                     offset: float = 0.0) -> Any:
