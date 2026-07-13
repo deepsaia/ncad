@@ -237,6 +237,9 @@ class Build123dKernel(Kernel):
         basis = _PLANES[plane].offset(offset)
         return [_project_edge(edge, basis) for edge in edges]
 
+    def vertices_of(self, shape: Any) -> list:
+        return list(shape.vertices())
+
     def project_vertices(self, vertices: list, plane: str, offset: float = 0.0) -> list:
         if plane not in _PLANES:
             raise ValueError(f"plane must be one of {tuple(_PLANES)}, got {plane!r}")

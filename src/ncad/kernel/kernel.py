@@ -135,6 +135,10 @@ class Kernel(ABC):
         """
 
     @abstractmethod
+    def vertices_of(self, shape: Any) -> list:
+        """The vertex handles of ``shape`` (a face/edge/solid). Corners for projection."""
+
+    @abstractmethod
     def project_vertices(self, vertices: list, plane: str, offset: float = 0.0) -> list:
         """Project ``vertices`` (kernel vertex handles) onto ``plane``, returning 2D points.
 

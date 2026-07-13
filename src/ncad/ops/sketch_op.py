@@ -18,6 +18,7 @@ from ncad.sketch.entity_expander import EntityExpander
 from ncad.sketch.offset_applier import OffsetApplier, OffsetError
 from ncad.sketch.topology_applier import TopologyApplier, TopologyError
 from ncad.sketch.transform_applier import TransformApplier, TransformError
+from ncad.sketch.vertex_projector import VertexProjector
 from ncad.sketch.wire_orderer import WireOrderer
 
 if TYPE_CHECKING:
@@ -105,7 +106,8 @@ class SketchOp:
         offset = float(params.get("plane_offset", 0.0))
         entities = list(params.get("entities", []))
         projected_issue = None
-        project_edges = params.get("__refs__", {}).get("project")
+        refs = params.get("__refs__", {})
+        project_edges = refs.get("project")
         if project_edges:
             descriptors = kernel.project_edges(project_edges, plane, offset=offset)
             reference_entities, degenerate = EdgeProjector().project(descriptors)
@@ -118,6 +120,17 @@ class SketchOp:
                     node_id=feature_id,
                     message=f"{degenerate} projected edge(s) were degenerate and skipped",
                     level="warning")
+        # Project a prior feature's vertices as fixed construction reference points.
+        project_vertices = refs.get("project_vertices")
+        if project_vertices:
+            points = kernel.project_vertices(project_vertices, plane, offset=offset)
+            entities = VertexProjector().project(points) + entities
+        # Reference a face/plane intersection curve as fixed construction reference edges.
+        intersect_shape = refs.get("intersect")
+        if intersect_shape is not None:
+            descriptors = kernel.intersection_curve(intersect_shape, plane, offset=offset)
+            reference_entities, _ = EdgeProjector().project(descriptors, prefix="sect")
+            entities = reference_entities + entities
         try:
             entities = OffsetApplier().apply(entities)
         except OffsetError as exc:

@@ -198,6 +198,11 @@ class FakeKernel(Kernel):
         # fake projection is offset-agnostic (it does not model the plane's world placement).
         return list(edges)
 
+    def vertices_of(self, shape: Any) -> list:
+        # A fake face's corner ring doubles as its "vertices" (2D tuples); good enough for the
+        # vertex-projection path in fake-kernel tests.
+        return list(getattr(shape, "points", []))
+
     def project_vertices(self, vertices: list, plane: str, offset: float = 0.0) -> list:
         # FakeKernel vertices in tests are already (x, y) tuples; identity projection. The fake
         # kernel does not model the plane's world placement.
