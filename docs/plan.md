@@ -292,15 +292,16 @@ five buckets; the phase gate is the 1.5 gate.
 - **Gate (Phase 1):** an over/under-constrained sketch solves or reports cleanly; a
       fully-constrained profile drives a downstream feature. **(done , Phase 1 gate met)**
 
-> **Deferred within Phase 1** (land in the buckets above or a later 1.x): **ellipse +
-> elliptical arc**, **conic** (parabola/hyperbola), **spline** (interpolated /
-> control-point / B-spline / fit) and the **smooth (G2)** spline constraint, and **text**
-> are a later entity bucket (1.6); an **`arc_polar` authoring sugar**
-> (`center`/`radius`/`start`/`angle`, lowered by `EntityExpander` into a three-point arc
-> plus the equivalent radius + angle constraints, keeping radius/angle in the constraint
-> layer rather than duplicating them as entity fields) also lands in 1.6; **intersection
-> curves** and **vertex projection** land with 1.4b or later; **multi-loop sketches /
-> holes-in-one-sketch** stay deferred (holes come from pocket/hole ops).
+> **Deferred within Phase 1** (the 1.6 completeness bucket, closing in sub-buckets):
+> **spline** (interpolated through-point + control-point/bezier) SHIPPED in bucket 2.3.5
+> (`examples/gate-2.3.5/{spline_profile,bezier_sweep}.hocon`, `tests/build/test_splines.py`);
+> the **smooth (G2)** spline constraint lands in 1.6b (G1 via py-slvs; true G2 refuses
+> clearly). Remaining 1.6 entities: **ellipse + elliptical arc** (1.6a), **conic**
+> (parabola/hyperbola, 1.6b), **text** (1.6d, forces multi-loop faces), an **`arc_polar`
+> authoring sugar** (`center`/`radius`/`start`/`sweep`, lowered by `EntityExpander` into a
+> three-point arc, keeping radius/angle in the constraint layer) (1.6a), and **intersection
+> curves** + **vertex projection** (1.6c). **multi-loop sketches / holes-in-one-sketch**
+> land with the 1.6d text face path (else holes come from pocket/hole ops).
 > (Construction/reference geometry shipped in 1.4.)
 
 ---
