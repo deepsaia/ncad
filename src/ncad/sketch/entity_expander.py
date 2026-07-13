@@ -38,6 +38,8 @@ class EntityExpander:
                 out.extend(self._expand_polygon(entity, by_id))
             elif kind == "slot":
                 out.extend(self._expand_slot(entity, by_id))
+            elif kind == "arc_polar":
+                out.extend(self._expand_arc_polar(entity, by_id))
             else:
                 logger.debug("passing through unknown entity type %r", kind)
                 out.append(entity)
@@ -67,6 +69,27 @@ class EntityExpander:
             result.append({"id": line_ids[i], "type": "line",
                            "p1": point_ids[i], "p2": point_ids[(i + 1) % sides]})
         return result
+
+    def _expand_arc_polar(self, entity: dict, by_id: dict) -> list[dict]:
+        """A polar arc: center + radius + start_angle + sweep >> a three-point arc.
+
+        Radius and the angles stay authoring inputs that seed the two endpoint points; a
+        driven ``radius`` constraint (authored on the generated arc id) keeps them in the
+        constraint layer, matching how polygon/slot lower to seeded primitives.
+        """
+        aid = entity["id"]
+        cx, cy = _seed_of(by_id, entity["center"])
+        radius = float(entity["radius"])
+        start_angle = math.radians(float(entity["start_angle"]))
+        end_angle = math.radians(float(entity["start_angle"]) + float(entity["sweep"]))
+        start = (cx + radius * math.cos(start_angle), cy + radius * math.sin(start_angle))
+        end = (cx + radius * math.cos(end_angle), cy + radius * math.sin(end_angle))
+        return [
+            {"id": f"{aid}/start", "type": "point", "at": [start[0], start[1]]},
+            {"id": f"{aid}/end", "type": "point", "at": [end[0], end[1]]},
+            {"id": aid, "type": "arc", "center": entity["center"],
+             "start": f"{aid}/start", "end": f"{aid}/end"},
+        ]
 
     def _expand_slot(self, entity: dict, by_id: dict) -> list[dict]:
         """A straight slot: two side lines plus two semicircular end caps.
