@@ -292,6 +292,26 @@ five buckets; the phase gate is the 1.5 gate.
 - **Gate (Phase 1):** an over/under-constrained sketch solves or reports cleanly; a
       fully-constrained profile drives a downstream feature. **(done , Phase 1 gate met)**
 
+**Bucket 1.6a: ellipse family + arc_polar (completeness)** `[x]`
+- [x] Point-defined `ellipse` + `ellipse_arc` sketch entities (the defining points carry the
+      solver DoF, since py-slvs has no ellipse primitive; the analytic curve is derived by the
+      kernel via `Edge.make_ellipse`) and the `arc_polar` authoring sugar (`EntityExpander`
+      lowers `center`/`radius`/`start_angle`/`sweep` into a three-point arc whose derived
+      endpoints are emitted as `fixed`, so an arc_polar is well-constrained by construction).
+- **Gate:** `examples/gate-1.6a/{luggage_tag,elliptical_flange}.hocon` (an elliptical luggage
+      tag with an arc_polar strap hole; an ellipse plate + arc_polar hub) build
+      deterministically and round-trip to STEP with golden signatures
+      (`tests/examples/test_gate_1_6a.py`). First bucket of the phases-1-5 completeness
+      program; next is 1.6b (conics + G1 smooth). **(done)**
+
+> **1.6a follow-ups (deferred):** a driven **minor-radius** dimension on `ellipse` (today the
+> defining points fully place the curve, points-only like splines; a solved minor-radius
+> distance is additive); ellipse/ellipse_arc **projection** into a sketch (shares the
+> spline-projection deferral, `build123d_kernel._project_edge`); `arc_polar` auto-emitting an
+> authored `radius`/`angle` constraint (today the fixed seeds encode them, matching
+> polygon/slot). Going forward, gate examples aim to be **real, recognizable parts** (not
+> abstract boss/plate/hub demos).
+
 > **Deferred within Phase 1** (the 1.6 completeness bucket, closing in sub-buckets):
 > **spline** (interpolated through-point + control-point/bezier) SHIPPED in bucket 2.3.5
 > (`examples/gate-2.3.5/{spline_profile,bezier_sweep}.hocon`, `tests/build/test_splines.py`);
