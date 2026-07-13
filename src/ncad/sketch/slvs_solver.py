@@ -92,6 +92,9 @@ class SlvsSolver(SketchSolver):
                     group=_SKETCH_GROUP)
             # bezier/interpolated are NOT registered as solver curves: their defining
             # points (registered above) carry all DOF; the curve is derived downstream.
+            # ellipse/ellipse_arc are the same: py-slvs has no ellipse primitive, so their
+            # defining points (center, major_axis_end, and start/end for the arc) carry the
+            # DOF and the analytic curve is derived by the kernel at edge-build time.
 
         # Construction (reference) and fixed (offset-derived) entities are dimensionally
         # locked: pin each defining point once (a point may back several such entities),
@@ -281,7 +284,9 @@ def _missing_reference(entities: list[dict], constraints: list[dict],
                        by_id: dict[str, dict]) -> str | None:
     """The first dangling entity reference, as an error message, or None."""
     ref_keys = {"line": ("p1", "p2"), "circle": ("center",),
-                "arc": ("center", "start", "end")}
+                "arc": ("center", "start", "end"),
+                "ellipse": ("center", "major_axis_end"),
+                "ellipse_arc": ("center", "major_axis_end", "start", "end")}
     # A spline/bezier references its defining points as a LIST under "points", not as
     # scalar fields, so it is checked separately from the scalar ref_keys above.
     list_ref_keys = {"bezier": ("points",), "interpolated": ("points",)}
@@ -336,6 +341,10 @@ def _defining_points(entity: dict) -> list[str]:
         return [entity["center"]]
     if kind in ("bezier", "interpolated"):
         return list(entity["points"])
+    if kind == "ellipse":
+        return [entity["center"], entity["major_axis_end"]]
+    if kind == "ellipse_arc":
+        return [entity["center"], entity["major_axis_end"], entity["start"], entity["end"]]
     return []
 
 
