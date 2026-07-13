@@ -848,6 +848,20 @@ def _geom_name(shape: Any) -> str:
     return str(name).lower()
 
 
+def _ellipse_angle_degrees(cx: float, cy: float, mx: float, my: float,
+                           px: float, py: float) -> float:
+    """Parametric angle (degrees) of point (px,py) about an ellipse frame.
+
+    The frame's X axis points from center (cx,cy) to the major-axis end (mx,my). The angle is
+    measured in that frame (0 deg at the major-axis end), which is the convention
+    ``Edge.make_ellipse`` uses for ``start_angle`` / ``end_angle``.
+    """
+    ax, ay = mx - cx, my - cy
+    axis_angle = math.atan2(ay, ax)
+    point_angle = math.atan2(py - cy, px - cx)
+    return math.degrees((point_angle - axis_angle) % (2.0 * math.pi))
+
+
 def _build_edge(edge: dict, basis: Any) -> Any:
     """Build a build123d Edge from a sketch edge descriptor on the ``basis`` plane."""
     kind = edge["kind"]
@@ -874,6 +888,21 @@ def _build_edge(edge: dict, basis: Any) -> Any:
         if kind == "bezier":
             return Edge.make_bezier(*pts)  # pyrefly: ignore[bad-argument-type]
         return Edge.make_spline(pts)  # pyrefly: ignore[bad-argument-type]
+    if kind in ("ellipse", "ellipse_arc"):
+        cx, cy = edge["center"]
+        mx, my = edge["major_axis_end"]
+        x_radius = math.hypot(mx - cx, my - cy)
+        y_radius = float(edge["minor_radius"])
+        origin = basis.from_local_coords(Vector(cx, cy, 0))
+        major_dir = basis.from_local_coords(Vector(mx, my, 0)) - origin
+        frame = Plane(origin=origin, x_dir=major_dir, z_dir=basis.z_dir)  # pyrefly: ignore[no-matching-overload]
+        if kind == "ellipse":
+            return Edge.make_ellipse(x_radius, y_radius, frame)  # pyrefly: ignore[bad-argument-type]
+        (sx, sy), (ex, ey) = edge["points"]
+        start_angle = _ellipse_angle_degrees(cx, cy, mx, my, sx, sy)
+        end_angle = _ellipse_angle_degrees(cx, cy, mx, my, ex, ey)
+        return Edge.make_ellipse(  # pyrefly: ignore[bad-argument-type]
+            x_radius, y_radius, frame, start_angle=start_angle, end_angle=end_angle)
     raise ValueError(f"unknown sketch edge kind {kind!r}")
 
 
