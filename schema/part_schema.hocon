@@ -134,6 +134,8 @@ definitions {
       face { type = string }
       datum_points { type = array, items = ${definitions.vec3} }
       edge { type = string }
+      at_point = ${definitions.vec3}
+      planes { type = array, items { type = string } }
     }
   }
 

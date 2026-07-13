@@ -57,12 +57,13 @@ _REF_FIELDS: dict[str, dict[str, str]] = {
     "move_face": {"face": "face"},
     "relate": {"reference": "face", "moving": "face"},
     "datum_plane": {"face": "face"},
+    "datum_axis": {"face": "face", "edge": "edges", "planes": "shape_list"},
 }
 _EDGE_KEYWORDS = ("all", "top", "bottom", "vertical", "horizontal")
 _FACE_KEYWORDS = ("all", "top", "bottom", "vertical", "horizontal")
 # Ops whose output is not a model solid (a sketch produces a face; a datum is reference
 # geometry); the element map tracks the working solid, so these do not rebuild it.
-_NON_SOLID_OPS = frozenset({"sketch", "datum_plane"})
+_NON_SOLID_OPS = frozenset({"sketch", "datum_plane", "datum_axis"})
 
 
 class Builder:

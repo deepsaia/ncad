@@ -111,6 +111,16 @@ class FakeKernel(Kernel):
         # carrying the method so op-through-build tests can assert it was produced.
         return {"kind": "datum_plane", "method": method}
 
+    def datum_axis(self, method: str, params: dict, refs: dict) -> Any:
+        # For two_point the fake kernel computes the real (point, dir); other methods return a
+        # marker (their geometry needs the OCCT kernel).
+        if method == "two_point" and len(params.get("points", [])) == 2:
+            (ax, ay, az), (bx, by, bz) = params["points"]
+            dx, dy, dz = bx - ax, by - ay, bz - az
+            length = math.sqrt(dx * dx + dy * dy + dz * dz) or 1.0
+            return ((ax, ay, az), (dx / length, dy / length, dz / length))
+        return {"kind": "datum_axis", "method": method}
+
     def text_face(self, text: str, size: float, plane: str, *, font: str = "",
                   style: str = "", offset: float = 0.0, at: Point2 = (0.0, 0.0),
                   rotation: float = 0.0) -> Any:

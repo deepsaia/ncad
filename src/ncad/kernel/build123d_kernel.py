@@ -247,6 +247,39 @@ class Build123dKernel(Kernel):
             return Plane(origin=a, x_dir=x_dir, z_dir=normal)  # pyrefly: ignore[no-matching-overload]
         raise KernelOpError(f"unknown datum_plane method {method!r}")
 
+    def datum_axis(self, method: str, params: dict, refs: dict) -> Any:
+        if method == "two_point":
+            (ax, ay, az), (bx, by, bz) = params["points"]
+            direction = Vector(bx - ax, by - ay, bz - az)
+            if direction.length < 1e-9:
+                raise KernelOpError("datum_axis two_point needs two distinct points")
+            unit = direction.normalized()
+            return ((ax, ay, az), (unit.X, unit.Y, unit.Z))
+        if method == "edge":
+            edge = refs.get("edge")
+            edge = edge[0] if isinstance(edge, list) else edge
+            if edge is None:
+                raise KernelOpError("datum_axis edge needs an edge reference")
+            p0 = edge.position_at(0)
+            direction = (edge.position_at(1) - p0).normalized()
+            return ((p0.X, p0.Y, p0.Z), (direction.X, direction.Y, direction.Z))
+        if method == "normal_to_face":
+            face = refs.get("face")
+            if face is None:
+                raise KernelOpError("datum_axis normal_to_face needs a face reference")
+            at = params.get("at_point")
+            origin = Vector(*at) if at is not None else face.center()
+            normal = face.normal_at(origin)
+            return ((origin.X, origin.Y, origin.Z), (normal.X, normal.Y, normal.Z))
+        if method == "intersection":
+            planes = refs.get("planes") or []
+            if len(planes) != 2:
+                raise KernelOpError("datum_axis intersection needs two plane references")
+            direction = planes[0].z_dir.cross(planes[1].z_dir).normalized()
+            origin = planes[0].origin
+            return ((origin.X, origin.Y, origin.Z), (direction.X, direction.Y, direction.Z))
+        raise KernelOpError(f"unknown datum_axis method {method!r}")
+
     def wire(self, edges: list, plane: str, offset: float = 0.0) -> Any:
         if plane not in _PLANES:
             raise ValueError(f"plane must be one of {tuple(_PLANES)}, got {plane!r}")

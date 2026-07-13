@@ -123,6 +123,14 @@ class Kernel(ABC):
         """
 
     @abstractmethod
+    def datum_axis(self, method: str, params: dict, refs: dict) -> Any:
+        """A referenceable axis as an ``((ox,oy,oz), (dx,dy,dz))`` tuple (revolve's axis shape).
+
+        ``two_point`` (``params["points"]``), ``edge`` (`refs["edge"]`), ``intersection`` (of
+        two datum planes in `refs`), or ``normal_to_face`` (`refs["face"]` at a point).
+        """
+
+    @abstractmethod
     def text_face(self, text: str, size: float, plane: str, *, font: str = "",
                   style: str = "", offset: float = 0.0, at: Point2 = (0.0, 0.0),
                   rotation: float = 0.0) -> Any:
