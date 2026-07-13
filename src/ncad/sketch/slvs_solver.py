@@ -307,7 +307,8 @@ def _missing_reference(entities: list[dict], constraints: list[dict],
     ref_keys = {"line": ("p1", "p2"), "circle": ("center",),
                 "arc": ("center", "start", "end"),
                 "ellipse": ("center", "major_axis_end"),
-                "ellipse_arc": ("center", "major_axis_end", "start", "end")}
+                "ellipse_arc": ("center", "major_axis_end", "start", "end"),
+                "conic": ("start", "apex", "end")}
     # A spline/bezier references its defining points as a LIST under "points", not as
     # scalar fields, so it is checked separately from the scalar ref_keys above.
     list_ref_keys = {"bezier": ("points",), "interpolated": ("points",)}
@@ -366,6 +367,8 @@ def _defining_points(entity: dict) -> list[str]:
         return [entity["center"], entity["major_axis_end"]]
     if kind == "ellipse_arc":
         return [entity["center"], entity["major_axis_end"], entity["start"], entity["end"]]
+    if kind == "conic":
+        return [entity["start"], entity["apex"], entity["end"]]
     return []
 
 

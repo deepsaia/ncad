@@ -12,7 +12,7 @@ import math
 
 logger = logging.getLogger(__name__)
 
-_CONNECTIVE = frozenset({"line", "arc", "bezier", "interpolated", "ellipse_arc"})
+_CONNECTIVE = frozenset({"line", "arc", "bezier", "interpolated", "ellipse_arc", "conic"})
 
 
 class WireOrderer:
@@ -149,6 +149,13 @@ class WireOrderer:
                     "major_axis_end": positions[edge["major_axis_end"]],
                     "minor_radius": float(edge["minor_radius"]),
                     "points": [start, end]}, None
+        if edge["type"] == "conic":
+            # A conic is start + apex (shoulder) + end. start/end are the traversal-ordered
+            # endpoints; the apex is the symmetric middle control point (unchanged by walk
+            # direction), so [start, apex, end] is correct either way.
+            return {"kind": "conic",
+                    "points": [start, positions[edge["apex"]], end],
+                    "rho": float(edge["rho"])}, None
         center = positions[edge["center"]]
         mid, err = _arc_mid(center, positions[edge["start"]], positions[edge["end"]])
         if err is not None:
@@ -202,6 +209,8 @@ def _endpoints(edge: dict) -> tuple[str, str]:
     if kind == "line":
         return edge["p1"], edge["p2"]
     if kind in ("arc", "ellipse_arc"):
+        return edge["start"], edge["end"]
+    if kind == "conic":
         return edge["start"], edge["end"]
     points = edge["points"]
     return points[0], points[-1]
