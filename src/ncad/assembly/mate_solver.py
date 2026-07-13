@@ -131,11 +131,14 @@ class MateSolver:
             # blocked. Same addParallel math as parallel_dirs, on the X lines instead of Z.
             system.addParallel(a_sec, b_sec, group=_SOLVE_GROUP)
         elif kind == "axes_coincident":
-            # Line-line coincidence: BOTH origins lie on the OTHER's axis line + the axes are
-            # parallel. Constraining both directions (not just A-on-B) makes it grounding-symmetric:
-            # a single point-on-line only pulls the body whose LINE is referenced, so if the
-            # point-side body is grounded the free body's position never moves onto the axis.
-            system.addPointOnLine(a_o, b_axis, group=_SOLVE_GROUP)
+            # Line-line coincidence: B's origin lies on A's axis line + the axes are parallel. The
+            # point is on the B side because the builder orders between=[A_first, B_second] with A
+            # the earlier (typically grounded/lock) instance and B the placed one; pinning B.origin
+            # to A's line moves the free body onto the shared axis. Using B-on-A (a SINGLE
+            # point-on-line, not both directions) keeps it non-redundant while still landing the
+            # free body correctly (verified for both a coaxial revolute and a gear on an offset
+            # shaft); the earlier A-on-B form left the free body stuck, and both-directions was
+            # redundant.
             system.addPointOnLine(b_o, a_axis, group=_SOLVE_GROUP)
             system.addParallel(a_axis, b_axis, group=_SOLVE_GROUP)
         elif kind == "point_on_line":
