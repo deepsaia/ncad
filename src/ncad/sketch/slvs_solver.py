@@ -50,6 +50,7 @@ class SlvsSolver(SketchSolver):
         "point_on": "_c_point_on", "collinear": "_c_collinear",
         "concentric": "_c_concentric", "tangent": "_c_tangent", "fix": "_c_fix",
         "angle": "_c_angle", "diameter": "_c_diameter",
+        "minor_radius": "_c_minor_radius",
     }
 
     def solve(self, entities: list[dict], constraints: list[dict],
@@ -90,11 +91,16 @@ class SlvsSolver(SketchSolver):
                     workplane, point_handles[entity["center"]],
                     point_handles[entity["start"]], point_handles[entity["end"]],
                     group=_SKETCH_GROUP)
+            elif kind == "ellipse":
+                # A full ellipse has no solver curve entity (py-slvs has no ellipse), but its
+                # minor radius is a solved distance so it can be dimensioned/measured like a
+                # circle radius; its center + major_axis_end points carry the rest of the DOF.
+                circle_dist[entity["id"]] = system.addDistanceV(
+                    float(entity["minor_radius"]), group=_SKETCH_GROUP)
             # bezier/interpolated are NOT registered as solver curves: their defining
             # points (registered above) carry all DOF; the curve is derived downstream.
-            # ellipse/ellipse_arc are the same: py-slvs has no ellipse primitive, so their
-            # defining points (center, major_axis_end, and start/end for the arc) carry the
-            # DOF and the analytic curve is derived by the kernel at edge-build time.
+            # ellipse_arc/conic are the same: py-slvs has no such primitive, so their
+            # defining points carry the DOF and the analytic curve is derived by the kernel.
 
         # Construction (reference) and fixed (offset-derived) entities are dimensionally
         # locked: pin each defining point once (a point may back several such entities),
@@ -139,6 +145,11 @@ class SlvsSolver(SketchSolver):
             cid: system.getParam(system.getEntityParam(system.getEntity(handle).distance, 0)).val
             for cid, handle in curve_handles.items() if cid in circle_dist
         }
+        # An ellipse's minor radius lives in circle_dist but has no curve handle (it is not a
+        # solver curve); read it straight from its distance param.
+        for eid, dist in circle_dist.items():
+            if eid not in radii:
+                radii[eid] = system.getParam(system.getEntityParam(dist, 0)).val
         measurements: dict[str, float] = {}
         for constraint in constraints:
             if constraint.get("driven"):
@@ -279,6 +290,16 @@ class SlvsSolver(SketchSolver):
         system.addDiameter(float(constraint["value"]), ctx.curves[constraint["of"]],
                            group=_SKETCH_GROUP)
 
+    def _c_minor_radius(self, system: Any, constraint: dict, ctx: _Ctx) -> None:
+        # A DRIVEN minor_radius is measured post-solve (handled in _apply, never reaches here).
+        # A DRIVING minor_radius would force the ellipse's minor-axis distance to a value, but
+        # py-slvs offers no value-equality on a bare distance handle (only diameter/radius on a
+        # circle/arc curve entity, and an ellipse has none). The entity's own `minor_radius`
+        # seed already sets it, so a driving dimension is refused clearly rather than ignored.
+        raise ConstraintError(
+            "a driving minor_radius dimension is not supported (author it as driven, or set "
+            "minor_radius on the ellipse entity)")
+
 
 def _missing_reference(entities: list[dict], constraints: list[dict],
                        by_id: dict[str, dict]) -> str | None:
@@ -363,6 +384,8 @@ def _measure(constraint: dict, positions: dict, radii: dict, entities: dict) -> 
     if kind in ("radius", "diameter"):
         radius = radii.get(constraint["of"], 0.0)
         return radius if kind == "radius" else 2.0 * radius
+    if kind == "minor_radius":
+        return radii.get(constraint["of"], 0.0)
     if kind == "angle":
         a, b = constraint["lines"]
         return _line_angle_degrees(entities[a], entities[b], positions)

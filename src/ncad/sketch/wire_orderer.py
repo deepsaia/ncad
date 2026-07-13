@@ -38,7 +38,8 @@ class WireOrderer:
                          "radius": radii.get(entity["id"], entity.get("radius", 0.0))}], None
             return [{"kind": "ellipse", "center": positions[entity["center"]],
                      "major_axis_end": positions[entity["major_axis_end"]],
-                     "minor_radius": float(entity["minor_radius"])}], None
+                     "minor_radius": float(radii.get(entity["id"],
+                                                     entity["minor_radius"]))}], None
         if not connective:
             return [], "sketch has no entities to form a loop"
         return self._order_connective(connective, positions)
