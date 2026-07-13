@@ -591,6 +591,9 @@ class FakeKernel(Kernel):
     def export(self, solid: Any, path: str) -> None:
         raise NotImplementedError("FakeKernel does not export geometry")
 
+    def export_assembly(self, components: list[dict], path: str) -> None:
+        raise NotImplementedError("FakeKernel does not export assemblies (real-kernel only)")
+
 
 def _split_axis_coord(plane: dict) -> tuple:
     """The world axis index and the plane's coordinate along it."""

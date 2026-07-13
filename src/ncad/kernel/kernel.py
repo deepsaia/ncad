@@ -381,3 +381,12 @@ class Kernel(ABC):
     @abstractmethod
     def export(self, solid: Any, path: str) -> None:
         """Write ``solid`` to ``path``; format inferred from the extension."""
+
+    @abstractmethod
+    def export_assembly(self, components: list[dict], path: str) -> None:
+        """Write a structured STEP AP242 assembly: named, colored part labels + placed components.
+
+        Each component is ``{shape, name, color, material, placement}`` where placement is a
+        row-major 4x4 (mm). Distinct part names become distinct part labels; instances become
+        located components under a root assembly label.
+        """
