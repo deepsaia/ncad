@@ -120,7 +120,7 @@ modeling, the domain profiles, CAM/PCB seams, and a plugin layer.
 | Phase | Theme | Track | Status |
 |-------|-------|-------|--------|
 | 0 | The general spine (sketch>>extrude>>hole>>fillet, refs+provenance) | core | `[x]` |
-| 1 | 2D sketching & the constraint solver | core | `[~]` |
+| 1 | 2D sketching & the constraint solver | core | `[x]` |
 | 2 | Core solid features (sketched + dress-up) | solid | `[ ]` |
 | 3 | Patterns, transforms, booleans, multibody | solid | `[x]` |
 | 4 | Persistent-name layer + direct/synchronous modeling | core | `[x]` |
@@ -292,26 +292,46 @@ five buckets; the phase gate is the 1.5 gate.
 - **Gate (Phase 1):** an over/under-constrained sketch solves or reports cleanly; a
       fully-constrained profile drives a downstream feature. **(done , Phase 1 gate met)**
 
-**Bucket 1.6a: ellipse family + arc_polar (completeness)** `[x]`
-- [x] Point-defined `ellipse` + `ellipse_arc` sketch entities (the defining points carry the
-      solver DoF, since py-slvs has no ellipse primitive; the analytic curve is derived by the
-      kernel via `Edge.make_ellipse`) and the `arc_polar` authoring sugar (`EntityExpander`
-      lowers `center`/`radius`/`start_angle`/`sweep` into a three-point arc whose derived
-      endpoints are emitted as `fixed`, so an arc_polar is well-constrained by construction).
-- **Gate:** `examples/gate-1.6a/{luggage_tag,elliptical_flange}.hocon` (an elliptical luggage
-      tag with an arc_polar strap hole; an ellipse plate + arc_polar hub) build
-      deterministically and round-trip to STEP with golden signatures
-      (`tests/examples/test_gate_1_6a.py`). First bucket of the phases-1-5 completeness
-      program. **(done)** The rest of bucket 1.6 (minor-radius dimension, conics, G1 smooth,
-      vertex projection, intersection curves, text + multi-loop faces) ships in the SAME
-      bucket 1.6, not sub-buckets (see the Phase 1 note below).
+**Bucket 1.6: sketch entity completeness (Phase 1 completeness)** `[x]` **COMPLETE**
+- [x] **Ellipse family:** point-defined `ellipse` + `ellipse_arc` (the defining points carry
+      the solver DoF, since py-slvs has no ellipse primitive; the analytic curve is derived by
+      the kernel via `Edge.make_ellipse`), with the ellipse **minor radius a solved,
+      measurable dimension** (a driven `minor_radius` dimension reads it back).
+- [x] **`arc_polar` sugar:** `EntityExpander` lowers `center`/`radius`/`start_angle`/`sweep`
+      into a three-point arc whose derived endpoints are emitted as `fixed`, so an arc_polar is
+      well-constrained by construction.
+- [x] **Conic (rho model):** one `conic` entity (start + apex + end + `rho`), built as a
+      rational quadratic Bezier (apex weight `rho/(1-rho)`; rho<0.5 ellipse, =0.5 parabola,
+      >0.5 hyperbola) - the NX/Creo/Fusion conic vocabulary, not separate parabola/hyperbola
+      primitives.
+- [x] **`smooth` (G1) continuity constraint:** tangent continuity for line/arc/circle solver
+      curves; a `continuity: g2` request and continuity on point-defined curves
+      (spline/ellipse/conic) are refused clearly (py-slvs expresses G1 only, the settled-solver
+      limit).
+- [x] **Text sketch profiles + multi-loop faces:** a `text` sketch element built via
+      `kernel.text_face` (build123d `Text` >> glyph faces whose counters are real inner-loop
+      holes), extrudable/cuttable like any profile - distinct from the `wrap` op. This lands
+      general multi-loop planar faces (closes the holes-in-one-sketch deferral for the text
+      path).
+- [x] **Sketch reference geometry:** `kernel.project_vertices` (a prior feature's vertices
+      projected as fixed construction points) and `kernel.intersection_curve` (a face/plane
+      section as construction edges via `BRepAlgoAPI_Section`), threaded through the sketch op
+      as `project_vertices` / `intersect` refs.
+- **Gate:** `examples/gate-1.6a/{luggage_tag,elliptical_flange}.hocon` (ellipse + arc_polar)
+      and `examples/gate-1.6/{nameplate,guitar_pick}.hocon` (text + multi-loop faces; conic
+      rho model) build deterministically and round-trip to STEP with golden signatures
+      (`tests/examples/test_gate_1_6a.py`, `tests/examples/test_gate_1_6.py`). **Phase 1
+      sketch-entity completeness is CLOSED.** Splines shipped earlier in 2.3.5. Next in the
+      completeness program: **bucket 2.10 (datum planes/axes)**.
 
-> **1.6 note:** the only item NOT built in 1.6 is ellipse/curved-edge **projection into a
-> sketch** (projecting an ellipse/spline/BSpline edge onto the sketch plane). That is a
-> curved-edge-projection capability of the reference/persistent-name layer and shares the
-> pre-existing spline-projection deferral in `build123d_kernel._project_edge`, so it is moved
-> to the **Phase 4** backlog (not Phase 1). Going forward, gate examples aim to be **real,
-> recognizable parts** (not abstract boss/plate/hub demos).
+> **Bucket 1.6 honest deferrals (documented, not silent):** a **driving** minor-radius
+> dimension (py-slvs cannot pin a bare distance handle to a value; the entity seed sets it and
+> a driven dimension measures it); **true G2 curvature** continuity and `smooth` on
+> point-defined curves (settled-solver limit); ellipse/curved-edge **projection into a sketch**
+> (projecting an ellipse/spline/BSpline edge onto the plane) - a reference-layer
+> curved-edge-projection capability that shares the pre-existing spline-projection deferral in
+> `build123d_kernel._project_edge`, moved to the **Phase 4** backlog. Gate examples are **real,
+> recognizable parts** (a luggage tag, a nameplate, a guitar pick), a standing convention.
 
 > **Phase 1 completeness (bucket 1.6, ONE bucket, no sub-buckets):** **spline** (interpolated
 > through-point + control-point/bezier) SHIPPED in bucket 2.3.5
