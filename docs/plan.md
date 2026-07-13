@@ -302,26 +302,28 @@ five buckets; the phase gate is the 1.5 gate.
       tag with an arc_polar strap hole; an ellipse plate + arc_polar hub) build
       deterministically and round-trip to STEP with golden signatures
       (`tests/examples/test_gate_1_6a.py`). First bucket of the phases-1-5 completeness
-      program; next is 1.6b (conics + G1 smooth). **(done)**
+      program. **(done)** The rest of bucket 1.6 (minor-radius dimension, conics, G1 smooth,
+      vertex projection, intersection curves, text + multi-loop faces) ships in the SAME
+      bucket 1.6, not sub-buckets (see the Phase 1 note below).
 
-> **1.6a follow-ups (deferred):** a driven **minor-radius** dimension on `ellipse` (today the
-> defining points fully place the curve, points-only like splines; a solved minor-radius
-> distance is additive); ellipse/ellipse_arc **projection** into a sketch (shares the
-> spline-projection deferral, `build123d_kernel._project_edge`); `arc_polar` auto-emitting an
-> authored `radius`/`angle` constraint (today the fixed seeds encode them, matching
-> polygon/slot). Going forward, gate examples aim to be **real, recognizable parts** (not
-> abstract boss/plate/hub demos).
+> **1.6 note:** the only item NOT built in 1.6 is ellipse/curved-edge **projection into a
+> sketch** (projecting an ellipse/spline/BSpline edge onto the sketch plane). That is a
+> curved-edge-projection capability of the reference/persistent-name layer and shares the
+> pre-existing spline-projection deferral in `build123d_kernel._project_edge`, so it is moved
+> to the **Phase 4** backlog (not Phase 1). Going forward, gate examples aim to be **real,
+> recognizable parts** (not abstract boss/plate/hub demos).
 
-> **Deferred within Phase 1** (the 1.6 completeness bucket, closing in sub-buckets):
-> **spline** (interpolated through-point + control-point/bezier) SHIPPED in bucket 2.3.5
-> (`examples/gate-2.3.5/{spline_profile,bezier_sweep}.hocon`, `tests/build/test_splines.py`);
-> the **smooth (G2)** spline constraint lands in 1.6b (G1 via py-slvs; true G2 refuses
-> clearly). Remaining 1.6 entities: **ellipse + elliptical arc** (1.6a), **conic**
-> (parabola/hyperbola, 1.6b), **text** (1.6d, forces multi-loop faces), an **`arc_polar`
-> authoring sugar** (`center`/`radius`/`start`/`sweep`, lowered by `EntityExpander` into a
-> three-point arc, keeping radius/angle in the constraint layer) (1.6a), and **intersection
-> curves** + **vertex projection** (1.6c). **multi-loop sketches / holes-in-one-sketch**
-> land with the 1.6d text face path (else holes come from pocket/hole ops).
+> **Phase 1 completeness (bucket 1.6, ONE bucket, no sub-buckets):** **spline** (interpolated
+> through-point + control-point/bezier) SHIPPED in bucket 2.3.5
+> (`examples/gate-2.3.5/{spline_profile,bezier_sweep}.hocon`, `tests/build/test_splines.py`).
+> Bucket 1.6 builds the rest in one pass: **ellipse + elliptical arc** (done in 1.6a) + a
+> driven **minor-radius** dimension, **conic** (parabola/hyperbola), the **smooth**
+> continuity constraint (G1 via py-slvs; true G2 refuses clearly), an **`arc_polar`** sugar
+> (done in 1.6a), **vertex projection** + **intersection curves** (reference geometry), and
+> **text** sketch profiles (which force **multi-loop faces**, closing the
+> holes-in-one-sketch deferral for the text/face path; other holes still come from
+> pocket/hole ops). Curved-edge (ellipse/spline) projection into a sketch is the only piece
+> deferred, and it is moved to the Phase 4 backlog (reference-layer capability).
 > (Construction/reference geometry shipped in 1.4.)
 
 ---
@@ -671,6 +673,12 @@ corrupted.
   4.3a/b move the whole single-body running solid); richer gate examples once multibody-moving
   lands (today's examples are self-referencing no-ops, real behavior in the real-kernel tests);
   cylinder-to-cylinder tangent (4.3b shipped planar-face-to-cylinder tangent).
+- **Curved-edge projection into a sketch (from Phase 1 bucket 1.6):** projecting an
+  ellipse / spline / BSpline edge onto a sketch plane. `build123d_kernel._project_edge`
+  currently refuses BSpline/bezier edges (OCCT hands back a curve we do not decompose), so the
+  ellipse/spline reference-into-sketch path is not yet supported. This is a reference-layer
+  capability (it belongs with `project_edges` / the persistent-name refs), so it lives in the
+  Phase 4 backlog rather than Phase 1. Straight-edge + arc + circle projection already ships.
 - **Imported hardening (4.3b, partial):** SHIPPED - import validate-on-load + the subprocess
   guard activated for direct `offset` on imported bodies. STILL DEFERRED - subprocess
   face-targeting (defeature/move_face on imports currently run in-process + oracle, not
