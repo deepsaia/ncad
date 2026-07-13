@@ -204,7 +204,9 @@
   .vc-corner-pop button[data-corner="bottom-left"]::after { bottom: 3px; left: 3px; }
   .vc-corner-pop button[data-corner="bottom-right"]::after { bottom: 3px; right: 3px; }
   .vc-group { display: flex; gap: 3px; }
+  .vc-group[hidden] { display: none; }  /* `hidden` must beat the .vc-group display rule */
   .vc-sep { height: 1px; background: var(--border); margin: 1px 2px; }
+  .vc-sep[hidden] { display: none; }
   .vc-btn { display: inline-flex; align-items: center; gap: 6px; justify-content: center;
     min-width: 30px; height: 30px; padding: 0 6px; color: var(--text);
     background: var(--panel-2); border: 1px solid var(--border); border-radius: 7px;
@@ -582,6 +584,10 @@
           <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.5"/></svg>
           <span class="vc-label">Isolate</span>
         </button>
+        <button class="vc-btn vc-toggle" data-toggle="joints" title="Joint freedom glyphs">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12a7 7 0 0 1 14 0"/><path d="M12 5v4"/><circle cx="12" cy="12" r="1.5"/></svg>
+          <span class="vc-label">Joints</span>
+        </button>
       </div>
 
       <div class="vc-sep"></div>
@@ -881,10 +887,64 @@ function _inGizmo(o) {
   return false;
 }
 
+// A thin arc line in the plane perpendicular to `dir` (a rotation-freedom marker). Color-coded.
+function _rotArc(dir, size, color) {
+  // Two in-plane basis vectors perpendicular to `dir`, so the arc lies around the rotation axis.
+  const up = Math.abs(dir.z) > 0.9 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 0, 1);
+  const u = new THREE.Vector3().crossVectors(dir, up).normalize();
+  const w = new THREE.Vector3().crossVectors(dir, u).normalize();
+  const rad = size * 0.6, pts = [];
+  for (let i = 0; i <= 32; i++) {
+    const t = (i / 32) * Math.PI * 1.5;   // a 270deg arc reads as "turns about this axis"
+    pts.push(u.clone().multiplyScalar(Math.cos(t) * rad).add(w.clone().multiplyScalar(Math.sin(t) * rad)));
+  }
+  return new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),
+                        new THREE.LineBasicMaterial({ color }));
+}
+
+// A thin double-headed arrow line along `dir` (a translation-freedom marker). Color-coded.
+function _transArrow(dir, size, color) {
+  const h = size * 0.6, head = size * 0.16;
+  const tip = dir.clone().multiplyScalar(h), tail = dir.clone().multiplyScalar(-h);
+  // A perpendicular for the arrowhead barbs.
+  const up = Math.abs(dir.z) > 0.9 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 0, 1);
+  const perp = new THREE.Vector3().crossVectors(dir, up).normalize().multiplyScalar(head * 0.5);
+  const pts = [tail, tip,
+    tip, tip.clone().sub(dir.clone().multiplyScalar(head)).add(perp),
+    tip, tip.clone().sub(dir.clone().multiplyScalar(head)).sub(perp),
+    tail, tail.clone().add(dir.clone().multiplyScalar(head)).add(perp),
+    tail, tail.clone().add(dir.clone().multiplyScalar(head)).sub(perp)];
+  return new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts),
+                               new THREE.LineBasicMaterial({ color }));
+}
+
+// A signature-keyed joint glyph at a joint's world connector frame: rotation -> arc about the axis;
+// translation -> double arrow along it; cylindrical -> both; ball -> three arcs; screw -> arc+arrow
+// on Z; fixed -> a cube. The signature axis "Z"/"X"/"Y" maps to that FRAME's vector (not world), so
+// a tilted joint shows its freedom about the tilted axis. `frame` = {origin,x,y,z} (world, metres).
+function buildJointGlyph(joint, frame, size) {
+  const g = new THREE.Group();
+  g.userData.isGizmo = true;
+  const axisVec = { X: frame.x, Y: frame.y, Z: frame.z, line: frame.z };
+  const sig = joint.signature || [];
+  if (joint.type === "fixed" || sig.length === 0) {
+    g.add(new THREE.Mesh(new THREE.BoxGeometry(size * 0.4, size * 0.4, size * 0.4),
+                         new THREE.MeshBasicMaterial({ color: 0x999999 })));
+  }
+  for (const a of sig) {
+    const v = axisVec[a.axis] || frame.z;
+    const dir = new THREE.Vector3(v[0], v[1], v[2]).normalize();
+    if (a.motion === "rotation" || a.motion === "screw") g.add(_rotArc(dir, size, 0xffaa33));
+    if (a.motion === "translation" || a.motion === "screw") g.add(_transArrow(dir, size, 0x33ccff));
+  }
+  g.position.set(frame.origin[0], frame.origin[1], frame.origin[2]);
+  return g;
+}
+
 // A small poly gizmo fixed at the WORLD origin (X=red, Y=green, Z=blue), always visible as a
 // reference. A poly gizmo (not an AxesHelper) because GL LINES are 1px-capped and z-fight the grid,
 // causing a stutter. Its size is refreshed to the current model in frameModel (scaled from 0.02).
-const worldOrigin = buildAxisGizmo(0.02);
+const worldOrigin = buildAxisGizmo(0.02, { radius: 0.02 * 0.02 });  // thin shafts (2% of length)
 worldOrigin.name = "worldOrigin";
 scene.add(worldOrigin);
 
@@ -980,6 +1040,10 @@ let showOrigins = localStorage.getItem("ncad.origins") === "1";
 // control. Declared here (before bindVcToggle runs at load) to avoid a temporal-dead-zone error.
 let connectorGizmos = [];
 let showConnectors = localStorage.getItem("ncad.connectors") === "1";
+// Joint-freedom glyphs (bucket 5.5): per-joint free-axis markers + dashed coupling links, toggled
+// by the Joints control. Declared before bindVcToggle runs to avoid a temporal-dead-zone error.
+let jointGizmos = [];
+let showJoints = localStorage.getItem("ncad.joints") === "1";
 // Assembly selection / highlight / isolate (bucket 5.5). instanceMeshMap: instanceId -> [meshes],
 // published by loadAssembly once all glbs load. Declared before bindVcToggle (isolate) runs.
 let instanceMeshMap = {};
@@ -1035,6 +1099,7 @@ function clearModel() {
   edges.forEach(e => scene.remove(e)); edges = [];
   originGizmos = [];  // gizmos are children of modelRoot, removed with it above
   connectorGizmos = [];  // connector triads are children of modelRoot too, removed with it
+  jointGizmos = [];  // joint glyphs + coupling links are children of modelRoot, removed with it
   instanceMeshMap = {}; selectedInstances = [];  // drop selection state with the old scene
   pickParts = []; elementMap = null;
   const picked = document.getElementById("i-picked");
@@ -1489,6 +1554,7 @@ bindVcToggle("origins", "ncad.origins", v => {
   originGizmos.forEach(g => { g.visible = v; });
 });
 bindVcToggle("isolate", "ncad.isolate", v => { isolateOn = v; refreshInstanceVisuals(); });
+bindVcToggle("joints", "ncad.joints", v => { showJoints = v; jointGizmos.forEach(g => { g.visible = v; }); });
 document.getElementById("vc-reset").addEventListener("click", () => { if (modelRoot) frameModel(); });
 
 // The assembly-only floating controls show only in Assemblies mode.
@@ -1864,6 +1930,7 @@ function loadAssembly(name, verbose) {
       // All instance meshes are loaded now (glb callbacks done): publish the per-instance mesh map
       // for selection highlight/isolate, and re-apply any active selection.
       instanceMeshMap = instanceMeshes;
+      buildJointOverlay(sceneDoc, root);
       applyMode();   // assigns base materials, captures them, and re-applies selection visuals
       frameModel();
       // Verbose bbox line only on an explicit assemble/first-load, not on every plain re-select
@@ -1966,6 +2033,44 @@ function matrixFromRowMajor(m) {
         m[2][0], m[2][1], m[2][2], m[3][2],
         0, 0, 0, 1);
   return M;
+}
+
+// Build the 3D joint-freedom overlay (bucket 5.5): a signature-keyed glyph at each joint's side-A
+// connector world frame, plus a dashed line between each coupling's two joints. Added under `root`
+// (so it clears with the scene) and pushed to `jointGizmos` for the Joints toggle.
+function buildJointOverlay(sceneDoc, root) {
+  const frameOf = {};   // instanceId -> { connectorId -> {origin,x,y,z} }
+  for (const inst of (sceneDoc.instances || [])) {
+    frameOf[inst.id] = {};
+    for (const c of (inst.connectors || [])) frameOf[inst.id][c.id] = c;
+  }
+  // One glyph size for the whole assembly, from the scene bbox (computed once here).
+  const box = new THREE.Box3().setFromObject(root);
+  const sz = box.getSize(new THREE.Vector3());
+  const jointSize = Math.max(sz.x, sz.y, sz.z, 0.001) * 0.08;
+  const jointAnchor = {};   // jointId -> THREE.Vector3 (its glyph origin), for coupling links
+  for (const j of (sceneDoc.joints || [])) {
+    const a = (j.between || [])[0];
+    const frame = a && frameOf[a.instance] ? frameOf[a.instance][a.connector] : null;
+    if (!frame) continue;  // unresolved connector: skip gracefully
+    const glyph = buildJointGlyph(j, frame, jointSize);
+    glyph.visible = showJoints;
+    jointGizmos.push(glyph);
+    root.add(glyph);
+    jointAnchor[j.id] = new THREE.Vector3(frame.origin[0], frame.origin[1], frame.origin[2]);
+  }
+  for (const c of (sceneDoc.couplings || [])) {
+    const pts = (c.between || []).map(jid => jointAnchor[jid]).filter(Boolean);
+    if (pts.length !== 2) continue;
+    const line = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(pts),
+      new THREE.LineDashedMaterial({ color: 0xaaaaaa, dashSize: jointSize * 0.3, gapSize: jointSize * 0.3 }));
+    line.computeLineDistances();
+    line.userData.isGizmo = true;
+    line.visible = showJoints;
+    jointGizmos.push(line);
+    root.add(line);
+  }
 }
 
 function renderInstanceTree(sceneDoc) {
