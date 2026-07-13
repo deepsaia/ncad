@@ -131,8 +131,12 @@ class MateSolver:
             # blocked. Same addParallel math as parallel_dirs, on the X lines instead of Z.
             system.addParallel(a_sec, b_sec, group=_SOLVE_GROUP)
         elif kind == "axes_coincident":
-            # Line-line coincidence: A's origin lies on B's axis AND the axes are parallel.
+            # Line-line coincidence: BOTH origins lie on the OTHER's axis line + the axes are
+            # parallel. Constraining both directions (not just A-on-B) makes it grounding-symmetric:
+            # a single point-on-line only pulls the body whose LINE is referenced, so if the
+            # point-side body is grounded the free body's position never moves onto the axis.
             system.addPointOnLine(a_o, b_axis, group=_SOLVE_GROUP)
+            system.addPointOnLine(b_o, a_axis, group=_SOLVE_GROUP)
             system.addParallel(a_axis, b_axis, group=_SOLVE_GROUP)
         elif kind == "point_on_line":
             # A.origin constrained to B's axis line (the slot's line); leaves translation along it.

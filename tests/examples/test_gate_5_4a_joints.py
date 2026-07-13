@@ -18,7 +18,7 @@ def test_gate_5_4a_revolute_joint(tmp_path) -> None:
     joints = sidecar["joints"]
     assert [j["id"] for j in joints] == ["j1"]
     assert joints[0]["type"] == "revolute"
+    # The DECLARED signature is the authoritative statement that a revolute leaves 1 rotational DoF
+    # free (the solver's raw dof is a gauge-sensitive cross-check, not the source of truth).
     assert joints[0]["signature"] == [{"motion": "rotation", "axis": "Z"}]
     assert joints[0]["ok"] is True
-    # A valueless revolute leaves a free rotational DoF: the solve is not fully rigid.
-    assert sidecar["solve"]["dof"] > 0

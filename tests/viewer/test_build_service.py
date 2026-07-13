@@ -51,7 +51,9 @@ def test_build_allows_spec_under_examples(tmp_path) -> None:
 
     result = service.build("g/block.hocon")
 
-    assert result == {"built": ["block.glb"]}
+    assert result["built"] == ["block.glb"]
+    # build_ms is a wall-clock measurement (varies), so assert its presence + type, not a value.
+    assert isinstance(result["build_ms"], float) and result["build_ms"] >= 0.0
     assert (out / "block.glb").is_file()
     assert (out / "block.meta.json").is_file()
 

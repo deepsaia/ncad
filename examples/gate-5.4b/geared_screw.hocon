@@ -27,11 +27,12 @@ parts {
       { id = sk, op = sketch, plane = XY, elements = [ { id = c, type = circle, d = 20 } ] }
       { id = ext, op = extrude, profile = sk, distance = 5 }
     ] }
-  # A bolt with a cylindrical shaft; a screw joint drives it into the block's bore.
+  # A bolt with a cylindrical shaft; a screw joint drives it into the block's bore. The shank is
+  # d=6 (the bore is d=8) so there is clearance: coincident-diameter walls would z-fight in render.
   bolt { profile = solid,
     connectors = [ { id = shank, at = "select faces where type = 'cylinder'" } ],
     features = [
-      { id = sk, op = sketch, plane = XY, elements = [ { id = c, type = circle, d = 8 } ] }
+      { id = sk, op = sketch, plane = XY, elements = [ { id = c, type = circle, d = 6 } ] }
       { id = ext, op = extrude, profile = sk, distance = 30 }
     ] }
 }

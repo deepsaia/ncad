@@ -68,6 +68,9 @@ class AssemblyBuilder:
         # instances; built_glbs dedups a {file, part} placed more than once.
         builders: dict[str, DocumentBuilder] = {}
         built_glbs: dict[tuple[str, str], str] = {}
+        # Resolved part elements cached PER FILE (resolve_part_elements returns every part in the
+        # file), so a file with N instances resolves once, not N times (the load/build was O(N)).
+        resolved_files: dict[str, dict] = {}
         # Placement matrices are computed in document units (mm) so a connect snap can compose in a
         # single unit space; the translation is baked to metres only when the sidecar is written.
         placements_mm: dict[str, list[list[float]]] = {}
@@ -79,7 +82,8 @@ class AssemblyBuilder:
             if glb is None:
                 continue
             iid = instance["id"]
-            local_frames[iid] = self._resolve_connectors(instance, asm_dir, builders, issues)
+            local_frames[iid] = self._resolve_connectors(
+                instance, asm_dir, builders, resolved_files, issues)
             matrix_mm = self._place(instance, placements_mm, local_frames, issues)
             placements_mm[iid] = matrix_mm
             world = [_bake_frame(cid, _world_frame(frame, matrix_mm), to_metres)
@@ -264,17 +268,22 @@ class AssemblyBuilder:
         return ground
 
     def _resolve_connectors(self, instance: dict, asm_dir: str, builders: dict,
-                            issues: list) -> dict[str, ConnectorFrame]:
+                            resolved_files: dict, issues: list) -> dict[str, ConnectorFrame]:
         """Resolve a part's declared connectors to local-space frames (empty on any failure)."""
         part_file = os.path.join(asm_dir, instance["file"])
         key = os.path.abspath(part_file)
-        builder = builders.setdefault(key, DocumentBuilder(self._kernel))
-        try:
-            parts = builder.resolve_part_elements(part_file)
-        except Exception as exc:  # noqa: BLE001 - a bad part becomes an id-attributed issue
-            issues.append({"instance_id": instance["id"],
-                           "message": f"connector resolution failed: {exc}"})
-            return {}
+        # resolve_part_elements returns EVERY part in the file, so resolve each file once and cache;
+        # subsequent instances of any part in that file reuse it (no redundant load + build).
+        parts = resolved_files.get(key)
+        if parts is None:
+            builder = builders.setdefault(key, DocumentBuilder(self._kernel))
+            try:
+                parts = builder.resolve_part_elements(part_file)
+            except Exception as exc:  # noqa: BLE001 - a bad part becomes an id-attributed issue
+                issues.append({"instance_id": instance["id"],
+                               "message": f"connector resolution failed: {exc}"})
+                return {}
+            resolved_files[key] = parts
         part = parts.get(instance["part"])
         if part is None:
             return {}
