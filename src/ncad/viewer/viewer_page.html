@@ -1713,6 +1713,21 @@ let specTree = [], selectedSpec = null, activeModel = null;
 const REGEN_SVG = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>';
 const DELETE_SVG = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>';
 
+// Format a duration (milliseconds) as 00h00m00.0s, dropping leading zero units: seconds-only reads
+// "3.7s", minutes "1m04.2s", hours "1h02m03.4s". A starting point for profiling (build vs render).
+function fmtDuration(ms) {
+  const totalS = ms / 1000;
+  const h = Math.floor(totalS / 3600);
+  const m = Math.floor((totalS % 3600) / 60);
+  const s = totalS % 60;
+  const pad2 = n => String(n).padStart(2, "0");
+  // Seconds keep one decimal; pad the whole "S.s" to width 4 so a single-digit second reads "04.2".
+  const secs = s.toFixed(1).padStart(4, "0");
+  if (h > 0) return `${h}h${pad2(m)}m${secs}s`;
+  if (m > 0) return `${m}m${secs}s`;
+  return `${s.toFixed(1)}s`;
+}
+
 // Session log: appended to the Logs tab (newest at the bottom), not persisted across reloads.
 // level is "info" (default) | "success" | "warn" | "error" (color-coded, themed for light + dark);
 // a truthy boolean still maps to "error" for older call sites. ncad-service messages are prefixed
@@ -1865,22 +1880,26 @@ function renderAssemblyList(names) {
   }
 }
 
-function selectAssembly(name, verbose) {
+function selectAssembly(name, verbose, timing) {
   activeModel = name;
-  loadAssembly(name, verbose);
+  loadAssembly(name, verbose, timing);
   refreshAssemblies();
 }
 
 function assembleSpec(spec) {
   if (!spec) { toast("select an assembly spec first", true); return; }
   spinner.style.display = "block";
+  const t0 = performance.now();   // client wall-clock start (button click), for the render split
   fetch("/api/assemble", { method: "POST", headers: { "Content-Type": "application/json" },
                            body: JSON.stringify({ spec }) })
     .then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.error || "assemble failed"); return d; })
     .then(d => {
       renderAssemblyList(d.assemblies || []);
       assemblySources[d.assembled] = spec;  // remember the source for regenerate
-      if (d.assembled) selectAssembly(d.assembled, true);  // verbose: a genuine (re)compose
+      // Timing (build vs render, a profiling starting point): the server build_ms + a render-done
+      // callback that fires when loadAssembly finishes placing the scene. total = now - t0.
+      const timing = { t0, buildMs: d.build_ms };
+      if (d.assembled) selectAssembly(d.assembled, true, timing);  // verbose: a genuine (re)compose
       const issues = (d.issues || []).length;
       toast("assembled " + d.assembled + (issues ? ` (${issues} issue(s))` : ""));
     })
@@ -1903,7 +1922,7 @@ function removeAssembly(name) {
     .catch(() => toast("could not delete " + name, true));
 }
 
-function loadAssembly(name, verbose) {
+function loadAssembly(name, verbose, timing) {
   spinner.style.display = "flex";
   // NB: name the payload `sceneDoc`, NOT `scene` - `scene` is the global THREE.Scene, and
   // shadowing it here would make `scene.add(...)` add to the JSON instead of the 3D scene.
@@ -1942,6 +1961,15 @@ function loadAssembly(name, verbose) {
       }
       document.getElementById("i-meshes").textContent = pickParts.length;
       spinner.style.display = "none";
+      // Timing split (build vs render), a profiling starting point. Server build_ms + client render
+      // (total - build) + total (button click to rendered). Shown in a toast + logged.
+      if (timing && timing.buildMs != null) {
+        const total = performance.now() - timing.t0;
+        const render = Math.max(total - timing.buildMs, 0);
+        const line = `build ${fmtDuration(timing.buildMs)} + render ${fmtDuration(render)} = ${fmtDuration(total)}`;
+        toast(line);
+        log(line, "info");
+      }
     };
     for (const inst of sceneDoc.instances) {
       pending++;
@@ -2225,9 +2253,22 @@ function setViewMode(next) {
 function build(spec) {
   if (!spec) { toast("select a spec first", true); return; }
   spinner.style.display = "block";
+  const t0 = performance.now();
   fetch("/api/build", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ spec }) })
     .then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.error || "build failed"); return d; })
-    .then(d => { renderModelList(d.models); const first = (d.built || [])[0]; if (first) selectModel(first); toast("built " + (d.built || []).join(", ")); })
+    .then(d => {
+      renderModelList(d.models); const first = (d.built || [])[0]; if (first) selectModel(first);
+      // Timing split (build vs render): server build_ms + client render (total - build) + total.
+      const total = performance.now() - t0;
+      if (d.build_ms != null) {
+        const render = Math.max(total - d.build_ms, 0);
+        const line = `build ${fmtDuration(d.build_ms)} + render ${fmtDuration(render)} = ${fmtDuration(total)}`;
+        toast("built " + (d.built || []).join(", ") + " - " + line);
+        log(line, "info");
+      } else {
+        toast("built " + (d.built || []).join(", "));
+      }
+    })
     .catch(e => toast(e.message, true))
     .finally(() => { spinner.style.display = "none"; });
 }

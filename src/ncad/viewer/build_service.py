@@ -10,6 +10,7 @@ raised as a typed BuildError; the server turns that into a JSON error response.
 import json
 import logging
 import os
+import time
 from collections.abc import Callable
 
 from ncad.viewer.model_catalog import ModelCatalog
@@ -63,10 +64,12 @@ class BuildService:
         if resolved is None:
             raise BuildError(f"spec not allowed: {spec}")
         builder = self._builder_factory()
+        started = time.perf_counter()
         try:
             artifacts = builder.build_file(resolved, self._models_dir)
         except (ValueError, OSError, RuntimeError) as exc:
             raise BuildError(str(exc)) from exc
+        build_ms = (time.perf_counter() - started) * 1000.0
         built = [os.path.basename(path) for path in artifacts.values()]
         built_at = self._clock() if self._clock is not None else ""
         for name in built:
@@ -77,8 +80,8 @@ class BuildService:
                 ncad_version=self._versions["ncad"],
                 kernel_version=self._versions["kernel"],
             )
-        logger.info("built %s from %s", built, spec)
-        return {"built": built}
+        logger.info("built %s from %s in %.1f ms", built, spec, build_ms)
+        return {"built": built, "build_ms": round(build_ms, 1)}
 
     def assemble(self, spec: str) -> dict:
         """Compose an assembly document ``spec`` into a scene sidecar.
@@ -92,13 +95,16 @@ class BuildService:
         resolved = self._allowed_assembly_path(spec)
         if resolved is None:
             raise BuildError(f"assembly spec not allowed: {spec}")
+        started = time.perf_counter()
         try:
             result = AssemblyBuilder(Build123dKernel()).assemble(resolved, self._models_dir)
         except (ValueError, OSError, RuntimeError) as exc:
             raise BuildError(str(exc)) from exc
+        build_ms = (time.perf_counter() - started) * 1000.0
         name = os.path.basename(result["sidecar"])[: -len(".assembly.json")]
-        logger.info("assembled %s from %s (%d issues)", name, spec, len(result["issues"]))
-        return {"assembled": name, "issues": result["issues"]}
+        logger.info("assembled %s from %s (%d issues) in %.1f ms",
+                    name, spec, len(result["issues"]), build_ms)
+        return {"assembled": name, "issues": result["issues"], "build_ms": round(build_ms, 1)}
 
     def _allowed_path(self, spec: str) -> str | None:
         """Resolve ``spec`` if under examples or a recorded meta source, else None."""
