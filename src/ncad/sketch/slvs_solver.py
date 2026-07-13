@@ -50,7 +50,7 @@ class SlvsSolver(SketchSolver):
         "point_on": "_c_point_on", "collinear": "_c_collinear",
         "concentric": "_c_concentric", "tangent": "_c_tangent", "fix": "_c_fix",
         "angle": "_c_angle", "diameter": "_c_diameter",
-        "minor_radius": "_c_minor_radius",
+        "minor_radius": "_c_minor_radius", "smooth": "_c_smooth",
     }
 
     def solve(self, entities: list[dict], constraints: list[dict],
@@ -289,6 +289,36 @@ class SlvsSolver(SketchSolver):
     def _c_diameter(self, system: Any, constraint: dict, ctx: _Ctx) -> None:
         system.addDiameter(float(constraint["value"]), ctx.curves[constraint["of"]],
                            group=_SKETCH_GROUP)
+
+    def _c_smooth(self, system: Any, constraint: dict, ctx: _Ctx) -> None:
+        """G1 tangent continuity between two curves sharing an endpoint.
+
+        py-slvs expresses G1 (tangent), not G2 (curvature), so a ``continuity: g2`` request is
+        refused clearly rather than silently solved as G1. Point-defined curves (spline /
+        ellipse / ellipse_arc / conic) have no solver curve entity (their shape is carried by
+        their points), so continuity on them is not solver-expressible and is refused too.
+        """
+        if str(constraint.get("continuity", "g1")).lower() == "g2":
+            raise ConstraintError("g2 curvature continuity is not supported by the sketch "
+                                  "solver (py-slvs expresses g1 tangent only)")
+        a, b = constraint["of"]
+        for cid in (a, b):
+            if cid not in ctx.curves:
+                raise ConstraintError(
+                    f"smooth needs two solver curves (line/arc/circle); {cid!r} is a "
+                    "point-defined curve (spline/ellipse/conic) with no tangent handle")
+        ta, tb = ctx.entities[a]["type"], ctx.entities[b]["type"]
+        if ta == "arc" and tb == "line":
+            system.addArcLineTangent(_touches_arc_end(ctx.entities[a], ctx.entities[b]),
+                                     ctx.curves[a], ctx.curves[b], group=_SKETCH_GROUP)
+        elif ta == "line" and tb == "arc":
+            system.addArcLineTangent(_touches_arc_end(ctx.entities[b], ctx.entities[a]),
+                                     ctx.curves[b], ctx.curves[a], group=_SKETCH_GROUP)
+        elif ta in ("arc", "circle") and tb in ("arc", "circle"):
+            system.addCurvesTangent(True, False, ctx.curves[a], ctx.curves[b],
+                                    wrkpln=ctx.workplane, group=_SKETCH_GROUP)
+        else:
+            raise ConstraintError(f"smooth (g1) needs arc/line/circle curves, got {ta}+{tb}")
 
     def _c_minor_radius(self, system: Any, constraint: dict, ctx: _Ctx) -> None:
         # A DRIVEN minor_radius is measured post-solve (handled in _apply, never reaches here).
