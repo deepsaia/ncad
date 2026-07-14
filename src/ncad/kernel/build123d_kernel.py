@@ -944,6 +944,19 @@ class Build123dKernel(Kernel):
         """The raw single-side split (wrapped by _robust)."""
         return shape.split(split_plane, keep=keep_enum)
 
+    def split_by_tool(self, shape: Any, tool: Any, keep: str = "both") -> list:
+        # Partition `shape` by a TOOL BODY (vs a plane): the region INSIDE the tool
+        # (shape & tool) and the region OUTSIDE it (shape - tool). keep="inside" /
+        # "outside" returns one region; "both" returns [inside, outside]. Each region may be a
+        # Compound of several solids (a slab through the middle leaves two outside pieces).
+        inside = self._robust(self._do_intersect, [shape, tool], name="split")
+        if keep == "inside":
+            return [inside]
+        outside = self._robust(self._do_cut, shape, [tool], name="split")
+        if keep == "outside":
+            return [outside]
+        return [inside, outside]
+
     @staticmethod
     def _do_gscale(shape: Any, scale: Any) -> Any:
         # Non-uniform scale via raw OCP gp_GTrsf (build123d scale is uniform only).

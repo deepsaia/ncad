@@ -670,6 +670,19 @@ class FakeKernel(Kernel):
             return [bottom]
         return [top, bottom]
 
+    def split_by_tool(self, shape: Any, tool: Any, keep: str = "both") -> list:
+        # Analytic partition by a tool body: inside = the tool's volume clamped to the shape,
+        # outside = the remainder. Enough for op/volume tests; the real kernel does the boolean.
+        shape_v = self.volume(shape)
+        tool_v = self.volume(tool)
+        inside = _FakeCombined(min(tool_v, shape_v), self.bounding_box(shape))
+        outside = _FakeCombined(max(shape_v - tool_v, 0.0), self.bounding_box(shape))
+        if keep == "inside":
+            return [inside]
+        if keep == "outside":
+            return [outside]
+        return [inside, outside]
+
     def volume(self, solid: Any) -> float:
         if isinstance(solid, BodySet):
             return sum(self.volume(b.shape) for b in solid.bodies)

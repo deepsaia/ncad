@@ -208,6 +208,17 @@ thousands of thread edges and is slow/fragile).
   thread can segfault/hang on the thread crest edges.
 - **Seen in:** gate-2.10 `hex_bolt` (thread after the shank, dress-up before).
 
+### 12c. A tool-body split needs the tool body built first
+
+A `split` with a `tool` reference (split-by-tool-body, vs a plane) partitions the running
+solid by another body; the tool body must be built earlier so the reference resolves.
+
+- **Why:** the tool is a boolean operand (inside = shape & tool, outside = shape - tool); it
+  must exist when the split runs.
+- **Failure mode:** a tool-body split before its tool is built fails reference resolution
+  (skip-and-suppress).
+- **Seen in:** gate-3.7 `bimetal_bushing` (a bushing split by a sleeve tool body).
+
 ### 13. Direct-edit ops (`defeature`, `offset`) come AFTER the geometry they act on
 
 Direct/synchronous ops edit the *current* B-rep in place (design section 3): they consume the

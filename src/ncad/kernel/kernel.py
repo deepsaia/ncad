@@ -443,6 +443,14 @@ class Kernel(ABC):
         """
 
     @abstractmethod
+    def split_by_tool(self, shape: Any, tool: Any, keep: str = "both") -> list:
+        """Partition ``shape`` by a TOOL BODY: the region inside the tool + the region outside.
+
+        ``keep`` is ``"both"`` (return ``[inside, outside]``), ``"inside"``, or ``"outside"``.
+        Each region may be a Compound of several solids. Raises KernelOpError on failure.
+        """
+
+    @abstractmethod
     def defeature(self, solid: Any, face: Any) -> Any:
         """Remove ``face`` from ``solid`` (BRepAlgoAPI_Defeaturing); raise on OCCT failure."""
 
