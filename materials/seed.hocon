@@ -11,6 +11,9 @@ aluminium_6061 {
   structural { youngs_modulus = 68.9e9, poisson = 0.33, yield = 276e6 }
   thermal { conductivity = 167, specific_heat = 896, melting_point = 652 }
 }
+# American-spelling alias for aluminium_6061 (HOCON substitution: same object, both names
+# resolve). No duplication; edits to aluminium_6061 flow through.
+aluminum_6061 = ${aluminium_6061}
 abs {
   physical { density = 1050 }
   thermal { conductivity = 0.17, specific_heat = 1300 }

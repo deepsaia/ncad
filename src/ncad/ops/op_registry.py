@@ -15,6 +15,8 @@ from ncad.ops.datum_plane_op import DatumPlaneOp
 from ncad.ops.defeature_op import DefeatureOp
 from ncad.ops.draft_op import DraftOp
 from ncad.ops.extrude_op import ExtrudeOp
+from ncad.ops.feature_mirror_op import FeatureMirrorOp
+from ncad.ops.feature_pattern_op import FeaturePatternOp
 from ncad.ops.fillet_op import FilletOp
 from ncad.ops.groove_op import GrooveOp
 from ncad.ops.hole_op import HoleOp
@@ -26,6 +28,7 @@ from ncad.ops.offset_face_op import OffsetFaceOp
 from ncad.ops.pattern_op import PatternOp
 from ncad.ops.pocket_op import PocketOp
 from ncad.ops.relational_edit_op import RelationalEditOp
+from ncad.ops.reposition_hole_op import RepositionHoleOp
 from ncad.ops.revolve_op import RevolveOp
 from ncad.ops.rib_op import RibOp
 from ncad.ops.shell_op import ShellOp
@@ -68,6 +71,7 @@ class OpRegistry:
         registry.register("offset", OffsetFaceOp().build)
         registry.register("move_face", MoveFaceOp().build)
         registry.register("relate", RelationalEditOp().build)
+        registry.register("reposition_hole", RepositionHoleOp().build)
         registry.register("fillet", FilletOp().build)
         registry.register("chamfer", ChamferOp().build)
         registry.register("boolean", BooleanOp().build)
@@ -86,4 +90,6 @@ class OpRegistry:
         registry.register("datum_plane", DatumPlaneOp().build)
         registry.register("datum_axis", DatumAxisOp().build)
         registry.register("thread", ThreadOp().build)
+        registry.register("feature_pattern", FeaturePatternOp().build)
+        registry.register("feature_mirror", FeatureMirrorOp().build)
         return registry

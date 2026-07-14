@@ -1,0 +1,48 @@
+schema_version = 2
+units = mm
+# A door hinge leaf with a mirrored strap boss and a separate pin body seated coaxially in the
+# knuckle bore. Exercises three 4.4 features on one real, recognizable part:
+#   - feature_mirror: a reinforcing strap boss on the +y half is MIRRORED across the XZ plane to
+#     the -y half (one authored boss, symmetric result).
+#   - a keep-separate union produces a two-body part (hinge leaf + pin).
+#   - relate moving_body: the pin body is moved COAXIAL to the knuckle bore so it seats in the
+#     hinge (a two-body assembly-in-a-part; the pin aligns, it is not fused).
+# The knuckle (outer + bore) is the only cylinder on the leaf body and both share one axis, so
+# the coaxial reference is unambiguous.
+parts {
+  mirrored_hinge {
+    profile = solid
+    features = [
+      # Hinge leaf: a 60 x 40 x 4 plate.
+      { id = leaf_sk, op = sketch, plane = XY,
+        elements = [ { id = r, type = rectangle, w = 60, h = 40 } ] }
+      { id = leaf, op = extrude, profile = leaf_sk, distance = 4 }
+      # Knuckle: a d12 cylinder boss along Y at the leaf's front edge, bored d5 for the pin.
+      { id = knuckle_out, op = sketch, plane = XZ,
+        elements = [ { id = ko, type = circle, d = 12, at = [ -30, 2 ] } ] }
+      { id = knuckle, op = extrude, profile = knuckle_out, end = symmetric, distance = 40 }
+      { id = leaf_knuckle, op = boolean, operation = union, target = leaf, tool = knuckle }
+      { id = bore_sk, op = sketch, plane = XZ,
+        elements = [ { id = bo, type = circle, d = 5, at = [ -30, 2 ] } ] }
+      { id = bore_tool, op = extrude, profile = bore_sk, end = symmetric, distance = 44 }
+      { id = bored, op = boolean, operation = cut, target = leaf_knuckle, tool = bore_tool }
+      # A reinforcing strap boss on the +y half (a 10 x 8 x 3 pad), then MIRROR that boss across
+      # the XZ plane to the -y half: one authored boss, symmetric two-strap result.
+      { id = strap_sk, op = sketch, plane = XY, plane_offset = 4,
+        elements = [ { id = s, type = rectangle, w = 10, h = 8, at = [ 15, 14 ] } ] }
+      { id = strap, op = extrude, profile = strap_sk, distance = 3 }
+      { id = strapped, op = boolean, operation = union, target = bored, tool = strap }
+      { id = strap_mirror, op = feature_mirror, tool = strap, operation = union, plane = XZ }
+      # A separate hinge pin (d5 x 44 rod along Y), kept as its own body, then moved COAXIAL to
+      # the knuckle bore so it seats in the hinge.
+      { id = pin_sk, op = sketch, plane = XZ,
+        elements = [ { id = p, type = circle, d = 5, at = [ 30, 30 ] } ] }
+      { id = pin, op = extrude, profile = pin_sk, end = symmetric, distance = 44 }
+      { id = assembly, op = boolean, operation = union, target = strap_mirror, tool = pin,
+        merge = false }
+      { id = seat_pin, op = relate, relation = coaxial, moving_body = "assembly/body/1",
+        reference = "select faces where type='cylinder' and created_by='assembly'",
+        moving = "select faces where type='cylinder' and created_by='pin'" }
+    ]
+  }
+}

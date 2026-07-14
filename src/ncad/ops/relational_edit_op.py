@@ -9,6 +9,8 @@ symmetric); non-planar elements are refused. No maintenance/DoF (that is Phase 5
 import logging
 from typing import Any
 
+from ncad.kernel.body import Body
+from ncad.kernel.body_set import BodySet
 from ncad.ops.build_issue import BuildIssue
 from ncad.ops.op_result import OpResult
 from ncad.ops.relational_solver import RelationalSolver
@@ -32,12 +34,18 @@ class RelationalEditOp:
         if reference is None or moving is None:
             return OpResult(shape=None,
                             issues=[BuildIssue(node_id, "relate needs reference and moving faces")])
-        transform = self._solve(relation, reference, moving)
+        transform = self._solve(relation, reference, moving, params)
         if isinstance(transform, str):
             return OpResult(shape=None, issues=[BuildIssue(node_id, transform)])
         if transform is None:
             # Already satisfied: leave the body as is.
             return OpResult(shape=shape_in)
+        # moving_body names ONE body of a multibody running shape to move; the rest pass through
+        # unchanged (their ids and provenance survive). Absent it, the whole running solid moves
+        # (single-body behavior, unchanged).
+        moving_body = params.get("moving_body")
+        if moving_body is not None:
+            return self._move_one_body(shape_in, moving_body, transform, node_id, kernel)
         try:
             moved = kernel.transform(shape_in, move=transform["move"], rotate=transform["rotate"])
         except Exception as exc:  # noqa: BLE001 - a KernelOpError becomes an id-attributed issue
@@ -48,7 +56,34 @@ class RelationalEditOp:
                             issues=[BuildIssue(node_id, "relate produced a degenerate solid")])
         return OpResult(shape=moved)
 
-    def _solve(self, relation: str, reference: Any, moving: Any) -> dict | None | str:
+    def _move_one_body(self, shape_in: Any, moving_body: str, transform: dict,
+                       node_id: str, kernel: Any) -> OpResult:
+        """Apply ``transform`` to just ``moving_body`` of a multibody running shape."""
+        if not isinstance(shape_in, BodySet):
+            return OpResult(shape=None, issues=[BuildIssue(
+                node_id, "relate moving_body needs a multibody running shape")])
+        try:
+            target = shape_in.by_id(moving_body)
+        except KeyError:
+            return OpResult(shape=None, issues=[BuildIssue(
+                node_id, f"relate moving_body references unknown body id {moving_body!r}")])
+        try:
+            moved = kernel.transform(target.shape, move=transform["move"],
+                                     rotate=transform["rotate"])
+        except Exception as exc:  # noqa: BLE001 - a KernelOpError becomes an id-attributed issue
+            logger.warning("relate transform failed on %s: %s", node_id, exc)
+            return OpResult(shape=None, issues=[BuildIssue(node_id, f"relate failed: {exc}")])
+        if moved is None or kernel.volume(moved) <= 0.0:
+            return OpResult(shape=None,
+                            issues=[BuildIssue(node_id, "relate produced a degenerate solid")])
+        # Rebuild the BodySet with the moved body in place; every other body keeps its id +
+        # provenance (a body is born once, never re-minted by a later move).
+        rebuilt = [Body(id=b.id, kind=b.kind, shape=(moved if b.id == moving_body else b.shape),
+                        created_by=b.created_by) for b in shape_in.bodies]
+        return OpResult(shape=BodySet(rebuilt))
+
+    def _solve(self, relation: str, reference: Any, moving: Any,
+               params: dict) -> dict | None | str:
         """Return a transform dict, None (already satisfied), or a refusal-reason string."""
         if relation in ("parallel", "coplanar", "perpendicular", "symmetric"):
             ref_frame = self._planar_frame(reference)
@@ -65,11 +100,20 @@ class RelationalEditOp:
         if relation == "tangent":
             ref_axis = self._axis_frame(reference)
             radius = self._radius(reference)
-            moving_plane = self._planar_frame(moving)
             if ref_axis is None or radius is None:
                 return "tangent refused: reference must be a cylinder"
+            # Cylinder-to-cylinder tangent when the moving face is also a cylinder; otherwise the
+            # plane-to-cylinder form (moving face planar).
+            moving_axis = self._axis_frame(moving)
+            moving_radius = self._radius(moving)
+            if moving_axis is not None and moving_radius is not None:
+                internal = bool(params.get("internal", False))
+                return RelationalSolver().solve(
+                    "tangent", ref_axis, moving_axis, radius=radius,
+                    radius2=moving_radius, internal=internal)
+            moving_plane = self._planar_frame(moving)
             if moving_plane is None:
-                return "tangent refused: moving face must be planar"
+                return "tangent refused: moving face must be planar or cylindrical"
             return RelationalSolver().solve("tangent", ref_axis, moving_plane, radius=radius)
         return f"relate refused: unknown relation {relation!r}"
 

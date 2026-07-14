@@ -39,7 +39,6 @@ from build123d import (
     extrude,
     loft,
     offset,
-    revolve,
     sweep,
     trace,
 )
@@ -66,9 +65,11 @@ from OCP.BRepOffsetAPI import (
     BRepOffsetAPI_DraftAngle,  # pyrefly: ignore[missing-module-attribute]
     BRepOffsetAPI_MakePipeShell,  # pyrefly: ignore[missing-module-attribute]
 )
+from OCP.BRepPrimAPI import BRepPrimAPI_MakeRevol  # pyrefly: ignore[missing-module-attribute]
 from OCP.Geom import Geom_BezierCurve  # pyrefly: ignore[missing-module-attribute]
 from OCP.GeomAbs import GeomAbs_G1  # pyrefly: ignore[missing-module-attribute]
 from OCP.gp import (
+    gp_Ax1,  # pyrefly: ignore[missing-module-attribute]
     gp_Dir,  # pyrefly: ignore[missing-module-attribute]
     gp_GTrsf,  # pyrefly: ignore[missing-module-attribute]
     gp_Pln,  # pyrefly: ignore[missing-module-attribute]
@@ -111,6 +112,11 @@ _ANGULAR_DEFLECTION = 0.2
 
 
 _DEFAULT_FONT = "Arial"
+
+# Curved-edge projection samples a spline/bezier edge at this many parameters (0..1 inclusive)
+# to fit an interpolated construction spline. Pinned for deterministic names + goldens; enough
+# points to capture a single freeform sketch edge without over-fitting.
+_PROJECT_SPLINE_SAMPLES = 12
 
 
 def _resolve_font(font: str) -> str:
@@ -239,7 +245,16 @@ class Build123dKernel(Kernel):
             # angle, then sweeping the full angle forward: the swept volume is identical to
             # a plain partial revolve, just centered (verified by the equal-volume test).
             profile = profile.rotate(axis, -angle / 2.0)
-        return revolve(profile, axis, revolution_arc=angle)
+        # Build via the raw OCP maker (geometry-identical to build123d's revolve, verified) so
+        # its Generated lineage (side walls from profile edges, caps from the profile face) is
+        # capturable for persistent naming.
+        gp_axis = gp_Ax1(gp_Pnt(*axis_point),
+                         gp_Dir(*axis_dir))  # pyrefly: ignore[no-matching-overload]
+        maker = BRepPrimAPI_MakeRevol(profile.wrapped, gp_axis, math.radians(angle))
+        maker.Build()
+        result = Solid(maker.Shape())
+        self._stash_maker(maker, profile, result)
+        return result
 
     def sweep(self, profile: Any, path: Any, *, sections: list | None = None,
               guides: list | None = None, is_frenet: bool = False,
@@ -733,6 +748,12 @@ class Build123dKernel(Kernel):
 
     @staticmethod
     def _do_cut(solid: Any, tools: list) -> Any:
+        # build123d's `-` runs a coplanar-face merge (ShapeUpgrade_UnifySameDomain) after the
+        # OCCT boolean, which the raw BRepAlgoAPI maker skips (leaving redundant seam faces) AND
+        # which invalidates the maker's per-face Generated/Modified references. So booleans keep
+        # build123d's cleaned topology and fall back to geometric carry-forward for names; true
+        # per-face boolean lineage would need a composed BRepTools_History across the clean step
+        # (a documented follow-up).
         result = solid
         for tool in tools:
             result = result - tool
@@ -752,12 +773,30 @@ class Build123dKernel(Kernel):
             result = result & other
         return result
 
-    @staticmethod
-    def _do_fillet(solid: Any, edges: list, radius: float) -> Any:
-        return solid.fillet(radius, edges)
+    def _stash_maker(self, maker: Any, input_shape: Any, output_shape: Any) -> None:
+        """Remember the last shape-modifying OCP maker so ``history`` can read its lineage.
 
-    @staticmethod
-    def _do_fillet_variable(solid: Any, edges: list, radius_start: float,
+        Keyed by the output shape's identity: ``history`` only trusts the stash when the shape
+        it is asked about is the one this maker produced (a stale maker from an earlier op never
+        leaks into an unrelated op's lineage). The maker exposes Generated/Modified/IsDeleted
+        per input sub-shape (BRepFilletAPI/BRepAlgoAPI/BRepPrimAPI all implement it), which is
+        the real per-op history OCCT computes; build123d's high-level functions discard it.
+        """
+        self._last_maker = (maker, input_shape, output_shape)
+
+    def _do_fillet(self, solid: Any, edges: list, radius: float) -> Any:
+        # Build via the raw OCP maker (geometry-identical to build123d's fillet, verified) so
+        # its Generated/Modified/IsDeleted lineage can be captured for persistent naming.
+        from build123d import Solid
+        maker = BRepFilletAPI_MakeFillet(solid.wrapped)
+        for edge in edges:
+            maker.Add(radius, edge.wrapped)
+        maker.Build()
+        result = Solid(maker.Shape())
+        self._stash_maker(maker, solid, result)
+        return result
+
+    def _do_fillet_variable(self, solid: Any, edges: list, radius_start: float,
                             radius_end: float) -> Any:
         # A radius that ramps r_start -> r_end along each edge, via raw OCP
         # BRepFilletAPI_MakeFillet.Add(r1, r2, edge) (build123d's fillet is constant-radius
@@ -767,16 +806,28 @@ class Build123dKernel(Kernel):
         for edge in edges:
             maker.Add(radius_start, radius_end, edge.wrapped)
         maker.Build()
-        return Solid(maker.Shape())
+        result = Solid(maker.Shape())
+        self._stash_maker(maker, solid, result)
+        return result
 
-    @staticmethod
-    def _do_chamfer(solid: Any, edges: list, distance: float,
+    def _do_chamfer(self, solid: Any, edges: list, distance: float,
                     distance2: float | None) -> Any:
-        # distance2 None >> symmetric; set >> two-distance. build123d-native either way.
-        return solid.chamfer(distance, distance2, edges)
+        # Symmetric chamfer: build via the raw OCP maker (geometry-identical to build123d) so
+        # its lineage is capturable for persistent naming. Two-distance stays on build123d's
+        # path (its Add(d1, d2, edge, face) face-picking is non-trivial; history is a
+        # follow-up there and geometric carry-forward still names the result).
+        if distance2 is not None:
+            return solid.chamfer(distance, distance2, edges)
+        from build123d import Solid
+        maker = BRepFilletAPI_MakeChamfer(solid.wrapped)
+        for edge in edges:
+            maker.Add(distance, edge.wrapped)
+        maker.Build()
+        result = Solid(maker.Shape())
+        self._stash_maker(maker, solid, result)
+        return result
 
-    @staticmethod
-    def _do_chamfer_angle(solid: Any, edges: list, distance: float, angle: float) -> Any:
+    def _do_chamfer_angle(self, solid: Any, edges: list, distance: float, angle: float) -> Any:
         # Per-edge distance-angle via raw OCP: each edge gets its own auto-picked adjacent
         # face (the first face sharing the edge) as the angle reference. build123d's
         # chamfer cannot do this (it requires all edges on one reference face).
@@ -790,7 +841,9 @@ class Build123dKernel(Kernel):
             maker.AddDA(distance, math.radians(angle), edge.wrapped, face)
         maker.Build()
         from build123d import Solid
-        return Solid(maker.Shape())
+        result = Solid(maker.Shape())
+        self._stash_maker(maker, solid, result)
+        return result
 
     def _robust(self, op, *args, name: str) -> Any:
         """Run a fragile OCCT op and validate the result; raise KernelOpError on failure.
@@ -1056,7 +1109,9 @@ class Build123dKernel(Kernel):
         defeat.SetShape(wrapped)
         defeat.AddFacesToRemove(remove)
         defeat.Build()
-        return Solid(defeat.Shape())
+        result = Solid(defeat.Shape())
+        self._stash_maker(defeat, solid, result)
+        return result
 
     def move_face(self, solid: Any, face: Any, distance: float) -> Any:
         return self._robust(self._do_move_face, solid, face, distance, name="move_face")
@@ -1131,22 +1186,71 @@ class Build123dKernel(Kernel):
         return span if span > 0 else None
 
     def history(self, inputs: list[Any], output: Any) -> ElementHistory:
-        """Report output lineage. Extrude is instrumented; other ops report empty for now.
+        """Report ``output``'s lineage relative to ``inputs``.
 
-        build123d hides the prism builder, so this uses a coarse but correct lineage for a
-        single-profile extrude: every output face descends from the profile face(s). That is
-        enough for deterministic persistent naming and carried-face survival; finer per-op
-        lineage (real BRepTools_History wired through each op) is a logged follow-up.
+        When the last shape-modifying op stashed its OCP maker for THIS output (fillet, chamfer,
+        boolean cut/fuse, defeature), the lineage is the real per-op history OCCT computed: each
+        output face is generated_from the input sub-shapes the maker reports as its origin, or
+        modified_from the input face it continues; a face in neither is CARRIED (keeps its name).
+        Otherwise (extrude and ops whose build123d function discards the maker) it falls back to
+        a coarse but correct lineage: every output face descends from every input face, enough
+        for deterministic naming with geometric carry-forward.
         """
         history = ElementHistory()
         if not inputs:
             return history
+        stashed = self._maker_for(output)
+        if stashed is not None:
+            return self._history_from_maker(stashed, inputs, output)
         input_handles: list[Any] = []
         for shape in inputs:
             input_handles.extend(d["handle"] for d in self.describe_elements(shape))
         for descriptor in self.describe_elements(output):
             if descriptor["kind"] == "face":
                 history.generated_from[descriptor["handle"]] = list(input_handles)
+        return history
+
+    def _maker_for(self, output: Any) -> Any:
+        """The stashed maker if it produced ``output`` (same shape), else None."""
+        stashed = getattr(self, "_last_maker", None)
+        if stashed is None:
+            return None
+        _, _, produced = stashed
+        if produced is output or _same_shape(produced, output):
+            return stashed
+        return None
+
+    def _history_from_maker(self, stashed: Any, inputs: list[Any],
+                            output: Any) -> ElementHistory:
+        """Translate a stashed OCP maker's Generated/Modified/IsDeleted into an ElementHistory."""
+        maker, _, _ = stashed
+        history = ElementHistory()
+        out_faces = [d["handle"] for d in self.describe_elements(output)
+                     if d["kind"] == "face"]
+        in_face_handles: list[Any] = []
+        in_edge_handles: list[Any] = []
+        for shape in inputs:
+            for descriptor in self.describe_elements(shape):
+                if descriptor["kind"] == "face":
+                    in_face_handles.append(descriptor["handle"])
+                elif descriptor["kind"] == "edge":
+                    in_edge_handles.append(descriptor["handle"])
+        # A new face is GENERATED from an input edge (a fillet's rounded face) or an input face
+        # (a chamfer bevel, a boolean's imprinted face). A surviving input face is MODIFIED into
+        # its continuation.
+        for parent in in_edge_handles:
+            for produced in _list_shapes(maker.Generated(parent.wrapped)):
+                for out in _matching_faces(produced, out_faces):
+                    history.generated_from.setdefault(out, []).append(parent)
+        for parent in in_face_handles:
+            for produced in _list_shapes(maker.Generated(parent.wrapped)):
+                for out in _matching_faces(produced, out_faces):
+                    history.generated_from.setdefault(out, []).append(parent)
+            for produced in _list_shapes(maker.Modified(parent.wrapped)):
+                for out in _matching_faces(produced, out_faces):
+                    history.modified_from.setdefault(out, []).append(parent)
+            if maker.IsDeleted(parent.wrapped):
+                history.deleted.append(parent)
         return history
 
     def export(self, solid: Any, path: str, body_colors: dict | None = None) -> None:
@@ -1351,11 +1455,18 @@ def _project_edge(edge: Any, basis: Any) -> dict:
         return {"kind": "circle", "center": (center.X, center.Y),
                 "radius": float(edge.radius)}
     if name in ("bspline", "bezier"):
-        # Projecting a curved (spline/bezier) edge into a 2D descriptor is deferred: OCCT
-        # hands back a BSpline we do not decompose, and no current feature projects a
-        # spline. Fail loudly rather than silently mangling the curve into a line.
-        raise NotImplementedError(
-            "projecting spline/bezier edges onto a sketch plane is not yet supported")
+        # OCCT hands back a BSpline/Bezier curve we do not analytically decompose into a sketch
+        # primitive. Instead sample the edge at a PINNED number of parameters (deterministic,
+        # so names + goldens are stable) and project each point; the result is an INTERPOLATED
+        # spline construction entity passing through the sampled points (build123d rebuilds it
+        # with make_spline). This is how NX/Creo project a freeform edge into a sketch: a fitted
+        # spline through sampled points, not the exact analytic curve.
+        points = []
+        for i in range(_PROJECT_SPLINE_SAMPLES):
+            t = i / (_PROJECT_SPLINE_SAMPLES - 1)
+            local = basis.to_local_coords(edge.position_at(t))
+            points.append((local.X, local.Y))
+        return {"kind": "spline", "points": points}
     a = basis.to_local_coords(edge.position_at(0))
     b = basis.to_local_coords(edge.position_at(1))
     pa, pb = (a.X, a.Y), (b.X, b.Y)
@@ -1374,6 +1485,22 @@ def _type_histogram(shapes: list) -> dict:
         name = _geom_name(shape)
         histogram[name] = histogram.get(name, 0) + 1
     return histogram
+
+
+def _same_shape(a: Any, b: Any) -> bool:
+    """True if two build123d/OCP shapes wrap the same underlying TopoDS_Shape."""
+    wa, wb = _wrapped(a), _wrapped(b)
+    return bool(wa.IsSame(wb)) if hasattr(wa, "IsSame") else wa is wb
+
+
+def _list_shapes(topods_list: Any) -> list:
+    """Materialize an OCP TopTools_ListOfShape into a Python list of TopoDS_Shape."""
+    return list(topods_list)
+
+
+def _matching_faces(topods_face: Any, out_faces: list) -> list:
+    """The build123d face handles in ``out_faces`` that ARE ``topods_face`` (identity match)."""
+    return [h for h in out_faces if h.wrapped.IsSame(topods_face)]
 
 
 def _thin_ring(face: Any, thin: float) -> Any:

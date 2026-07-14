@@ -66,6 +66,8 @@ class _FakeCylinder:
     def __init__(self, center: Point3, axis: str, diameter: float, length: float) -> None:
         self.center = center
         self.axis = axis
+        self.diameter = diameter
+        self.length = length
         self.volume_val = math.pi * (diameter / 2.0) ** 2 * length
 
 
@@ -725,6 +727,8 @@ class FakeKernel(Kernel):
                      max(z for _, _, z in highs)))
         if isinstance(solid, _FakeCombined):
             return solid.bounds
+        if isinstance(solid, _FakeCylinder):
+            return _cylinder_bounds(solid)
         xs = [x for x, _ in solid.face.points]
         ys = [y for _, y in solid.face.points]
         # Bucket 0.1 uses the XY plane; extrude along +Z by distance.
@@ -836,6 +840,19 @@ def _polygon_centroid(points: list[Point2]) -> Point2:
     if abs(a) < 1e-12:
         return points[0]
     return (cx / (6.0 * a), cy / (6.0 * a))
+
+
+def _cylinder_bounds(cyl: "_FakeCylinder") -> Bounds:
+    """Axis-aligned bounds of a cylinder tool from its center, axis, diameter and length."""
+    cx, cy, cz = cyl.center
+    r = cyl.diameter / 2.0
+    axis_index = {"X": 0, "Y": 1, "Z": 2}[cyl.axis]
+    low = [cx - r, cy - r, cz - r]
+    high = [cx + r, cy + r, cz + r]
+    # Along the axis the extent is the full length from the base center; radially it is +/- r.
+    low[axis_index] = [cx, cy, cz][axis_index]
+    high[axis_index] = [cx, cy, cz][axis_index] + cyl.length
+    return ((low[0], low[1], low[2]), (high[0], high[1], high[2]))
 
 
 def _distance_point_to_axis(point: Point3, axis_point: Point3, axis_dir: Point3) -> float:

@@ -36,6 +36,9 @@ class BooleanOp:
                             issues=[BuildIssue(node_id=feature_id, message=str(exc))])
         if isinstance(result, BuildIssue):
             return OpResult(shape=None, provenance={}, issues=[result])
+        # Booleans keep geometric carry-forward (history None): build123d's post-boolean
+        # coplanar-face merge invalidates the OCP maker's per-face lineage, so real per-op
+        # boolean names need a composed BRepTools_History (a documented follow-up).
         return OpResult(shape=result, provenance={}, issues=[])
 
     def _ref_mode(self, params: dict, kwargs: dict, feature_id: str, kernel: Kernel) -> Any:

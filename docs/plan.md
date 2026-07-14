@@ -62,7 +62,11 @@ direct-edit spine (`DirectEditGuard` enforcing the envelope + `DirectEditRunner`
 oracle) with `defeature`, `offset`, `move_face`, and resize-baked-dress-up as a param edit;
 4.3a/b shipped one-shot relational edits (`relate`: parallel/coplanar/perpendicular/symmetric +
 coaxial/tangent), verified Creo-style mixed mode, import validate-on-load, and the subprocess
-guard for direct offset on imported bodies. The Phase 4 capstone gate is met (import >> direct-edit
+guard for direct offset on imported bodies. Bucket 4.4 (Phase 4 completeness) shipped feature
+pattern + feature mirror, real per-op history for maker ops (fillet/chamfer/revolve/defeature),
+curved-edge projection into a sketch, multibody-moving + cylinder-to-cylinder relations, and
+`reposition_hole` (dropping `replace_face` with a callout: OCP cannot construct the required
+face-modification tool). The Phase 4 capstone gate is met (import >> direct-edit
 within the envelope >> re-export; out-of-envelope refused). **Phase 5 is in progress:** bucket 5.0
 (the assembly spine) is DONE - a separate `.asm.hocon` document of part instances with explicit
 placement, `ncad assemble` composing cached part glbs into a scene sidecar, and an assembly
@@ -136,6 +140,7 @@ modeling, the domain profiles, CAM/PCB seams, and a plugin layer.
 | 14 | Multibody dynamics · advanced surfacing · hardening | motion/surface | `[ ]` |
 | 15 | **CAM seam & first toolpaths** (process profile) `(A)` | cam | `[ ]` |
 | 16 | **PCB/ECAD seam & board-to-solid** (data-model profile) `(A)` | ecad | `[ ]` |
+| 17 | **Robotics & physics-engine simulation** (MuJoCo first-class backend) `(A)` | robotics | `[ ]` |
 | P | References/provenance · caching · viewer · testing · migration | cross-cutting | `[~]` |
 
 > **Buckets, not just phases.** Each phase below is decomposed into numbered
@@ -710,35 +715,62 @@ a fillet directly within the measured envelope, and re-export, references surviv
 out-of-envelope inputs are **refused with an id-tagged reason**, never silently
 corrupted.
 
-**Deferred backlog (Phase 4 buckets, gather here so nothing is lost):**
-- **Persistent names (4.1):** wire OCCT per-op history through EACH op's `OpResult.history`
-  (only extrude is instrumented; the rest fall back to geometric carry-forward, so full
-  "survives every edit" robustness on dress-up/booleans is partial); instrument
-  sweep/loft/revolve/shell/draft/rib/wrap/pattern/mirror/transform history; foreign-STEP import
-  robustness for the naming seed (dirty/non-solid/assembly STEP).
-- **Direct ops (4.2 / 4.2b):** `replace_face`; reposition baked `hole` (move the cut tool +
-  re-cut); a direct `modify_fillet`/`modify_chamfer` for HISTORY-FREE imported solids (when
-  there is no feature to re-run); per-face offset (documented OCCT weakness, whole-solid only
-  today); wire OCCT per-op history through the direct ops so their outputs get true lineage
-  names (currently geometric carry-forward, shares the 4.1 item).
-- **Relational edits (4.3a/b):** multibody-moving relations (move ONE body of a multibody part;
-  4.3a/b move the whole single-body running solid); richer gate examples once multibody-moving
-  lands (today's examples are self-referencing no-ops, real behavior in the real-kernel tests);
-  cylinder-to-cylinder tangent (4.3b shipped planar-face-to-cylinder tangent).
-- **Curved-edge projection into a sketch (from Phase 1 bucket 1.6):** projecting an
-  ellipse / spline / BSpline edge onto a sketch plane. `build123d_kernel._project_edge`
-  currently refuses BSpline/bezier edges (OCCT hands back a curve we do not decompose), so the
-  ellipse/spline reference-into-sketch path is not yet supported. This is a reference-layer
-  capability (it belongs with `project_edges` / the persistent-name refs), so it lives in the
-  Phase 4 backlog rather than Phase 1. Straight-edge + arc + circle projection already ships.
-- **Imported hardening (4.3b, partial):** SHIPPED - import validate-on-load + the subprocess
-  guard activated for direct `offset` on imported bodies. STILL DEFERRED - subprocess
-  face-targeting (defeature/move_face on imports currently run in-process + oracle, not
-  hang-isolated, until face re-resolve by geometric key across the process boundary is proven);
-  deep dirty-STEP repair (healing sweeps, assembly/multi-solid STEP, non-solid recovery).
-- **Excluded from v1 entirely** (below): auto-maintained relations, fillet/blend/tangent-chain
-  face moves, per-face variable offset, self-intersecting offsets. These are NOT deferred
-  follow-ups; they need a commercial kernel + constraint solver and are out of scope for v1.
+**Bucket 4.4: Phase 4 completeness (persistent-name / direct-modeling / relational)** - DONE
+The single Phase-4 completeness bucket of the phases-1-5 program (in-phase gaps only). Built:
+- [x] **feature_pattern + feature_mirror** (moved here from 3.7): a feature's cut/boss tool is
+      captured and re-applied at N pattern locations / reflected across a plane, then ONE
+      multi-tool boolean on the running solid. No rebuild-replay engine needed (tool-capture +
+      multi-tool boolean is additive); feature-ordering rule 12e (tool built first, applies to
+      the running solid). Gate: `mounting_cover` (6 feature-patterned counterbores).
+- [x] **Real per-op history for maker ops:** fillet/chamfer/revolve/defeature build via the raw
+      OCP maker (geometry-identical, verified) and stash it; `kernel.history` translates the
+      maker's Generated/Modified/IsDeleted into a real `ElementHistory` (fillet marks only the
+      rounded faces generated, carried faces keep names across an upstream edit). **Booleans keep
+      geometric carry-forward** (called out): build123d's post-boolean coplanar-face merge
+      invalidates the maker's per-face lineage, so true per-face boolean names need a composed
+      `BRepTools_History` across the clean step (documented follow-up). sweep/loft/rib/wrap go
+      through build123d functions that discard the maker (carry-forward, called out).
+- [x] **Curved-edge projection into a sketch** (moved here from 1.6): `_project_edge` samples a
+      BSpline/bezier edge at a pinned N via `position_at(t)` and emits an interpolated
+      construction spline (was refused before). Gate: `curved_import_edit` (imported spline top
+      edge projected).
+- [x] **Multibody-moving relate:** `relate moving_body=<id>` moves ONE body of a multibody
+      running shape, the rest pass through with their born-once ids. Gate: `mirrored_hinge` (pin
+      body seated coaxial to the knuckle bore).
+- [x] **Cylinder-to-cylinder tangent:** `RelationalSolver` gained the cyl-cyl tangent form (axis
+      distance = r1+r2 external or |r1-r2| internal, `internal=true`); the `relate` op dispatches
+      to it when the moving face is also cylindrical.
+- [x] **reposition_hole** (direct op): fill a baked/imported hole (fuse a plug) and re-cut at a
+      target position (fill + re-cut, reusing tool capture). Robust on the validity gate.
+- [x] **`aluminum_6061` material alias** (American spelling) via HOCON substitution
+      (`= ${aluminium_6061}`) in `materials/seed.hocon`.
+
+**Dropped with callout (genuinely undoable on our stack, never faked):**
+- **`replace_face`:** an arbitrary face swap needs a custom `BRepTools_Modification` subclass fed
+      to `BRepTools_Modifier`, but OCP cannot construct `BRepTools_Modification` in Python
+      (`TypeError: No constructor defined`) and the concrete subclasses only apply transforms. No
+      rebuild-and-boolean synthesis exists for an arbitrary surface swap. See
+      `docs/research/direct-modeling-occt-ceiling.md` (4.4 spike verdicts). Revisit only with a
+      commercial kernel or a py-OCCT modification hook.
+
+**Moved to Phase 12 (imported-geometry hardening):**
+- subprocess face-targeting for defeature/move_face on imports (face re-resolve by geometric key
+  across the process boundary, hang-isolated); deep dirty-STEP repair (healing sweeps,
+  assembly/multi-solid STEP, non-solid recovery). These are hardening, not in-phase completeness.
+
+**Still deferred (per-op history tail, shares the 4.1 item):** instrument
+sweep/loft/rib/wrap/pattern/mirror/transform history where an accessible OCP maker exists;
+composed `BRepTools_History` for true per-face boolean names; a direct
+`modify_fillet`/`modify_chamfer` for history-free imported solids; per-face offset (documented
+OCCT weakness, whole-solid only today).
+
+**NEXT completeness bucket: 5.7** (Assembly / Phase 5 completeness), the final bucket of the
+phases-1-5 completeness program.
+
+**Excluded from v1 entirely** (below): auto-maintained relations, fillet/blend/tangent-chain
+face moves, per-face variable offset, self-intersecting offsets. These are NOT deferred
+follow-ups; they need a commercial kernel + constraint solver and are out of scope for v1
+(confirmed still excluded by bucket 4.4).
 
 > **Excluded from v1** (`(A)`, design §19): auto-*maintained* relational inference
 > ("Live Rules" = commercial kernel + D-Cubed solver, multi-year), moving faces in
@@ -1056,6 +1088,11 @@ refs); **carried by** STEP AP242 (Phase 13).
       cylindricity), orientation (parallelism/perpendicularity/angularity),
       location (position/concentricity/symmetry), runout
 - [ ] **Dimensional tolerances**, **surface finish**, **weld symbols**, notes
+- [ ] **Tolerance / GD&T stack-up analysis** *(owned, geometric - not a physics
+      solver)*: worst-case and statistical (RSS) dimension-chain analysis over an
+      assembly's dims + mates; ncad has the dimensions and the assembly, so this is
+      ours to compute (no external engine). Reports the accumulated tolerance and the
+      contributing chain by `id`. `(A)`
 - [ ] **Two forms:** semantic (machine-readable) + presentation (graphic in saved
       views)
 - [ ] **Saved 3D views**; PMI shown in the viewer
@@ -1326,19 +1363,29 @@ with lightweight reps; interference query stays interactive.
 - [ ] **PartCAD plugin**: PartCAD YAML ⇄ ncad document (target compatibility,
       isolated, maintainable)
 - [ ] **Other plugins** (same contract): OpenSCAD import; vendor/format converters
-- [ ] **FEA/CFD export seam** *(delegate the solve, never write one, design §17)*:
-      export the geometry + a **mesh + boundary-conditions** deck to a mature **open
-      FEM engine** (**CalculiX**, **Elmer**, **Z88**), the way FreeCAD shells out.
-      ncad owns the model - geometry, a mesh (via **Gmsh**), the analytical model from
-      the structural profile (§Phase 11), loads/constraints/materials as authored
-      inputs - and writes the engine's input deck (e.g. CalculiX/Abaqus-style `.inp`,
-      or `.unv`); the analysis runs **outside** ncad, results are read back for display
-      only. Not a solver we write (the FEA/CFD line, design §17); `(A)`
+- [ ] **Analysis export seams** *(delegate every field/system solve, never write one,
+      design §17; see "Analysis & simulation strategy" below for the full map)*. ncad
+      owns the *model* (geometry, mesh via **Gmsh**, the analytical/network model from
+      the domain profiles, and loads/BCs/materials as authored inputs) and writes each
+      engine's input deck; the solve runs **outside** ncad, results read back for
+      display only. Each is `(A)`:
+  - **Structural / thermal FEA (solid mesh):** **CalculiX** (also modal/thermal),
+    **Code_Aster**, **Z88**; deck = CalculiX/Abaqus-style `.inp` or `.unv`
+  - **1D frame / beam structural:** **frame3dd** or **PyNite** (pure Python, can run
+    in-process) or **OpenSees** (seismic) - fed directly by the structural profile's
+    analytical line/node model (§Phase 11), a much lighter seam than solid FEA
+  - **CFD / multiphysics:** **Elmer**
+  - **Pipe-network flow (hydraulics):** **EPANET** - fed by the process-plant piping
+    network (§Phase 11); the P&ID/route topology *is* the EPANET input
+  - **1D fluid-power / hydraulic-mechanical systems:** **OpenModelica** (Modelica.Fluid
+    / OpenHydraulics) - a system sim that can *drive* motion (§Phase 6) as a driver
+    source, not just a downstream analysis
 - [ ] (later) JT / 3D-PDF lightweight exchange
 
 **Gate:** a PartCAD assembly imports as an ncad document and re-exports as STEP
 AP242 without loss of structure; a part exports a valid mesh + boundary-condition
-deck that an open FEM engine (CalculiX) loads and solves.
+deck that an open FEM engine (CalculiX) loads and solves; a structural frame exports
+to frame3dd/PyNite and a piping network to EPANET.
 
 ---
 
@@ -1348,9 +1395,12 @@ deck that an open FEM engine (CalculiX) loads and solves.
 
 - [ ] **Multibody dynamics (MBD), rigid bodies only:** mass/inertia (from
       `BRepGProp`) + gravity, forces/torques, springs/dampers, **simple contact** >>
-      reaction forces & accelerations (Ondsel MbD solver). **Line drawn here**
-      (design §19): *no* flexible/FEM-coupled bodies, friction-rich or continuous
-      contact. That is physics-engine / FEA territory and an export concern (§17).
+      reaction forces & accelerations (**Ondsel** MbD solver, the Adams-class accurate
+      rigid-body dynamics). **Line drawn here** for the *engineering-dynamics* solve
+      (design §19): *no* flexible/FEM-coupled bodies. Contact-rich, friction-rich, and
+      robotics-grade simulation is **not squeezed into Ondsel** - it is delegated to a
+      real physics engine, which ncad adopts as a first-class backend (see Phase 17,
+      robotics / physics-engine simulation).
 - [ ] **Advanced surfacing:** true Class A stays **out of scope** unless a licensable
       specialist module (e.g. C3D FairCurveModeler) is adopted (design §19); this
       bucket is that evaluation, not a build commitment.
@@ -1442,6 +1492,83 @@ lowering), Phase 13 (interchange). Built late; the seam is designed from Phase 0
 > the data model + geometric DRC + 3D lowering; **delegates** routing, autoplacement,
 > fab output, and physics DRC to **KiCad**. Gerber/ODB++/IPC-2581 are **plugin
 > converters** (design §14).
+
+---
+
+## Phase 17: Robotics & physics-engine simulation `(A)`
+
+**Goal:** a **first-class robotics backend** - drive and simulate robots/mechanisms
+with contact-rich, friction-rich, fast physics that the engineering-dynamics solver
+(Ondsel, Phase 14) deliberately does not cover. **Depends on** Phase 5 (assemblies /
+joints), Phase 6 (motion / kinematics). Built late; the seam is designed from the
+joint model.
+
+> **Why a physics engine, and why MuJoCo.** Ondsel gives *accurate* rigid-body
+> engineering dynamics (reaction forces, correct pendulum period). It does **not**
+> give the fast, stable, contact-rich simulation robotics needs (grasping, walking,
+> manipulation, sim-to-real, RL/control). That is a **physics engine**, a different
+> tool, and ncad adopts **MuJoCo** (Apache-2.0) as a **first-class backend** for it
+> (Project Chrono, BSD, is the alternative behind the same seam). This is delegation
+> like the rest (§17): ncad owns the *model* (bodies, joints, geometry, inertias,
+> actuators, contacts) and lowers it to the engine; the engine owns the *solve*.
+
+- [ ] **Robot / mechanism model:** the assembly joint graph (§7) + link geometry +
+      mass/inertia (`BRepGProp`) + **actuators** (motors/drivers on joint DoF) +
+      **contact geometry** (collision shapes) as a first-class robot description
+- [ ] **Lower to MuJoCo:** export the model to **MJCF** (MuJoCo's XML) - bodies,
+      joints (revolute/slider/ball/free), inertials, geoms/collision, actuators,
+      equality constraints; the piping/structural/assembly geometry provides the
+      shapes. (MJCF/URDF export is the design §14 interchange, shared with the
+      articulated-asset exchange.)
+- [ ] **Simulate & read back:** run MuJoCo for contact-rich dynamics, control, and
+      **sim-to-real**-style rollouts; stream states back to the viewer (§13 playback);
+      trace curves / measures over time (§8) come back the same channel as kinematics
+- [ ] **Control & RL hooks:** expose the model for external controllers / RL
+      (MuJoCo's home turf); ncad supplies the environment, not the policy
+- [ ] **URDF interop:** import/export **URDF** (the ROS robot format) so ncad robots
+      round-trip with the robotics ecosystem; **Isaac / PyBullet / Drake** reachable
+      behind the same lower-to-description seam `(A)`
+
+**Gate:** an articulated robot (a serial arm, from Phase 6's robot-arm example)
+lowers to MJCF, simulates a contact task in MuJoCo, and plays the result back in the
+viewer; the same model round-trips to URDF.
+
+> **Ownership line:** ncad owns the robot **model** (links, joints, inertias,
+> actuators, collision geometry) + MJCF/URDF lowering + result playback; **delegates**
+> the physics solve, control, and RL to **MuJoCo** (first-class) / Chrono / Isaac.
+> The engineering-dynamics solve stays Ondsel (Phase 14); this is the robotics /
+> contact-simulation seam.
+
+---
+
+## Analysis & simulation strategy (the owned-vs-delegated map)
+
+One principle governs every analysis domain: **ncad owns the *model* (geometry, mesh,
+the analytical/network abstraction, joints, inertias, loads/BCs as authored inputs)
+and the *constraint/kinematic* solve; every *field-physics* and *contact-physics*
+solve is delegated to a mature open engine behind an export/interface seam. ncad never
+writes a field solver** (design §17), the same discipline as the kernel (OCCT), CAM
+(Clipper2/opencamlib), and PCB (KiCad) decisions.
+
+| Domain | What it solves | ncad status | Open engine | Fed by |
+|--------|----------------|-------------|-------------|--------|
+| Statics (assembly) | constraint solution + DoF | **Owned** (Ph 5) | `py-slvs` | assembly mates |
+| Kinematics | geometry-driven motion, FK/IK | **Owned** (Ph 6) | `py-slvs` stepped | joints/drivers |
+| Rigid-body dynamics (MBD) | forces >> reactions/accel | **Owned, bounded** (Ph 14) | **Ondsel** | mass props |
+| Robotics / contact physics | contact-rich sim, control, RL | **Delegated, first-class** (Ph 17) | **MuJoCo** (Chrono/Isaac alt) | robot model >> MJCF/URDF |
+| Structural FEA (solid) | stress/strain/modal/thermal | **Delegated** (Ph 13) | **CalculiX** / Code_Aster / Z88 | mesh (Gmsh) + BCs |
+| 1D frame / beam | member forces, deflection | **Delegated** (Ph 13) | **frame3dd** / **PyNite** / OpenSees | structural analytical model |
+| CFD / multiphysics | flow/thermal fields | **Delegated** (Ph 13) | **Elmer** | mesh + BCs |
+| Pipe-network flow (hydraulics) | node pressures, pipe flows | **Delegated** (Ph 13) | **EPANET** | piping network / P&ID |
+| Fluid-power / hydraulic systems (1D) | circuit pressure/flow, actuator motion | **Delegated** (Ph 13) | **OpenModelica** (Modelica.Fluid) | can *drive* motion (Ph 6) |
+| Mass properties | mass, CoG, inertia | **Owned** | `BRepGProp` (OCCT) | the solid |
+| Tolerance / GD&T stack-up | worst-case/statistical dim chains | **Owned** `(A)` | (ncad, geometric) | dims + assembly (Ph 8) |
+
+**Deliberately out of scope** (specialist, revisit only via a licensable/plugin
+module): fatigue, acoustic, electromagnetic (Elmer touches EM), injection-mold flow,
+topology optimization / generative design (needs an FEA loop + optimizer), and any
+*flexible-body* / FEM-coupled dynamics. All would be **delegate-or-plugin** if ever
+pursued, never a solver we write.
 
 ---
 

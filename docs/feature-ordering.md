@@ -238,6 +238,20 @@ solid by another body; the tool body must be built earlier so the reference reso
 - **Seen in:** gate-3.7 `bimetal_bushing` (the sleeve tool is built first so the bushing is the
   running solid at the split; authoring the sleeve last gave a zero-volume second region).
 
+### 12e. A feature_pattern / feature_mirror needs its tool feature built first, and applies to the running solid
+
+`feature_pattern` / `feature_mirror` re-apply a tool feature's cut/boss: they reference a
+tool-producing feature (its output solid is the cutter/boss) and apply a multi-tool boolean to
+the RUNNING solid. Two order rules follow (same shape as 12c split-by-tool):
+
+- The **tool feature must be built first** so the reference resolves.
+- Build the tool feature BEFORE the target so the TARGET is the running solid; if the tool
+  extrude is authored last it becomes the running solid and the pattern operates on the tool
+  (fails or is silently wrong). Build tool, then target, then feature_pattern.
+- **Failure mode:** cutter-last gives "cut failed: dimensions inconsistent" (cutting the cutter
+  by copies of itself).
+- **Seen in:** gate-4.4 `mounting_cover` (the counterbore cutter is built before the cover).
+
 ### 13. Direct-edit ops (`defeature`, `offset`) come AFTER the geometry they act on
 
 Direct/synchronous ops edit the *current* B-rep in place (design section 3): they consume the
@@ -270,9 +284,22 @@ direct-modeling-envelope.md`), enforced by the DirectEditGuard before the kernel
   `relate` (planar parallel/coplanar/perpendicular/symmetric, or coaxial/tangent) must come AFTER
   the features that build both the moving body and the geometry the reference belongs to. The
   coaxial/tangent variants (4.3b) need a CYLINDRICAL reference face, so they must follow the
-  feature that creates that round face. It applies a rigid transform at build time and is not
+  feature that creates that round face. Tangent has two forms: plane-to-cylinder (moving face
+  planar) and cylinder-to-cylinder (4.4, moving face also cylindrical, `internal=true` for inside
+  tangency); both need the round face(s) built first. It applies a rigid transform at build time
+  and is not
   maintained if upstream geometry later changes (maintained relations are Phase 5 assembly mates,
   not direct editing).
+- **`reposition_hole` (4.4) comes after the drilled hole it moves.** It reads a hole's
+  cylindrical face, fills the hole (fuse a plug), and re-cuts at the target, so it must follow the
+  feature (or import) that created the hole; a `select faces where type='cylinder'` reference must
+  resolve to that hole. `replace_face` is NOT available (OCCT/OCP cannot construct the required
+  face-modification tool; see `docs/research/direct-modeling-occt-ceiling.md`).
+- **`relate moving_body=<id>` (4.4) needs a prior multibody producer.** With `moving_body` set,
+  `relate` moves ONE named body of the running BodySet and passes the rest through with their
+  born-once ids; so it must come after a keep-separate producer (a `boolean union merge=false`, a
+  `split`, or a feature that keeps bodies apart). On a single-body running shape `moving_body` is
+  refused (there is no body set to index). Same one-shot rule as the whole-body `relate`.
 
 - **Failure mode:** a `defeature` on a plain prism face is a silent OCCT no-op (the oracle
   rejects it); the robust target is a face whose removal genuinely changes the solid (a boss top

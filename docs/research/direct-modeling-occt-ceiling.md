@@ -74,3 +74,17 @@ tangent-failure rate, hang/timeout incidence. This defines the achievable envelo
 **Confidence:** high on APIs/limits/market pattern (OCCT docs + ~20 reproducible
 tracker/GitHub issues). **Biggest unknown:** empirical success rate of the
 well-behaved subset on ncad's own real geometry. The spike closes it.
+
+## Bucket 4.4 spike verdicts (2026-07-14)
+
+- **`replace_face`: DROPPED (genuinely undoable on our stack).** A face swap needs a custom
+  `BRepTools_Modification` subclass fed to `BRepTools_Modifier`, but OCP does not expose a Python
+  constructor for `BRepTools_Modification` (`TypeError: No constructor defined`), and the only
+  concrete subclasses (`Trsf`/`GTrsf`/`NurbsConvert`/`Copy` modifications) apply transforms, not a
+  new surface. There is no rebuild-and-boolean synthesis for an arbitrary face swap either. Called
+  out and not built (never faked); revisit if a commercial kernel or a py-OCCT modification hook
+  lands.
+- **`reposition_hole`: BUILT.** A history-free "move hole": read the hole's cylindrical face
+  (axis/radius/location), FILL it by fusing a plug cylinder spanning the solid along the axis, then
+  RE-CUT an identical cylinder at the target. Purely additive booleans, robust on the validity
+  gate. See `src/ncad/ops/reposition_hole_op.py`.

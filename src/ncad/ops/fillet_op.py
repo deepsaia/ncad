@@ -35,7 +35,8 @@ class FilletOp:
             except KernelOpError as exc:
                 return OpResult(shape=None, provenance={},
                                 issues=[BuildIssue(node_id=feature_id, message=str(exc))])
-            return OpResult(shape=result, provenance={}, issues=[])
+            return OpResult(shape=result, provenance={}, issues=[],
+                            history=kernel.history([shape_in], result))
         if "edges" in refs:
             edges = refs["edges"] or []
         else:
@@ -63,4 +64,5 @@ class FilletOp:
         except KernelOpError as exc:
             return OpResult(shape=None, provenance={},
                             issues=[BuildIssue(node_id=feature_id, message=str(exc))])
-        return OpResult(shape=result, provenance={}, issues=[])
+        return OpResult(shape=result, provenance={}, issues=[],
+                        history=kernel.history([shape_in], result))
