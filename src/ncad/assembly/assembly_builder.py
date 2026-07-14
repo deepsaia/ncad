@@ -314,25 +314,37 @@ class AssemblyBuilder:
         return prims, signature
 
     def _lower_mate(self, mate: dict, local_frames: dict, issues: list) -> list[dict] | None:
-        """Resolve a mate's refs + lower to primitives with a_ref/b_ref attached; None on error."""
+        """Resolve a mate's refs + lower to primitives with a_ref/b_ref attached; None on error.
+
+        A mate references up to THREE connectors (between[0..2]); symmetric/width use the third as
+        the 'about' / second bounding plane. Each primitive's a/b role tag (``A.*``/``B.*``/
+        ``C.*``) selects which between-entry the solver resolves, so a primitive can target any of
+        the three connectors.
+        """
         between = mate.get("between") or []
         a_ref = between[0] if len(between) >= 1 else None
         b_ref = between[1] if len(between) >= 2 else None
+        c_ref = between[2] if len(between) >= 3 else None
         frame_a = self._frame_for(a_ref, local_frames)
         frame_b = self._frame_for(b_ref, local_frames) if b_ref else None
+        frame_c = self._frame_for(c_ref, local_frames) if c_ref else None
         if frame_a is None or (b_ref is not None and frame_b is None):
             issues.append({"constraint_id": mate.get("id"),
                            "message": f"mate {mate.get('id')!r} references an unknown connector"})
             return None
+        lowering_mate = dict(mate)
+        if frame_c is not None:
+            lowering_mate["_frame_c"] = frame_c
         try:
-            prims = self._lowering.lower(mate, frame_a, frame_b)
+            prims = self._lowering.lower(lowering_mate, frame_a, frame_b)
         except MateError as exc:
             issues.append({"constraint_id": mate.get("id"), "message": str(exc)})
             return None
+        by_role: dict[str, dict | None] = {"A": a_ref, "B": b_ref, "C": c_ref}
         for prim in prims:
             prim["id"] = mate["id"]
-            prim["a_ref"] = a_ref
-            prim["b_ref"] = b_ref
+            prim["a_ref"] = by_role.get(_role(prim.get("a")) or "A", a_ref)
+            prim["b_ref"] = by_role.get(_role(prim.get("b")) or "B", b_ref)
         return prims
 
     def _frame_for(self, ref: dict | None,
@@ -412,6 +424,13 @@ class AssemblyBuilder:
         glb = os.path.basename(artifacts[part_name])
         built_glbs[key] = glb
         return glb
+
+
+def _role(tag: str | None) -> str | None:
+    """The connector role letter (A/B/C) from a primitive role tag like 'A.origin' or 'C.plane'."""
+    if not tag:
+        return None
+    return tag.split(".", 1)[0]
 
 
 def _appearance_color(resolver: Any, shape: Any, kernel: Any) -> tuple | None:

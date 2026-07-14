@@ -57,11 +57,13 @@ definitions {
     properties {
       id { type = string }
       type { enum = ["coincident", "mate", "flush", "align", "concentric", "parallel",
-                     "perpendicular", "angle", "distance", "offset", "lock"] }
+                     "perpendicular", "angle", "distance", "offset", "lock",
+                     "tangent", "symmetric", "width"] }
+      # up to THREE refs: symmetric/width use the third as the 'about' / second bounding plane.
       between {
         type = array
         minItems = 1
-        maxItems = 2
+        maxItems = 3
         items = ${definitions.mate_ref}
       }
       value { type = number }
