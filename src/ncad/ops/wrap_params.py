@@ -20,12 +20,17 @@ class WrapParamError(Exception):
 
 
 def wrap_kwargs(params: dict) -> dict:
-    """Return the validated wrap description for a wrap feature."""
-    if "depth" not in params:
-        raise WrapParamError("wrap needs a 'depth'")
-    depth = float(params["depth"])
+    """Return the validated wrap description for a wrap feature.
+
+    ``depth`` (or its alias ``height`` for embossing) is the emboss/engrave amount along the
+    face normal. A missing font falls back to the default at the kernel (logged).
+    """
+    raw_depth = params.get("depth", params.get("height"))
+    if raw_depth is None:
+        raise WrapParamError("wrap needs a 'depth' (or 'height' for emboss)")
+    depth = float(raw_depth)
     if depth <= 0.0:
-        raise WrapParamError(f"wrap 'depth' must be positive; got {params['depth']}")
+        raise WrapParamError(f"wrap 'depth'/'height' must be positive; got {raw_depth}")
     font_size = float(params.get("font_size", 5.0))
     if font_size <= 0.0:
         raise WrapParamError(

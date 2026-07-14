@@ -31,6 +31,7 @@ from build123d import (
     Vector,
     Vertex,
     Wire,
+    available_fonts,
     draft,
     export_gltf,
     export_step,
@@ -105,6 +106,58 @@ _TRANSITIONS = {"transformed": Transition.TRANSFORMED, "round": Transition.ROUND
 # tube. Paired with a bbox-relative linear deflection (_deflection); together they are the
 # pinned viewer tessellation.
 _ANGULAR_DEFLECTION = 0.2
+
+
+_DEFAULT_FONT = "Arial"
+
+
+def _resolve_font(font: str) -> str:
+    """Return ``font`` if installed, else the default (logged).
+
+    build123d/OCCT silently falls back to a default font (Arial) with only a stderr warning
+    when a requested font is missing; this makes the fallback explicit and logs it through our
+    logger so a missing font on the ncad host is visible, and returns a font name that builds.
+    """
+    if not font:
+        return _DEFAULT_FONT
+    try:
+        installed = {info.name for info in available_fonts()}
+    except Exception:  # noqa: BLE001 - font enumeration is best-effort; fall through to trust
+        return font
+    if font in installed:
+        return font
+    logger.warning("font %r is not installed on this host; falling back to %r",
+                   font, _DEFAULT_FONT)
+    return _DEFAULT_FONT
+
+
+def _wrap_curved(solid: Any, face: Any, shape2d: Any, offset: Point2, rotation: float,
+                 depth: float, mode: str) -> Any:
+    """Emboss/engrave a 2D profile onto a curved (cylinder/cone) face by projecting it.
+
+    The flat glyph/profile faces are placed tangent to the curved wall at the target point,
+    projected onto the surface (build123d Face.project_to_shape), then thickened along each
+    projected face's normal (outward = emboss, inward = engrave).
+    """
+    center = face.center()
+    normal = face.normal_at(center)
+    # A tangent placement plane at the face center: its Z is the outward surface normal, so
+    # the flat text sits just off the wall facing inward for projection.
+    place = Plane(origin=center + normal * depth, z_dir=-normal)
+    flat = place * Pos(offset[0], offset[1]) * Rot(0, 0, rotation) * shape2d  # pyrefly: ignore[unsupported-operation]
+    direction = (-normal.X, -normal.Y, -normal.Z)
+    result = solid
+    for glyph in flat.faces():
+        for projected in glyph.project_to_shape(solid, direction=direction):
+            # project_to_shape may hand back a Shell; thicken each of its faces along the
+            # surface normal. emboss grows OUTWARD (+normal) and adds; engrave grows INWARD
+            # (-normal) and cuts, so the tool lands inside the wall.
+            for pf in projected.faces():
+                pnormal = pf.normal_at(pf.center())
+                grow = pnormal if mode == "emboss" else -pnormal
+                tool = extrude(pf, amount=abs(depth), dir=grow)  # pyrefly: ignore[bad-argument-type]
+                result = result + tool if mode == "emboss" else result - tool
+    return result
 
 
 def _basis(plane: Any, offset: float) -> Any:
@@ -285,11 +338,11 @@ class Build123dKernel(Kernel):
         basis = _basis(plane, offset)
         font_style = _FONT_STYLES.get(style, FontStyle.REGULAR)
         # build123d Text yields a Sketch of glyph faces whose letter counters are inner-loop
-        # holes (multi-loop faces). font defaults to build123d's when unspecified. Placed on
-        # the sketch plane at (u, v) with in-plane rotation, matching the wrap-op placement.
+        # holes (multi-loop faces). A missing font falls back to the default (logged), matching
+        # the wrap op. Placed on the sketch plane at (u, v) with in-plane rotation.
         kwargs: dict = {"font_size": size, "font_style": font_style}
         if font:
-            kwargs["font"] = font
+            kwargs["font"] = _resolve_font(font)
         glyphs = Text(text, **kwargs)
         return basis * Pos(at[0], at[1]) * Rot(0, 0, rotation) * glyphs  # pyrefly: ignore[unsupported-operation]
 
@@ -557,15 +610,16 @@ class Build123dKernel(Kernel):
     def _do_wrap(solid: Any, face: Any, text: str | None, profile: Any, font_size: float,
                  font: str, font_style: str, depth: float, mode: str,
                  offset: Point2, rotation: float) -> Any:
-        # text builds glyphs; otherwise the profile is a prewrapped 2D face. Place it on the
-        # target face's plane (offset u/v, in-plane rotation). emboss extrudes OUTWARD along
-        # the face normal (+depth) and adds; engrave extrudes INWARD (-depth) and cuts, so
-        # the tool lands inside the material rather than floating above the surface.
+        # text builds glyphs (multi-line if it contains newlines); otherwise the profile is a
+        # prewrapped 2D face. A missing font falls back to the default (logged). emboss adds
+        # OUTWARD by depth; engrave cuts INWARD by depth.
         style = _FONT_STYLES.get(font_style, FontStyle.REGULAR)
-        shape2d = (Text(text, font_size=font_size, font=font, font_style=style)
+        shape2d = (Text(text, font_size=font_size, font=_resolve_font(font), font_style=style)
                    if text is not None else profile)
-        # The Plane * Pos * Rot * sketch placement and extrude are the untyped build123d/OCP
-        # boundary (see the [tool.pyrefly] note): correct at runtime, wide in the stubs.
+        if face.geom_type in (GeomType.CYLINDER, GeomType.CONE):
+            return _wrap_curved(solid, face, shape2d, offset, rotation, depth, mode)
+        # Flat face: place on the face's plane (offset u/v, in-plane rotation) and extrude.
+        # The Plane * Pos * Rot * sketch placement is the untyped build123d/OCP boundary.
         placed = Plane(face) * Pos(offset[0], offset[1]) * Rot(0, 0, rotation) * shape2d  # pyrefly: ignore[unsupported-operation]
         if mode == "emboss":
             return solid + extrude(placed, amount=abs(depth))  # pyrefly: ignore[bad-argument-type]

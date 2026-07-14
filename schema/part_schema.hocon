@@ -104,6 +104,8 @@ definitions {
       pitch { type = number, exclusiveMinimum = 0 }
       length { type = number, exclusiveMinimum = 0 }
       internal { type = boolean }
+      # wrap emboss height (an alias of depth for embossing raised text/profiles).
+      height { type = number, exclusiveMinimum = 0 }
       counterbore { type = object }
       countersink { type = object }
       thread { type = string }
