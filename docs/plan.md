@@ -411,28 +411,45 @@ five buckets; the phase gate is the 1.5 gate.
   chamfer variant (variable-radius deferred in 2.6); wrap omitted (needs a stable
   post-boolean face selector, deferred).
 
-**Deferred backlog (Phase 2 buckets, gather here so nothing is lost):**
-- **Fillet/chamfer (2.6):** variable-radius / face / full-round fillets (raw OCP
-  `BRepFilletAPI_MakeFillet`); vertex chamfer; named-face reference for distance-angle
-  (needs a face selector).
-- **Curve/spline (2.3.5):** solver-capability bucket for true curve constraints
-  (tangent-to-spline, point-on-spline, G2 smooth); general B-spline / NURBS with weights /
-  endpoint tangents / periodic splines; spline edge projection in `_project_edge`.
-- **Loft (2.4):** loft guide/rail curves; open/surface loft; closed/periodic loft; general
-  datum planes (offset / angled / on-face / 3-point) as a first-class referenceable entity
-  superseding the sketch `plane_offset` shortcut.
-- **Rib (2.5):** until-material (to-face) rib extent - a native rib that grows and is
-  auto-trimmed to the adjacent faces, so a gusset needs no manual boolean-trim (gate-2.9
-  trims a rectangular rib into a triangular gusset with a pocket; the native trim is the
-  proper fix); one-sided / parallel-to-sketch thickness modes; draft on rib walls; web
-  (multi-blade) / networked ribs.
-- **Shell/draft (2.7):** multi-thickness shell (per-face wall); parting-line / step /
-  variable draft; shell/draft face selection driven by the general `Selector` predicates
-  once the attribute model is richer.
-- **Hole wizard (2.8):** modeled (real helical) threads; ANSI/imperial sizing and full
-  fit-class tables; thread-callout rendering in the viewer / drawings.
-- **Wrap (2.8b):** curved-surface wrap (project onto a cylinder/cone); rich text layout
-  (multi-line, path-follow, alignment); UV-following wrap on a general surface.
+**Bucket 2.10: Phase 2 completeness (datums + feature completeness)** `[x]` **COMPLETE**
+The second bucket of the phases-1-5 completeness program. Datums first (the foundation), then
+fillet/chamfer/loft/rib/draft/hole/wrap completeness, all in one bucket. Every feature matches
+the NX/Creo/Fusion model.
+- [x] **Datums:** `datum_plane` (offset / angled / on_face / three_point) + `datum_axis`
+      (two_point / edge / intersection / normal_to_face) as first-class non-solid reference
+      features, named via `datums.<id>`; a sketch plane and revolve axis now resolve a datum
+      (revolve axis-by-ref no longer raises), superseding the `plane_offset` shortcut.
+- [x] **Fillet/chamfer:** variable-radius fillet (`BRepFilletAPI_MakeFillet.Add(r1,r2,edge)`);
+      face fillet (rounds a face's bounding edges); vertex chamfer; named-face distance-angle
+      chamfer.
+- [x] **Loft:** guided (rail) loft (OCP `MakePipeShell`).
+- [x] **Rib:** until-material (to-face) extent (the proper fix for the gate-2.9 boolean-trim),
+      one/both thickness side, wall draft, web (multi-blade) ribs.
+- [x] **Draft:** variable (per-face) draft (raw OCP `DraftAngle`, each wall its own angle).
+- [x] **Hole/thread:** ANSI/imperial + extended-metric sizing + fit + coarse-thread pitch
+      tables; a `thread` op that DEFAULTS to a cosmetic callout (like NX/Creo/Fusion) with a
+      `modeled = true` real-helix opt-in.
+- [x] **Wrap:** curved-surface wrap (emboss/engrave on a cylinder/cone via
+      `Face.project_to_shape`), multi-line text, and an explicit logged font fallback (both the
+      wrap op and the `text_face` sketch element) so a missing font degrades gracefully.
+- **Gate:** `examples/gate-2.10/` real parts (hex_bolt cosmetic thread, threaded_stud modeled
+      thread, control_knob curved-wrap engrave, shelf_bracket datum + rib) build
+      deterministically + STEP round-trip + golden signatures. **Phase 2 completeness CLOSED.**
+      Next completeness bucket: 3.7 (replication/multibody).
+
+> **Bucket 2.10 dispositions (moved to a later phase, or called out as undoable on our stack):**
+> - **Moved to a later phase:** surface / open (non-solid) loft >> **Phase 9** (surfacing);
+>   thread-callout RENDERING (thread notes in the viewer/drawings) >> **Phase 7** (drafting);
+>   Selector-by-predicate face selection (by tag/material/bbox) >> **Phase 4** (needs the richer
+>   attribute model); spline/curved-edge projection into a sketch >> **Phase 4** (already moved
+>   in 1.6).
+> - **Called out as undoable on our stack (documented, refused clearly, not faked):** true
+>   two-face-set (non-adjacent) face fillet (OCCT fillets shared edges only); full-round fillet
+>   (no native OCCT face-replace round); per-face MULTI-THICKNESS shell (OCCT `MakeThickSolid`
+>   is single-offset); closed/periodic loft (OCCT `ThruSections` has no periodic mode);
+>   parting-line/step draft (needs a parting-curve model). Robust MODELED threads on composed/
+>   offset geometry (OCCT thread booleans are fragile) is exactly why the thread op defaults to
+>   cosmetic and modeled is best-effort on a clean stud.
 
 **Sketched (additive/subtractive) features**
 - [ ] **Extrude / Pad**: blind, symmetric, two-side, through-all, to-next,

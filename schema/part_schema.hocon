@@ -58,10 +58,11 @@ definitions {
     properties {
       id { type = string }
       op { type = string }
-      # plane is a base-plane string (sketch/shell/draft/mirror) or a {point, normal}
-      # object (mirror across an arbitrary plane). oneOf keeps the base-plane string valid
-      # for every existing op that names a plane.
-      plane { oneOf = [ { enum = ["XY", "XZ", "YZ"] }, { type = object } ] }
+      # plane is a base-plane string (sketch/shell/draft/mirror), a {point, normal} object
+      # (mirror across an arbitrary plane), or a datum reference (a `datums.<id>` string that
+      # resolves to a datum_plane feature). The pattern branch accepts the datum reference.
+      plane { oneOf = [ { enum = ["XY", "XZ", "YZ"] }, { type = object },
+                        { type = string, pattern = "^datums\\." } ] }
       plane_offset { type = number }
       elements {
         type = array
@@ -75,14 +76,38 @@ definitions {
       diameter { type = number, exclusiveMinimum = 0 }
       depth { type = number, exclusiveMinimum = 0 }
       thickness { type = number, exclusiveMinimum = 0 }
+      # rib options: until = grow to material (until-material extent), side = thickness mode,
+      # profiles = a web (multi-blade) rib's profile references (in addition to a single profile).
+      until { type = boolean }
+      side { enum = ["both", "one"] }
+      profiles { type = array, items { type = string } }
+      # draft = wall taper angle (degrees) for a rib blade.
+      draft { type = number }
+      # Variable draft: per-face taper angles (parallel to the resolved faces). Per-face shell
+      # thicknesses (unsupported; refused with a clear message).
+      angles { type = array, items { type = number } }
+      thicknesses { type = object }
       distance2 { type = number, exclusiveMinimum = 0 }
       angle { type = number }
       openings { type = string }
-      faces { type = string }
+      # faces is a selector string (shell/draft) or a list of face references (face fillet);
+      # vertices is a list of references whose corner vertices a vertex chamfer bevels.
+      faces { type = ["string", "array"] }
+      vertices { type = array, items { type = string } }
       neutral { enum = ["XY", "XZ", "YZ"] }
       neutral_offset { type = number }
       size { type = string }
       fit { enum = ["close", "normal", "loose", "tapped"] }
+      # Modeled thread (thread op): crest diameter + pitch (or from `size`), thread `length`
+      # along the axis, and internal (a tapped bore) vs external (a stud).
+      major_d { type = number, exclusiveMinimum = 0 }
+      pitch { type = number, exclusiveMinimum = 0 }
+      length { type = number, exclusiveMinimum = 0 }
+      internal { type = boolean }
+      # thread: modeled = cut real helical geometry (opt-in); default is a cosmetic callout.
+      modeled { type = boolean }
+      # wrap emboss height (an alias of depth for embossing raised text/profiles).
+      height { type = number, exclusiveMinimum = 0 }
       counterbore { type = object }
       countersink { type = object }
       thread { type = string }
@@ -95,6 +120,9 @@ definitions {
       rotation { type = number }
       through { type = boolean }
       radius { type = number, exclusiveMinimum = 0 }
+      # Variable-radius fillet: a radius that ramps from radius_start to radius_end per edge.
+      radius_start { type = number, exclusiveMinimum = 0 }
+      radius_end { type = number, exclusiveMinimum = 0 }
       edges { type = string }
       on { type = string }
       operation { enum = ["cut", "union", "intersect"] }
@@ -113,6 +141,9 @@ definitions {
       tool { type = string }
       sections { type = array, items { type = string } }
       ruled { type = boolean }
+      # loft/sweep guide (rail) curve references; closed = periodic loft (unsupported, refused).
+      guides { type = array, items { type = string } }
+      closed { type = boolean }
       start_point = ${definitions.vec3}
       end_point = ${definitions.vec3}
       kind { type = string }
@@ -126,6 +157,16 @@ definitions {
       # inline mat_data that deep-merges onto the referenced material record (bucket 3.5).
       material { type = string }
       mat_data { type = object }
+      # Datum construction (datum_plane / datum_axis): a method + its args. `base` is a base
+      # plane string or a datum/face reference; `datum_points` are [x,y,z] triples.
+      method { enum = ["offset", "angled", "on_face", "three_point", "two_point", "edge",
+                       "intersection", "normal_to_face"] }
+      base { type = string }
+      face { type = string }
+      datum_points { type = array, items = ${definitions.vec3} }
+      edge { type = string }
+      at_point = ${definitions.vec3}
+      planes { type = array, items { type = string } }
     }
   }
 

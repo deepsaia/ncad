@@ -26,7 +26,9 @@ class LoftOp:
         try:
             solid = kernel.loft(list(sections), ruled=kwargs["ruled"],
                                 start_point=kwargs["start_point"],
-                                end_point=kwargs["end_point"])
+                                end_point=kwargs["end_point"],
+                                guides=refs.get("guides"),
+                                closed=kwargs["closed"])
         except KernelOpError as exc:
             return OpResult(shape=None, provenance={},
                             issues=[BuildIssue(node_id=feature_id, message=str(exc))])

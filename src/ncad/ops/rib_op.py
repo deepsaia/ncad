@@ -22,8 +22,9 @@ class RibOp:
             return OpResult(shape=None, provenance={},
                             issues=[BuildIssue(node_id=feature_id,
                                                message="rib has no solid to stiffen")])
-        profile = refs.get("profile")
-        if profile is None:
+        # A single profile, or a list of profiles for a web (multi-blade) rib fused in one op.
+        profiles = refs.get("profiles") or ([refs["profile"]] if refs.get("profile") else [])
+        if not profiles:
             return OpResult(shape=None, provenance={},
                             issues=[BuildIssue(node_id=feature_id,
                                                message="rib profile did not resolve")])
@@ -32,10 +33,15 @@ class RibOp:
         except RibParamError as exc:
             return OpResult(shape=None, provenance={},
                             issues=[BuildIssue(node_id=feature_id, message=str(exc))])
+        # An until-material rib grows to the target (auto-trimmed); a fixed rib grows by depth.
+        to = target if kwargs["until"] else None
         try:
-            blade = kernel.rib(profile, thickness=kwargs["thickness"],
-                               depth=kwargs["depth"])
-            result = kernel.fuse([target, blade])
+            result = target
+            for profile in profiles:
+                blade = kernel.rib(profile, thickness=kwargs["thickness"],
+                                   depth=kwargs["depth"], to=to, side=kwargs["side"],
+                                   draft=kwargs["draft"])
+                result = kernel.fuse([result, blade])
         except KernelOpError as exc:
             return OpResult(shape=None, provenance={},
                             issues=[BuildIssue(node_id=feature_id, message=str(exc))])

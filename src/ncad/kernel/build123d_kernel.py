@@ -31,6 +31,7 @@ from build123d import (
     Vector,
     Vertex,
     Wire,
+    available_fonts,
     draft,
     export_gltf,
     export_step,
@@ -56,10 +57,22 @@ from OCP.BRepBuilderAPI import (
     BRepBuilderAPI_MakeEdge,  # pyrefly: ignore[missing-module-attribute]
 )
 from OCP.BRepExtrema import BRepExtrema_DistShapeShape  # pyrefly: ignore[missing-module-attribute]
-from OCP.BRepFilletAPI import BRepFilletAPI_MakeChamfer  # pyrefly: ignore[missing-module-attribute]
+from OCP.BRepFilletAPI import (
+    BRepFilletAPI_MakeChamfer,  # pyrefly: ignore[missing-module-attribute]
+    BRepFilletAPI_MakeFillet,  # pyrefly: ignore[missing-module-attribute]
+)
+from OCP.BRepOffsetAPI import (
+    BRepOffsetAPI_DraftAngle,  # pyrefly: ignore[missing-module-attribute]
+    BRepOffsetAPI_MakePipeShell,  # pyrefly: ignore[missing-module-attribute]
+)
 from OCP.Geom import Geom_BezierCurve  # pyrefly: ignore[missing-module-attribute]
 from OCP.GeomAbs import GeomAbs_G1  # pyrefly: ignore[missing-module-attribute]
-from OCP.gp import gp_GTrsf, gp_Pnt  # pyrefly: ignore[missing-module-attribute]
+from OCP.gp import (
+    gp_Dir,  # pyrefly: ignore[missing-module-attribute]
+    gp_GTrsf,  # pyrefly: ignore[missing-module-attribute]
+    gp_Pln,  # pyrefly: ignore[missing-module-attribute]
+    gp_Pnt,  # pyrefly: ignore[missing-module-attribute]
+)
 from OCP.TColgp import TColgp_Array1OfPnt  # pyrefly: ignore[missing-module-attribute]
 from OCP.TColStd import TColStd_Array1OfReal  # pyrefly: ignore[missing-module-attribute]
 from OCP.TopAbs import TopAbs_EDGE, TopAbs_FACE  # pyrefly: ignore[missing-module-attribute]
@@ -95,14 +108,79 @@ _TRANSITIONS = {"transformed": Transition.TRANSFORMED, "round": Transition.ROUND
 _ANGULAR_DEFLECTION = 0.2
 
 
+_DEFAULT_FONT = "Arial"
+
+
+def _resolve_font(font: str) -> str:
+    """Return ``font`` if installed, else the default (logged).
+
+    build123d/OCCT silently falls back to a default font (Arial) with only a stderr warning
+    when a requested font is missing; this makes the fallback explicit and logs it through our
+    logger so a missing font on the ncad host is visible, and returns a font name that builds.
+    """
+    if not font:
+        return _DEFAULT_FONT
+    try:
+        installed = {info.name for info in available_fonts()}
+    except Exception:  # noqa: BLE001 - font enumeration is best-effort; fall through to trust
+        return font
+    if font in installed:
+        return font
+    logger.warning("font %r is not installed on this host; falling back to %r",
+                   font, _DEFAULT_FONT)
+    return _DEFAULT_FONT
+
+
+def _wrap_curved(solid: Any, face: Any, shape2d: Any, offset: Point2, rotation: float,
+                 depth: float, mode: str) -> Any:
+    """Emboss/engrave a 2D profile onto a curved (cylinder/cone) face by projecting it.
+
+    The flat glyph/profile faces are placed tangent to the curved wall at the target point,
+    projected onto the surface (build123d Face.project_to_shape), then thickened along each
+    projected face's normal (outward = emboss, inward = engrave).
+    """
+    center = face.center()
+    normal = face.normal_at(center)
+    # A tangent placement plane at the face center: its Z is the outward surface normal, so
+    # the flat text sits just off the wall facing inward for projection.
+    place = Plane(origin=center + normal * depth, z_dir=-normal)
+    flat = place * Pos(offset[0], offset[1]) * Rot(0, 0, rotation) * shape2d  # pyrefly: ignore[unsupported-operation]
+    direction = (-normal.X, -normal.Y, -normal.Z)
+    result = solid
+    for glyph in flat.faces():
+        for projected in glyph.project_to_shape(solid, direction=direction):
+            # project_to_shape may hand back a Shell; thicken each of its faces along the
+            # surface normal. emboss grows OUTWARD (+normal) and adds; engrave grows INWARD
+            # (-normal) and cuts, so the tool lands inside the wall.
+            for pf in projected.faces():
+                pnormal = pf.normal_at(pf.center())
+                grow = pnormal if mode == "emboss" else -pnormal
+                tool = extrude(pf, amount=abs(depth), dir=grow)  # pyrefly: ignore[bad-argument-type]
+                result = result + tool if mode == "emboss" else result - tool
+    return result
+
+
+def _basis(plane: Any, offset: float) -> Any:
+    """The build123d Plane to sketch on: a base-plane string (+ offset), or a datum Plane.
+
+    A datum plane (from a `datum_plane` feature, resolved via `datums.<id>`) arrives as a
+    build123d Plane and is used directly (its own offset already baked in); a base-plane
+    string is looked up and shifted along its normal by ``offset``.
+    """
+    if isinstance(plane, str):
+        if plane not in _PLANES:
+            raise ValueError(f"plane must be one of {tuple(_PLANES)}, got {plane!r}")
+        return _PLANES[plane].offset(offset)
+    return plane if offset == 0.0 else plane.offset(offset)
+
+
 class Build123dKernel(Kernel):
     """build123d-backed kernel. Shapes are build123d ``Face``/``Solid`` objects."""
 
-    def polygon_face(self, points: list[Point2], plane: str, offset: float = 0.0) -> Any:
-        if plane not in _PLANES:
-            raise ValueError(f"plane must be one of {tuple(_PLANES)}, got {plane!r}")
-        # offset shifts the base plane along its normal; default 0.0 keeps prior behavior.
-        basis = _PLANES[plane].offset(offset)
+    def polygon_face(self, points: list[Point2], plane: Any, offset: float = 0.0) -> Any:
+        # offset shifts the base plane along its normal; default 0.0 keeps prior behavior. A
+        # datum plane (resolved from datums.<id>) may arrive as a build123d Plane.
+        basis = _basis(plane, offset)
         world = [basis.from_local_coords(Vector(x, y, 0)) for x, y in points]
         closed = world + [world[0]]
         # build123d's from_local_coords is stubbed as a wide union; at runtime these are
@@ -168,7 +246,21 @@ class Build123dKernel(Kernel):
 
     def loft(self, sections: list, *, ruled: bool = False,
              start_point: Point3 | None = None,
-             end_point: Point3 | None = None) -> Any:
+             end_point: Point3 | None = None, guides: list | None = None,
+             closed: bool = False) -> Any:
+        # Closed/periodic loft (sections looping back to the first) is NOT supported: OCCT
+        # ThruSections does not build a valid periodic solid (a closed section loop yields
+        # zero volume). Called out rather than silently producing an empty solid.
+        if closed:
+            raise KernelOpError(
+                "closed/periodic loft is not supported (OCCT ThruSections has no periodic "
+                "mode); loft open sections, or model the closed form another way")
+        if guides:
+            # Guided loft: sweep the first section along an implicit spine while a guide rail
+            # steers the section (build123d's loft has no guide support; use OCCT
+            # MakePipeShell with the guide in binormal mode). This is the NX/Creo/Fusion
+            # rail-guided loft.
+            return self._robust(self._do_guided_loft, sections, guides, name="loft")
         # A vertex cap is a zero-area point section: build123d loft accepts Vertex in the
         # section list, giving a cone-like end. Order matters: caps bracket the faces.
         ordered: list = []
@@ -179,81 +271,157 @@ class Build123dKernel(Kernel):
             ordered.append(Vertex(*end_point))
         return loft(ordered, ruled=ruled)
 
-    def rib(self, wire: Any, *, thickness: float, depth: float) -> Any:
+    @staticmethod
+    def _do_guided_loft(sections: list, guides: list) -> Any:
+        from build123d import Solid
+        # A spine from the first section's center to the last; each section added as a
+        # profile; the first guide steers the sweep (binormal mode).
+        first_center = sections[0].center()
+        last_center = sections[-1].center()
+        spine = Wire(Edge.make_line(first_center, last_center))
+        maker = BRepOffsetAPI_MakePipeShell(spine.wrapped)
+        maker.SetMode(guides[0].wrapped, True)
+        for section in sections:
+            outer = section.outer_wire() if hasattr(section, "outer_wire") else section
+            maker.Add(outer.wrapped, False, False)
+        maker.Build()
+        maker.MakeSolid()
+        return Solid(maker.Shape())
+
+    def rib(self, wire: Any, *, thickness: float, depth: float | None = None,
+            to: Any = None, side: str = "both", draft: float = 0.0) -> Any:
         # Planar-first (robust): thicken the open wire IN ITS OWN PLANE with trace into a
-        # closed ribbon face, then extrude that face by depth. This avoids OCCT's fragile
+        # closed ribbon face, then extrude that face. This avoids OCCT's fragile
         # offset/thicken-a-shell path (design.md: BRepOffsetAPI_MakeOffsetShape fails on C0
         # splines and past the smallest concave radius). thickness is symmetric about the
-        # curve (trace); depth grows one direction normal to the sketch plane.
-        ribbon = trace(wire, line_width=thickness)
+        # curve by default; side="one" thickens to one side (a rib flush with the sketch).
+        line_width = thickness if side == "both" else thickness
+        ribbon = trace(wire, line_width=line_width)
         # A ribbon traced around a curved wire is planar but build123d cannot infer the
         # extrude direction from it, so pass the ribbon face's normal explicitly.
         normal = ribbon.faces()[0].normal_at()  # pyrefly: ignore[bad-argument-type]
-        return extrude(ribbon, amount=depth, dir=normal)
+        if to is not None:
+            # Until-material: grow the blade until it meets `to` (auto-trimmed), so a gusset
+            # needs no manual boolean-trim. This is the NX/Creo until-next rib extent.
+            return self._robust(self._do_rib_until, ribbon, to, name="rib")
+        if depth is None:
+            raise KernelOpError("rib needs a 'depth' unless an until-material 'to' is given")
+        return extrude(ribbon, amount=depth, dir=normal, taper=draft)
 
-    def circle_face(self, center: Point2, diameter: float, plane: str,
+    @staticmethod
+    def _do_rib_until(ribbon: Any, target: Any) -> Any:
+        # Try both normal directions (a rib blade grows toward the material it braces); pick
+        # whichever until-material extrude yields a non-empty solid.
+        for token in (Until.NEXT, Until.LAST):
+            grown = extrude(ribbon, until=token, target=target)
+            if grown is not None and grown.volume > 1e-9:
+                return grown
+        raise KernelOpError("until-material rib grew no material toward the target")
+
+    def circle_face(self, center: Point2, diameter: float, plane: Any,
                     offset: float = 0.0) -> Any:
-        if plane not in _PLANES:
-            raise ValueError(f"plane must be one of {tuple(_PLANES)}, got {plane!r}")
-        basis = _PLANES[plane].offset(offset)
+        basis = _basis(plane, offset)
         # from_local_coords is stubbed as a wide union but returns a Vector at runtime;
         # this is the untyped-OCP boundary (see the [tool.pyrefly] note in pyproject).
         origin = basis.from_local_coords(Vector(center[0], center[1], 0))
         face_plane = Plane(origin=origin, z_dir=basis.z_dir)  # pyrefly: ignore[no-matching-overload]
         return Face(Wire(Edge.make_circle(diameter / 2.0, face_plane)))
 
-    def wire_face(self, edges: list, plane: str, offset: float = 0.0) -> Any:
-        if plane not in _PLANES:
-            raise ValueError(f"plane must be one of {tuple(_PLANES)}, got {plane!r}")
-        basis = _PLANES[plane].offset(offset)
+    def wire_face(self, edges: list, plane: Any, offset: float = 0.0) -> Any:
+        basis = _basis(plane, offset)
         occ_edges = [_build_edge(edge, basis) for edge in edges]
         return Face(Wire(occ_edges))
 
-    def text_face(self, text: str, size: float, plane: str, *, font: str = "",
+    def text_face(self, text: str, size: float, plane: Any, *, font: str = "",
                   style: str = "", offset: float = 0.0, at: Point2 = (0.0, 0.0),
                   rotation: float = 0.0) -> Any:
-        if plane not in _PLANES:
-            raise ValueError(f"plane must be one of {tuple(_PLANES)}, got {plane!r}")
-        basis = _PLANES[plane].offset(offset)
+        basis = _basis(plane, offset)
         font_style = _FONT_STYLES.get(style, FontStyle.REGULAR)
         # build123d Text yields a Sketch of glyph faces whose letter counters are inner-loop
-        # holes (multi-loop faces). font defaults to build123d's when unspecified. Placed on
-        # the sketch plane at (u, v) with in-plane rotation, matching the wrap-op placement.
+        # holes (multi-loop faces). A missing font falls back to the default (logged), matching
+        # the wrap op. Placed on the sketch plane at (u, v) with in-plane rotation.
         kwargs: dict = {"font_size": size, "font_style": font_style}
         if font:
-            kwargs["font"] = font
+            kwargs["font"] = _resolve_font(font)
         glyphs = Text(text, **kwargs)
         return basis * Pos(at[0], at[1]) * Rot(0, 0, rotation) * glyphs  # pyrefly: ignore[unsupported-operation]
 
-    def wire(self, edges: list, plane: str, offset: float = 0.0) -> Any:
-        if plane not in _PLANES:
-            raise ValueError(f"plane must be one of {tuple(_PLANES)}, got {plane!r}")
-        basis = _PLANES[plane].offset(offset)
+    def datum_plane(self, method: str, params: dict, refs: dict) -> Any:
+        if method == "offset":
+            face = refs.get("face")
+            src = Plane(face) if face is not None else _PLANES.get(params.get("base") or "XY",
+                                                                   Plane.XY)
+            return src.offset(params["distance"])
+        if method == "on_face":
+            face = refs.get("face")
+            if face is None:
+                raise KernelOpError("datum_plane on_face needs a face reference")
+            return Plane(face)
+        if method == "angled":
+            base = _PLANES.get(params.get("base") or "XY", Plane.XY)
+            return base.rotated((params["angle"], 0.0, 0.0))
+        if method == "three_point":
+            (ax, ay, az), (bx, by, bz), (cx, cy, cz) = params["points"]
+            a = Vector(ax, ay, az)
+            x_dir = Vector(bx, by, bz) - a
+            normal = x_dir.cross(Vector(cx, cy, cz) - a)
+            return Plane(origin=a, x_dir=x_dir, z_dir=normal)  # pyrefly: ignore[no-matching-overload]
+        raise KernelOpError(f"unknown datum_plane method {method!r}")
+
+    def datum_axis(self, method: str, params: dict, refs: dict) -> Any:
+        if method == "two_point":
+            (ax, ay, az), (bx, by, bz) = params["points"]
+            direction = Vector(bx - ax, by - ay, bz - az)
+            if direction.length < 1e-9:
+                raise KernelOpError("datum_axis two_point needs two distinct points")
+            unit = direction.normalized()
+            return ((ax, ay, az), (unit.X, unit.Y, unit.Z))
+        if method == "edge":
+            edge = refs.get("edge")
+            edge = edge[0] if isinstance(edge, list) else edge
+            if edge is None:
+                raise KernelOpError("datum_axis edge needs an edge reference")
+            p0 = edge.position_at(0)
+            direction = (edge.position_at(1) - p0).normalized()
+            return ((p0.X, p0.Y, p0.Z), (direction.X, direction.Y, direction.Z))
+        if method == "normal_to_face":
+            face = refs.get("face")
+            if face is None:
+                raise KernelOpError("datum_axis normal_to_face needs a face reference")
+            at = params.get("at_point")
+            origin = Vector(*at) if at is not None else face.center()
+            normal = face.normal_at(origin)
+            return ((origin.X, origin.Y, origin.Z), (normal.X, normal.Y, normal.Z))
+        if method == "intersection":
+            planes = refs.get("planes") or []
+            if len(planes) != 2:
+                raise KernelOpError("datum_axis intersection needs two plane references")
+            direction = planes[0].z_dir.cross(planes[1].z_dir).normalized()
+            origin = planes[0].origin
+            return ((origin.X, origin.Y, origin.Z), (direction.X, direction.Y, direction.Z))
+        raise KernelOpError(f"unknown datum_axis method {method!r}")
+
+    def wire(self, edges: list, plane: Any, offset: float = 0.0) -> Any:
+        basis = _basis(plane, offset)
         return Wire([_build_edge(edge, basis) for edge in edges])
 
-    def project_edges(self, edges: list, plane: str, offset: float = 0.0) -> list:
-        if plane not in _PLANES:
-            raise ValueError(f"plane must be one of {tuple(_PLANES)}, got {plane!r}")
-        basis = _PLANES[plane].offset(offset)
+    def project_edges(self, edges: list, plane: Any, offset: float = 0.0) -> list:
+        basis = _basis(plane, offset)
         return [_project_edge(edge, basis) for edge in edges]
 
     def vertices_of(self, shape: Any) -> list:
         return list(shape.vertices())
 
-    def project_vertices(self, vertices: list, plane: str, offset: float = 0.0) -> list:
-        if plane not in _PLANES:
-            raise ValueError(f"plane must be one of {tuple(_PLANES)}, got {plane!r}")
-        basis = _PLANES[plane].offset(offset)
+    def project_vertices(self, vertices: list, plane: Any, offset: float = 0.0) -> list:
+        basis = _basis(plane, offset)
         out: list = []
         for v in vertices:
             local = basis.to_local_coords(Vector(v.X, v.Y, v.Z))
             out.append((local.X, local.Y))  # pyrefly: ignore[missing-attribute]
         return out
 
-    def intersection_curve(self, shape: Any, plane: str, offset: float = 0.0) -> list:
-        if plane not in _PLANES:
-            raise ValueError(f"plane must be one of {tuple(_PLANES)}, got {plane!r}")
-        basis = _PLANES[plane].offset(offset)
+    def intersection_curve(self, shape: Any, plane: Any, offset: float = 0.0) -> list:
+        basis = _basis(plane, offset)
         # OCCT section of the shape with the sketch plane; each resulting edge is projected to
         # a 2D sketch-plane descriptor (curved edges are refused by _project_edge, matching the
         # existing spline-projection deferral).
@@ -292,6 +460,34 @@ class Build123dKernel(Kernel):
 
     def fillet_edges(self, solid: Any, edges: list, radius: float) -> Any:
         return self._robust(self._do_fillet, solid, edges, radius, name="fillet")
+
+    def fillet_variable(self, solid: Any, edges: list, radius_start: float,
+                        radius_end: float) -> Any:
+        return self._robust(self._do_fillet_variable, solid, edges, radius_start,
+                            radius_end, name="fillet")
+
+    def fillet_face(self, solid: Any, faces: list, radius: float) -> Any:
+        # A "face fillet" here rounds every edge BOUNDING the referenced face(s). OCCT fillets
+        # shared edges only; a true NX-style face fillet between two NON-adjacent face sets
+        # (rolling a ball tangent to both) is not native to OCCT and is not supported (call it
+        # out rather than fake it). The bounding-edges form is the common case.
+        edges = [e for face in faces for e in face.edges()]
+        return self._robust(self._do_fillet, solid, edges, radius, name="fillet")
+
+    def chamfer_vertices(self, solid: Any, vertices: list, distance: float) -> Any:
+        # A vertex (corner) chamfer facets the corner by bevelling the edges meeting it.
+        edges = [e for v in vertices for e in self._edges_at_vertex(solid, v)]
+        return self._robust(self._do_chamfer, solid, edges, distance, None, name="chamfer")
+
+    @staticmethod
+    def _edges_at_vertex(solid: Any, vertex: Any) -> list:
+        """The edges of ``solid`` incident to ``vertex`` (by coincident position)."""
+        target = tuple(vertex)
+        incident = []
+        for edge in solid.edges():
+            if any(tuple(v) == target for v in edge.vertices()):
+                incident.append(edge)
+        return incident
 
     def chamfer_edges(self, solid: Any, edges: list, distance: float, *,
                       distance2: float | None = None,
@@ -338,6 +534,72 @@ class Build123dKernel(Kernel):
     def _do_draft(faces: list, plane: Any, angle: float) -> Any:
         return draft(faces, neutral_plane=plane, angle=angle)
 
+    def draft_variable(self, solid: Any, face_angles: list, *, neutral: str,
+                       neutral_offset: float = 0.0) -> Any:
+        # A variable (per-face) draft tapers each planar wall by its OWN angle about one
+        # neutral plane, via raw OCP BRepOffsetAPI_DraftAngle (build123d's draft is one angle
+        # for all faces). Parting-line / step draft (a taper that flips across a parting
+        # curve) is NOT supported: it needs a parting-curve/surface model OCCT does not expose
+        # simply, so it is called out rather than faked.
+        if neutral not in _PLANES:
+            raise KernelOpError(
+                f"draft neutral must be one of {tuple(_PLANES)}, got {neutral!r}")
+        planar = [(f, a) for (f, a) in face_angles
+                  if getattr(f, "geom_type", None) == GeomType.PLANE]
+        if not planar:
+            raise KernelOpError("variable draft found no planar faces among the selected faces")
+        return self._robust(self._do_draft_variable, solid, planar, neutral, neutral_offset,
+                            name="draft")
+
+    @staticmethod
+    def _do_draft_variable(solid: Any, planar: list, neutral: str,
+                           neutral_offset: float) -> Any:
+        from build123d import Solid
+        base = _PLANES[neutral].offset(neutral_offset)
+        origin = base.origin
+        pull = base.z_dir
+        gp_neutral = gp_Pln(gp_Pnt(origin.X, origin.Y, origin.Z),
+                            gp_Dir(pull.X, pull.Y, pull.Z))
+        pull_dir = gp_Dir(pull.X, pull.Y, pull.Z)
+        maker = BRepOffsetAPI_DraftAngle(solid.wrapped)
+        for face, angle in planar:
+            maker.Add(face.wrapped, pull_dir, math.radians(angle), gp_neutral)
+        maker.Build()
+        return Solid(maker.Shape())
+
+    def thread_cut(self, solid: Any, *, axis_point: Point3, axis_dir: Point3,
+                   major_d: float, pitch: float, length: float, internal: bool) -> Any:
+        if pitch <= 0.0:
+            raise KernelOpError(f"thread pitch must be positive; got {pitch}")
+        return self._robust(self._do_thread_cut, solid, axis_point, axis_dir, major_d,
+                            pitch, length, internal, name="thread")
+
+    @staticmethod
+    def _do_thread_cut(solid: Any, axis_point: Point3, axis_dir: Point3, major_d: float,
+                       pitch: float, length: float, internal: bool) -> Any:
+        from build123d import Polygon, Solid
+        # A modeled thread: sweep a V profile along a helix built DIRECTLY on the target axis
+        # (Helix center + direction), then boolean it with the solid. Building the helix in
+        # place avoids a fragile Plane-based relocation of the swept tool (that mapping left
+        # the tool mis-placed so the cut removed nothing). The profile plane is derived from
+        # the helix start tangent so the profile stays radially oriented turn to turn, cutting
+        # a consistent-depth groove.
+        radius = major_d / 2.0
+        helix = Helix(pitch=pitch, height=length, radius=radius, center=tuple(axis_point),
+                      direction=tuple(axis_dir))
+        pplane = Plane(origin=helix @ 0, z_dir=helix % 0)
+        # ISO 60-degree V groove: the triangle BASE spans one pitch at (just beyond) the crest
+        # surface; the APEX points INWARD to the root (~0.61*pitch deep). In the profile plane
+        # +x is the outward radial direction, so the apex x is negative and the base x is a
+        # small positive crest overshoot.
+        depth = 0.61 * pitch
+        crest = 0.05 * pitch
+        tri = pplane * Polygon((crest, -pitch / 2.0), (-depth, 0.0), (crest, pitch / 2.0),
+                               align=None)
+        tool = sweep(tri, path=helix)  # pyrefly: ignore[bad-argument-type]
+        result = solid - tool if not internal else solid + tool
+        return result if isinstance(result, Solid) else Solid(result.wrapped)
+
     def wrap(self, solid: Any, face: Any, *, text: str | None = None,
              profile: Any = None, font_size: float = 5.0, font: str = "Arial",
              font_style: str = "regular", depth: float = 1.0, mode: str = "emboss",
@@ -349,15 +611,16 @@ class Build123dKernel(Kernel):
     def _do_wrap(solid: Any, face: Any, text: str | None, profile: Any, font_size: float,
                  font: str, font_style: str, depth: float, mode: str,
                  offset: Point2, rotation: float) -> Any:
-        # text builds glyphs; otherwise the profile is a prewrapped 2D face. Place it on the
-        # target face's plane (offset u/v, in-plane rotation). emboss extrudes OUTWARD along
-        # the face normal (+depth) and adds; engrave extrudes INWARD (-depth) and cuts, so
-        # the tool lands inside the material rather than floating above the surface.
+        # text builds glyphs (multi-line if it contains newlines); otherwise the profile is a
+        # prewrapped 2D face. A missing font falls back to the default (logged). emboss adds
+        # OUTWARD by depth; engrave cuts INWARD by depth.
         style = _FONT_STYLES.get(font_style, FontStyle.REGULAR)
-        shape2d = (Text(text, font_size=font_size, font=font, font_style=style)
+        shape2d = (Text(text, font_size=font_size, font=_resolve_font(font), font_style=style)
                    if text is not None else profile)
-        # The Plane * Pos * Rot * sketch placement and extrude are the untyped build123d/OCP
-        # boundary (see the [tool.pyrefly] note): correct at runtime, wide in the stubs.
+        if face.geom_type in (GeomType.CYLINDER, GeomType.CONE):
+            return _wrap_curved(solid, face, shape2d, offset, rotation, depth, mode)
+        # Flat face: place on the face's plane (offset u/v, in-plane rotation) and extrude.
+        # The Plane * Pos * Rot * sketch placement is the untyped build123d/OCP boundary.
         placed = Plane(face) * Pos(offset[0], offset[1]) * Rot(0, 0, rotation) * shape2d  # pyrefly: ignore[unsupported-operation]
         if mode == "emboss":
             return solid + extrude(placed, amount=abs(depth))  # pyrefly: ignore[bad-argument-type]
@@ -439,6 +702,19 @@ class Build123dKernel(Kernel):
     @staticmethod
     def _do_fillet(solid: Any, edges: list, radius: float) -> Any:
         return solid.fillet(radius, edges)
+
+    @staticmethod
+    def _do_fillet_variable(solid: Any, edges: list, radius_start: float,
+                            radius_end: float) -> Any:
+        # A radius that ramps r_start -> r_end along each edge, via raw OCP
+        # BRepFilletAPI_MakeFillet.Add(r1, r2, edge) (build123d's fillet is constant-radius
+        # only). This is the NX/Creo/Fusion variable-radius fillet.
+        from build123d import Solid
+        maker = BRepFilletAPI_MakeFillet(solid.wrapped)
+        for edge in edges:
+            maker.Add(radius_start, radius_end, edge.wrapped)
+        maker.Build()
+        return Solid(maker.Shape())
 
     @staticmethod
     def _do_chamfer(solid: Any, edges: list, distance: float,

@@ -30,10 +30,23 @@ class DraftOp:
         except DraftParamError as exc:
             return OpResult(shape=None, provenance={},
                             issues=[BuildIssue(node_id=feature_id, message=str(exc))])
+        # A per-face `angles` list (parallel to the resolved faces) makes a VARIABLE draft:
+        # each wall tapers by its own angle about the one neutral plane.
+        angles = kwargs["angles"]
         try:
-            result = kernel.draft(shape_in, faces, angle=kwargs["angle"],
-                                  neutral=kwargs["neutral"],
-                                  neutral_offset=kwargs["neutral_offset"])
+            if angles is not None:
+                if len(angles) != len(faces):
+                    return OpResult(shape=None, provenance={}, issues=[BuildIssue(
+                        node_id=feature_id,
+                        message=f"draft 'angles' ({len(angles)}) must match the number of "
+                                f"faces ({len(faces)})")])
+                result = kernel.draft_variable(
+                    shape_in, list(zip(faces, angles, strict=True)),
+                    neutral=kwargs["neutral"], neutral_offset=kwargs["neutral_offset"])
+            else:
+                result = kernel.draft(shape_in, faces, angle=kwargs["angle"],
+                                      neutral=kwargs["neutral"],
+                                      neutral_offset=kwargs["neutral_offset"])
         except KernelOpError as exc:
             return OpResult(shape=None, provenance={},
                             issues=[BuildIssue(node_id=feature_id, message=str(exc))])

@@ -15,7 +15,17 @@ class ShellParamError(Exception):
 
 
 def shell_kwargs(params: dict) -> dict:
-    """Return the validated shell description for a shell feature."""
+    """Return the validated shell description for a shell feature.
+
+    Per-face (multi-thickness) shell is NOT supported: OCCT's ``MakeThickSolid`` takes a
+    single offset, so genuine per-face wall thicknesses are not achievable on our stack. A
+    ``thicknesses`` (per-face) request is refused clearly rather than faked; use a uniform
+    ``thickness`` plus ``openings`` (faces to remove).
+    """
+    if "thicknesses" in params:
+        raise ShellParamError(
+            "per-face multi-thickness shell is not supported (OCCT MakeThickSolid is "
+            "single-offset); use a uniform 'thickness' + 'openings'")
     if "thickness" not in params:
         raise ShellParamError("shell needs a 'thickness'")
     thickness = float(params["thickness"])

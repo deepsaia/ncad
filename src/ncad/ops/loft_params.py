@@ -26,7 +26,8 @@ def loft_kwargs(params: dict, refs: dict) -> dict:
         raise LoftParamError(
             f"loft needs at least 2 sections (counting point caps); got {total}")
     return {"ruled": bool(params.get("ruled", False)),
-            "start_point": start_point, "end_point": end_point}
+            "start_point": start_point, "end_point": end_point,
+            "closed": bool(params.get("closed", False))}
 
 
 def _resolve_point(value, field: str):

@@ -10,6 +10,8 @@ from collections.abc import Callable
 
 from ncad.ops.boolean_op import BooleanOp
 from ncad.ops.chamfer_op import ChamferOp
+from ncad.ops.datum_axis_op import DatumAxisOp
+from ncad.ops.datum_plane_op import DatumPlaneOp
 from ncad.ops.defeature_op import DefeatureOp
 from ncad.ops.draft_op import DraftOp
 from ncad.ops.extrude_op import ExtrudeOp
@@ -30,6 +32,7 @@ from ncad.ops.shell_op import ShellOp
 from ncad.ops.sketch_op import SketchOp
 from ncad.ops.split_op import SplitOp
 from ncad.ops.sweep_op import SweepOp
+from ncad.ops.thread_op import ThreadOp
 from ncad.ops.transform_op import TransformOp
 from ncad.ops.wrap_op import WrapOp
 
@@ -80,4 +83,7 @@ class OpRegistry:
         registry.register("draft", DraftOp().build)
         registry.register("wrap", WrapOp().build)
         registry.register("transform", TransformOp().build)
+        registry.register("datum_plane", DatumPlaneOp().build)
+        registry.register("datum_axis", DatumAxisOp().build)
+        registry.register("thread", ThreadOp().build)
         return registry

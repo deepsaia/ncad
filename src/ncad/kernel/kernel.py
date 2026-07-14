@@ -76,22 +76,27 @@ class Kernel(ABC):
     @abstractmethod
     def loft(self, sections: list, *, ruled: bool = False,
              start_point: Point3 | None = None,
-             end_point: Point3 | None = None) -> Any:
+             end_point: Point3 | None = None, guides: list | None = None,
+             closed: bool = False) -> Any:
         """Blend a solid through the ordered ``sections`` (faces on different planes).
 
         ``ruled`` blends with straight (ruled) transitions instead of a smooth surface.
         ``start_point`` / ``end_point`` cap the ends with a vertex (a cone-like point
-        section) at that ``(x, y, z)``. Needs at least 2 total sections (counting caps).
-        Raises KernelOpError on failure.
+        section) at that ``(x, y, z)``. ``guides`` are rail curves that steer the blend (a
+        guided loft). ``closed`` (periodic loft) is not supported and raises. Needs at least 2
+        total sections (counting caps). Raises KernelOpError on failure.
         """
 
     @abstractmethod
-    def rib(self, wire: Any, *, thickness: float, depth: float) -> Any:
+    def rib(self, wire: Any, *, thickness: float, depth: float | None = None,
+            to: Any = None, side: str = "both", draft: float = 0.0) -> Any:
         """A thin structural blade from an OPEN sketch ``wire``.
 
-        The wire is thickened by ``thickness`` symmetrically about its curve into a thin
-        planar profile, then grown ``depth`` normal to the sketch plane into a blade solid.
-        The caller fuses the blade into the target body. Raises KernelOpError on failure.
+        The wire is thickened by ``thickness`` (symmetric about its curve, or ``side="one"``)
+        into a thin planar profile, then grown into a blade: by ``depth`` normal to the sketch
+        plane, or ``to`` a target solid (an until-material rib, auto-trimmed to the material it
+        braces). ``draft`` tapers the blade walls. The caller fuses the blade into the target
+        body. Raises KernelOpError on failure.
         """
 
     @abstractmethod
@@ -111,6 +116,23 @@ class Kernel(ABC):
         ``{"kind":"circle","center":c,"radius":r}`` (a full closed circle, its own loop).
         ``offset`` shifts the plane along its normal by that signed distance (default 0.0).
         Used by constrained sketches whose profiles mix straight and curved edges.
+        """
+
+    @abstractmethod
+    def datum_plane(self, method: str, params: dict, refs: dict) -> Any:
+        """A referenceable construction Plane built by ``method``.
+
+        ``offset`` (a base plane or `refs["base"]` planar face + ``distance``), ``angled`` (a
+        base plane rotated by ``angle``), ``on_face`` (`refs["face"]`), or ``three_point``
+        (``params["points"]``). Non-solid reference geometry named via ``datums.<id>``.
+        """
+
+    @abstractmethod
+    def datum_axis(self, method: str, params: dict, refs: dict) -> Any:
+        """A referenceable axis as an ``((ox,oy,oz), (dx,dy,dz))`` tuple (revolve's axis shape).
+
+        ``two_point`` (``params["points"]``), ``edge`` (`refs["edge"]`), ``intersection`` (of
+        two datum planes in `refs`), or ``normal_to_face`` (`refs["face"]` at a point).
         """
 
     @abstractmethod
@@ -194,7 +216,25 @@ class Kernel(ABC):
 
     @abstractmethod
     def fillet_edges(self, solid: Any, edges: list, radius: float) -> Any:
-        """Round the given ``edges`` of ``solid`` with ``radius``."""
+        """Round the given ``edges`` of ``solid`` with a constant ``radius``."""
+
+    @abstractmethod
+    def fillet_variable(self, solid: Any, edges: list, radius_start: float,
+                        radius_end: float) -> Any:
+        """Round ``edges`` with a radius that ramps ``radius_start`` >> ``radius_end`` along
+        each edge (a variable-radius fillet)."""
+
+    @abstractmethod
+    def fillet_face(self, solid: Any, faces: list, radius: float) -> Any:
+        """Round every edge bounding the referenced ``faces`` with ``radius`` (a face fillet).
+
+        Note: a true two-face-set face fillet (rolling a ball tangent to two non-adjacent face
+        sets) is not native to OCCT; this rounds the faces' bounding edges.
+        """
+
+    @abstractmethod
+    def chamfer_vertices(self, solid: Any, vertices: list, distance: float) -> Any:
+        """Facet a corner ``vertex`` by bevelling the edges meeting it (a vertex chamfer)."""
 
     @abstractmethod
     def chamfer_edges(self, solid: Any, edges: list, distance: float, *,
@@ -224,6 +264,26 @@ class Kernel(ABC):
         ``neutral`` is one of ``"XY"``, ``"XZ"``, ``"YZ"``; ``neutral_offset`` shifts that
         plane along its normal (the sketch plane_offset convention). The neutral
         cross-section keeps its size while the faces taper. Raises KernelOpError on failure.
+        """
+
+    @abstractmethod
+    def draft_variable(self, solid: Any, face_angles: list, *, neutral: str,
+                       neutral_offset: float = 0.0) -> Any:
+        """Taper each planar face by its OWN angle about one neutral plane (a variable draft).
+
+        ``face_angles`` is a list of ``(face, angle_degrees)`` pairs. Raises KernelOpError on
+        failure. (Parting-line / step draft is not supported; it needs a parting-curve model.)
+        """
+
+    @abstractmethod
+    def thread_cut(self, solid: Any, *, axis_point: Point3, axis_dir: Point3,
+                   major_d: float, pitch: float, length: float, internal: bool) -> Any:
+        """Cut (or add) a modeled helical thread on ``solid`` about the given axis.
+
+        A triangular thread profile swept along a helix (``pitch``, ``length``, crest
+        ``major_d``) straddles the crest radius; ``internal=False`` cuts an EXTERNAL thread
+        (a stud), ``internal=True`` adds relief for an internal thread (a tapped hole).
+        Raises KernelOpError on failure or non-positive pitch.
         """
 
     @abstractmethod

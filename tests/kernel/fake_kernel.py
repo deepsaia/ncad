@@ -106,6 +106,21 @@ class FakeKernel(Kernel):
     def wire(self, edges: list, plane: str, offset: float = 0.0) -> Any:
         return _FakeWire(edges, plane, offset)
 
+    def datum_plane(self, method: str, params: dict, refs: dict) -> Any:
+        # A datum is reference geometry, not a solid; the fake kernel returns a marker dict
+        # carrying the method so op-through-build tests can assert it was produced.
+        return {"kind": "datum_plane", "method": method}
+
+    def datum_axis(self, method: str, params: dict, refs: dict) -> Any:
+        # For two_point the fake kernel computes the real (point, dir); other methods return a
+        # marker (their geometry needs the OCCT kernel).
+        if method == "two_point" and len(params.get("points", [])) == 2:
+            (ax, ay, az), (bx, by, bz) = params["points"]
+            dx, dy, dz = bx - ax, by - ay, bz - az
+            length = math.sqrt(dx * dx + dy * dy + dz * dz) or 1.0
+            return ((ax, ay, az), (dx / length, dy / length, dz / length))
+        return {"kind": "datum_axis", "method": method}
+
     def text_face(self, text: str, size: float, plane: str, *, font: str = "",
                   style: str = "", offset: float = 0.0, at: Point2 = (0.0, 0.0),
                   rotation: float = 0.0) -> Any:
@@ -135,10 +150,13 @@ class FakeKernel(Kernel):
 
     def loft(self, sections: list, *, ruled: bool = False,
              start_point: Point3 | None = None,
-             end_point: Point3 | None = None) -> Any:
+             end_point: Point3 | None = None, guides: list | None = None,
+             closed: bool = False) -> Any:
         # Prismatoid (trapezoidal) volume: sum over adjacent section pairs of
         # (A_i + A_{i+1})/2 * |offset gap|. A point cap contributes area 0 at its z.
         # ruled is a blend-shape choice, not volume-defining, so it does not change this.
+        if closed:
+            raise KernelOpError("closed/periodic loft is not supported")
         stack: list[tuple[float, float]] = []
         if start_point is not None:
             stack.append((0.0, start_point[2]))
@@ -154,12 +172,15 @@ class FakeKernel(Kernel):
         zs = [z for _, z in stack]
         return ((0.0, 0.0, min(zs)), (1.0, 1.0, max(zs)))
 
-    def rib(self, wire: Any, *, thickness: float, depth: float) -> Any:
+    def rib(self, wire: Any, *, thickness: float, depth: float | None = None,
+            to: Any = None, side: str = "both", draft: float = 0.0) -> Any:
         # Straight-ribbon volume model: length x thickness x depth. thickness is applied
         # symmetrically about the curve (via the real kernel's trace); depth grows one way.
-        # Curve-corner overlap is ignored (consistent with the fake sweep/loft style).
-        volume = wire.length * thickness * depth
-        return _FakeCombined(volume, self._rib_bounds(wire, thickness, depth))
+        # An until-material rib (to=...) uses a nominal depth (the fake kernel does not
+        # compute the section against a target); enough for volume/shape tests.
+        effective_depth = depth if depth is not None else thickness * 4.0
+        volume = wire.length * thickness * effective_depth
+        return _FakeCombined(volume, self._rib_bounds(wire, thickness, effective_depth))
 
     def _rib_bounds(self, wire: Any, thickness: float, depth: float) -> Bounds:
         """A coarse envelope: the wire's 2D extent grown by thickness/2 and depth."""
@@ -307,6 +328,23 @@ class FakeKernel(Kernel):
         return _FakeCombined(self.volume(solid) - radius * len(edges),
                              self.bounding_box(solid))
 
+    def fillet_variable(self, solid: Any, edges: list, radius_start: float,
+                        radius_end: float) -> Any:
+        # Analytic model: a ramped radius removes ~ the mean radius per edge.
+        mean_r = (radius_start + radius_end) / 2.0
+        return _FakeCombined(self.volume(solid) - mean_r * len(edges),
+                             self.bounding_box(solid))
+
+    def fillet_face(self, solid: Any, faces: list, radius: float) -> Any:
+        # Rounds the faces' bounding edges; the fake models ~4 edges per face.
+        return _FakeCombined(self.volume(solid) - radius * 4 * len(faces),
+                             self.bounding_box(solid))
+
+    def chamfer_vertices(self, solid: Any, vertices: list, distance: float) -> Any:
+        # A corner facet removes ~ a small tetrahedral volume per vertex.
+        return _FakeCombined(self.volume(solid) - distance * len(vertices),
+                             self.bounding_box(solid))
+
     def chamfer_edges(self, solid: Any, edges: list, distance: float, *,
                       distance2: float | None = None,
                       angle: float | None = None) -> Any:
@@ -339,6 +377,27 @@ class FakeKernel(Kernel):
         factor = 1.0 - math.sin(math.radians(angle)) * 0.01 * len(faces)
         volume = max(self.volume(solid) * factor, 1e-9)
         return _FakeCombined(volume, self.bounding_box(solid))
+
+    def draft_variable(self, solid: Any, face_angles: list, *, neutral: str,
+                       neutral_offset: float = 0.0) -> Any:
+        # Per-face taper: sum a small delta per (face, angle). Deterministic + positive.
+        factor = 1.0
+        for _, angle in face_angles:
+            factor -= math.sin(math.radians(angle)) * 0.01
+        volume = max(self.volume(solid) * factor, 1e-9)
+        return _FakeCombined(volume, self.bounding_box(solid))
+
+    def thread_cut(self, solid: Any, *, axis_point: Point3, axis_dir: Point3,
+                   major_d: float, pitch: float, length: float, internal: bool) -> Any:
+        # A modeled thread removes (external) or adds (internal) ~ a helical groove volume:
+        # thread height ~ 0.6*pitch, turns ~ length/pitch. Deterministic + sign by mode.
+        if pitch <= 0.0:
+            raise KernelOpError(f"thread pitch must be positive; got {pitch}")
+        turns = length / pitch
+        groove = 0.6 * pitch * pitch * turns * math.pi
+        base = self.volume(solid)
+        volume = base - groove if not internal else base + groove
+        return _FakeCombined(max(volume, 1e-9), self.bounding_box(solid))
 
     def wrap(self, solid: Any, face: Any, *, text: str | None = None,
              profile: Any = None, font_size: float = 5.0, font: str = "Arial",

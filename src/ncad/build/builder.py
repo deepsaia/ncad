@@ -38,30 +38,34 @@ _REF_FIELDS: dict[str, dict[str, str]] = {
     "extrude": {"profile": "input", "to": "face"},
     "pocket": {"profile": "shape", "target": "shape", "to": "face"},
     "boolean": {"target": "shape", "tool": "shape", "tools": "shape_list"},
-    "revolve": {"profile": "input"},
-    "groove": {"profile": "shape", "target": "shape"},
+    "revolve": {"profile": "input", "axis": "datum"},
+    "groove": {"profile": "shape", "target": "shape", "axis": "datum"},
     "sweep": {"profile": "input", "path": "shape", "sections": "shape_list",
               "guides": "shape_list"},
-    "loft": {"sections": "shape_list"},
-    "rib": {"profile": "shape", "target": "shape"},
+    "loft": {"sections": "shape_list", "guides": "shape_list"},
+    "rib": {"profile": "shape", "target": "shape", "profiles": "shape_list"},
     "shell": {"openings": "face_list"},
     "draft": {"faces": "face_list"},
     "wrap": {"on": "face", "profile": "shape"},
     "hole": {"on": "face"},
-    "fillet": {"edges": "edges"},
-    "chamfer": {"edges": "edges"},
-    "sketch": {"project": "edges", "project_vertices": "vertices", "intersect": "shape"},
+    "fillet": {"edges": "edges", "faces": "face_list"},
+    "chamfer": {"edges": "edges", "vertices": "vertices"},
+    "sketch": {"project": "edges", "project_vertices": "vertices", "intersect": "shape",
+               "plane": "datum"},
     "defeature": {"face": "face"},
     # offset ignores the face today (whole-solid); declaring it future-proofs per-face offset.
     "offset": {"face": "face"},
     "move_face": {"face": "face"},
     "relate": {"reference": "face", "moving": "face"},
+    "datum_plane": {"face": "face"},
+    "datum_axis": {"face": "face", "edge": "edges", "planes": "shape_list"},
+    "thread": {"axis": "datum"},
 }
 _EDGE_KEYWORDS = ("all", "top", "bottom", "vertical", "horizontal")
 _FACE_KEYWORDS = ("all", "top", "bottom", "vertical", "horizontal")
-# Ops whose output is not a model solid (a sketch produces an input face); the element
-# map tracks the working solid, so these do not rebuild it.
-_NON_SOLID_OPS = frozenset({"sketch"})
+# Ops whose output is not a model solid (a sketch produces a face; a datum is reference
+# geometry); the element map tracks the working solid, so these do not rebuild it.
+_NON_SOLID_OPS = frozenset({"sketch", "datum_plane", "datum_axis"})
 
 
 class Builder:
@@ -103,6 +107,7 @@ class Builder:
         resolver = ReferenceResolver(element_map)
         previous_shape: Any = None
         last_id: str | None = None
+        last_solid_id: str | None = None
         failed: set[str] = set()
 
         for feature_id in order:
@@ -181,9 +186,13 @@ class Builder:
             # a sketch would grab the face as its base solid.
             if feature.get("op", "") not in _NON_SOLID_OPS:
                 previous_shape = result.shape
+                last_solid_id = feature_id
             last_id = feature_id
 
-        final_shape = shape_by_id.get(last_id) if last_id is not None else None
+        # The part's built shape is the last SOLID-producing feature (a trailing non-solid
+        # feature - a datum, or a sketch - is reference geometry, not the part body).
+        final_id = last_solid_id if last_solid_id is not None else last_id
+        final_shape = shape_by_id.get(final_id) if final_id is not None else None
         return (OpResult(shape=final_shape, provenance={}, issues=issues),
                 element_map, statuses)
 
@@ -245,6 +254,19 @@ class Builder:
                 continue
             if role == "face_list" and value in _FACE_KEYWORDS:
                 refs[field] = self._resolve_keyword_faces(previous_shape, value)
+                continue
+            # A `datum` field (sketch plane, revolve axis) is resolved ONLY when it names a
+            # datum (`datums.<id>`); a literal base-plane string / axis object is left alone
+            # for the op to interpret. This keeps the base-plane path unchanged.
+            if role == "datum":
+                if not (isinstance(value, str) and value.startswith("datums.")):
+                    continue
+                resolution = resolver.resolve(
+                    Reference.parse(value[len("datums."):]), shape_by_id,
+                    element_map.elements())
+                if resolution.error is not None:
+                    return refs, shape_in, resolution.error
+                refs[field] = resolution.shapes[0] if resolution.shapes else None
                 continue
             resolution = resolver.resolve(
                 Reference.parse(str(value)), shape_by_id, element_map.elements())

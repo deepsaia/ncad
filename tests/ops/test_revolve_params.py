@@ -40,8 +40,17 @@ def test_unknown_axis_keyword_raises():
         revolve_kwargs({"axis": "W"}, {})
 
 
-def test_axis_reference_string_deferred():
-    with pytest.raises(RevolveParamError, match="not yet supported"):
+def test_datum_axis_reference_resolves_from_refs():
+    # A datums.<id> axis resolves (via the builder) to a (point, dir) tuple in refs["axis"].
+    kwargs = revolve_kwargs({"axis": "datums.spin"},
+                            {"axis": ((1.0, 0.0, 0.0), (0.0, 0.0, 1.0))})
+    assert kwargs["axis_point"] == (1.0, 0.0, 0.0)
+    assert kwargs["axis_dir"] == (0.0, 0.0, 1.0)
+
+
+def test_unknown_literal_axis_raises():
+    # Without a resolved refs["axis"], a non-base-name literal is unknown.
+    with pytest.raises(RevolveParamError, match="unknown axis"):
         revolve_kwargs({"axis": "datums.spin"}, {})
 
 

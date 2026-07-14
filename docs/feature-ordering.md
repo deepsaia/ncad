@@ -160,9 +160,48 @@ well-defined, and both are enforced by the executor (not left to chance):
 - **Seen in:** the spaced multibody parts (pattern of studs + a separate boss) and gate-2.8b
   `embossed_logo` (wrap after a marker sketch).
 
+### 11. A datum-referencing op must come after the datum it names
+
+A `sketch` on a datum plane, or a `revolve`/`groove` about a datum axis, references the datum
+via `datums.<id>`. The datum feature (`datum_plane` / `datum_axis`) must appear earlier in the
+tree so its geometry exists when the reference resolves.
+
+- **Why:** datums are non-solid reference features recorded into the element map; the resolver
+  looks up the datum's stored shape by feature id at build time.
+- **Failure mode:** a sketch that names `datums.d` before `d` is authored fails resolution
+  with an id-attributed "unresolved semantic reference" issue (skip-and-suppress).
+- **Note:** datums are non-solid (like `sketch`), so they never become the running solid, and
+  the part's built shape is the last SOLID feature (rule 10), never a trailing datum.
+- **Seen in:** gate-2.10 `cast_bracket` (a sketch/feature on a datum plane).
+
+### 12. An until-material rib needs its target faces present (place it after the walls it grows to)
+
+An until-material rib (`until = true`) grows its blade until it meets the target solid's faces
+(auto-trimmed), replacing the manual boolean-trim workaround. The faces it grows to must exist
+when the rib runs.
+
+- **Why:** the blade is extruded with an until/target extent against the running solid; if the
+  bracing walls are not there yet, there is nothing to grow to.
+- **Failure mode:** an until rib authored before its adjacent walls grows no material and is
+  refused ("until-material rib grew no material toward the target").
+- **Seen in:** gate-2.10 `cast_bracket` (an until-material gusset rib after both walls).
+
 ---
 
-### 11. Direct-edit ops (`defeature`, `offset`) come AFTER the geometry they act on
+### 12b. A modeled thread comes after the stud/bore it threads
+
+The `thread` op cuts a helical groove on the running solid about an axis. The cylindrical
+stud (external) or bore (internal) it threads must already exist, and any dress-up on the
+threaded region should precede the thread (a fillet/chamfer after a modeled thread hits the
+thousands of thread edges and is slow/fragile).
+
+- **Why:** the thread tool is booleaned with the running solid; there must be a cylinder to
+  groove, and OCCT dress-up on a threaded surface is fragile.
+- **Failure mode:** threading before the stud exists grooves nothing; filleting after a
+  thread can segfault/hang on the thread crest edges.
+- **Seen in:** gate-2.10 `hex_bolt` (thread after the shank, dress-up before).
+
+### 13. Direct-edit ops (`defeature`, `offset`) come AFTER the geometry they act on
 
 Direct/synchronous ops edit the *current* B-rep in place (design section 3): they consume the
 running solid and reference a baked face by persistent name (4.1), so they must be authored
