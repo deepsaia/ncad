@@ -62,7 +62,11 @@ direct-edit spine (`DirectEditGuard` enforcing the envelope + `DirectEditRunner`
 oracle) with `defeature`, `offset`, `move_face`, and resize-baked-dress-up as a param edit;
 4.3a/b shipped one-shot relational edits (`relate`: parallel/coplanar/perpendicular/symmetric +
 coaxial/tangent), verified Creo-style mixed mode, import validate-on-load, and the subprocess
-guard for direct offset on imported bodies. The Phase 4 capstone gate is met (import >> direct-edit
+guard for direct offset on imported bodies. Bucket 4.4 (Phase 4 completeness) shipped feature
+pattern + feature mirror, real per-op history for maker ops (fillet/chamfer/revolve/defeature),
+curved-edge projection into a sketch, multibody-moving + cylinder-to-cylinder relations, and
+`reposition_hole` (dropping `replace_face` with a callout: OCP cannot construct the required
+face-modification tool). The Phase 4 capstone gate is met (import >> direct-edit
 within the envelope >> re-export; out-of-envelope refused). **Phase 5 is in progress:** bucket 5.0
 (the assembly spine) is DONE - a separate `.asm.hocon` document of part instances with explicit
 placement, `ncad assemble` composing cached part glbs into a scene sidecar, and an assembly
@@ -711,35 +715,62 @@ a fillet directly within the measured envelope, and re-export, references surviv
 out-of-envelope inputs are **refused with an id-tagged reason**, never silently
 corrupted.
 
-**Deferred backlog (Phase 4 buckets, gather here so nothing is lost):**
-- **Persistent names (4.1):** wire OCCT per-op history through EACH op's `OpResult.history`
-  (only extrude is instrumented; the rest fall back to geometric carry-forward, so full
-  "survives every edit" robustness on dress-up/booleans is partial); instrument
-  sweep/loft/revolve/shell/draft/rib/wrap/pattern/mirror/transform history; foreign-STEP import
-  robustness for the naming seed (dirty/non-solid/assembly STEP).
-- **Direct ops (4.2 / 4.2b):** `replace_face`; reposition baked `hole` (move the cut tool +
-  re-cut); a direct `modify_fillet`/`modify_chamfer` for HISTORY-FREE imported solids (when
-  there is no feature to re-run); per-face offset (documented OCCT weakness, whole-solid only
-  today); wire OCCT per-op history through the direct ops so their outputs get true lineage
-  names (currently geometric carry-forward, shares the 4.1 item).
-- **Relational edits (4.3a/b):** multibody-moving relations (move ONE body of a multibody part;
-  4.3a/b move the whole single-body running solid); richer gate examples once multibody-moving
-  lands (today's examples are self-referencing no-ops, real behavior in the real-kernel tests);
-  cylinder-to-cylinder tangent (4.3b shipped planar-face-to-cylinder tangent).
-- **Curved-edge projection into a sketch (from Phase 1 bucket 1.6):** projecting an
-  ellipse / spline / BSpline edge onto a sketch plane. `build123d_kernel._project_edge`
-  currently refuses BSpline/bezier edges (OCCT hands back a curve we do not decompose), so the
-  ellipse/spline reference-into-sketch path is not yet supported. This is a reference-layer
-  capability (it belongs with `project_edges` / the persistent-name refs), so it lives in the
-  Phase 4 backlog rather than Phase 1. Straight-edge + arc + circle projection already ships.
-- **Imported hardening (4.3b, partial):** SHIPPED - import validate-on-load + the subprocess
-  guard activated for direct `offset` on imported bodies. STILL DEFERRED - subprocess
-  face-targeting (defeature/move_face on imports currently run in-process + oracle, not
-  hang-isolated, until face re-resolve by geometric key across the process boundary is proven);
-  deep dirty-STEP repair (healing sweeps, assembly/multi-solid STEP, non-solid recovery).
-- **Excluded from v1 entirely** (below): auto-maintained relations, fillet/blend/tangent-chain
-  face moves, per-face variable offset, self-intersecting offsets. These are NOT deferred
-  follow-ups; they need a commercial kernel + constraint solver and are out of scope for v1.
+**Bucket 4.4: Phase 4 completeness (persistent-name / direct-modeling / relational)** - DONE
+The single Phase-4 completeness bucket of the phases-1-5 program (in-phase gaps only). Built:
+- [x] **feature_pattern + feature_mirror** (moved here from 3.7): a feature's cut/boss tool is
+      captured and re-applied at N pattern locations / reflected across a plane, then ONE
+      multi-tool boolean on the running solid. No rebuild-replay engine needed (tool-capture +
+      multi-tool boolean is additive); feature-ordering rule 12e (tool built first, applies to
+      the running solid). Gate: `mounting_cover` (6 feature-patterned counterbores).
+- [x] **Real per-op history for maker ops:** fillet/chamfer/revolve/defeature build via the raw
+      OCP maker (geometry-identical, verified) and stash it; `kernel.history` translates the
+      maker's Generated/Modified/IsDeleted into a real `ElementHistory` (fillet marks only the
+      rounded faces generated, carried faces keep names across an upstream edit). **Booleans keep
+      geometric carry-forward** (called out): build123d's post-boolean coplanar-face merge
+      invalidates the maker's per-face lineage, so true per-face boolean names need a composed
+      `BRepTools_History` across the clean step (documented follow-up). sweep/loft/rib/wrap go
+      through build123d functions that discard the maker (carry-forward, called out).
+- [x] **Curved-edge projection into a sketch** (moved here from 1.6): `_project_edge` samples a
+      BSpline/bezier edge at a pinned N via `position_at(t)` and emits an interpolated
+      construction spline (was refused before). Gate: `curved_import_edit` (imported spline top
+      edge projected).
+- [x] **Multibody-moving relate:** `relate moving_body=<id>` moves ONE body of a multibody
+      running shape, the rest pass through with their born-once ids. Gate: `mirrored_hinge` (pin
+      body seated coaxial to the knuckle bore).
+- [x] **Cylinder-to-cylinder tangent:** `RelationalSolver` gained the cyl-cyl tangent form (axis
+      distance = r1+r2 external or |r1-r2| internal, `internal=true`); the `relate` op dispatches
+      to it when the moving face is also cylindrical.
+- [x] **reposition_hole** (direct op): fill a baked/imported hole (fuse a plug) and re-cut at a
+      target position (fill + re-cut, reusing tool capture). Robust on the validity gate.
+- [x] **`aluminum_6061` material alias** (American spelling) via HOCON substitution
+      (`= ${aluminium_6061}`) in `materials/seed.hocon`.
+
+**Dropped with callout (genuinely undoable on our stack, never faked):**
+- **`replace_face`:** an arbitrary face swap needs a custom `BRepTools_Modification` subclass fed
+      to `BRepTools_Modifier`, but OCP cannot construct `BRepTools_Modification` in Python
+      (`TypeError: No constructor defined`) and the concrete subclasses only apply transforms. No
+      rebuild-and-boolean synthesis exists for an arbitrary surface swap. See
+      `docs/research/direct-modeling-occt-ceiling.md` (4.4 spike verdicts). Revisit only with a
+      commercial kernel or a py-OCCT modification hook.
+
+**Moved to Phase 12 (imported-geometry hardening):**
+- subprocess face-targeting for defeature/move_face on imports (face re-resolve by geometric key
+  across the process boundary, hang-isolated); deep dirty-STEP repair (healing sweeps,
+  assembly/multi-solid STEP, non-solid recovery). These are hardening, not in-phase completeness.
+
+**Still deferred (per-op history tail, shares the 4.1 item):** instrument
+sweep/loft/rib/wrap/pattern/mirror/transform history where an accessible OCP maker exists;
+composed `BRepTools_History` for true per-face boolean names; a direct
+`modify_fillet`/`modify_chamfer` for history-free imported solids; per-face offset (documented
+OCCT weakness, whole-solid only today).
+
+**NEXT completeness bucket: 5.7** (Assembly / Phase 5 completeness), the final bucket of the
+phases-1-5 completeness program.
+
+**Excluded from v1 entirely** (below): auto-maintained relations, fillet/blend/tangent-chain
+face moves, per-face variable offset, self-intersecting offsets. These are NOT deferred
+follow-ups; they need a commercial kernel + constraint solver and are out of scope for v1
+(confirmed still excluded by bucket 4.4).
 
 > **Excluded from v1** (`(A)`, design §19): auto-*maintained* relational inference
 > ("Live Rules" = commercial kernel + D-Cubed solver, multi-year), moving faces in
