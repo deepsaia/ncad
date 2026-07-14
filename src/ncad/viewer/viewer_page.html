@@ -1048,6 +1048,10 @@ let showJoints = localStorage.getItem("ncad.joints") === "1";
 // Per-instance material {instanceId: {material, appearance_color}} from the sidecar, for the
 // assembly By-Material view (bucket 5.6). Empty in Parts mode (that path uses the element map).
 let assemblyMaterials = {};
+// Parts | Assemblies view mode (persisted). Declared HERE, before the initial setMode() call
+// (which reaches distinctMaterials -> reads viewMode); a later `let` would be a temporal dead
+// zone and throw during init, blanking the whole viewer.
+let viewMode = localStorage.getItem("ncad.viewMode") || "parts";
 // Assembly selection / highlight / isolate (bucket 5.5). instanceMeshMap: instanceId -> [meshes],
 // published by loadAssembly once all glbs load. Declared before bindVcToggle (isolate) runs.
 let instanceMeshMap = {};
@@ -1889,7 +1893,8 @@ function selectModel(name) {
 // Parts mode (default) is unchanged: it lists /api/models and loads a single glb. Assemblies mode
 // lists /api/assemblies and loads an assembly scene (its parts placed by their solved/explicit
 // matrices). The choice persists in localStorage, like the theme and sidebar width.
-let viewMode = localStorage.getItem("ncad.viewMode") || "parts";
+// (viewMode is declared earlier, before setMode's init call, so distinctMaterials can read it
+// during the initial setMode without a temporal-dead-zone error.)
 const partGlbCache = {};  // part_glb filename -> loaded THREE.Object3D (loaded once, instanced)
 const assemblySources = {};  // assembly name -> source .asm.hocon path (for regenerate)
 
