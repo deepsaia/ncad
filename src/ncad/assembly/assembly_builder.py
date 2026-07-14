@@ -250,7 +250,7 @@ class AssemblyBuilder:
         # the sidecar even when there is nothing to solve. Phase 6 enforces them.
         couplings_out = [
             Coupling(id=c["id"], type=c["type"], between=list(c.get("between", [])),
-                     ratio=c.get("ratio")).to_dict()
+                     ratio=c.get("ratio"), profile=c.get("profile")).to_dict()
             for c in (document["assembly"].get("couplings") or [])]
         if not constraints and not joints:
             return ({"status": "well_constrained", "dof": 0, "explanation": "no constraints",

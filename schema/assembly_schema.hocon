@@ -98,7 +98,7 @@ definitions {
     required = ["id", "type", "between"]
     properties {
       id { type = string }
-      type { enum = ["gear", "belt", "rack_pinion", "universal"] }
+      type { enum = ["gear", "belt", "rack_pinion", "universal", "cam"] }
       between {
         type = array
         minItems = 2
@@ -106,6 +106,9 @@ definitions {
         items { type = string }
       }
       ratio { type = number }
+      # A cam coupling's follower rides this profile curve (a selector/persistent-name ref on the
+      # cam part); curved-contact enforcement is Phase 6. Bucket 5.7.
+      profile { type = string }
     }
   }
 
