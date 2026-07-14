@@ -22,8 +22,13 @@ class MirrorOp:
             return OpResult(shape=None, provenance={},
                             issues=[BuildIssue(node_id=feature_id,
                                                message="mirror has no solid")])
+        # A `face` ref resolves to an element descriptor; mirror_kwargs needs the face handle
+        # (geom_type/center/normal live on the handle, not the descriptor).
+        refs = dict(params.get("__refs__", {}))
+        if refs.get("face") is not None and hasattr(refs["face"], "handle"):
+            refs["face"] = refs["face"].handle
         try:
-            kwargs = mirror_kwargs(params)
+            kwargs = mirror_kwargs(params, refs)
         except MirrorParamError as exc:
             return OpResult(shape=None, provenance={},
                             issues=[BuildIssue(node_id=feature_id, message=str(exc))])

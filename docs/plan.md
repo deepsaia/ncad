@@ -966,8 +966,44 @@ is COMPLETE.**
 - [ ] **Viewer playback:** stream per-frame instance transforms; scrub timeline
 - [ ] Motion study definitions persisted in the `motion` block
 
-**Gate:** a four-bar linkage animates from a single angular driver; a trace curve
-and a collision-free report are produced and exported.
+**Candidate mechanism gate examples** *(real-world, progressively complex; each
+exercises a distinct joint mix and drives from ONE driver, so it doubles as a proof
+that the general py-slvs-stepped-over-time solver replaces a per-mechanism formula.
+Prefer these over an abstract four-bar, per the real-world-example discipline)*:
+- [ ] **Crank-slider (vertical engine cross-section)** - a piston sliding in a
+      cylinder, linked by a connecting rod to a crank pin on a spinning flywheel.
+      Joints: 3x **revolute** (crank-ground, crank-pin-rod, rod-piston) + 1x
+      **slider** (piston-cylinder); 1 DoF, driven by the crank angle. The canonical
+      first motion example. A hand-authored analytic reference (closed-form
+      `yP = R sin(theta) + sqrt(L^2 - (R cos theta)^2)`) exists in `tbt-studio`
+      (`mechanisms/crank_slider`); ncad's job is to reproduce that motion **from
+      declared joints + one driver**, no per-mechanism formula. Reference image:
+      `docs/images/crank-slider-reference.jpg`.
+- [ ] **Four-bar linkage** - the classic planar closed loop, 4x revolute, 1 DoF; the
+      simplest closed-chain solve and the coupler-curve trace demo (a point on the
+      coupler traces a useful path). Good first *closed-loop* convergence test.
+- [ ] **Slider-crank pump / reciprocating pump** - crank-slider driving a plunger;
+      adds a **measure-over-time** (plunger displacement -> swept volume vs. crank
+      angle), proving the measures-over-time output on a familiar machine.
+- [ ] **Geneva mechanism (intermittent indexer)** - a driving pin + slotted wheel
+      giving intermittent rotation; exercises a **point-on-line / slot** joint and a
+      non-uniform output, a strong test of the stepped solve through engagement /
+      disengagement. Great motion-envelope + interference demo.
+- [ ] **Scotch yoke** - rotary-to-pure-sinusoidal-linear via a pin in a slot; a
+      second slot/point-on-line case, contrasts with the crank-slider's rod linkage.
+- [ ] **Cam-follower** - a rotating cam profile driving a translating (or pivoting)
+      follower; exercises a **cam / higher-pair** driver (function-of-another-DoF)
+      and a non-circular contact, the bridge toward coupled joints.
+- [ ] **Gear pair / rack-and-pinion** - coupled rotation (and rotation->translation);
+      exercises the **gear** and **rack-pinion** coupled joints (bucket 5.4b) under
+      motion, proving a coupler/gear driver.
+- [ ] **Robot arm (2-3R serial articulated)** - an open kinematic chain of revolute
+      joints; the **inverse-kinematics** showcase (drive the end-effector frame, solve
+      the joint angles) and a trace-curve of the tool path. The reach/envelope demo.
+
+**Gate:** the **crank-slider** animates from a single crank-angle driver (matching the
+`tbt-studio` analytic reference), and a **four-bar** produces a coupler trace curve and
+a collision-free report; both exported from the `motion` block.
 
 ---
 
