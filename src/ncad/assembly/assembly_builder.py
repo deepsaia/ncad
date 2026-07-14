@@ -28,6 +28,7 @@ from ncad.assembly.interference_checker import InterferenceChecker
 from ncad.assembly.joint_lowering import JointError, JointLowering
 from ncad.assembly.mate_lowering import MateError, MateLowering
 from ncad.assembly.mate_solver import MateSolver
+from ncad.assembly.sub_assembly_composer import SubAssemblyComposer
 from ncad.build.document_builder import DocumentBuilder
 from ncad.build.mass_calculator import MassCalculator
 from ncad.build.material_error import MaterialError
@@ -53,6 +54,7 @@ class AssemblyBuilder:
         self._pattern = ComponentPattern()
         self._mirror = ComponentMirror()
         self._replace = ComponentReplace()
+        self._composer = SubAssemblyComposer()
         self._connectors = ConnectorResolver()
         self._snap = FrameSnap()
         self._lowering = MateLowering()
@@ -63,8 +65,17 @@ class AssemblyBuilder:
         self._bom = AssemblyBom()
         self._mass = MassCalculator(kernel)
 
-    def assemble(self, asm_path: str, out_dir: str) -> dict:
-        """Compose the assembly at ``asm_path`` into ``out_dir``; return sidecar path + issues."""
+    def assemble(self, asm_path: str, out_dir: str,
+                 _visited: frozenset = frozenset()) -> dict:
+        """Compose the assembly at ``asm_path`` into ``out_dir``; return sidecar path + issues.
+
+        ``_visited`` carries the ancestor .asm.hocon paths for sub-assembly cycle detection
+        (bucket 5.7); callers use the default empty set.
+        """
+        abs_path = os.path.abspath(asm_path)
+        if abs_path in _visited:
+            raise ValueError(f"circular sub-assembly reference: {abs_path}")
+        _visited = _visited | {abs_path}
         document = self._loader.load(asm_path)
         schema_issues = self._validator.validate(document)
         if schema_issues:
@@ -98,6 +109,13 @@ class AssemblyBuilder:
         instances: list[dict] = []
         issues: list[dict] = list(pre_issues)
         for instance in document["assembly"]["instances"]:
+            if instance.get("assembly"):
+                # A nested sub-assembly: build it recursively and compose its solved instances
+                # under this instance's placement (bucket 5.7). It occupies a rigid-body slot in
+                # placements_mm so a later mate/connect can target it as one body.
+                instances.extend(self._compose_sub_assembly(
+                    instance, asm_dir, out_dir, _visited, to_metres, placements_mm, issues))
+                continue
             glb = self._ensure_part_glb(instance, asm_dir, out_dir, builders, built_glbs, issues)
             if glb is None:
                 continue
@@ -162,6 +180,34 @@ class AssemblyBuilder:
                 by_id[entry["id"]] = entry
                 out.append(entry)
         return out
+
+    def _compose_sub_assembly(self, instance: dict, asm_dir: str, out_dir: str,
+                              visited: frozenset, to_metres: float,
+                              placements_mm: dict, issues: list) -> list[dict]:
+        """Build a nested sub-assembly and compose its instances under this instance's placement.
+
+        The child assembles into the same out_dir (its own sidecar + STEP); its solved instances
+        (placements already baked to metres) are re-parented under the parent placement, also baked
+        to metres, so the composed scene stays in one unit space. A circular reference raises inside
+        the recursive assemble and is turned into an id-attributed issue here.
+        """
+        iid = instance["id"]
+        child_path = os.path.join(asm_dir, instance["assembly"])
+        try:
+            child = self.assemble(child_path, out_dir, visited)
+        except ValueError as exc:
+            issues.append({"instance_id": iid, "message": f"sub-assembly {iid!r}: {exc}"})
+            return []
+        for child_issue in child["issues"]:
+            issues.append({"instance_id": iid,
+                           "message": f"{iid}/{child_issue.get('instance_id', '?')}: "
+                                      f"{child_issue.get('message', '')}"})
+        child_sidecar_path = os.path.join(out_dir, f"{_stem(child_path)}{_ASSEMBLY_SUFFIX}")
+        with open(child_sidecar_path, encoding="utf-8") as handle:
+            child_doc = json.load(handle)
+        parent_metres = _bake_matrix(self._placement.matrix(instance.get("placement"), 1.0),
+                                     to_metres)
+        return self._composer.compose(child_doc["instances"], parent_metres, iid)
 
     def _place(self, instance: dict, placements_mm: dict,
                local_frames: dict, issues: list) -> list[list[float]]:
