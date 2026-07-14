@@ -1,0 +1,1153 @@
+{
+  "$schema": "./schema/content-node.schema.json",
+  "meta": {
+    "title": "ncad Learn - Engineering Reference & Course",
+    "description": "Product-neutral 4-level taxonomy (subject -> topic -> sub-topic -> concept) for the general engineering reference. Each concept teaches the field to professional depth regardless of ncad's status, carries an honest 'In ncad' box, and cites authoritative sources. Structure is comprehensive and non-duplicated: shared math lives in Foundations (S0), shared file formats in Interchange (S8). See docs/documentation-design.md (v2) for the design, the node schema (8a), and the citation model (8b).",
+    "levels": ["subject", "topic", "subtopic", "concept"],
+    "status_vocabulary": ["available", "partial", "wip", "planned", "not-in-scope"],
+    "note": "Comprehensive: subjects, topics, sub-topics AND concepts are complete - every concept of each field is listed. Each concept node carries an 'ncad' status block and at least one authoritative source anchor (a verified canonical textbook/standard/official-doc for its subject; per-concept page/DOI locators and MDX bodies are filled at authoring time). Sources are real, verified anchors - never fabricated per-concept citations.",
+    "source_anchors": {
+      "foundations": [{"type": "textbook", "tier": "primary", "title": "Modern Robotics", "authors": "Lynch & Park", "url": "http://hades.mech.northwestern.edu/index.php/Modern_Robotics"}],
+      "cad": [{"type": "textbook", "tier": "primary", "title": "Geometric Modeling", "authors": "Mortenson, M. E.", "url": "https://www.industrialpress.com/"}, {"type": "textbook", "tier": "primary", "title": "The NURBS Book", "authors": "Piegl & Tiller", "url": "https://link.springer.com/book/10.1007/978-3-642-59223-2"}, {"type": "textbook", "tier": "primary", "title": "Parametric and Feature-Based CAD/CAM", "authors": "Shah & Mantyla"}],
+      "cam": [{"type": "official-docs", "tier": "primary", "title": "LinuxCNC G-code", "url": "http://linuxcnc.org/docs/html/gcode.html"}, {"type": "standard", "tier": "primary", "title": "The NIST RS274NGC Interpreter", "authors": "Kramer, Proctor, Messina", "url": "https://www.nist.gov/publications/nist-rs274ngc-interpreter-version-3"}],
+      "pcb": [{"type": "official-docs", "tier": "primary", "title": "KiCad Documentation", "url": "https://docs.kicad.org/"}, {"type": "standard", "tier": "primary", "title": "IPC-2221 Generic Standard on Printed Board Design", "url": "https://www.ipc.org/"}],
+      "kinematics": [{"type": "textbook", "tier": "primary", "title": "Modern Robotics", "authors": "Lynch & Park", "url": "http://hades.mech.northwestern.edu/index.php/Modern_Robotics"}],
+      "mbd": [{"type": "textbook", "tier": "primary", "title": "Rigid Body Dynamics Algorithms", "authors": "Featherstone, R.", "url": "https://link.springer.com/book/10.1007/978-1-4899-7560-7"}],
+      "robotics": [{"type": "textbook", "tier": "primary", "title": "Modern Robotics", "authors": "Lynch & Park", "url": "http://hades.mech.northwestern.edu/index.php/Modern_Robotics"}, {"type": "official-docs", "tier": "primary", "title": "MuJoCo Documentation", "url": "https://mujoco.readthedocs.io/en/stable/"}],
+      "cae": [{"type": "textbook", "tier": "primary", "title": "The Finite Element Method", "authors": "Zienkiewicz & Taylor", "url": "https://www.sciencedirect.com/book/9781856176330/the-finite-element-method-its-basis-and-fundamentals"}],
+      "interchange": [{"type": "standard", "tier": "primary", "title": "ISO 10303 (STEP)", "url": "https://www.iso.org/standard/63141.html"}]
+    }
+  },
+  "subjects": [
+    {
+      "id": "foundations",
+      "level": "subject",
+      "title": "Foundations: Math, Geometry & Numerics for CAx",
+      "slug": "foundations",
+      "order": 0,
+      "summary": "The shared mathematical substrate cited by every other subject: frames and transforms, linear algebra, curves and continuity, screw theory, numerical methods, and the units/tolerance/determinism model. Written once here to avoid duplication.",
+      "topics": [
+        {
+          "id": "foundations.transforms",
+          "level": "topic",
+          "title": "Coordinate Systems & Transforms",
+          "summary": "Frames, homogeneous coordinates, rotation representations, and rigid-body transforms.",
+          "subtopics": [
+            {
+              "id": "foundations.transforms.frames",
+              "level": "subtopic",
+              "title": "Frames & Coordinate Systems",
+              "concepts": [
+                {"id": "foundations.transforms.frames.cartesian-cyl-sph", "level": "concept", "title": "Cartesian, Cylindrical & Spherical Frames"},
+                {"id": "foundations.transforms.frames.change-of-basis", "level": "concept", "title": "Change of Basis & Frame Composition"}
+              ]
+            },
+            {
+              "id": "foundations.transforms.rotations",
+              "level": "subtopic",
+              "title": "Rotation Representations",
+              "concepts": [
+                {"id": "foundations.transforms.rotations.matrix", "level": "concept", "title": "Rotation Matrices & SO(3)"},
+                {"id": "foundations.transforms.rotations.euler", "level": "concept", "title": "Euler Angles & Gimbal Lock"},
+                {"id": "foundations.transforms.rotations.axis-angle", "level": "concept", "title": "Axis-Angle & Rodrigues' Formula"},
+                {
+                  "id": "foundations.transforms.rotations.quaternions",
+                  "level": "concept",
+                  "title": "Unit Quaternions",
+                  "math": [{"id": "quat", "tex": "q = w + x\\,i + y\\,j + z\\,k,\\quad \\lVert q \\rVert = 1", "caption": "A unit quaternion encoding a 3D rotation"}],
+                  "ncad": {"status": "available", "notes": "Used internally for orientation in transforms and assembly placement.", "refs": ["/ncad/reference/schema"], "engine": null},
+                  "sources": [{"type": "textbook", "tier": "primary", "title": "Modern Robotics", "authors": "Lynch & Park", "year": 2017, "locator": "Ch. 3", "url": "http://hades.mech.northwestern.edu/index.php/Modern_Robotics"}],
+                  "see_also": ["foundations.transforms.homogeneous"]
+                }
+              ]
+            },
+            {
+              "id": "foundations.transforms.homogeneous",
+              "level": "subtopic",
+              "title": "Homogeneous & Rigid-Body Transforms (SE(3))",
+              "concepts": [
+                {"id": "foundations.transforms.homogeneous.matrices", "level": "concept", "title": "Homogeneous Transformation Matrices"},
+                {"id": "foundations.transforms.homogeneous.se3", "level": "concept", "title": "Rigid-Body Motion & SE(3)"}
+              ]
+            }
+          ]
+        },
+        {
+          "id": "foundations.linear-algebra",
+          "level": "topic",
+          "title": "Linear Algebra for Geometry",
+          "summary": "Vector operations, matrix decompositions, least-squares, and sparse systems as used across modeling and analysis.",
+          "subtopics": [
+            {"id": "foundations.linear-algebra.vector-ops", "level": "subtopic", "title": "Vector Operations", "concepts": [
+              {"id": "foundations.linear-algebra.vector-ops.dot-cross", "level": "concept", "title": "Dot & Cross Products"},
+              {"id": "foundations.linear-algebra.vector-ops.triple", "level": "concept", "title": "Scalar & Vector Triple Products"}
+            ]},
+            {"id": "foundations.linear-algebra.decompositions", "level": "subtopic", "title": "Matrix Decompositions", "concepts": [
+              {"id": "foundations.linear-algebra.decompositions.svd", "level": "concept", "title": "Singular Value Decomposition (SVD)"},
+              {"id": "foundations.linear-algebra.decompositions.qr", "level": "concept", "title": "QR Decomposition"},
+              {"id": "foundations.linear-algebra.decompositions.eigen", "level": "concept", "title": "Eigendecomposition"}
+            ]},
+            {"id": "foundations.linear-algebra.fitting", "level": "subtopic", "title": "Fitting & Systems", "concepts": [
+              {"id": "foundations.linear-algebra.fitting.least-squares", "level": "concept", "title": "Least-Squares Fitting"},
+              {"id": "foundations.linear-algebra.fitting.sparse", "level": "concept", "title": "Sparse Linear Systems"}
+            ]}
+          ]
+        },
+        {
+          "id": "foundations.curves",
+          "level": "topic",
+          "title": "Curves, Parameterization & Continuity",
+          "summary": "Parametric vs implicit forms, parametric (C-n) vs geometric (G-n) continuity, curvature and torsion.",
+          "subtopics": [
+            {"id": "foundations.curves.forms", "level": "subtopic", "title": "Curve Forms", "concepts": [
+              {"id": "foundations.curves.forms.parametric", "level": "concept", "title": "Parametric Form"},
+              {"id": "foundations.curves.forms.implicit-explicit", "level": "concept", "title": "Implicit & Explicit Forms"}
+            ]},
+            {"id": "foundations.curves.continuity", "level": "subtopic", "title": "Continuity", "concepts": [
+              {"id": "foundations.curves.continuity.parametric-geometric", "level": "concept", "title": "Parametric (C-n) vs Geometric (G-n) Continuity"}
+            ]},
+            {"id": "foundations.curves.differential", "level": "subtopic", "title": "Differential Geometry", "concepts": [
+              {"id": "foundations.curves.differential.curvature-torsion", "level": "concept", "title": "Curvature & Torsion"},
+              {"id": "foundations.curves.differential.frenet", "level": "concept", "title": "The Frenet-Serret Frame"}
+            ]}
+          ]
+        },
+        {
+          "id": "foundations.screw-theory",
+          "level": "topic",
+          "title": "Screw Theory & Spatial Algebra",
+          "summary": "Twists, wrenches, Plücker coordinates, the exponential/log map on SE(3), and spatial 6-vectors - the shared language of kinematics, MBD and robotics.",
+          "subtopics": [
+            {"id": "foundations.screw-theory.twists-wrenches", "level": "subtopic", "title": "Twists & Wrenches", "concepts": [
+              {"id": "foundations.screw-theory.twists-wrenches.twists", "level": "concept", "title": "Twists (Spatial Velocity)"},
+              {"id": "foundations.screw-theory.twists-wrenches.wrenches", "level": "concept", "title": "Wrenches (Spatial Force)"},
+              {"id": "foundations.screw-theory.twists-wrenches.plucker", "level": "concept", "title": "Plücker Coordinates & Screws"}
+            ]},
+            {"id": "foundations.screw-theory.exp-log", "level": "subtopic", "title": "Exponential & Log Maps", "concepts": [{"id": "foundations.screw-theory.exp-log.se3", "level": "concept", "title": "The Exponential Map on SE(3)"}]},
+            {"id": "foundations.screw-theory.spatial-vectors", "level": "subtopic", "title": "Spatial (6-D) Vectors", "concepts": [{"id": "foundations.screw-theory.spatial-vectors.featherstone", "level": "concept", "title": "Featherstone Spatial-Vector Notation", "sources": [{"type": "textbook", "tier": "primary", "title": "Rigid Body Dynamics Algorithms", "authors": "Featherstone, R.", "year": 2008, "url": "https://link.springer.com/book/10.1007/978-1-4899-7560-7"}]}]}
+          ]
+        },
+        {
+          "id": "foundations.numerics",
+          "level": "topic",
+          "title": "Numerical Methods",
+          "summary": "Root finding, ODE integration, linear solvers, and optimization used by solvers and simulators.",
+          "subtopics": [
+            {"id": "foundations.numerics.root-finding", "level": "subtopic", "title": "Root Finding", "concepts": [
+              {"id": "foundations.numerics.root-finding.newton", "level": "concept", "title": "Newton-Raphson Iteration"},
+              {"id": "foundations.numerics.root-finding.convergence", "level": "concept", "title": "Convergence & Robustness (Bracketing, Damping)"}
+            ]},
+            {"id": "foundations.numerics.integration", "level": "subtopic", "title": "ODE Integration", "concepts": [
+              {"id": "foundations.numerics.integration.rk", "level": "concept", "title": "Runge-Kutta & Explicit Methods"},
+              {"id": "foundations.numerics.integration.implicit", "level": "concept", "title": "Implicit Methods (for Stiff Systems)"},
+              {"id": "foundations.numerics.integration.symplectic", "level": "concept", "title": "Symplectic / Variational Integrators"}
+            ]},
+            {"id": "foundations.numerics.solvers", "level": "subtopic", "title": "Linear Solvers", "concepts": [
+              {"id": "foundations.numerics.solvers.direct-iterative", "level": "concept", "title": "Direct vs Iterative Solvers"}
+            ]},
+            {"id": "foundations.numerics.optimization", "level": "subtopic", "title": "Optimization", "concepts": [
+              {"id": "foundations.numerics.optimization.newton-gn-lm", "level": "concept", "title": "Newton, Gauss-Newton & Levenberg-Marquardt"},
+              {"id": "foundations.numerics.optimization.basics", "level": "concept", "title": "Unconstrained & Constrained Optimization Basics"}
+            ]}
+          ]
+        },
+        {
+          "id": "foundations.units-robustness",
+          "level": "topic",
+          "title": "Units, Tolerances, Floating Point & Determinism",
+          "summary": "Unit systems, machine epsilon, exact vs approximate representation, and reproducibility - the basis of ncad's determinism guarantee.",
+          "subtopics": [
+            {"id": "foundations.units-robustness.units", "level": "subtopic", "title": "Units & Dimensional Analysis", "concepts": [
+              {"id": "foundations.units-robustness.units.systems", "level": "concept", "title": "Unit Systems (SI/Imperial) & Model Units"},
+              {"id": "foundations.units-robustness.units.dimensional", "level": "concept", "title": "Dimensional Analysis & Consistency"}
+            ]},
+            {"id": "foundations.units-robustness.float", "level": "subtopic", "title": "Floating Point & Robustness", "concepts": [
+              {"id": "foundations.units-robustness.float.epsilon", "level": "concept", "title": "Machine Epsilon & Numerical Tolerance"},
+              {"id": "foundations.units-robustness.float.robustness", "level": "concept", "title": "Geometric Robustness & Exact Predicates"}
+            ]},
+            {"id": "foundations.units-robustness.exact-approx", "level": "subtopic", "title": "Exact vs Approximate", "concepts": [{"id": "foundations.units-robustness.exact-approx.brep-vs-mesh", "level": "concept", "title": "Exact (B-rep) vs Approximate (Tessellated) Representation", "ncad": {"status": "available", "notes": "ncad builds exact B-rep (OCCT) and tessellates only for the viewer.", "refs": ["/ncad/explained/determinism"], "engine": null}}]}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cad",
+      "level": "subject",
+      "title": "Geometric & Solid Modeling (CAD)",
+      "slug": "cad",
+      "order": 1,
+      "summary": "How 3D parts are represented, sketched, featured, referenced, assembled, documented, and specialized into domain profiles. ncad's home turf.",
+      "topics": [
+        {
+          "id": "cad.representations",
+          "level": "topic",
+          "title": "Geometric Representations",
+          "summary": "The data models for 3D shape: boundary representation, CSG, mesh, implicit, and convergent.",
+          "subtopics": [
+            {"id": "cad.representations.brep", "level": "subtopic", "title": "Boundary Representation (B-rep)", "concepts": [
+              {"id": "cad.representations.brep.topology", "level": "concept", "title": "Topology: Vertex/Edge/Loop/Face/Shell/Solid"},
+              {"id": "cad.representations.brep.geometry-attachment", "level": "concept", "title": "Geometry Attached to Topology"},
+              {"id": "cad.representations.brep.euler-operators", "level": "concept", "title": "Euler Operators", "ncad": {"status": "not-in-scope", "notes": "B-rep via OCCT; Euler ops are kernel-internal, not authored in ncad.", "refs": ["/ncad/reference/kernel"], "engine": null}, "sources": [{"type": "textbook", "tier": "primary", "title": "Geometric Modeling", "authors": "Mortenson, M. E.", "edition": "3rd", "url": "https://www.industrialpress.com/"}]}
+            ]},
+            {"id": "cad.representations.csg", "level": "subtopic", "title": "Constructive Solid Geometry (CSG)", "concepts": [{"id": "cad.representations.csg.tree", "level": "concept", "title": "The CSG Tree"}]},
+            {"id": "cad.representations.mesh", "level": "subtopic", "title": "Mesh / Facet Representation", "concepts": [
+              {"id": "cad.representations.mesh.triangle-meshes", "level": "concept", "title": "Triangle & Polygon Meshes"},
+              {"id": "cad.representations.mesh.tessellation", "level": "concept", "title": "Tessellation of Exact Surfaces", "ncad": {"status": "available", "notes": "BRepMesh tessellation to glTF for the viewer.", "refs": ["/ncad/reference/export"], "engine": null}}
+            ]},
+            {"id": "cad.representations.implicit", "level": "subtopic", "title": "Implicit & Function Representations", "concepts": [{"id": "cad.representations.implicit.sdf", "level": "concept", "title": "Signed Distance Functions"}]},
+            {"id": "cad.representations.convergent", "level": "subtopic", "title": "Convergent (Mesh + B-rep) & Non-Manifold", "concepts": [{"id": "cad.representations.convergent.hybrid", "level": "concept", "title": "Convergent Modeling"}]}
+          ]
+        },
+        {
+          "id": "cad.curves-surfaces",
+          "level": "topic",
+          "title": "Curves & Surfaces",
+          "summary": "The analytic and free-form geometry underlying every feature.",
+          "subtopics": [
+            {"id": "cad.curves-surfaces.analytic", "level": "subtopic", "title": "Lines, Arcs & Conics", "concepts": [
+              {"id": "cad.curves-surfaces.analytic.lines-arcs", "level": "concept", "title": "Lines & Circular Arcs"},
+              {"id": "cad.curves-surfaces.analytic.conics", "level": "concept", "title": "Conics (Ellipse/Parabola/Hyperbola; the rho Model)"}
+            ]},
+            {"id": "cad.curves-surfaces.bezier-bspline", "level": "subtopic", "title": "Bezier & B-splines", "concepts": [
+              {"id": "cad.curves-surfaces.bezier-bspline.bezier", "level": "concept", "title": "Bezier Curves & the Bernstein Basis"},
+              {"id": "cad.curves-surfaces.bezier-bspline.bspline", "level": "concept", "title": "B-splines: Knot Vectors & Basis Functions"}
+            ]},
+            {"id": "cad.curves-surfaces.nurbs", "level": "subtopic", "title": "NURBS", "concepts": [
+              {"id": "cad.curves-surfaces.nurbs.weights-knots", "level": "concept", "title": "NURBS Curves: Weights & Rational Basis", "math": [{"id": "nurbs", "tex": "C(u) = \\frac{\\sum_{i} N_{i,p}(u)\\, w_i\\, P_i}{\\sum_{i} N_{i,p}(u)\\, w_i}", "caption": "A NURBS curve"}], "sources": [{"type": "textbook", "tier": "primary", "title": "The NURBS Book", "authors": "Piegl & Tiller", "year": 1997, "url": "https://link.springer.com/book/10.1007/978-3-642-59223-2"}]},
+              {"id": "cad.curves-surfaces.nurbs.surfaces", "level": "concept", "title": "NURBS Surfaces (Tensor-Product)"}
+            ]},
+            {"id": "cad.curves-surfaces.surface-families", "level": "subtopic", "title": "Surface Families", "concepts": [
+              {"id": "cad.curves-surfaces.surface-families.swept", "level": "concept", "title": "Extruded, Revolved & Swept Surfaces"},
+              {"id": "cad.curves-surfaces.surface-families.lofted-ruled", "level": "concept", "title": "Lofted & Ruled Surfaces"}
+            ]},
+            {"id": "cad.curves-surfaces.offset-blend", "level": "subtopic", "title": "Offset & Blend Surfaces", "concepts": [
+              {"id": "cad.curves-surfaces.offset-blend.offset", "level": "concept", "title": "Offset Surfaces"},
+              {"id": "cad.curves-surfaces.offset-blend.blend", "level": "concept", "title": "Blend & Fillet Surfaces"}
+            ]}
+          ]
+        },
+        {
+          "id": "cad.sketching",
+          "level": "topic",
+          "title": "Sketching & 2D Constraints",
+          "summary": "2D profiles and the constraint solver that fixes them - the parametric foundation of a feature-based part.",
+          "subtopics": [
+            {"id": "cad.sketching.entities", "level": "subtopic", "title": "Sketch Entities", "concepts": [
+              {"id": "cad.sketching.entities.point-line", "level": "concept", "title": "Points & Lines", "ncad": {"status": "available", "notes": "point/line entities.", "refs": ["/ncad/reference/sketch"], "engine": null}},
+              {"id": "cad.sketching.entities.arc-circle", "level": "concept", "title": "Arcs & Circles", "ncad": {"status": "available", "notes": "arc/circle entities.", "refs": ["/ncad/reference/sketch"], "engine": null}},
+              {"id": "cad.sketching.entities.conic", "level": "concept", "title": "Ellipses & Conics", "ncad": {"status": "partial", "notes": "conic authoring (endpoints+apex+rho) per NX/Creo parity.", "refs": ["/ncad/reference/sketch"], "engine": null}},
+              {"id": "cad.sketching.entities.spline", "level": "concept", "title": "Splines (Bezier & Interpolated)", "ncad": {"status": "available", "notes": "bezier + interpolated; points solved, curve derived (bucket 2.3.5).", "refs": ["/ncad/reference/sketch"], "engine": null}},
+              {"id": "cad.sketching.entities.sugar", "level": "concept", "title": "Polyline, Slot, Polygon & Rectangle (Sugar)", "ncad": {"status": "available", "notes": "lowered by EntityExpander.", "refs": ["/ncad/reference/sketch"], "engine": null}},
+              {"id": "cad.sketching.entities.text", "level": "concept", "title": "Sketch Text"}
+            ]},
+            {"id": "cad.sketching.geometric-constraints", "level": "subtopic", "title": "Geometric Constraints", "concepts": [
+              {"id": "cad.sketching.geometric-constraints.coincidence", "level": "concept", "title": "Coincident, Point-On & Midpoint", "ncad": {"status": "available", "notes": "via py-slvs.", "refs": ["/ncad/reference/sketch"], "engine": "py-slvs"}},
+              {"id": "cad.sketching.geometric-constraints.orientation", "level": "concept", "title": "Horizontal, Vertical, Parallel & Perpendicular", "ncad": {"status": "available", "notes": "via py-slvs.", "refs": ["/ncad/reference/sketch"], "engine": "py-slvs"}},
+              {"id": "cad.sketching.geometric-constraints.tangent-concentric", "level": "concept", "title": "Tangent, Concentric & Collinear", "ncad": {"status": "available", "notes": "via py-slvs.", "refs": ["/ncad/reference/sketch"], "engine": "py-slvs"}},
+              {"id": "cad.sketching.geometric-constraints.equal-symmetric", "level": "concept", "title": "Equal, Symmetric & Fix/Ground", "ncad": {"status": "available", "notes": "via py-slvs.", "refs": ["/ncad/reference/sketch"], "engine": "py-slvs"}}
+            ]},
+            {"id": "cad.sketching.dimensional-constraints", "level": "subtopic", "title": "Dimensional Constraints", "concepts": [
+              {"id": "cad.sketching.dimensional-constraints.linear-angular", "level": "concept", "title": "Distance, Angle, Radius & Diameter", "ncad": {"status": "available", "notes": "full dimensional vocabulary.", "refs": ["/ncad/reference/sketch"], "engine": "py-slvs"}},
+              {"id": "cad.sketching.dimensional-constraints.driving-driven", "level": "concept", "title": "Driving vs Driven Dimensions", "ncad": {"status": "available", "notes": "driven = measured post-solve.", "refs": ["/ncad/reference/sketch"], "engine": "py-slvs"}}
+            ]},
+            {"id": "cad.sketching.dof", "level": "subtopic", "title": "Degrees of Freedom & Solving", "concepts": [
+              {"id": "cad.sketching.dof.solving", "level": "concept", "title": "Constraint Solving & the Geometric Solver", "ncad": {"status": "available", "notes": "py-slvs (SolveSpace).", "refs": ["/ncad/explained/solver"], "engine": "py-slvs"}, "see_also": ["foundations.numerics.optimization.newton-gn-lm"]},
+              {"id": "cad.sketching.dof.status", "level": "concept", "title": "Well-, Under-, Over-Constrained & Redundant", "ncad": {"status": "available", "notes": "sketch status surfaced in the viewer (bucket 1.5).", "refs": ["/ncad/reference/sketch"], "engine": "py-slvs"}}
+            ]},
+            {"id": "cad.sketching.reference-geometry", "level": "subtopic", "title": "Construction, Reference & Projection Geometry", "concepts": [
+              {"id": "cad.sketching.reference-geometry.construction", "level": "concept", "title": "Construction / Reference Geometry", "ncad": {"status": "available", "notes": "construction entities pinned, excluded from the wire.", "refs": ["/ncad/reference/sketch"], "engine": null}},
+              {"id": "cad.sketching.reference-geometry.project-offset", "level": "concept", "title": "Project & Offset Prior Edges into a Sketch", "ncad": {"status": "available", "notes": "project prior feature edges; offset entities (bucket 1.4).", "refs": ["/ncad/reference/sketch"], "engine": null}}
+            ]}
+          ]
+        },
+        {
+          "id": "cad.features",
+          "level": "topic",
+          "title": "Feature-Based & Parametric Modeling",
+          "summary": "The ordered feature tree and its replay - the default parametric modeling paradigm.",
+          "subtopics": [
+            {"id": "cad.features.tree", "level": "subtopic", "title": "The Feature Tree & History Replay", "concepts": [
+              {"id": "cad.features.tree.ordered", "level": "concept", "title": "The Ordered Feature Tree", "ncad": {"status": "available", "notes": "the core ncad model.", "refs": ["/ncad/explained/feature-tree"], "engine": null}},
+              {"id": "cad.features.tree.replay", "level": "concept", "title": "History Replay & Rebuild", "ncad": {"status": "available", "notes": "pure build(document); incremental rebuild + content-addressed cache.", "refs": ["/ncad/explained/feature-tree"], "engine": null}},
+              {"id": "cad.features.tree.design-intent", "level": "concept", "title": "Design Intent"}
+            ]},
+            {"id": "cad.features.sketched", "level": "subtopic", "title": "Sketched Features", "concepts": [
+              {"id": "cad.features.sketched.extrude", "level": "concept", "title": "Extrude / Pad", "ncad": {"status": "available", "notes": "end: blind/symmetric/two_side/through_all/to_next/to_face/to_surface; draft; thin.", "refs": ["/ncad/reference/ops/extrude"], "engine": null}},
+              {"id": "cad.features.sketched.revolve", "level": "concept", "title": "Revolve / Groove", "ncad": {"status": "available", "notes": "angle/symmetric/thin; axis X/Y/Z or point+dir (datum-axis Planned).", "refs": ["/ncad/reference/ops/revolve"], "engine": null}},
+              {"id": "cad.features.sketched.sweep", "level": "concept", "title": "Sweep & Helical Sweep", "ncad": {"status": "partial", "notes": "single-path + helix + variable-section; guide curves approximate a plain sweep.", "refs": ["/ncad/reference/ops/sweep"], "engine": null}},
+              {"id": "cad.features.sketched.loft", "level": "concept", "title": "Loft / Blend", "ncad": {"status": "partial", "notes": "multi-section, ruled/smooth, point caps; guide/rail curves Planned.", "refs": ["/ncad/reference/ops/loft"], "engine": null}},
+              {"id": "cad.features.sketched.rib", "level": "concept", "title": "Rib / Web / Stiffener", "ncad": {"status": "partial", "notes": "trace+extrude blade; until-material auto-trim Planned.", "refs": ["/ncad/reference/ops/rib"], "engine": null}}
+            ]},
+            {"id": "cad.features.dressup", "level": "subtopic", "title": "Dress-Up Features", "concepts": [
+              {"id": "cad.features.dressup.fillet", "level": "concept", "title": "Fillet / Round", "ncad": {"status": "partial", "notes": "constant-radius Available; variable/face/full-round Planned.", "refs": ["/ncad/reference/ops/fillet"], "engine": null}},
+              {"id": "cad.features.dressup.chamfer", "level": "concept", "title": "Chamfer / Bevel", "ncad": {"status": "partial", "notes": "distance, two-distance, distance-angle; vertex chamfer Planned.", "refs": ["/ncad/reference/ops/chamfer"], "engine": null}},
+              {"id": "cad.features.dressup.shell", "level": "concept", "title": "Shell / Hollow", "ncad": {"status": "partial", "notes": "uniform wall + face openings; multi-thickness Planned.", "refs": ["/ncad/reference/ops/shell"], "engine": null}},
+              {"id": "cad.features.dressup.draft", "level": "concept", "title": "Draft", "ncad": {"status": "partial", "notes": "neutral-plane draft; parting-line/step/variable Planned.", "refs": ["/ncad/reference/ops/draft"], "engine": null}},
+              {"id": "cad.features.dressup.hole", "level": "concept", "title": "Hole (Simple/Counterbore/Countersink/Tapped)", "ncad": {"status": "partial", "notes": "counterbore/countersink/ISO sizing/cosmetic thread; modeled thread + full ANSI Planned.", "refs": ["/ncad/reference/ops/hole"], "engine": null}},
+              {"id": "cad.features.dressup.wrap", "level": "concept", "title": "Wrap (Emboss/Engrave)", "ncad": {"status": "partial", "notes": "text/sketch onto a flat face; curved-surface wrap Planned.", "refs": ["/ncad/reference/ops/wrap"], "engine": null}}
+            ]},
+            {"id": "cad.features.patterns", "level": "subtopic", "title": "Patterns & Mirror", "concepts": [
+              {"id": "cad.features.patterns.linear-circular", "level": "concept", "title": "Linear & Circular/Polar Patterns", "ncad": {"status": "available", "notes": "linear/circular patterns with addressable instances.", "refs": ["/ncad/reference/ops/pattern"], "engine": null}},
+              {"id": "cad.features.patterns.advanced", "level": "concept", "title": "Curve-/Sketch-/Table-Driven & Fill Patterns", "ncad": {"status": "planned", "notes": "advanced pattern drivers beyond linear/circular.", "refs": [], "phase": "P3", "engine": null}},
+              {"id": "cad.features.patterns.mirror", "level": "concept", "title": "Mirror (Feature/Body/Face)", "ncad": {"status": "available", "notes": "mirror shipped in Phase 3.", "refs": ["/ncad/reference/ops/pattern"], "engine": null}}
+            ]},
+            {"id": "cad.features.parameters", "level": "subtopic", "title": "Parameters & Expressions", "concepts": [
+              {"id": "cad.features.parameters.references", "level": "concept", "title": "Parameter References (${ref}) & Arithmetic", "ncad": {"status": "available", "notes": "expression layer.", "refs": ["/ncad/reference/expressions"], "engine": null}},
+              {"id": "cad.features.parameters.functions", "level": "concept", "title": "Registered Functions (Logic in Code)", "ncad": {"status": "available", "notes": "sandboxed function registry; logic in code, data in the document.", "refs": ["/ncad/reference/expressions"], "engine": null}}
+            ]},
+            {"id": "cad.features.ordering", "level": "subtopic", "title": "Feature Ordering", "concepts": [
+              {"id": "cad.features.ordering.constraints", "level": "concept", "title": "Order Constraints & Kernel Fragility", "ncad": {"status": "available", "notes": "see docs/feature-ordering.md.", "refs": ["/ncad/how-to/feature-tree"], "engine": null}}
+            ]}
+          ]
+        },
+        {
+          "id": "cad.tnp",
+          "level": "topic",
+          "title": "The Topological Naming Problem",
+          "summary": "How to name geometry so references survive upstream edits - the keystone of history-based CAD.",
+          "subtopics": [
+            {"id": "cad.tnp.persistent-naming", "level": "subtopic", "title": "Persistent Naming", "concepts": [
+              {"id": "cad.tnp.persistent-naming.problem", "level": "concept", "title": "The Topological Naming Problem"},
+              {"id": "cad.tnp.persistent-naming.names", "level": "concept", "title": "Persistent Names from Construction Lineage", "ncad": {"status": "available", "notes": "TopoShape-style names shipped in Phase 4.1.", "refs": ["/ncad/explained/references"], "engine": null}}
+            ]},
+            {"id": "cad.tnp.references", "level": "subtopic", "title": "Reference Kinds (the Robustness Ladder)", "concepts": [
+              {"id": "cad.tnp.references.semantic", "level": "concept", "title": "Semantic References (Name Lookup)", "ncad": {"status": "available", "notes": "implemented.", "refs": ["/ncad/reference/selectors"], "engine": null}},
+              {"id": "cad.tnp.references.generative", "level": "concept", "title": "Generative References (Provenance Map)", "ncad": {"status": "available", "notes": "implemented.", "refs": ["/ncad/reference/selectors"], "engine": null}},
+              {"id": "cad.tnp.references.selector", "level": "concept", "title": "Selector Predicates (over an Attribute Model)", "ncad": {"status": "available", "notes": "SQL-WHERE-style selectors via lark.", "refs": ["/ncad/reference/selectors"], "engine": null}},
+              {"id": "cad.tnp.references.persistent", "level": "concept", "title": "Persistent-Name Fallback", "ncad": {"status": "available", "notes": "Phase 4.1.", "refs": ["/ncad/reference/selectors"], "engine": null}}
+            ]}
+          ]
+        },
+        {
+          "id": "cad.direct",
+          "level": "topic",
+          "title": "Direct / Synchronous Modeling",
+          "summary": "History-free edits that transform the current B-rep in place.",
+          "subtopics": [
+            {"id": "cad.direct.face-ops", "level": "subtopic", "title": "Direct Face Operations", "concepts": [
+              {"id": "cad.direct.face-ops.move", "level": "concept", "title": "Move / Replace Face", "ncad": {"status": "partial", "notes": "planar faces on well-behaved topology (Phase 4.2).", "refs": ["/ncad/reference/direct"], "engine": null}},
+              {"id": "cad.direct.face-ops.offset", "level": "concept", "title": "Offset / Thicken Face", "ncad": {"status": "partial", "notes": "planar/analytic within the concave-radius limit.", "refs": ["/ncad/reference/direct"], "engine": null}},
+              {"id": "cad.direct.face-ops.delete", "level": "concept", "title": "Delete Face / Defeature", "ncad": {"status": "partial", "notes": "non-tangent faces; detect tangency and refuse (Phase 4.2).", "refs": ["/ncad/reference/direct"], "engine": null}}
+            ]},
+            {"id": "cad.direct.relational", "level": "subtopic", "title": "Relational Edits", "concepts": [
+              {"id": "cad.direct.relational.orientation", "level": "concept", "title": "Parallel / Perpendicular / Coplanar", "ncad": {"status": "partial", "notes": "one-shot relational edits shipped (4.3).", "refs": ["/ncad/reference/direct"], "engine": null}},
+              {"id": "cad.direct.relational.axis", "level": "concept", "title": "Coaxial / Tangent / Symmetric", "ncad": {"status": "partial", "notes": "one-shot relational edits (4.3).", "refs": ["/ncad/reference/direct"], "engine": null}},
+              {"id": "cad.direct.relational.live-rules", "level": "concept", "title": "Auto-Maintained Relations (Live Rules)", "ncad": {"status": "not-in-scope", "notes": "commercial kernel + D-Cubed class of system; excluded (design 19).", "refs": [], "engine": null}}
+            ]},
+            {"id": "cad.direct.mixed", "level": "subtopic", "title": "Mixed Mode & Imported Geometry", "concepts": [{"id": "cad.direct.mixed.import-edit", "level": "concept", "title": "Editing Imported Dumb Solids", "ncad": {"status": "partial", "notes": "ncad import + direct-edit within the measured envelope.", "refs": ["/ncad/reference/direct"], "engine": null}}]}
+          ]
+        },
+        {
+          "id": "cad.boolean-multibody",
+          "level": "topic",
+          "title": "Boolean & Body Operations",
+          "summary": "Union/subtract/intersect, multibody management, and boolean robustness.",
+          "subtopics": [
+            {"id": "cad.boolean-multibody.booleans", "level": "subtopic", "title": "Booleans", "concepts": [
+              {"id": "cad.boolean-multibody.booleans.union-cut-common", "level": "concept", "title": "Union, Subtract & Intersect", "ncad": {"status": "available", "notes": "union/cut/common.", "refs": ["/ncad/reference/ops/boolean"], "engine": null}},
+              {"id": "cad.boolean-multibody.booleans.split-scope", "level": "concept", "title": "Split, Multi-Tool & Scope-Mode Algebra", "ncad": {"status": "available", "notes": "split, multi-tool, scope-mode multibody algebra (Phase 3).", "refs": ["/ncad/reference/ops/boolean"], "engine": null}}
+            ]},
+            {"id": "cad.boolean-multibody.multibody", "level": "subtopic", "title": "Multibody", "concepts": [
+              {"id": "cad.boolean-multibody.multibody.body-identity", "level": "concept", "title": "Body Identity (Born-Once Ids)", "ncad": {"status": "available", "notes": "BodySet, born-once body ids.", "refs": ["/ncad/reference/multibody"], "engine": null}},
+              {"id": "cad.boolean-multibody.multibody.per-body", "level": "concept", "title": "Per-Body Materials & Mass", "ncad": {"status": "available", "notes": "per-body materials + derived mass.", "refs": ["/ncad/reference/multibody"], "engine": null}}
+            ]},
+            {"id": "cad.boolean-multibody.robustness", "level": "subtopic", "title": "Boolean Robustness", "concepts": [
+              {"id": "cad.boolean-multibody.robustness.fuzzy", "level": "concept", "title": "Tolerance Gating & Fuzzy Retry"},
+              {"id": "cad.boolean-multibody.robustness.heal", "level": "concept", "title": "Unify-Same-Domain & Heal-and-Retry"}
+            ]}
+          ]
+        },
+        {
+          "id": "cad.assemblies",
+          "level": "topic",
+          "title": "Assemblies",
+          "summary": "Instances of parts plus constraints and joints.",
+          "subtopics": [
+            {"id": "cad.assemblies.structure", "level": "subtopic", "title": "Instances & Structure", "concepts": [
+              {"id": "cad.assemblies.structure.instances", "level": "concept", "title": "Components & Instances", "ncad": {"status": "partial", "notes": "Phase 5: .asm.hocon instances + ncad assemble.", "refs": ["/ncad/reference/assembly"], "engine": null}},
+              {"id": "cad.assemblies.structure.subassemblies", "level": "concept", "title": "Sub-Assemblies & Flexible Sub-Assemblies"}
+            ]},
+            {"id": "cad.assemblies.mate-connectors", "level": "subtopic", "title": "Mate Connectors / Ports", "concepts": [
+              {"id": "cad.assemblies.mate-connectors.frames", "level": "concept", "title": "Named Coordinate Frames (Connectors)", "ncad": {"status": "partial", "notes": "geometry-derived connector frames (bucket 5.1).", "refs": ["/ncad/reference/assembly"], "engine": null}},
+              {"id": "cad.assemblies.mate-connectors.connect", "level": "concept", "title": "Connector-to-Connector Snap (Connect)", "ncad": {"status": "partial", "notes": "one-shot connect snap (bucket 5.1).", "refs": ["/ncad/reference/assembly"], "engine": null}}
+            ]},
+            {"id": "cad.assemblies.constraints", "level": "subtopic", "title": "Assembly Constraints (Mates)", "concepts": [
+              {"id": "cad.assemblies.constraints.coincident", "level": "concept", "title": "Mate / Coincident / Align / Flush", "ncad": {"status": "partial", "notes": "8-mate vocabulary solved by py-slvs (bucket 5.2).", "refs": ["/ncad/reference/assembly"], "engine": "py-slvs"}},
+              {"id": "cad.assemblies.constraints.orientation", "level": "concept", "title": "Parallel / Perpendicular / Angle / Concentric / Distance", "ncad": {"status": "partial", "notes": "bucket 5.2.", "refs": ["/ncad/reference/assembly"], "engine": "py-slvs"}},
+              {"id": "cad.assemblies.constraints.dof", "level": "concept", "title": "Assembly DoF Diagnostics (Well/Under/Over/Redundant)", "ncad": {"status": "partial", "notes": "four-state status attributed by mate id (bucket 5.3).", "refs": ["/ncad/reference/assembly"], "engine": "py-slvs"}, "see_also": ["kinematics.fundamentals.mobility.grubler"]}
+            ]},
+            {"id": "cad.assemblies.joints", "level": "subtopic", "title": "Joints (DoF-Bearing)", "concepts": [
+              {"id": "cad.assemblies.joints.lower-pairs", "level": "concept", "title": "Lower Pairs (Fixed/Revolute/Slider/Cylindrical/Planar/Ball/Point-on-Line)", "ncad": {"status": "partial", "notes": "7 lower pairs shipped (bucket 5.4a).", "refs": ["/ncad/reference/assembly"], "engine": "py-slvs"}, "see_also": ["kinematics.fundamentals.pairs.lower-higher"]},
+              {"id": "cad.assemblies.joints.coupled", "level": "concept", "title": "Coupled Joints (Screw/Gear/Rack-Pinion/Belt/Cam/Universal)", "ncad": {"status": "wip", "notes": "coupled joints in progress (bucket 5.4b).", "refs": ["/ncad/reference/assembly"], "phase": "P5", "engine": "py-slvs"}}
+            ]},
+            {"id": "cad.assemblies.interference", "level": "subtopic", "title": "Interference & Clearance", "concepts": [
+              {"id": "cad.assemblies.interference.static", "level": "concept", "title": "Static Interference Detection", "ncad": {"status": "planned", "notes": "exact (BRepExtrema) or fast mesh (Manifold).", "refs": [], "phase": "P5", "engine": null}}
+            ]},
+            {"id": "cad.assemblies.top-down", "level": "subtopic", "title": "Top-Down / In-Context", "concepts": [
+              {"id": "cad.assemblies.top-down.skeleton", "level": "concept", "title": "Skeleton / Master Model"},
+              {"id": "cad.assemblies.top-down.propagation", "level": "concept", "title": "Published Geometry & Change Propagation"}
+            ]}
+          ]
+        },
+        {
+          "id": "cad.surfacing",
+          "level": "topic",
+          "title": "Surfacing & Freeform (Class A)",
+          "summary": "Surfaces and curves as primary geometry, continuity matching, and quality analysis.",
+          "subtopics": [
+            {"id": "cad.surfacing.toolkit", "level": "subtopic", "title": "Surface Toolkit", "concepts": [
+              {"id": "cad.surfacing.toolkit.boundary-fill", "level": "concept", "title": "Boundary Blend & N-Sided Fill", "ncad": {"status": "planned", "notes": "Phase 9.", "refs": [], "phase": "P9", "engine": null}},
+              {"id": "cad.surfacing.toolkit.knit-thicken", "level": "concept", "title": "Trim, Knit/Sew & Thicken", "ncad": {"status": "planned", "notes": "Phase 9.", "refs": [], "phase": "P9", "engine": null}}
+            ]},
+            {"id": "cad.surfacing.continuity", "level": "subtopic", "title": "Continuity Matching", "concepts": [
+              {"id": "cad.surfacing.continuity.g0-g2", "level": "concept", "title": "G0 / G1 / G2 Matching", "ncad": {"status": "planned", "notes": "G2 engineering subset planned (Phase 9); G2 is OCCT's ceiling.", "refs": [], "phase": "P9", "engine": null}},
+              {"id": "cad.surfacing.continuity.g3-classa", "level": "concept", "title": "G3 & True Class A", "ncad": {"status": "not-in-scope", "notes": "G3/fairing/reflection is effectively commercial; out of scope on OCCT (design 19).", "refs": [], "engine": null}}
+            ]},
+            {"id": "cad.surfacing.analysis", "level": "subtopic", "title": "Quality Analysis", "concepts": [
+              {"id": "cad.surfacing.analysis.curvature", "level": "concept", "title": "Curvature Comb & Gaussian/Mean Curvature", "ncad": {"status": "planned", "notes": "self-built on GeomLProp (Phase 9).", "refs": [], "phase": "P9", "engine": null}},
+              {"id": "cad.surfacing.analysis.zebra", "level": "concept", "title": "Zebra / Isophote & Deviation (Read-Only)", "ncad": {"status": "planned", "notes": "read-only quality overlay (Phase 9).", "refs": [], "phase": "P9", "engine": null}}
+            ]}
+          ]
+        },
+        {
+          "id": "cad.profiles",
+          "level": "topic",
+          "title": "Domain Profiles",
+          "summary": "Specialized part kinds as feature vocabularies over the shared substrate.",
+          "subtopics": [
+            {"id": "cad.profiles.sheet-metal", "level": "subtopic", "title": "Sheet Metal", "concepts": [
+              {"id": "cad.profiles.sheet-metal.flanges-bends", "level": "concept", "title": "Base/Edge/Miter Flanges, Hem, Jog & Bends", "ncad": {"status": "planned", "notes": "Phase 11.", "refs": [], "phase": "P11", "engine": null}},
+              {"id": "cad.profiles.sheet-metal.unfold", "level": "concept", "title": "Unfold / Flat-Pattern & K-Factor / Bend Tables", "ncad": {"status": "planned", "notes": "Phase 11; flat-pattern DXF export.", "refs": [], "phase": "P11", "engine": null}},
+              {"id": "cad.profiles.sheet-metal.relief", "level": "concept", "title": "Reliefs & Corner Treatments", "ncad": {"status": "planned", "notes": "Phase 11.", "refs": [], "phase": "P11", "engine": null}}
+            ]},
+            {"id": "cad.profiles.mold", "level": "subtopic", "title": "Mold & Tooling", "concepts": [
+              {"id": "cad.profiles.mold.parting", "level": "concept", "title": "Parting Line & Parting/Shutoff Surfaces", "ncad": {"status": "planned", "notes": "Phase 11.", "refs": [], "phase": "P11", "engine": null}},
+              {"id": "cad.profiles.mold.core-cavity", "level": "concept", "title": "Core/Cavity Split, Shrinkage & Draft Analysis", "ncad": {"status": "planned", "notes": "Phase 11.", "refs": [], "phase": "P11", "engine": null}}
+            ]},
+            {"id": "cad.profiles.building", "level": "subtopic", "title": "Building / Architecture", "concepts": [
+              {"id": "cad.profiles.building.storeys-walls", "level": "concept", "title": "Storeys, Walls, Openings & Roof (Lowering to Ops)", "ncad": {"status": "planned", "notes": "Phase 11; high-level schema lowers to sweep+boolean.", "refs": [], "phase": "P11", "engine": null}},
+              {"id": "cad.profiles.building.room-graph-ifc", "level": "concept", "title": "Room-Graph Generator & IFC Exchange", "ncad": {"status": "planned", "notes": "keeps IFC (ifcopenshell) + room-graph generator.", "refs": [], "phase": "P11", "engine": "ifcopenshell"}}
+            ]},
+            {"id": "cad.profiles.process-plant", "level": "subtopic", "title": "Process Plant & Piping", "concepts": [
+              {"id": "cad.profiles.process-plant.pid", "level": "concept", "title": "Flow Diagram (P&ID / PFD, the Logical Model)", "ncad": {"status": "planned", "notes": "Phase 11; schematic linked to the 3D model.", "refs": [], "phase": "P11", "engine": null}},
+              {"id": "cad.profiles.process-plant.route-spec-fittings", "level": "concept", "title": "Route + Pipe Spec & Fitting Catalogue", "ncad": {"status": "planned", "notes": "Phase 11 process-plant profile.", "refs": [], "phase": "P11", "engine": null}, "see_also": ["cae.hydraulics.network.solve"]},
+              {"id": "cad.profiles.process-plant.supports-vessels", "level": "concept", "title": "Pipe Supports & Pressure Vessels/Equipment", "ncad": {"status": "planned", "notes": "Phase 11; vessels, nozzles, supports.", "refs": [], "phase": "P11", "engine": null}}
+            ]},
+            {"id": "cad.profiles.structural", "level": "subtopic", "title": "Structural Framing", "concepts": [
+              {"id": "cad.profiles.structural.sections-members", "level": "concept", "title": "Section Library & Member Model (Skeleton)", "ncad": {"status": "planned", "notes": "Phase 11; standard sections swept along a member skeleton.", "refs": [], "phase": "P11", "engine": null}},
+              {"id": "cad.profiles.structural.connections-foundations", "level": "concept", "title": "Connections, Foundations & Rebar", "ncad": {"status": "planned", "notes": "Phase 11; trimmed joints, plates, footings, rebar.", "refs": [], "phase": "P11", "engine": null}},
+              {"id": "cad.profiles.structural.analytical", "level": "concept", "title": "Analytical Model (Handoff)", "ncad": {"status": "planned", "notes": "analytical line/node model feeds frame3dd/PyNite (the FEA line).", "refs": [], "phase": "P11", "engine": "frame3dd / PyNite"}, "see_also": ["cae.frame.stiffness.direct"]}
+            ]}
+          ]
+        },
+        {
+          "id": "cad.drafting",
+          "level": "topic",
+          "title": "Drafting & Documentation (2D)",
+          "summary": "Associative engineering drawings derived from the model.",
+          "subtopics": [
+            {"id": "cad.drafting.sheets-views", "level": "subtopic", "title": "Sheets & Views", "concepts": [
+              {"id": "cad.drafting.sheets-views.sheets", "level": "concept", "title": "Sheets, Formats & Title Blocks", "ncad": {"status": "planned", "notes": "Phase 7.", "refs": [], "phase": "P7", "engine": null}},
+              {"id": "cad.drafting.sheets-views.views", "level": "concept", "title": "Base/Projected/Iso/Auxiliary Views (HLR)", "ncad": {"status": "planned", "notes": "Phase 7; OCCT HLR.", "refs": [], "phase": "P7", "engine": null}},
+              {"id": "cad.drafting.sheets-views.section-detail", "level": "concept", "title": "Section, Detail, Broken & Crop Views", "ncad": {"status": "planned", "notes": "Phase 7.", "refs": [], "phase": "P7", "engine": null}}
+            ]},
+            {"id": "cad.drafting.dimensions", "level": "subtopic", "title": "Dimensions & Annotations", "concepts": [
+              {"id": "cad.drafting.dimensions.dimensions", "level": "concept", "title": "Driven, Ordinate, Baseline & Chain Dimensions", "ncad": {"status": "planned", "notes": "Phase 7.", "refs": [], "phase": "P7", "engine": null}},
+              {"id": "cad.drafting.dimensions.annotations", "level": "concept", "title": "Notes, Balloons, Centerlines, Hatching & Symbols"},
+              {"id": "cad.drafting.dimensions.tables", "level": "concept", "title": "Tables (BOM, Hole, Revision) & Associativity"}
+            ]}
+          ]
+        },
+        {
+          "id": "cad.pmi",
+          "level": "topic",
+          "title": "PMI / GD&T",
+          "summary": "Semantic 3D annotation and tolerance analysis.",
+          "subtopics": [
+            {"id": "cad.pmi.gdt", "level": "subtopic", "title": "Geometric Dimensioning & Tolerancing", "concepts": [
+              {"id": "cad.pmi.gdt.datums", "level": "concept", "title": "Datums & Datum Targets", "ncad": {"status": "planned", "notes": "Phase 8.", "refs": [], "phase": "P8", "engine": null}},
+              {"id": "cad.pmi.gdt.tolerances", "level": "concept", "title": "Geometric Tolerances (Form/Orientation/Location/Runout)", "ncad": {"status": "planned", "notes": "Phase 8; carried via STEP AP242.", "refs": [], "phase": "P8", "engine": null}},
+              {"id": "cad.pmi.gdt.semantic-presentation", "level": "concept", "title": "Semantic vs Presentation PMI", "ncad": {"status": "planned", "notes": "Phase 8; both forms.", "refs": [], "phase": "P8", "engine": null}}
+            ]},
+            {"id": "cad.pmi.stackup", "level": "subtopic", "title": "Tolerance Stack-Up", "concepts": [
+              {"id": "cad.pmi.stackup.worst-case", "level": "concept", "title": "Worst-Case Stack-Up", "ncad": {"status": "planned", "notes": "owned analysis (geometric, no external engine); Phase 8.", "refs": [], "phase": "P8", "engine": null}},
+              {"id": "cad.pmi.stackup.statistical", "level": "concept", "title": "Statistical (RSS) Stack-Up", "ncad": {"status": "planned", "notes": "Phase 8.", "refs": [], "phase": "P8", "engine": null}}
+            ]}
+          ]
+        },
+        {
+          "id": "cad.mass-properties",
+          "level": "topic",
+          "title": "Mass Properties & Measurement",
+          "summary": "Volume, centre of gravity, inertia, and measurement queries.",
+          "subtopics": [
+            {"id": "cad.mass-properties.props", "level": "subtopic", "title": "Mass Properties", "concepts": [
+              {"id": "cad.mass-properties.props.volume-cog", "level": "concept", "title": "Volume, Surface Area & Centre of Gravity", "ncad": {"status": "available", "notes": "from BRepGProp on the exact solid.", "refs": ["/ncad/reference/measurement"], "engine": null}},
+              {"id": "cad.mass-properties.props.inertia", "level": "concept", "title": "Inertia Tensor & Principal Axes", "ncad": {"status": "available", "notes": "feeds MBD (Phase 14).", "refs": ["/ncad/reference/measurement"], "engine": null}, "see_also": ["mbd.foundations.newton-euler.inertia"]}
+            ]},
+            {"id": "cad.mass-properties.measurement", "level": "subtopic", "title": "Measurement & Inspection", "concepts": [
+              {"id": "cad.mass-properties.measurement.queries", "level": "concept", "title": "Distance, Angle & Inspection Queries", "ncad": {"status": "available", "notes": "measurement queries.", "refs": ["/ncad/reference/measurement"], "engine": null}}
+            ]}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cam",
+      "level": "subject",
+      "title": "Manufacturing & CAM",
+      "slug": "cam",
+      "order": 2,
+      "summary": "Turning a finished solid into machine instructions: processes, setups, toolpath strategies, simulation, and G-code. A process layer over the solid substrate. ncad's CAM seam is Phase 15 (2.5D + drilling native on OCCT sections + Clipper2; opencamlib as the optional 3D plugin; 5-axis out of scope).",
+      "topics": [
+        {"id": "cam.processes", "level": "topic", "title": "Manufacturing Processes Overview", "summary": "The manufacturing landscape a CAM system targets.", "subtopics": [
+          {"id": "cam.processes.families", "level": "subtopic", "title": "Process Families", "concepts": [
+            {"id": "cam.processes.families.subtractive", "level": "concept", "title": "Subtractive (Milling, Turning, Drilling, Grinding, EDM)", "ncad": {"status": "planned", "notes": "CAM = a process profile over the built solid (Phase 15).", "refs": [], "phase": "P15", "engine": null}},
+            {"id": "cam.processes.families.additive", "level": "concept", "title": "Additive (Material Deposition/Fusion)"},
+            {"id": "cam.processes.families.forming", "level": "concept", "title": "Forming (Bending, Stamping, Forging, Casting)"},
+            {"id": "cam.processes.families.joining", "level": "concept", "title": "Joining (Welding, Fastening, Adhesive)"}
+          ]},
+          {"id": "cam.processes.machine-kinematics", "level": "subtopic", "title": "Machine Kinematics", "concepts": [
+            {"id": "cam.processes.machine-kinematics.3-axis", "level": "concept", "title": "3-Axis Milling"},
+            {"id": "cam.processes.machine-kinematics.4-5-axis", "level": "concept", "title": "4- and 5-Axis Configurations (Head/Table/Table-Table)"},
+            {"id": "cam.processes.machine-kinematics.mill-turn", "level": "concept", "title": "Mill-Turn & Multi-Tasking Machines"},
+            {"id": "cam.processes.machine-kinematics.lathe", "level": "concept", "title": "Lathe / Turning Center Kinematics"}
+          ]},
+          {"id": "cam.processes.fixturing", "level": "subtopic", "title": "Fixturing & Workholding", "concepts": [
+            {"id": "cam.processes.fixturing.workholding", "level": "concept", "title": "Vises, Clamps, Chucks & Fixtures"},
+            {"id": "cam.processes.fixturing.collision", "level": "concept", "title": "Fixtures as Collision Bodies", "ncad": {"status": "planned", "notes": "fixtures as bodies for collision (reuses motion interference).", "refs": [], "phase": "P15", "engine": null}}
+          ]}
+        ]},
+        {"id": "cam.cnc-fundamentals", "level": "topic", "title": "CNC Machining Fundamentals", "summary": "Setups, tools, and cutting mechanics common to all strategies.", "subtopics": [
+          {"id": "cam.cnc-fundamentals.stock-setups", "level": "subtopic", "title": "Stock, Setups & WCS", "concepts": [
+            {"id": "cam.cnc-fundamentals.stock-setups.stock", "level": "concept", "title": "Stock Definition (Box/Cylinder/From-Body/Offset)", "ncad": {"status": "planned", "notes": "stock from bbox/body + offset (Phase 15.1).", "refs": [], "phase": "P15", "engine": null}},
+            {"id": "cam.cnc-fundamentals.stock-setups.wcs", "level": "concept", "title": "Setups & Work Coordinate Systems"},
+            {"id": "cam.cnc-fundamentals.stock-setups.machining-features", "level": "concept", "title": "Machinable-Feature Recognition & Selection", "ncad": {"status": "planned", "notes": "face/edge selectors pick machined features.", "refs": [], "phase": "P15", "engine": null}}
+          ]},
+          {"id": "cam.cnc-fundamentals.tools", "level": "subtopic", "title": "Tools & Tool Libraries", "concepts": [
+            {"id": "cam.cnc-fundamentals.tools.types", "level": "concept", "title": "Tool Types (End/Ball/Bull/Face/Drill/Tap/Chamfer)"},
+            {"id": "cam.cnc-fundamentals.tools.library", "level": "concept", "title": "Tool Library (Diameter/Flutes/Holder)", "ncad": {"status": "planned", "notes": "tool library as a registered resource (Phase 15.1).", "refs": [], "phase": "P15", "engine": null}},
+            {"id": "cam.cnc-fundamentals.tools.holder", "level": "concept", "title": "Tool Holders & Gauge Length"}
+          ]},
+          {"id": "cam.cnc-fundamentals.cutting", "level": "subtopic", "title": "Cutting Mechanics", "concepts": [
+            {"id": "cam.cnc-fundamentals.cutting.feeds-speeds", "level": "concept", "title": "Feeds, Speeds & Surface Speed"},
+            {"id": "cam.cnc-fundamentals.cutting.chip-load", "level": "concept", "title": "Chip Load & Chip Thinning"},
+            {"id": "cam.cnc-fundamentals.cutting.climb-conventional", "level": "concept", "title": "Climb vs Conventional Milling"},
+            {"id": "cam.cnc-fundamentals.cutting.engagement", "level": "concept", "title": "Tool Engagement (Stepover/Stepdown, Radial/Axial DOC)"}
+          ]}
+        ]},
+        {"id": "cam.toolpath-strategies", "level": "topic", "title": "Toolpath Strategies", "summary": "The catalogue of milling and turning strategies.", "subtopics": [
+          {"id": "cam.toolpath-strategies.25d", "level": "subtopic", "title": "2.5D Milling", "concepts": [
+            {"id": "cam.toolpath-strategies.25d.face", "level": "concept", "title": "Facing", "ncad": {"status": "planned", "notes": "Phase 15.2 face_mill.", "refs": [], "phase": "P15", "engine": null}},
+            {"id": "cam.toolpath-strategies.25d.pocket", "level": "concept", "title": "Pocketing (2D)", "ncad": {"status": "planned", "notes": "Phase 15.2 pocket_2d (concentric inward offsets).", "refs": [], "phase": "P15", "engine": "Clipper2"}},
+            {"id": "cam.toolpath-strategies.25d.contour", "level": "concept", "title": "Contour / Profile", "ncad": {"status": "planned", "notes": "Phase 15.2 contour (single tool-radius offset).", "refs": [], "phase": "P15", "engine": "Clipper2"}},
+            {"id": "cam.toolpath-strategies.25d.slot", "level": "concept", "title": "Slotting"},
+            {"id": "cam.toolpath-strategies.25d.trace", "level": "concept", "title": "Trace / Engrave"},
+            {"id": "cam.toolpath-strategies.25d.chamfer-mill", "level": "concept", "title": "2D Chamfer Milling"}
+          ]},
+          {"id": "cam.toolpath-strategies.drilling", "level": "subtopic", "title": "Drilling & Hole-Making Cycles", "concepts": [
+            {"id": "cam.toolpath-strategies.drilling.drill", "level": "concept", "title": "Simple Drill (G81)", "ncad": {"status": "planned", "notes": "Phase 15.2 drill on holes.instances.", "refs": [], "phase": "P15", "engine": null}},
+            {"id": "cam.toolpath-strategies.drilling.peck", "level": "concept", "title": "Peck Drilling (G83)", "ncad": {"status": "planned", "notes": "peck cycle.", "refs": [], "phase": "P15", "engine": null}},
+            {"id": "cam.toolpath-strategies.drilling.tap", "level": "concept", "title": "Tapping (Rigid/Floating)"},
+            {"id": "cam.toolpath-strategies.drilling.bore-ream", "level": "concept", "title": "Boring & Reaming"},
+            {"id": "cam.toolpath-strategies.drilling.thread-mill", "level": "concept", "title": "Thread Milling"}
+          ]},
+          {"id": "cam.toolpath-strategies.3d", "level": "subtopic", "title": "3D Surfacing", "concepts": [
+            {"id": "cam.toolpath-strategies.3d.parallel", "level": "concept", "title": "Parallel / Raster Finishing", "ncad": {"status": "planned", "notes": "opencamlib optional 3D plugin.", "refs": [], "phase": "P15", "engine": "opencamlib"}},
+            {"id": "cam.toolpath-strategies.3d.waterline", "level": "concept", "title": "Waterline / Z-Level Finishing", "ncad": {"status": "planned", "notes": "opencamlib.", "refs": [], "phase": "P15", "engine": "opencamlib"}},
+            {"id": "cam.toolpath-strategies.3d.pencil", "level": "concept", "title": "Pencil / Corner Finishing"},
+            {"id": "cam.toolpath-strategies.3d.radial-spiral", "level": "concept", "title": "Radial & Spiral"},
+            {"id": "cam.toolpath-strategies.3d.scallop", "level": "concept", "title": "Constant-Scallop (Steepness/Flat)"}
+          ]},
+          {"id": "cam.toolpath-strategies.roughing", "level": "subtopic", "title": "Roughing & Rest Machining", "concepts": [
+            {"id": "cam.toolpath-strategies.roughing.adaptive", "level": "concept", "title": "Adaptive / HSM Clearing (Constant Engagement)"},
+            {"id": "cam.toolpath-strategies.roughing.trochoidal", "level": "concept", "title": "Trochoidal Milling"},
+            {"id": "cam.toolpath-strategies.roughing.rest", "level": "concept", "title": "Rest Machining (Remaining-Stock)"},
+            {"id": "cam.toolpath-strategies.roughing.plunge", "level": "concept", "title": "Plunge Roughing"}
+          ]},
+          {"id": "cam.toolpath-strategies.multi-axis", "level": "subtopic", "title": "Multi-Axis", "concepts": [
+            {"id": "cam.toolpath-strategies.multi-axis.3plus2", "level": "concept", "title": "3+2 Positional (Indexed)", "ncad": {"status": "not-in-scope", "notes": "long-horizon; 5-axis has no credible OSS kernel.", "refs": [], "engine": null}},
+            {"id": "cam.toolpath-strategies.multi-axis.simultaneous", "level": "concept", "title": "Simultaneous 5-Axis (Swarf/Flow/Multiaxis)", "ncad": {"status": "not-in-scope", "notes": "explicitly out of scope; reserved for a future external-kernel plugin.", "refs": [], "engine": null}}
+          ]},
+          {"id": "cam.toolpath-strategies.turning", "level": "subtopic", "title": "Turning Strategies", "concepts": [
+            {"id": "cam.toolpath-strategies.turning.rough-finish", "level": "concept", "title": "Turning: Roughing, Finishing, Facing"},
+            {"id": "cam.toolpath-strategies.turning.groove-thread-part", "level": "concept", "title": "Grooving, Threading & Parting"}
+          ]}
+        ]},
+        {"id": "cam.toolpath-geometry", "level": "topic", "title": "Toolpath Geometry & Algorithms", "summary": "The computational geometry behind toolpaths.", "subtopics": [
+          {"id": "cam.toolpath-geometry.offsetting", "level": "subtopic", "title": "Planar Offsetting", "concepts": [
+            {"id": "cam.toolpath-geometry.offsetting.clipper", "level": "concept", "title": "Polygon Offsetting (Clipper2)", "ncad": {"status": "planned", "notes": "own the strategy logic on Clipper2/pyclipr.", "refs": [], "phase": "P15", "engine": "Clipper2"}},
+            {"id": "cam.toolpath-geometry.offsetting.voronoi-medial", "level": "concept", "title": "Voronoi Diagram & Medial Axis"}
+          ]},
+          {"id": "cam.toolpath-geometry.3d-algorithms", "level": "subtopic", "title": "3D Toolpath Algorithms", "concepts": [
+            {"id": "cam.toolpath-geometry.3d-algorithms.dropcutter", "level": "concept", "title": "Drop-Cutter", "ncad": {"status": "planned", "notes": "opencamlib.", "refs": [], "phase": "P15", "engine": "opencamlib"}},
+            {"id": "cam.toolpath-geometry.3d-algorithms.section", "level": "concept", "title": "Section Curves & Contours (OCCT sections)", "ncad": {"status": "planned", "notes": "OCCT sections for 2.5D/3D contours.", "refs": [], "phase": "P15", "engine": null}}
+          ]},
+          {"id": "cam.toolpath-geometry.gouge-linking", "level": "subtopic", "title": "Gouge Avoidance & Linking", "concepts": [
+            {"id": "cam.toolpath-geometry.gouge-linking.gouge", "level": "concept", "title": "Gouge & Collision Avoidance"},
+            {"id": "cam.toolpath-geometry.gouge-linking.leadin", "level": "concept", "title": "Lead-In/Out, Ramping & Linking Moves"}
+          ]}
+        ]},
+        {"id": "cam.simulation", "level": "topic", "title": "Simulation & Verification", "summary": "Proving out the program before it cuts metal.", "subtopics": [
+          {"id": "cam.simulation.material-removal", "level": "subtopic", "title": "Material Removal", "concepts": [
+            {"id": "cam.simulation.material-removal.boolean-sim", "level": "concept", "title": "Stock-Removal Simulation (Boolean)", "ncad": {"status": "planned", "notes": "material-removed BOM/mass delta via boolean stock sim.", "refs": [], "phase": "P15", "engine": null}},
+            {"id": "cam.simulation.material-removal.excess", "level": "concept", "title": "Excess / Remaining Material & Gouge Report"}
+          ]},
+          {"id": "cam.simulation.collision", "level": "subtopic", "title": "Collision & Machine Simulation", "concepts": [
+            {"id": "cam.simulation.collision.tool-holder-fixture", "level": "concept", "title": "Tool/Holder/Fixture-vs-Stock Collision", "ncad": {"status": "planned", "notes": "reuses motion interference (Phase 8).", "refs": [], "phase": "P15", "engine": null}},
+            {"id": "cam.simulation.collision.full-machine", "level": "concept", "title": "Full Machine Simulation"}
+          ]}
+        ]},
+        {"id": "cam.post-gcode", "level": "topic", "title": "Post-Processing & G-code", "summary": "Strategy-neutral toolpaths to machine-specific code.", "subtopics": [
+          {"id": "cam.post-gcode.rs274", "level": "subtopic", "title": "RS-274 / NGC G-code", "concepts": [
+            {"id": "cam.post-gcode.rs274.vocabulary", "level": "concept", "title": "Word/Address Vocabulary (G/M/T/S/F)", "ncad": {"status": "planned", "notes": "Phase 15.3 generic 3-axis post (RS274/NGC).", "refs": [], "phase": "P15", "engine": null}, "sources": [{"type": "standard", "tier": "primary", "title": "The NIST RS274NGC Interpreter", "authors": "Kramer, Proctor, Messina", "url": "https://www.nist.gov/publications/nist-rs274ngc-interpreter-version-3"}, {"type": "official-docs", "tier": "primary", "title": "LinuxCNC G-code", "url": "http://linuxcnc.org/docs/html/gcode.html"}]},
+            {"id": "cam.post-gcode.rs274.canned-cycles", "level": "concept", "title": "Canned Cycles & Modal State"},
+            {"id": "cam.post-gcode.rs274.cutter-comp", "level": "concept", "title": "Cutter Compensation (G41/G42)"}
+          ]},
+          {"id": "cam.post-gcode.offsets", "level": "subtopic", "title": "Coordinate Systems & Offsets", "concepts": [
+            {"id": "cam.post-gcode.offsets.g54", "level": "concept", "title": "Work Offsets (G54-G59) & Tool-Length Offset"}
+          ]},
+          {"id": "cam.post-gcode.post-architecture", "level": "subtopic", "title": "Post-Processor Architecture", "concepts": [
+            {"id": "cam.post-gcode.post-architecture.registry", "level": "concept", "title": "Post-Processor Registry & Machine Dialects", "ncad": {"status": "planned", "notes": "post registry; one in-house generic 3-axis post, pluggable dialects.", "refs": [], "phase": "P15", "engine": null}},
+            {"id": "cam.post-gcode.post-architecture.backplot", "level": "concept", "title": "Back-Plotting & Verification"}
+          ]}
+        ]},
+        {"id": "cam.additive", "level": "topic", "title": "Additive Manufacturing", "summary": "Layer-based fabrication and its toolpaths.", "subtopics": [
+          {"id": "cam.additive.slicing", "level": "subtopic", "title": "Slicing", "concepts": [
+            {"id": "cam.additive.slicing.layers", "level": "concept", "title": "Layer Slicing & Perimeters/Shells"},
+            {"id": "cam.additive.slicing.infill", "level": "concept", "title": "Infill Patterns & Density"},
+            {"id": "cam.additive.slicing.supports", "level": "concept", "title": "Support Generation & Orientation"}
+          ]},
+          {"id": "cam.additive.processes", "level": "subtopic", "title": "AM Process Families", "concepts": [
+            {"id": "cam.additive.processes.families", "level": "concept", "title": "FDM/FFF, SLA/DLP, SLS, DMLS/SLM"},
+            {"id": "cam.additive.processes.gcode", "level": "concept", "title": "AM G-code / Machine Instructions"}
+          ]}
+        ]},
+        {"id": "cam.outputs", "level": "topic", "title": "Fabrication Outputs", "summary": "2D and nested outputs for cutting.", "subtopics": [
+          {"id": "cam.outputs.dxf-nesting", "level": "subtopic", "title": "DXF, Flat-Pattern & Nesting", "concepts": [
+            {"id": "cam.outputs.dxf-nesting.flat-pattern", "level": "concept", "title": "Flat-Pattern & Profile Export (DXF)", "see_also": ["cad.profiles.sheet-metal.flange-bend-unfold"]},
+            {"id": "cam.outputs.dxf-nesting.nesting", "level": "concept", "title": "Nesting for Sheet/Plate Cutting"}
+          ]}
+        ]}
+      ]
+    },
+    {
+      "id": "pcb",
+      "level": "subject",
+      "title": "Electronic Design (PCB / ECAD)",
+      "slug": "pcb",
+      "order": 3,
+      "summary": "The board data model whose primary truth is electrical (nets/layers/footprints) and whose physical shape lowers to solids. ncad owns the data model + geometric DRC + 3D lowering (Phase 16); delegates schematic capture, routing, autoplacement, physics DRC and fab output to KiCad via a .kicad_pcb round-trip.",
+      "topics": [
+        {"id": "pcb.flow", "level": "topic", "title": "Electronics Design Flow", "summary": "The path from idea to fabricated board.", "subtopics": [
+          {"id": "pcb.flow.schematic", "level": "subtopic", "title": "Schematic Capture", "concepts": [
+            {"id": "pcb.flow.schematic.symbols", "level": "concept", "title": "Symbols, Sheets & Hierarchical Design", "ncad": {"status": "not-in-scope", "notes": "Schematic capture delegated to KiCad.", "refs": [], "engine": "KiCad"}},
+            {"id": "pcb.flow.schematic.erc", "level": "concept", "title": "Electrical Rule Check (ERC)"}
+          ]},
+          {"id": "pcb.flow.netlist", "level": "subtopic", "title": "Netlist & Connectivity", "concepts": [
+            {"id": "pcb.flow.netlist.nets", "level": "concept", "title": "Nets, Ratsnest & Connectivity", "ncad": {"status": "planned", "notes": "numbered net table in the pcb block (Phase 16).", "refs": [], "phase": "P16", "engine": null}},
+            {"id": "pcb.flow.netlist.back-annotation", "level": "concept", "title": "Forward/Back Annotation"}
+          ]}
+        ]},
+        {"id": "pcb.data-model", "level": "topic", "title": "Board Data Model", "summary": "The physical board's structured data - ncad's owned model.", "subtopics": [
+          {"id": "pcb.data-model.stackup", "level": "subtopic", "title": "Layer Stackup", "concepts": [
+            {"id": "pcb.data-model.stackup.layers", "level": "concept", "title": "Copper/Dielectric/Mask/Silk Layers", "ncad": {"status": "planned", "notes": "layer stackup in the pcb block (Phase 16.1).", "refs": [], "phase": "P16", "engine": null}},
+            {"id": "pcb.data-model.stackup.materials", "level": "concept", "title": "Dielectric Materials & Thicknesses"}
+          ]},
+          {"id": "pcb.data-model.footprints", "level": "subtopic", "title": "Footprints & Pads", "concepts": [
+            {"id": "pcb.data-model.footprints.landpatterns", "level": "concept", "title": "Footprints / Land Patterns", "ncad": {"status": "planned", "notes": "footprints/pads (Phase 16.1).", "refs": [], "phase": "P16", "engine": null}},
+            {"id": "pcb.data-model.footprints.pad-types", "level": "concept", "title": "Pad Types (SMD/Through-Hole) & Padstacks"},
+            {"id": "pcb.data-model.footprints.placement", "level": "concept", "title": "Component Placement & Courtyards"}
+          ]},
+          {"id": "pcb.data-model.copper", "level": "subtopic", "title": "Tracks, Vias & Zones", "concepts": [
+            {"id": "pcb.data-model.copper.tracks", "level": "concept", "title": "Tracks / Traces & Routing", "ncad": {"status": "not-in-scope", "notes": "autorouting delegated to KiCad; ncad ingests routed geometry.", "refs": [], "engine": "KiCad"}},
+            {"id": "pcb.data-model.copper.vias", "level": "concept", "title": "Vias (Through/Blind/Buried) & Microvias"},
+            {"id": "pcb.data-model.copper.zones", "level": "concept", "title": "Copper Pours / Zones & Thermal Reliefs", "ncad": {"status": "planned", "notes": "zone fills as authored input or one pinned deterministic fill (determinism hazard).", "refs": [], "phase": "P16", "engine": null}}
+          ]},
+          {"id": "pcb.data-model.drills", "level": "subtopic", "title": "Drills & Holes", "concepts": [
+            {"id": "pcb.data-model.drills.holes", "level": "concept", "title": "Plated/Non-Plated Holes & Drill Table"}
+          ]}
+        ]},
+        {"id": "pcb.drc", "level": "topic", "title": "Design Rules & Checks", "summary": "Geometric and electrical verification.", "subtopics": [
+          {"id": "pcb.drc.geometric", "level": "subtopic", "title": "Geometric DRC", "concepts": [
+            {"id": "pcb.drc.geometric.clearance", "level": "concept", "title": "Clearance & Creepage", "ncad": {"status": "planned", "notes": "geometric DRC family, id-tagged (Phase 16.1).", "refs": [], "phase": "P16", "engine": null}, "sources": [{"type": "standard", "tier": "primary", "title": "IPC-2221 Generic Standard on Printed Board Design", "url": "https://www.ipc.org/"}]},
+            {"id": "pcb.drc.geometric.width-annular", "level": "concept", "title": "Trace Width & Annular Ring", "ncad": {"status": "planned", "notes": "Phase 16.1.", "refs": [], "phase": "P16", "engine": null}},
+            {"id": "pcb.drc.geometric.connectivity", "level": "concept", "title": "Net-Connectivity / Unrouted Check", "ncad": {"status": "planned", "notes": "connectivity DRC (Phase 16.1).", "refs": [], "phase": "P16", "engine": null}}
+          ]},
+          {"id": "pcb.drc.manufacturability", "level": "subtopic", "title": "Manufacturability", "concepts": [
+            {"id": "pcb.drc.manufacturability.ipc-class", "level": "concept", "title": "IPC Classes & Fabrication Constraints"}
+          ]}
+        ]},
+        {"id": "pcb.si-pi", "level": "topic", "title": "Signal & Power Integrity (Concepts)", "summary": "The electrical physics - taught in full, not solved by ncad.", "subtopics": [
+          {"id": "pcb.si-pi.si", "level": "subtopic", "title": "Signal Integrity", "concepts": [
+            {"id": "pcb.si-pi.si.impedance", "level": "concept", "title": "Controlled Impedance & Transmission Lines", "ncad": {"status": "not-in-scope", "notes": "physics DRC delegated; ncad does geometric DRC only.", "refs": [], "engine": null}},
+            {"id": "pcb.si-pi.si.return-paths", "level": "concept", "title": "Return Paths & Reference Planes"},
+            {"id": "pcb.si-pi.si.crosstalk", "level": "concept", "title": "Crosstalk & Length Matching"}
+          ]},
+          {"id": "pcb.si-pi.pi-emc", "level": "subtopic", "title": "Power Integrity & EMC", "concepts": [
+            {"id": "pcb.si-pi.pi-emc.pdn", "level": "concept", "title": "Power Distribution Network (PDN) & Decoupling"},
+            {"id": "pcb.si-pi.pi-emc.emc", "level": "concept", "title": "EMC / EMI Basics"}
+          ]}
+        ]},
+        {"id": "pcb.ecad-mcad", "level": "topic", "title": "ECAD-MCAD Collaboration", "summary": "Where the board meets the mechanical world - ncad's home turf.", "subtopics": [
+          {"id": "pcb.ecad-mcad.lowering", "level": "subtopic", "title": "Board-to-Solid Lowering", "concepts": [
+            {"id": "pcb.ecad-mcad.lowering.solids", "level": "concept", "title": "Outline, Cutouts & Copper as Thin Solids", "ncad": {"status": "planned", "notes": "Phase 16.2 lowering step (OCCT/build123d).", "refs": [], "phase": "P16", "engine": null}},
+            {"id": "pcb.ecad-mcad.lowering.components", "level": "concept", "title": "Component Bodies (Placed via XCAF Sub-Assembly)", "ncad": {"status": "planned", "notes": "Phase 16.2.", "refs": [], "phase": "P16", "engine": null}}
+          ]},
+          {"id": "pcb.ecad-mcad.clearance", "level": "subtopic", "title": "Enclosure Clearance", "concepts": [
+            {"id": "pcb.ecad-mcad.clearance.interference", "level": "concept", "title": "Board-vs-Enclosure Clearance (Assembly Interference)", "ncad": {"status": "planned", "notes": "reuses assembly interference (Phase 7).", "refs": [], "phase": "P16", "engine": null}, "see_also": ["cad.assemblies.interference.static"]}
+          ]}
+        ]},
+        {"id": "pcb.fab-outputs", "level": "topic", "title": "Fabrication & Assembly Outputs", "summary": "The files a fab house consumes.", "subtopics": [
+          {"id": "pcb.fab-outputs.gerber", "level": "subtopic", "title": "Gerber & Drill", "concepts": [
+            {"id": "pcb.fab-outputs.gerber.rs274x", "level": "concept", "title": "Gerber (RS-274X) & Excellon Drill", "ncad": {"status": "not-in-scope", "notes": "fab output delegated to KiCad via .kicad_pcb round-trip; Gerber/ODB++/IPC-2581 as plugin converters.", "refs": [], "engine": "KiCad"}, "see_also": ["interchange.electronics.gerber-ipc.formats"]}
+          ]},
+          {"id": "pcb.fab-outputs.assembly", "level": "subtopic", "title": "Assembly Outputs", "concepts": [
+            {"id": "pcb.fab-outputs.assembly.pnp-bom", "level": "concept", "title": "Pick-and-Place & Assembly BOM"},
+            {"id": "pcb.fab-outputs.assembly.step-ap214", "level": "concept", "title": "Board+Components STEP AP214 (MCAD)", "ncad": {"status": "planned", "notes": "STEP AP214 for the mechanical side (AP242's electrical scope is wire-harness).", "refs": [], "phase": "P16", "engine": null}}
+          ]},
+          {"id": "pcb.fab-outputs.kicad-roundtrip", "level": "subtopic", "title": "KiCad Round-Trip", "concepts": [
+            {"id": "pcb.fab-outputs.kicad-roundtrip.rw", "level": "concept", "title": ".kicad_pcb Read + Write (the Delegation Seam)", "ncad": {"status": "planned", "notes": "Phase 16.3; KiCad owns schematic/routing/fab/physics-DRC.", "refs": [], "phase": "P16", "engine": "KiCad"}, "sources": [{"type": "official-docs", "tier": "primary", "title": "KiCad Documentation", "url": "https://docs.kicad.org/"}]}
+          ]}
+        ]}
+      ]
+    },
+    {
+      "id": "kinematics",
+      "level": "subject",
+      "title": "Kinematics & Mechanisms",
+      "slug": "kinematics",
+      "order": 4,
+      "summary": "Geometry-driven motion of mechanisms: mobility, position/velocity/acceleration analysis, mechanism families, and motion synthesis. ncad solves this with py-slvs stepped over time (Phase 6).",
+      "topics": [
+        {"id": "kinematics.fundamentals", "level": "topic", "title": "Kinematic Fundamentals", "summary": "Rigid-body motion, mobility, joints, and chains.", "subtopics": [
+          {"id": "kinematics.fundamentals.rigid-motion", "level": "subtopic", "title": "Rigid-Body Motion", "concepts": [
+            {"id": "kinematics.fundamentals.rigid-motion.planar-spatial", "level": "concept", "title": "Planar vs Spatial Rigid-Body Motion", "see_also": ["foundations.transforms.homogeneous.se3"]}
+          ]},
+          {"id": "kinematics.fundamentals.mobility", "level": "subtopic", "title": "Degrees of Freedom & Mobility", "concepts": [
+            {"id": "kinematics.fundamentals.mobility.grubler", "level": "concept", "title": "Mobility & the Grubler-Kutzbach Criterion", "math": [{"id": "grubler", "tex": "M = 6(N - 1) - \\sum_{i=1}^{J} (6 - f_i)", "caption": "Spatial mobility of a mechanism"}], "sources": [{"type": "textbook", "tier": "primary", "title": "Modern Robotics", "authors": "Lynch & Park", "locator": "Ch. 2", "url": "http://hades.mech.northwestern.edu/index.php/Modern_Robotics"}]},
+            {"id": "kinematics.fundamentals.mobility.overconstraint", "level": "concept", "title": "Overconstraint & Redundancy"}
+          ]},
+          {"id": "kinematics.fundamentals.pairs", "level": "subtopic", "title": "Kinematic Pairs & Chains", "concepts": [
+            {"id": "kinematics.fundamentals.pairs.lower-higher", "level": "concept", "title": "Lower vs Higher Pairs"},
+            {"id": "kinematics.fundamentals.pairs.chains", "level": "concept", "title": "Open vs Closed Chains; Planar/Spherical/Spatial"}
+          ]}
+        ]},
+        {"id": "kinematics.analysis", "level": "topic", "title": "Position, Velocity & Acceleration Analysis", "summary": "Loop closure and the kinematic Jacobian.", "subtopics": [
+          {"id": "kinematics.analysis.position", "level": "subtopic", "title": "Position Analysis", "concepts": [
+            {"id": "kinematics.analysis.position.loop-closure", "level": "concept", "title": "Loop-Closure Equations", "ncad": {"status": "planned", "notes": "Phase 6 stepped constraint solve.", "refs": [], "phase": "P6", "engine": "py-slvs"}}
+          ]},
+          {"id": "kinematics.analysis.velocity", "level": "subtopic", "title": "Velocity Analysis", "concepts": [
+            {"id": "kinematics.analysis.velocity.instant-centers", "level": "concept", "title": "Instantaneous Centers of Velocity"},
+            {"id": "kinematics.analysis.velocity.jacobian", "level": "concept", "title": "The Kinematic Jacobian"}
+          ]},
+          {"id": "kinematics.analysis.acceleration", "level": "subtopic", "title": "Acceleration Analysis", "concepts": [
+            {"id": "kinematics.analysis.acceleration.coriolis", "level": "concept", "title": "Acceleration Analysis & Coriolis Terms"}
+          ]}
+        ]},
+        {"id": "kinematics.planar", "level": "topic", "title": "Planar Mechanisms", "summary": "The classic linkages and motion converters.", "subtopics": [
+          {"id": "kinematics.planar.four-bar", "level": "subtopic", "title": "Four-Bar & Slider-Crank", "concepts": [
+            {"id": "kinematics.planar.four-bar.grashof", "level": "concept", "title": "Four-Bar Linkage & Grashof Criterion", "ncad": {"status": "planned", "notes": "Phase 6 gate example.", "refs": [], "phase": "P6", "engine": "py-slvs"}},
+            {"id": "kinematics.planar.four-bar.slider-crank", "level": "concept", "title": "Slider-Crank", "ncad": {"status": "planned", "notes": "Phase 6 canonical gate example (crank-slider).", "refs": [], "phase": "P6", "engine": "py-slvs"}}
+          ]},
+          {"id": "kinematics.planar.cams", "level": "subtopic", "title": "Cams & Followers", "concepts": [
+            {"id": "kinematics.planar.cams.profiles", "level": "concept", "title": "Cam Profiles & Follower Motion (Displacement Diagrams)"},
+            {"id": "kinematics.planar.cams.pressure-angle", "level": "concept", "title": "Pressure Angle & Follower Types"}
+          ]},
+          {"id": "kinematics.planar.gears", "level": "subtopic", "title": "Gears & Gear Trains", "concepts": [
+            {"id": "kinematics.planar.gears.involute", "level": "concept", "title": "Involute Gears & the Fundamental Law of Gearing"},
+            {"id": "kinematics.planar.gears.trains", "level": "concept", "title": "Gear Trains, Ratios & Epicyclic (Planetary) Gears"}
+          ]},
+          {"id": "kinematics.planar.intermittent", "level": "subtopic", "title": "Intermittent & Non-Uniform Motion", "concepts": [
+            {"id": "kinematics.planar.intermittent.geneva", "level": "concept", "title": "Geneva Mechanism", "ncad": {"status": "planned", "notes": "Phase 6 candidate gate example (point-on-line/slot).", "refs": [], "phase": "P6", "engine": "py-slvs"}},
+            {"id": "kinematics.planar.intermittent.ratchet", "level": "concept", "title": "Ratchet & Escapement"},
+            {"id": "kinematics.planar.intermittent.scotch-yoke", "level": "concept", "title": "Scotch Yoke", "ncad": {"status": "planned", "notes": "Phase 6 candidate gate example.", "refs": [], "phase": "P6", "engine": "py-slvs"}}
+          ]}
+        ]},
+        {"id": "kinematics.spatial", "level": "topic", "title": "Spatial Mechanisms", "summary": "3D linkages and constant-velocity joints.", "subtopics": [
+          {"id": "kinematics.spatial.linkages", "level": "subtopic", "title": "Spatial Linkages", "concepts": [
+            {"id": "kinematics.spatial.linkages.rsSr", "level": "concept", "title": "Spatial Linkages (RSSR, Spatial Four-Bar)"}
+          ]},
+          {"id": "kinematics.spatial.cv-joints", "level": "subtopic", "title": "Universal & Constant-Velocity Joints", "concepts": [
+            {"id": "kinematics.spatial.cv-joints.universal-cv", "level": "concept", "title": "Universal (Hooke) & Constant-Velocity Joints"}
+          ]}
+        ]},
+        {"id": "kinematics.fk-ik", "level": "topic", "title": "Forward & Inverse Kinematics (Mechanism-Level)", "summary": "Workspace, reachability, and singularities.", "subtopics": [
+          {"id": "kinematics.fk-ik.fk", "level": "subtopic", "title": "Forward Kinematics", "concepts": [
+            {"id": "kinematics.fk-ik.fk.config", "level": "concept", "title": "Configuration from Driven Inputs", "ncad": {"status": "planned", "notes": "Phase 6 FK.", "refs": [], "phase": "P6", "engine": "py-slvs"}}
+          ]},
+          {"id": "kinematics.fk-ik.ik", "level": "subtopic", "title": "Inverse Kinematics", "concepts": [
+            {"id": "kinematics.fk-ik.ik.output-frame", "level": "concept", "title": "Driving an Output Frame; Solution Branches", "ncad": {"status": "planned", "notes": "Phase 6 IK.", "refs": [], "phase": "P6", "engine": "py-slvs"}}
+          ]},
+          {"id": "kinematics.fk-ik.workspace", "level": "subtopic", "title": "Workspace & Singularities", "concepts": [
+            {"id": "kinematics.fk-ik.workspace.reachability", "level": "concept", "title": "Workspace & Reachability"},
+            {"id": "kinematics.fk-ik.workspace.dead-points", "level": "concept", "title": "Singularities & Dead-Points"}
+          ]}
+        ]},
+        {"id": "kinematics.synthesis", "level": "topic", "title": "Motion Synthesis & Analysis", "summary": "Generating motion and its traces/envelopes.", "subtopics": [
+          {"id": "kinematics.synthesis.generation", "level": "subtopic", "title": "Kinematic Synthesis", "concepts": [
+            {"id": "kinematics.synthesis.generation.types", "level": "concept", "title": "Path, Function & Motion Generation"}
+          ]},
+          {"id": "kinematics.synthesis.outputs", "level": "subtopic", "title": "Motion Outputs", "concepts": [
+            {"id": "kinematics.synthesis.outputs.coupler-curves", "level": "concept", "title": "Coupler Curves & Trace Curves", "ncad": {"status": "planned", "notes": "Phase 6 trace-curve output.", "refs": [], "phase": "P6", "engine": "py-slvs"}},
+            {"id": "kinematics.synthesis.outputs.envelopes-measures", "level": "concept", "title": "Motion Envelopes & Measures over Time", "ncad": {"status": "planned", "notes": "Phase 6 envelopes + measures (distance/angle/velocity/accel).", "refs": [], "phase": "P6", "engine": "py-slvs"}}
+          ]}
+        ]}
+      ]
+    },
+    {
+      "id": "mbd",
+      "level": "subject",
+      "title": "Multibody Dynamics (MBD)",
+      "slug": "mbd",
+      "order": 5,
+      "summary": "Force-driven motion of rigid-body systems: equations of motion, constrained systems, efficient algorithms, and integration. ncad's bounded rigid-body MBD is delegated to Ondsel (Phase 14).",
+      "topics": [
+        {"id": "mbd.foundations", "level": "topic", "title": "Rigid-Body Dynamics Foundations", "summary": "Newton-Euler, inertia, momentum, energy.", "subtopics": [
+          {"id": "mbd.foundations.newton-euler", "level": "subtopic", "title": "Newton-Euler Equations", "concepts": [
+            {"id": "mbd.foundations.newton-euler.laws", "level": "concept", "title": "Newton-Euler Equations of Motion", "ncad": {"status": "planned", "notes": "force-driven MBD via Ondsel (Phase 14).", "refs": [], "phase": "P14", "engine": "Ondsel"}},
+            {"id": "mbd.foundations.newton-euler.inertia", "level": "concept", "title": "The Inertia Tensor & Parallel-Axis Theorem", "ncad": {"status": "planned", "notes": "mass/inertia from BRepGProp feed the MBD solver.", "refs": ["/ncad/reference/measurement"], "phase": "P14", "engine": "Ondsel"}}
+          ]},
+          {"id": "mbd.foundations.momentum-energy", "level": "subtopic", "title": "Momentum & Energy", "concepts": [
+            {"id": "mbd.foundations.momentum-energy.momentum", "level": "concept", "title": "Linear & Angular Momentum"},
+            {"id": "mbd.foundations.momentum-energy.work-energy", "level": "concept", "title": "Work, Energy & Power"}
+          ]}
+        ]},
+        {"id": "mbd.eom", "level": "topic", "title": "Equations-of-Motion Formulations", "summary": "The alternative ways to derive the equations of motion.", "subtopics": [
+          {"id": "mbd.eom.newton-euler", "level": "subtopic", "title": "Newton-Euler Formulation", "concepts": [
+            {"id": "mbd.eom.newton-euler.form", "level": "concept", "title": "Newton-Euler (Force/Torque Balance)"}
+          ]},
+          {"id": "mbd.eom.lagrangian", "level": "subtopic", "title": "Lagrangian Mechanics", "concepts": [
+            {"id": "mbd.eom.lagrangian.generalized", "level": "concept", "title": "Lagrangian Dynamics in Generalized Coordinates", "math": [{"id": "lagrange", "tex": "\\frac{d}{dt}\\!\\left(\\frac{\\partial L}{\\partial \\dot q_i}\\right) - \\frac{\\partial L}{\\partial q_i} = Q_i", "caption": "The Euler-Lagrange equations"}]},
+            {"id": "mbd.eom.lagrangian.constraints", "level": "concept", "title": "Lagrange Multipliers for Constraints"}
+          ]},
+          {"id": "mbd.eom.kane-hamilton", "level": "subtopic", "title": "Kane's Method & Hamiltonian", "concepts": [
+            {"id": "mbd.eom.kane-hamilton.kane", "level": "concept", "title": "Kane's Method (Generalized Speeds)"},
+            {"id": "mbd.eom.kane-hamilton.hamilton", "level": "concept", "title": "Hamiltonian Formulation"}
+          ]}
+        ]},
+        {"id": "mbd.constrained", "level": "topic", "title": "Constrained Multibody Systems", "summary": "Constraints, DAEs, and reaction forces.", "subtopics": [
+          {"id": "mbd.constrained.constraints", "level": "subtopic", "title": "Constraint Types", "concepts": [
+            {"id": "mbd.constrained.constraints.holonomic", "level": "concept", "title": "Holonomic vs Nonholonomic Constraints"},
+            {"id": "mbd.constrained.constraints.reactions", "level": "concept", "title": "Reaction Forces from Lagrange Multipliers", "ncad": {"status": "planned", "notes": "reaction forces are the point of the MBD escalation over kinematics.", "refs": [], "phase": "P14", "engine": "Ondsel"}}
+          ]},
+          {"id": "mbd.constrained.dae", "level": "subtopic", "title": "DAEs & Stabilization", "concepts": [
+            {"id": "mbd.constrained.dae.index", "level": "concept", "title": "Differential-Algebraic Equations & Index Reduction"},
+            {"id": "mbd.constrained.dae.stabilization", "level": "concept", "title": "Constraint Stabilization (Baumgarte/Projection)"}
+          ]}
+        ]},
+        {"id": "mbd.algorithms", "level": "topic", "title": "Efficient Dynamics Algorithms", "summary": "The recursive spatial-vector algorithms.", "subtopics": [
+          {"id": "mbd.algorithms.recursive", "level": "subtopic", "title": "Recursive Algorithms", "concepts": [
+            {"id": "mbd.algorithms.recursive.rnea", "level": "concept", "title": "Recursive Newton-Euler (Inverse Dynamics)", "see_also": ["foundations.screw-theory.spatial-vectors.featherstone"], "sources": [{"type": "textbook", "tier": "primary", "title": "Rigid Body Dynamics Algorithms", "authors": "Featherstone, R.", "year": 2008, "url": "https://link.springer.com/book/10.1007/978-1-4899-7560-7"}]},
+            {"id": "mbd.algorithms.recursive.aba", "level": "concept", "title": "Articulated-Body Algorithm (Forward Dynamics)"},
+            {"id": "mbd.algorithms.recursive.crba", "level": "concept", "title": "Composite-Rigid-Body Algorithm (Mass Matrix)"}
+          ]}
+        ]},
+        {"id": "mbd.integration", "level": "topic", "title": "Numerical Integration for MBD", "summary": "Stiff systems, event and contact handling.", "subtopics": [
+          {"id": "mbd.integration.integrators", "level": "subtopic", "title": "Integrators", "concepts": [
+            {"id": "mbd.integration.integrators.explicit-implicit", "level": "concept", "title": "Explicit vs Implicit Integration", "see_also": ["foundations.numerics.integration.rk-symplectic"]},
+            {"id": "mbd.integration.integrators.stiff", "level": "concept", "title": "Stiff Systems"}
+          ]},
+          {"id": "mbd.integration.events", "level": "subtopic", "title": "Event & Contact Handling", "concepts": [
+            {"id": "mbd.integration.events.contact", "level": "concept", "title": "Contact Events & Time-Stepping"}
+          ]}
+        ]},
+        {"id": "mbd.forces", "level": "topic", "title": "Forces & Force Elements", "summary": "Gravity, springs/dampers, actuators, bounded contact.", "subtopics": [
+          {"id": "mbd.forces.applied", "level": "subtopic", "title": "Applied Forces", "concepts": [
+            {"id": "mbd.forces.applied.gravity-loads", "level": "concept", "title": "Gravity & Applied Loads/Torques", "ncad": {"status": "planned", "notes": "gravity + forces/torques (Phase 14).", "refs": [], "phase": "P14", "engine": "Ondsel"}}
+          ]},
+          {"id": "mbd.forces.elements", "level": "subtopic", "title": "Force Elements", "concepts": [
+            {"id": "mbd.forces.elements.springs-dampers", "level": "concept", "title": "Springs & Dampers", "ncad": {"status": "planned", "notes": "springs/dampers in scope (Phase 14).", "refs": [], "phase": "P14", "engine": "Ondsel"}},
+            {"id": "mbd.forces.elements.actuators", "level": "concept", "title": "Actuators"}
+          ]},
+          {"id": "mbd.forces.contact", "level": "subtopic", "title": "Contact & Friction", "concepts": [
+            {"id": "mbd.forces.contact.simple", "level": "concept", "title": "Simple Contact & Friction Models", "ncad": {"status": "planned", "notes": "line drawn at SIMPLE contact; friction-rich/continuous contact is out (design 19).", "refs": [], "phase": "P14", "engine": "Ondsel"}, "see_also": ["robotics.physics-engine.contact.lcp-convex"]}
+          ]}
+        ]},
+        {"id": "mbd.flexible", "level": "topic", "title": "Flexible Multibody (Concept)", "summary": "Deformable bodies - taught, out of scope for solving.", "subtopics": [
+          {"id": "mbd.flexible.floating-frame", "level": "subtopic", "title": "Floating-Frame & Modal", "concepts": [
+            {"id": "mbd.flexible.floating-frame.modal", "level": "concept", "title": "Modal / Floating-Frame of Reference"},
+            {"id": "mbd.flexible.floating-frame.fem-coupled", "level": "concept", "title": "FEM-Coupled Flexible Bodies", "ncad": {"status": "not-in-scope", "notes": "flexible/FEM-coupled bodies are FEA territory (design 17).", "refs": [], "engine": null}}
+          ]}
+        ]}
+      ]
+    },
+    {
+      "id": "robotics",
+      "level": "subject",
+      "title": "Robotics & Physics-Engine Simulation",
+      "slug": "robotics",
+      "order": 6,
+      "summary": "Robot kinematics, dynamics, planning, control, and contact-rich physics simulation. ncad adopts MuJoCo as a first-class robotics backend (Phase 17): ncad owns the robot model (links/joints/inertias/actuators/collision), lowers it to MJCF/URDF, and delegates the physics solve.",
+      "topics": [
+        {"id": "robotics.kinematics", "level": "topic", "title": "Robot Kinematics", "summary": "FK/IK, DH parameters, product-of-exponentials, the manipulator Jacobian.", "subtopics": [
+          {"id": "robotics.kinematics.dh-poe", "level": "subtopic", "title": "DH & Product-of-Exponentials", "concepts": [{"id": "robotics.kinematics.dh-poe.forward", "level": "concept", "title": "Forward Kinematics: DH & PoE", "see_also": ["foundations.screw-theory.exp-log.se3"], "sources": [{"type": "textbook", "tier": "primary", "title": "Modern Robotics", "authors": "Lynch & Park", "locator": "Ch. 4", "url": "http://hades.mech.northwestern.edu/index.php/Modern_Robotics"}]}]},
+          {"id": "robotics.kinematics.ik", "level": "subtopic", "title": "Inverse Kinematics", "concepts": [
+            {"id": "robotics.kinematics.ik.analytic", "level": "concept", "title": "Analytic (Closed-Form) IK"},
+            {"id": "robotics.kinematics.ik.numerical", "level": "concept", "title": "Numerical IK (Jacobian/Newton)", "ncad": {"status": "planned", "notes": "Phase 6 IK; robot-arm gate example.", "refs": [], "phase": "P6", "engine": "py-slvs"}}
+          ]},
+          {"id": "robotics.kinematics.jacobian", "level": "subtopic", "title": "Velocity Kinematics", "concepts": [
+            {"id": "robotics.kinematics.jacobian.manipulator", "level": "concept", "title": "The Manipulator Jacobian"},
+            {"id": "robotics.kinematics.jacobian.singularities", "level": "concept", "title": "Singularities & Manipulability"}
+          ]}
+        ]},
+        {"id": "robotics.structures", "level": "topic", "title": "Robot Types & Structures", "summary": "Serial, parallel, mobile, legged, end-effectors.", "subtopics": [
+          {"id": "robotics.structures.serial-parallel", "level": "subtopic", "title": "Serial & Parallel Manipulators", "concepts": [
+            {"id": "robotics.structures.serial-parallel.serial", "level": "concept", "title": "Serial Manipulators (Articulated/SCARA/Cartesian)"},
+            {"id": "robotics.structures.serial-parallel.parallel", "level": "concept", "title": "Parallel Manipulators (Stewart Platform, Delta)"}
+          ]},
+          {"id": "robotics.structures.mobile-legged", "level": "subtopic", "title": "Mobile & Legged", "concepts": [
+            {"id": "robotics.structures.mobile-legged.mobile", "level": "concept", "title": "Wheeled / Mobile Robots"},
+            {"id": "robotics.structures.mobile-legged.legged", "level": "concept", "title": "Legged & Humanoid Robots"}
+          ]},
+          {"id": "robotics.structures.end-effectors", "level": "subtopic", "title": "End-Effectors", "concepts": [
+            {"id": "robotics.structures.end-effectors.grippers", "level": "concept", "title": "Grippers & Tools"}
+          ]}
+        ]},
+        {"id": "robotics.dynamics", "level": "topic", "title": "Robot Dynamics", "summary": "Manipulator EoM and contact.", "subtopics": [
+          {"id": "robotics.dynamics.eom", "level": "subtopic", "title": "Manipulator Equations of Motion", "concepts": [
+            {"id": "robotics.dynamics.eom.mcg", "level": "concept", "title": "The Mass/Coriolis/Gravity (M, C, G) Terms", "see_also": ["mbd.algorithms.recursive.rnea"]},
+            {"id": "robotics.dynamics.eom.inverse-forward", "level": "concept", "title": "Inverse & Forward Dynamics"}
+          ]},
+          {"id": "robotics.dynamics.contact", "level": "subtopic", "title": "Contact & Friction", "concepts": [
+            {"id": "robotics.dynamics.contact.models", "level": "concept", "title": "Contact & Friction Models in Robots", "see_also": ["robotics.physics-engine.contact.lcp-convex"]}
+          ]}
+        ]},
+        {"id": "robotics.planning", "level": "topic", "title": "Motion Planning & Trajectory", "summary": "Trajectory generation and path planning.", "subtopics": [
+          {"id": "robotics.planning.trajectory", "level": "subtopic", "title": "Trajectory Generation", "concepts": [
+            {"id": "robotics.planning.trajectory.joint-cartesian", "level": "concept", "title": "Joint-Space vs Cartesian-Space Trajectories"},
+            {"id": "robotics.planning.trajectory.profiles", "level": "concept", "title": "Polynomial, Trapezoidal & Spline Profiles"}
+          ]},
+          {"id": "robotics.planning.path", "level": "subtopic", "title": "Path Planning", "concepts": [
+            {"id": "robotics.planning.path.sampling", "level": "concept", "title": "Sampling-Based Planning (RRT/PRM)"},
+            {"id": "robotics.planning.path.graph", "level": "concept", "title": "Graph Search (A*/Dijkstra)"},
+            {"id": "robotics.planning.path.collision", "level": "concept", "title": "Collision Checking"}
+          ]}
+        ]},
+        {"id": "robotics.control", "level": "topic", "title": "Control", "summary": "PID, computed-torque, impedance, operational-space.", "subtopics": [
+          {"id": "robotics.control.joint", "level": "subtopic", "title": "Joint-Space Control", "concepts": [
+            {"id": "robotics.control.joint.pid-computed", "level": "concept", "title": "PID & Computed-Torque Control"}
+          ]},
+          {"id": "robotics.control.task", "level": "subtopic", "title": "Task-Space & Force Control", "concepts": [
+            {"id": "robotics.control.task.impedance", "level": "concept", "title": "Impedance / Admittance & Force Control"},
+            {"id": "robotics.control.task.operational-space", "level": "concept", "title": "Operational-Space Control"}
+          ]}
+        ]},
+        {"id": "robotics.physics-engine", "level": "topic", "title": "Physics-Engine Simulation", "summary": "Contact dynamics, collision, actuators, integrators.", "subtopics": [
+          {"id": "robotics.physics-engine.contact", "level": "subtopic", "title": "Contact Dynamics", "concepts": [
+            {"id": "robotics.physics-engine.contact.lcp-convex", "level": "concept", "title": "Complementarity/LCP vs Soft/Convex Contact", "ncad": {"status": "planned", "notes": "Phase 17; MuJoCo's soft-constraint contact model.", "refs": [], "phase": "P17", "engine": "MuJoCo"}, "sources": [{"type": "official-docs", "tier": "primary", "title": "MuJoCo Documentation - Computation", "url": "https://mujoco.readthedocs.io/en/stable/computation/index.html"}]},
+            {"id": "robotics.physics-engine.contact.collision-geometry", "level": "concept", "title": "Collision Geometry & Broad/Narrow Phase"}
+          ]},
+          {"id": "robotics.physics-engine.actuators", "level": "subtopic", "title": "Actuators & Integrators", "concepts": [
+            {"id": "robotics.physics-engine.actuators.models", "level": "concept", "title": "Actuator Models"},
+            {"id": "robotics.physics-engine.actuators.integrators", "level": "concept", "title": "Integrators, Timestep & Numerical Stability"}
+          ]}
+        ]},
+        {"id": "robotics.mujoco", "level": "topic", "title": "MuJoCo (ncad First-Class Backend)", "summary": "The model format and simulation engine ncad lowers robots to.", "subtopics": [
+          {"id": "robotics.mujoco.mjcf", "level": "subtopic", "title": "The MJCF Model Format", "concepts": [
+            {"id": "robotics.mujoco.mjcf.bodies-joints", "level": "concept", "title": "Bodies, Joints, Geoms & Inertials", "ncad": {"status": "planned", "notes": "Phase 17: lower the ncad robot model to MJCF.", "refs": [], "phase": "P17", "engine": "MuJoCo"}, "sources": [{"type": "official-docs", "tier": "primary", "title": "MuJoCo XML Reference (MJCF)", "url": "https://mujoco.readthedocs.io/en/stable/XMLreference.html"}]},
+            {"id": "robotics.mujoco.mjcf.actuators-constraints", "level": "concept", "title": "Actuators, Tendons & Equality Constraints"}
+          ]},
+          {"id": "robotics.mujoco.model-data", "level": "subtopic", "title": "Simulation State", "concepts": [
+            {"id": "robotics.mujoco.model-data.loop", "level": "concept", "title": "The Simulation Loop, mjModel & mjData"},
+            {"id": "robotics.mujoco.model-data.soft-contact", "level": "concept", "title": "MuJoCo's Soft-Constraint Contact Model"}
+          ]}
+        ]},
+        {"id": "robotics.description", "level": "topic", "title": "Robot Description & Interop", "summary": "URDF, SDF, and round-trip.", "subtopics": [
+          {"id": "robotics.description.urdf", "level": "subtopic", "title": "URDF & SDF", "concepts": [
+            {"id": "robotics.description.urdf.urdf", "level": "concept", "title": "URDF (the ROS Robot Format)", "ncad": {"status": "planned", "notes": "Phase 17 URDF interop.", "refs": [], "phase": "P17", "engine": "MuJoCo"}, "see_also": ["interchange.robotics.urdf-sdf.formats"]},
+            {"id": "robotics.description.urdf.tradeoffs", "level": "concept", "title": "MJCF vs URDF vs SDF Trade-offs & Round-Trip"}
+          ]}
+        ]},
+        {"id": "robotics.learning", "level": "topic", "title": "Learning & Control Hooks", "summary": "RL environments, sim-to-real, system identification.", "subtopics": [
+          {"id": "robotics.learning.rl", "level": "subtopic", "title": "Reinforcement Learning", "concepts": [
+            {"id": "robotics.learning.rl.envs", "level": "concept", "title": "RL Environments", "ncad": {"status": "planned", "notes": "ncad supplies the environment, not the policy.", "refs": [], "phase": "P17", "engine": "MuJoCo"}}
+          ]},
+          {"id": "robotics.learning.sim2real", "level": "subtopic", "title": "Sim-to-Real & System ID", "concepts": [
+            {"id": "robotics.learning.sim2real.transfer", "level": "concept", "title": "Sim-to-Real Transfer & System Identification"}
+          ]}
+        ]}
+      ]
+    },
+    {
+      "id": "cae",
+      "level": "subject",
+      "title": "Engineering Analysis & Simulation (CAE)",
+      "slug": "cae",
+      "order": 7,
+      "summary": "Field-physics analysis: FEM/FVM discretization, structural/thermal FEA, CFD, 1D frame, hydraulics, and fluid power. ncad owns the model (geometry/mesh/BCs/analytical abstraction) and delegates every field solve to a mature open engine; it never writes a field solver.",
+      "topics": [
+        {"id": "cae.fundamentals", "level": "topic", "title": "Analysis Fundamentals", "summary": "Continuum mechanics, governing PDEs, BCs, V&V, and the owned-vs-delegated principle.", "subtopics": [
+          {"id": "cae.fundamentals.continuum", "level": "subtopic", "title": "Continuum Mechanics", "concepts": [
+            {"id": "cae.fundamentals.continuum.stress-strain", "level": "concept", "title": "Stress & Strain Tensors"},
+            {"id": "cae.fundamentals.continuum.constitutive", "level": "concept", "title": "Constitutive Laws (Hooke, Elasticity)"},
+            {"id": "cae.fundamentals.continuum.pdes", "level": "concept", "title": "Governing PDEs (Equilibrium, Diffusion)"}
+          ]},
+          {"id": "cae.fundamentals.bcs", "level": "subtopic", "title": "Boundary & Initial Conditions", "concepts": [
+            {"id": "cae.fundamentals.bcs.dirichlet-neumann", "level": "concept", "title": "Dirichlet, Neumann & Robin Conditions; Loads & Restraints"}
+          ]},
+          {"id": "cae.fundamentals.vv", "level": "subtopic", "title": "Verification & Validation", "concepts": [
+            {"id": "cae.fundamentals.vv.convergence", "level": "concept", "title": "Mesh Convergence, Verification & Validation"}
+          ]},
+          {"id": "cae.fundamentals.owned-delegated", "level": "subtopic", "title": "Owned Model vs Delegated Solve", "concepts": [
+            {"id": "cae.fundamentals.owned-delegated.principle", "level": "concept", "title": "The Owned-Model / Delegated-Solve Principle", "ncad": {"status": "planned", "notes": "ncad owns geometry+mesh+BCs; the solve runs in an external open engine (Phase 13).", "refs": [], "phase": "P13", "engine": null}}
+          ]}
+        ]},
+        {"id": "cae.discretization", "level": "topic", "title": "Discretization Methods", "summary": "FEM/FVM/FDM/BEM and meshing.", "subtopics": [
+          {"id": "cae.discretization.methods", "level": "subtopic", "title": "The Methods", "concepts": [
+            {"id": "cae.discretization.methods.fem", "level": "concept", "title": "Finite Element Method (Weak Form, Shape Functions, Assembly)", "math": [{"id": "fem-weak", "tex": "\\int_\\Omega \\nabla v \\cdot \\nabla u \\, d\\Omega = \\int_\\Omega v\\, f \\, d\\Omega", "caption": "The weak form of a Poisson problem"}], "sources": [{"type": "textbook", "tier": "primary", "title": "The Finite Element Method", "authors": "Zienkiewicz & Taylor", "url": "https://www.sciencedirect.com/book/9781856176330/the-finite-element-method-its-basis-and-fundamentals"}]},
+            {"id": "cae.discretization.methods.fvm-fdm-bem", "level": "concept", "title": "Finite Volume, Finite Difference & Boundary Element Methods"}
+          ]},
+          {"id": "cae.discretization.meshing", "level": "subtopic", "title": "Meshing", "concepts": [
+            {"id": "cae.discretization.meshing.elements", "level": "concept", "title": "Element Types & Order (Tet/Hex/Wedge; Linear/Quadratic)"},
+            {"id": "cae.discretization.meshing.quality", "level": "concept", "title": "Mesh Quality & Structured vs Unstructured"},
+            {"id": "cae.discretization.meshing.gmsh", "level": "concept", "title": "Mesh Generation (Gmsh)", "ncad": {"status": "planned", "notes": "ncad meshes via Gmsh for the export deck.", "refs": [], "phase": "P13", "engine": "Gmsh"}}
+          ]}
+        ]},
+        {"id": "cae.structural-fea", "level": "topic", "title": "Structural FEA", "summary": "Linear static, modal, buckling, nonlinear, transient.", "subtopics": [
+          {"id": "cae.structural-fea.linear-static", "level": "subtopic", "title": "Linear Static", "concepts": [
+            {"id": "cae.structural-fea.linear-static.solve", "level": "concept", "title": "Linear Static Analysis (Ku=f)", "ncad": {"status": "planned", "notes": "Delegated to CalculiX (.inp deck).", "refs": [], "phase": "P13", "engine": "CalculiX"}},
+            {"id": "cae.structural-fea.linear-static.elements", "level": "concept", "title": "Element Formulations (Bar/Beam/Plate/Shell/Solid)"}
+          ]},
+          {"id": "cae.structural-fea.modal-buckling", "level": "subtopic", "title": "Modal & Buckling", "concepts": [
+            {"id": "cae.structural-fea.modal-buckling.modal", "level": "concept", "title": "Modal / Eigenvalue Analysis (Natural Frequencies & Modes)", "ncad": {"status": "planned", "notes": "CalculiX modal.", "refs": [], "phase": "P13", "engine": "CalculiX"}},
+            {"id": "cae.structural-fea.modal-buckling.buckling", "level": "concept", "title": "Linear Buckling"}
+          ]},
+          {"id": "cae.structural-fea.nonlinear", "level": "subtopic", "title": "Nonlinear & Transient", "concepts": [
+            {"id": "cae.structural-fea.nonlinear.types", "level": "concept", "title": "Geometric, Material & Contact Nonlinearity", "ncad": {"status": "not-in-scope", "notes": "advanced nonlinear delegated to CalculiX.", "refs": [], "engine": "CalculiX"}},
+            {"id": "cae.structural-fea.nonlinear.transient", "level": "concept", "title": "Transient / Dynamic Structural"},
+            {"id": "cae.structural-fea.nonlinear.fatigue", "level": "concept", "title": "Fatigue & Durability", "ncad": {"status": "not-in-scope", "notes": "specialist; delegate-or-out-of-scope.", "refs": [], "engine": null}}
+          ]}
+        ]},
+        {"id": "cae.thermal", "level": "topic", "title": "Thermal Analysis", "summary": "Conduction, convection, radiation, coupling.", "subtopics": [
+          {"id": "cae.thermal.conduction", "level": "subtopic", "title": "Heat Conduction", "concepts": [
+            {"id": "cae.thermal.conduction.steady-transient", "level": "concept", "title": "Steady-State & Transient Conduction", "ncad": {"status": "planned", "notes": "CalculiX / Elmer.", "refs": [], "phase": "P13", "engine": "CalculiX / Elmer"}}
+          ]},
+          {"id": "cae.thermal.bcs-coupling", "level": "subtopic", "title": "BCs & Coupling", "concepts": [
+            {"id": "cae.thermal.bcs-coupling.convection-radiation", "level": "concept", "title": "Convection & Radiation Boundary Conditions"},
+            {"id": "cae.thermal.bcs-coupling.thermal-structural", "level": "concept", "title": "Thermal-Structural Coupling"}
+          ]}
+        ]},
+        {"id": "cae.frame", "level": "topic", "title": "1D Frame / Beam Structural", "summary": "Beam theory and the direct stiffness method - fed by the structural profile's analytical model.", "subtopics": [
+          {"id": "cae.frame.beam-theory", "level": "subtopic", "title": "Beam Theory", "concepts": [
+            {"id": "cae.frame.beam-theory.euler-timoshenko", "level": "concept", "title": "Euler-Bernoulli vs Timoshenko Beam Theory"}
+          ]},
+          {"id": "cae.frame.stiffness", "level": "subtopic", "title": "Truss & Frame Analysis", "concepts": [
+            {"id": "cae.frame.stiffness.direct", "level": "concept", "title": "The Direct Stiffness Method", "ncad": {"status": "planned", "notes": "structural analytical model -> frame3dd/PyNite (light seam).", "refs": [], "phase": "P13", "engine": "frame3dd / PyNite"}, "see_also": ["cad.profiles.structural.members-connections"]},
+            {"id": "cae.frame.stiffness.results", "level": "concept", "title": "Member Forces, Reactions & Deflections"}
+          ]}
+        ]},
+        {"id": "cae.cfd", "level": "topic", "title": "Computational Fluid Dynamics (CFD)", "summary": "Navier-Stokes, turbulence, conjugate heat transfer.", "subtopics": [
+          {"id": "cae.cfd.governing", "level": "subtopic", "title": "Governing Equations", "concepts": [
+            {"id": "cae.cfd.governing.navier-stokes", "level": "concept", "title": "Navier-Stokes; Incompressible vs Compressible", "ncad": {"status": "planned", "notes": "Delegated to Elmer.", "refs": [], "phase": "P13", "engine": "Elmer"}}
+          ]},
+          {"id": "cae.cfd.turbulence", "level": "subtopic", "title": "Turbulence & Coupling", "concepts": [
+            {"id": "cae.cfd.turbulence.rans-les-dns", "level": "concept", "title": "Turbulence Models (RANS/LES/DNS)"},
+            {"id": "cae.cfd.turbulence.cht", "level": "concept", "title": "Conjugate Heat Transfer & Multiphysics"}
+          ]}
+        ]},
+        {"id": "cae.hydraulics", "level": "topic", "title": "Pipe-Network / Hydraulics", "summary": "Head loss and network solution - fed by the piping profile.", "subtopics": [
+          {"id": "cae.hydraulics.head-loss", "level": "subtopic", "title": "Conservation & Head Loss", "concepts": [
+            {"id": "cae.hydraulics.head-loss.equations", "level": "concept", "title": "Mass/Energy Conservation; Darcy-Weisbach & Hazen-Williams"}
+          ]},
+          {"id": "cae.hydraulics.network", "level": "subtopic", "title": "Network Solution", "concepts": [
+            {"id": "cae.hydraulics.network.solve", "level": "concept", "title": "Hardy-Cross / Gradient Network Solution (EPANET)", "ncad": {"status": "planned", "notes": "piping network -> EPANET.", "refs": [], "phase": "P13", "engine": "EPANET"}, "see_also": ["cad.profiles.process-plant.route-spec-fittings"]}
+          ]}
+        ]},
+        {"id": "cae.fluid-power", "level": "topic", "title": "Fluid Power / 1D System Simulation", "summary": "Lumped-parameter hydraulic/pneumatic circuits that can drive motion.", "subtopics": [
+          {"id": "cae.fluid-power.circuits", "level": "subtopic", "title": "Circuits & Components", "concepts": [
+            {"id": "cae.fluid-power.circuits.hydraulic-pneumatic", "level": "concept", "title": "Hydraulic & Pneumatic Circuits (Pumps/Cylinders/Valves)"},
+            {"id": "cae.fluid-power.circuits.actuator-dynamics", "level": "concept", "title": "Actuator Dynamics"}
+          ]},
+          {"id": "cae.fluid-power.modelica", "level": "subtopic", "title": "Lumped-Parameter Modeling", "concepts": [
+            {"id": "cae.fluid-power.modelica.cosim", "level": "concept", "title": "Modelica Lumped-Parameter Models & Co-Simulation", "ncad": {"status": "planned", "notes": "OpenModelica; can drive motion (Phase 6) as a driver source.", "refs": [], "phase": "P13", "engine": "OpenModelica"}}
+          ]}
+        ]},
+        {"id": "cae.workflow", "level": "topic", "title": "Solver Workflow & ncad's Seam", "summary": "Model ownership, deck generation, result read-back.", "subtopics": [
+          {"id": "cae.workflow.map", "level": "subtopic", "title": "The Owned-vs-Delegated Map", "concepts": [
+            {"id": "cae.workflow.map.ownership", "level": "concept", "title": "Model Ownership vs Solve Delegation", "ncad": {"status": "planned", "notes": "mirrors plan.md's Analysis & simulation strategy table.", "refs": [], "phase": "P13", "engine": null}},
+            {"id": "cae.workflow.map.deck-readback", "level": "concept", "title": "Input-Deck Generation & Result Read-Back", "see_also": ["interchange.analysis.decks.inp-unv"]}
+          ]}
+        ]}
+      ]
+    },
+    {
+      "id": "interchange",
+      "level": "subject",
+      "title": "Interchange, Standards & Data Exchange",
+      "slug": "interchange",
+      "order": 8,
+      "summary": "The file formats and standards that move models between tools. A shared home so each format is documented once and cross-linked from its domain.",
+      "topics": [
+        {"id": "interchange.cad", "level": "topic", "title": "Geometry & CAD Exchange", "summary": "STEP, IGES, kernel formats, lightweight viewables.", "subtopics": [
+          {"id": "interchange.cad.step", "level": "subtopic", "title": "STEP (ISO 10303)", "concepts": [
+            {"id": "interchange.cad.step.ap203-214", "level": "concept", "title": "AP203 / AP214 (Geometry & Assembly)", "ncad": {"status": "available", "notes": "STEP export shipped (Phase 2.0).", "refs": ["/ncad/reference/export"], "engine": null}, "sources": [{"type": "standard", "tier": "primary", "title": "ISO 10303 (STEP)", "url": "https://www.iso.org/standard/63141.html"}]},
+            {"id": "interchange.cad.step.ap242", "level": "concept", "title": "AP242 + PMI & Assembly (via XCAF/XDE)", "ncad": {"status": "planned", "notes": "AP242+PMI planned with drafting/PMI (Phase 8/13).", "refs": [], "phase": "P13", "engine": null}}
+          ]},
+          {"id": "interchange.cad.iges", "level": "subtopic", "title": "IGES", "concepts": [
+            {"id": "interchange.cad.iges.format", "level": "concept", "title": "IGES (Legacy Geometry Exchange)"}
+          ]},
+          {"id": "interchange.cad.kernel-lightweight", "level": "subtopic", "title": "Kernel & Lightweight Formats", "concepts": [
+            {"id": "interchange.cad.kernel-lightweight.parasolid-acis", "level": "concept", "title": "Kernel Formats (Parasolid x_t, ACIS sat) - Concepts"},
+            {"id": "interchange.cad.kernel-lightweight.jt-3dpdf", "level": "concept", "title": "JT & 3D-PDF (Lightweight Viewables)"}
+          ]}
+        ]},
+        {"id": "interchange.mesh", "level": "topic", "title": "Mesh & Visualization Exchange", "summary": "STL, 3MF, OBJ, glTF, tessellation.", "subtopics": [
+          {"id": "interchange.mesh.printing", "level": "subtopic", "title": "Mesh / Printing Formats", "concepts": [
+            {"id": "interchange.mesh.printing.stl-3mf-obj", "level": "concept", "title": "STL, 3MF & OBJ", "ncad": {"status": "available", "notes": "STL export.", "refs": ["/ncad/reference/export"], "engine": null}}
+          ]},
+          {"id": "interchange.mesh.gltf", "level": "subtopic", "title": "glTF & Visualization", "concepts": [
+            {"id": "interchange.mesh.gltf.gltf", "level": "concept", "title": "glTF / GLB (Runtime 3D)", "ncad": {"status": "available", "notes": "glTF/GLB for the viewer, with element-map sidecar.", "refs": ["/ncad/reference/export"], "engine": null}},
+            {"id": "interchange.mesh.gltf.tessellation-lod", "level": "concept", "title": "Tessellation & Level-of-Detail", "see_also": ["cad.representations.mesh.tessellation"]}
+          ]}
+        ]},
+        {"id": "interchange.robotics", "level": "topic", "title": "Robotics / Kinematic Exchange", "summary": "URDF, SDF, MJCF.", "subtopics": [
+          {"id": "interchange.robotics.urdf-sdf", "level": "subtopic", "title": "URDF / SDF / MJCF", "concepts": [
+            {"id": "interchange.robotics.urdf-sdf.formats", "level": "concept", "title": "URDF, SDF & MJCF Robot Descriptions", "ncad": {"status": "planned", "notes": "Phase 17.", "refs": [], "phase": "P17", "engine": "MuJoCo"}, "see_also": ["robotics.description.urdf.urdf"]}
+          ]}
+        ]},
+        {"id": "interchange.manufacturing", "level": "topic", "title": "Manufacturing Exchange", "summary": "G-code, DXF, STEP-NC.", "subtopics": [
+          {"id": "interchange.manufacturing.gcode", "level": "subtopic", "title": "G-code & STEP-NC", "concepts": [
+            {"id": "interchange.manufacturing.gcode.rs274ngc", "level": "concept", "title": "G-code (RS274NGC)", "see_also": ["cam.post-gcode.rs274.vocabulary"]},
+            {"id": "interchange.manufacturing.gcode.step-nc", "level": "concept", "title": "STEP-NC (ISO 14649)"}
+          ]},
+          {"id": "interchange.manufacturing.dxf", "level": "subtopic", "title": "DXF", "concepts": [
+            {"id": "interchange.manufacturing.dxf.format", "level": "concept", "title": "DXF (2D Profiles & Flat Patterns)"}
+          ]}
+        ]},
+        {"id": "interchange.electronics", "level": "topic", "title": "Electronics Exchange", "summary": "Gerber, Excellon, IPC-2581/ODB++, KiCad.", "subtopics": [
+          {"id": "interchange.electronics.fab", "level": "subtopic", "title": "Fabrication Formats", "concepts": [
+            {"id": "interchange.electronics.fab.gerber-excellon", "level": "concept", "title": "Gerber (RS-274X) & Excellon Drill", "see_also": ["pcb.fab-outputs.gerber.rs274x"]},
+            {"id": "interchange.electronics.fab.ipc-odb", "level": "concept", "title": "IPC-2581 & ODB++"}
+          ]},
+          {"id": "interchange.electronics.native", "level": "subtopic", "title": "Native ECAD", "concepts": [
+            {"id": "interchange.electronics.native.kicad", "level": "concept", "title": ".kicad_pcb (Round-Trip)", "ncad": {"status": "planned", "notes": "Phase 16.3 KiCad round-trip.", "refs": [], "phase": "P16", "engine": "KiCad"}}
+          ]}
+        ]},
+        {"id": "interchange.aec-plant", "level": "topic", "title": "AEC / Plant Exchange", "summary": "IFC, P&ID/piping, steel.", "subtopics": [
+          {"id": "interchange.aec-plant.ifc", "level": "subtopic", "title": "IFC (Building)", "concepts": [
+            {"id": "interchange.aec-plant.ifc.buildingsmart", "level": "concept", "title": "IFC (buildingSMART)", "ncad": {"status": "planned", "notes": "IFC via ifcopenshell (building profile, Phase 11).", "refs": [], "phase": "P11", "engine": "ifcopenshell"}}
+          ]},
+          {"id": "interchange.aec-plant.piping-steel", "level": "subtopic", "title": "Piping & Steel", "concepts": [
+            {"id": "interchange.aec-plant.piping-steel.pcf-iso", "level": "concept", "title": "P&ID / PCF / ISO Piping Exchange", "see_also": ["cad.profiles.process-plant.route-spec-fittings"]},
+            {"id": "interchange.aec-plant.piping-steel.cis2-sdnf", "level": "concept", "title": "CIS/2 & SDNF (Steel Detailing)", "see_also": ["cad.profiles.structural.members-connections"]}
+          ]}
+        ]},
+        {"id": "interchange.analysis", "level": "topic", "title": "Analysis Exchange", "summary": "FEM decks and engine formats.", "subtopics": [
+          {"id": "interchange.analysis.decks", "level": "subtopic", "title": "FEM Decks", "concepts": [
+            {"id": "interchange.analysis.decks.inp", "level": "concept", "title": "CalculiX / Abaqus .inp", "see_also": ["cae.workflow.map.deck-readback"]},
+            {"id": "interchange.analysis.decks.unv-other", "level": "concept", "title": "UNV & Engine-Specific Decks"}
+          ]}
+        ]},
+        {"id": "interchange.provenance", "level": "topic", "title": "Standards & Provenance Discipline", "summary": "Versioning, migration, and reproducibility of exchange.", "subtopics": [
+          {"id": "interchange.provenance.versioning", "level": "subtopic", "title": "Versioning & Migration", "concepts": [
+            {"id": "interchange.provenance.versioning.schema", "level": "concept", "title": "Schema Versioning & Migration Converters", "ncad": {"status": "available", "notes": "schema_version per domain (design 14).", "refs": ["/ncad/reference/schema"], "engine": null}}
+          ]},
+          {"id": "interchange.provenance.reproducibility", "level": "subtopic", "title": "Reproducibility", "concepts": [
+            {"id": "interchange.provenance.reproducibility.determinism", "level": "concept", "title": "Deterministic Exchange & Provenance", "ncad": {"status": "available", "notes": "determinism (design 4a).", "refs": ["/ncad/explained/determinism"], "engine": null}}
+          ]}
+        ]}
+      ]
+    }
+  ]
+}
