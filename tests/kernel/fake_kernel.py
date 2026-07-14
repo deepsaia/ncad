@@ -670,6 +670,14 @@ class FakeKernel(Kernel):
             return [bottom]
         return [top, bottom]
 
+    def inertia(self, solid: Any) -> dict:
+        # Fake model: a diagonal tensor proportional to volume (no true second moments; the
+        # real kernel computes the OCCT tensor). Deterministic, symmetric, positive-diagonal.
+        v = self.volume(solid)
+        diag = max(v, 1e-9)
+        return {"matrix": [[diag, 0.0, 0.0], [0.0, diag, 0.0], [0.0, 0.0, diag]],
+                "principal": [diag, diag, diag]}
+
     def split_by_tool(self, shape: Any, tool: Any, keep: str = "both") -> list:
         # Analytic partition by a tool body: inside = the tool's volume clamped to the shape,
         # outside = the remainder. Enough for op/volume tests; the real kernel does the boolean.

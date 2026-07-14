@@ -61,6 +61,7 @@ from OCP.BRepFilletAPI import (
     BRepFilletAPI_MakeChamfer,  # pyrefly: ignore[missing-module-attribute]
     BRepFilletAPI_MakeFillet,  # pyrefly: ignore[missing-module-attribute]
 )
+from OCP.BRepGProp import BRepGProp  # pyrefly: ignore[missing-module-attribute]
 from OCP.BRepOffsetAPI import (
     BRepOffsetAPI_DraftAngle,  # pyrefly: ignore[missing-module-attribute]
     BRepOffsetAPI_MakePipeShell,  # pyrefly: ignore[missing-module-attribute]
@@ -73,6 +74,7 @@ from OCP.gp import (
     gp_Pln,  # pyrefly: ignore[missing-module-attribute]
     gp_Pnt,  # pyrefly: ignore[missing-module-attribute]
 )
+from OCP.GProp import GProp_GProps  # pyrefly: ignore[missing-module-attribute]
 from OCP.TColgp import TColgp_Array1OfPnt  # pyrefly: ignore[missing-module-attribute]
 from OCP.TColStd import TColStd_Array1OfReal  # pyrefly: ignore[missing-module-attribute]
 from OCP.TopAbs import TopAbs_EDGE, TopAbs_FACE  # pyrefly: ignore[missing-module-attribute]
@@ -842,6 +844,17 @@ class Build123dKernel(Kernel):
         b123d = importlib.metadata.version("build123d")
         ocp = importlib.metadata.version("cadquery-ocp")
         return f"build123d={b123d};ocp={ocp}"
+
+    def inertia(self, solid: Any) -> dict:
+        # The volume inertia tensor of the solid, via OCCT GProp_GProps.MatrixOfInertia
+        # (density 1 here: geometry-only, like volume; the mass layer scales by material
+        # density). Returns the full symmetric 3x3 matrix + the three principal moments.
+        props = GProp_GProps()
+        BRepGProp.VolumeProperties_s(_wrapped(solid), props)
+        matrix = props.MatrixOfInertia()
+        rows = [[matrix.Value(i, j) for j in (1, 2, 3)] for i in (1, 2, 3)]
+        moments = props.PrincipalProperties().Moments()
+        return {"matrix": rows, "principal": [moments[0], moments[1], moments[2]]}
 
     def signature(self, solid: Any) -> dict:
         if isinstance(solid, BodySet):

@@ -39,6 +39,14 @@ class MassCalculator:
                     f"body {body.id!r} material has no physical.density for mass")
             volume = self._kernel.volume(body.shape)
             cog = self._kernel.signature(body.shape)["cog"]
+            # The kernel returns the density-1 (volume) inertia tensor; scale it by the mass
+            # factor (density * 1e-9) so the reported inertia is the mass moment of inertia.
+            geom_inertia = self._kernel.inertia(body.shape)
+            factor = density * _MM3_TO_M3
+            inertia = {
+                "matrix": [[c * factor for c in row] for row in geom_inertia["matrix"]],
+                "principal": [p * factor for p in geom_inertia["principal"]],
+            }
             bodies_out.append({
                 "id": body.id,
                 "material": resolver.material_name(body),
@@ -47,6 +55,7 @@ class MassCalculator:
                 # density kg/m^3 * volume mm^3 * 1e-9 -> mass kg (see module docstring).
                 "mass": density * volume * _MM3_TO_M3,
                 "cog": cog,
+                "inertia": inertia,
             })
         return {"bodies": bodies_out, "total": _totals(bodies_out)}
 

@@ -443,6 +443,13 @@ class Kernel(ABC):
         """
 
     @abstractmethod
+    def inertia(self, solid: Any) -> dict:
+        """The volume inertia tensor of ``solid`` -> ``{"matrix": 3x3, "principal": [i1,i2,i3]}``.
+
+        Density-1 (geometry-only, like volume); the mass layer scales by material density.
+        """
+
+    @abstractmethod
     def split_by_tool(self, shape: Any, tool: Any, keep: str = "both") -> list:
         """Partition ``shape`` by a TOOL BODY: the region inside the tool + the region outside.
 
