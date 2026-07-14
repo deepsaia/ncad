@@ -121,6 +121,9 @@ definitions {
       placement = ${definitions.placement}
       connect = ${definitions.connect}
       lock { type = boolean }
+      # A component pattern: array this instance's part at each placement (bucket 5.7). The
+      # PatternParams vocabulary is the real gate; permissive here.
+      pattern { type = object }
     }
   }
 }

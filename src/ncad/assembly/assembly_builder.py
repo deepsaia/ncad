@@ -16,6 +16,7 @@ from typing import Any
 
 from ncad.assembly.assembly_bom import AssemblyBom
 from ncad.assembly.assembly_placement import AssemblyPlacement
+from ncad.assembly.component_pattern import ComponentPattern, ComponentPatternError
 from ncad.assembly.connector_frame import ConnectorFrame
 from ncad.assembly.connector_resolver import ConnectorResolver
 from ncad.assembly.coupling import Coupling
@@ -47,6 +48,7 @@ class AssemblyBuilder:
         self._loader = SpecLoader()
         self._validator = AssemblySchemaValidator()
         self._placement = AssemblyPlacement()
+        self._pattern = ComponentPattern()
         self._connectors = ConnectorResolver()
         self._snap = FrameSnap()
         self._lowering = MateLowering()
@@ -67,6 +69,13 @@ class AssemblyBuilder:
         os.makedirs(out_dir, exist_ok=True)
         asm_dir = os.path.dirname(os.path.abspath(asm_path))
         name = _stem(asm_path)
+        # Expand component ops (pattern; mirror/replace/sub-assembly in later tasks) into a flat
+        # instance list BEFORE placement/solve, so the rest of the pipeline sees plain instances.
+        pre_issues: list[dict] = []
+        expanded = self._expand_components(document["assembly"]["instances"], pre_issues)
+        # Replace the instance list in place with the expanded one so the whole pipeline (place,
+        # solve, analyze) iterates the flattened instances; the document dict stays typed.
+        document["assembly"]["instances"] = expanded
         # Part glbs export in metres (build123d export_gltf scales the document unit to metres),
         # so the scene sidecar bakes placements to metres too. The viewer then consumes the scene
         # unit-agnostic, exactly as it does a single-part glb.
@@ -83,7 +92,7 @@ class AssemblyBuilder:
         placements_mm: dict[str, list[list[float]]] = {}
         local_frames: dict[str, dict[str, ConnectorFrame]] = {}
         instances: list[dict] = []
-        issues: list[dict] = []
+        issues: list[dict] = list(pre_issues)
         for instance in document["assembly"]["instances"]:
             glb = self._ensure_part_glb(instance, asm_dir, out_dir, builders, built_glbs, issues)
             if glb is None:
@@ -117,6 +126,16 @@ class AssemblyBuilder:
                        "joints": joints_out, "couplings": couplings_out,
                        "interference": interference, "bom": bom, "mass": mass}, handle)
         return {"sidecar": sidecar, "issues": issues, "instances": [i["id"] for i in instances]}
+
+    def _expand_components(self, raw_instances: list, issues: list) -> list[dict]:
+        """Expand component ops (pattern) into a flat instance list; ops added in later tasks."""
+        out: list[dict] = []
+        for inst in raw_instances:
+            try:
+                out.extend(self._pattern.expand(inst))
+            except ComponentPatternError as exc:
+                issues.append({"instance_id": inst.get("id"), "message": str(exc)})
+        return out
 
     def _place(self, instance: dict, placements_mm: dict,
                local_frames: dict, issues: list) -> list[list[float]]:
