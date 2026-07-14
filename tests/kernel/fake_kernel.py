@@ -378,6 +378,15 @@ class FakeKernel(Kernel):
         volume = max(self.volume(solid) * factor, 1e-9)
         return _FakeCombined(volume, self.bounding_box(solid))
 
+    def draft_variable(self, solid: Any, face_angles: list, *, neutral: str,
+                       neutral_offset: float = 0.0) -> Any:
+        # Per-face taper: sum a small delta per (face, angle). Deterministic + positive.
+        factor = 1.0
+        for _, angle in face_angles:
+            factor -= math.sin(math.radians(angle)) * 0.01
+        volume = max(self.volume(solid) * factor, 1e-9)
+        return _FakeCombined(volume, self.bounding_box(solid))
+
     def wrap(self, solid: Any, face: Any, *, text: str | None = None,
              profile: Any = None, font_size: float = 5.0, font: str = "Arial",
              font_style: str = "regular", depth: float = 1.0, mode: str = "emboss",

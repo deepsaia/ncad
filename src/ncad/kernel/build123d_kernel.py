@@ -61,11 +61,17 @@ from OCP.BRepFilletAPI import (
     BRepFilletAPI_MakeFillet,  # pyrefly: ignore[missing-module-attribute]
 )
 from OCP.BRepOffsetAPI import (
+    BRepOffsetAPI_DraftAngle,  # pyrefly: ignore[missing-module-attribute]
     BRepOffsetAPI_MakePipeShell,  # pyrefly: ignore[missing-module-attribute]
 )
 from OCP.Geom import Geom_BezierCurve  # pyrefly: ignore[missing-module-attribute]
 from OCP.GeomAbs import GeomAbs_G1  # pyrefly: ignore[missing-module-attribute]
-from OCP.gp import gp_GTrsf, gp_Pnt  # pyrefly: ignore[missing-module-attribute]
+from OCP.gp import (
+    gp_Dir,  # pyrefly: ignore[missing-module-attribute]
+    gp_GTrsf,  # pyrefly: ignore[missing-module-attribute]
+    gp_Pln,  # pyrefly: ignore[missing-module-attribute]
+    gp_Pnt,  # pyrefly: ignore[missing-module-attribute]
+)
 from OCP.TColgp import TColgp_Array1OfPnt  # pyrefly: ignore[missing-module-attribute]
 from OCP.TColStd import TColStd_Array1OfReal  # pyrefly: ignore[missing-module-attribute]
 from OCP.TopAbs import TopAbs_EDGE, TopAbs_FACE  # pyrefly: ignore[missing-module-attribute]
@@ -474,6 +480,39 @@ class Build123dKernel(Kernel):
     @staticmethod
     def _do_draft(faces: list, plane: Any, angle: float) -> Any:
         return draft(faces, neutral_plane=plane, angle=angle)
+
+    def draft_variable(self, solid: Any, face_angles: list, *, neutral: str,
+                       neutral_offset: float = 0.0) -> Any:
+        # A variable (per-face) draft tapers each planar wall by its OWN angle about one
+        # neutral plane, via raw OCP BRepOffsetAPI_DraftAngle (build123d's draft is one angle
+        # for all faces). Parting-line / step draft (a taper that flips across a parting
+        # curve) is NOT supported: it needs a parting-curve/surface model OCCT does not expose
+        # simply, so it is called out rather than faked.
+        if neutral not in _PLANES:
+            raise KernelOpError(
+                f"draft neutral must be one of {tuple(_PLANES)}, got {neutral!r}")
+        planar = [(f, a) for (f, a) in face_angles
+                  if getattr(f, "geom_type", None) == GeomType.PLANE]
+        if not planar:
+            raise KernelOpError("variable draft found no planar faces among the selected faces")
+        return self._robust(self._do_draft_variable, solid, planar, neutral, neutral_offset,
+                            name="draft")
+
+    @staticmethod
+    def _do_draft_variable(solid: Any, planar: list, neutral: str,
+                           neutral_offset: float) -> Any:
+        from build123d import Solid
+        base = _PLANES[neutral].offset(neutral_offset)
+        origin = base.origin
+        pull = base.z_dir
+        gp_neutral = gp_Pln(gp_Pnt(origin.X, origin.Y, origin.Z),
+                            gp_Dir(pull.X, pull.Y, pull.Z))
+        pull_dir = gp_Dir(pull.X, pull.Y, pull.Z)
+        maker = BRepOffsetAPI_DraftAngle(solid.wrapped)
+        for face, angle in planar:
+            maker.Add(face.wrapped, pull_dir, math.radians(angle), gp_neutral)
+        maker.Build()
+        return Solid(maker.Shape())
 
     def wrap(self, solid: Any, face: Any, *, text: str | None = None,
              profile: Any = None, font_size: float = 5.0, font: str = "Arial",

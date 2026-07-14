@@ -83,6 +83,10 @@ definitions {
       profiles { type = array, items { type = string } }
       # draft = wall taper angle (degrees) for a rib blade.
       draft { type = number }
+      # Variable draft: per-face taper angles (parallel to the resolved faces). Per-face shell
+      # thicknesses (unsupported; refused with a clear message).
+      angles { type = array, items { type = number } }
+      thicknesses { type = object }
       distance2 { type = number, exclusiveMinimum = 0 }
       angle { type = number }
       openings { type = string }

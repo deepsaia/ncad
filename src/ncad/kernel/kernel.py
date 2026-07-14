@@ -267,6 +267,15 @@ class Kernel(ABC):
         """
 
     @abstractmethod
+    def draft_variable(self, solid: Any, face_angles: list, *, neutral: str,
+                       neutral_offset: float = 0.0) -> Any:
+        """Taper each planar face by its OWN angle about one neutral plane (a variable draft).
+
+        ``face_angles`` is a list of ``(face, angle_degrees)`` pairs. Raises KernelOpError on
+        failure. (Parting-line / step draft is not supported; it needs a parting-curve model.)
+        """
+
+    @abstractmethod
     def wrap(self, solid: Any, face: Any, *, text: str | None = None,
              profile: Any = None, font_size: float = 5.0, font: str = "Arial",
              font_style: str = "regular", depth: float = 1.0, mode: str = "emboss",

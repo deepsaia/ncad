@@ -5,7 +5,7 @@ from ncad.ops.draft_params import DraftParamError, draft_kwargs
 
 def test_defaults_neutral_xy_offset_zero():
     kw = draft_kwargs({"angle": 5})
-    assert kw == {"angle": 5.0, "neutral": "XY", "neutral_offset": 0.0}
+    assert kw == {"angle": 5.0, "angles": None, "neutral": "XY", "neutral_offset": 0.0}
 
 
 def test_neutral_and_offset_parse():
