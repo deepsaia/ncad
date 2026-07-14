@@ -16,7 +16,9 @@ from typing import Any
 
 from ncad.assembly.assembly_bom import AssemblyBom
 from ncad.assembly.assembly_placement import AssemblyPlacement
+from ncad.assembly.component_mirror import ComponentMirror
 from ncad.assembly.component_pattern import ComponentPattern, ComponentPatternError
+from ncad.assembly.component_replace import ComponentReplace
 from ncad.assembly.connector_frame import ConnectorFrame
 from ncad.assembly.connector_resolver import ConnectorResolver
 from ncad.assembly.coupling import Coupling
@@ -49,6 +51,8 @@ class AssemblyBuilder:
         self._validator = AssemblySchemaValidator()
         self._placement = AssemblyPlacement()
         self._pattern = ComponentPattern()
+        self._mirror = ComponentMirror()
+        self._replace = ComponentReplace()
         self._connectors = ConnectorResolver()
         self._snap = FrameSnap()
         self._lowering = MateLowering()
@@ -128,13 +132,35 @@ class AssemblyBuilder:
         return {"sidecar": sidecar, "issues": issues, "instances": [i["id"] for i in instances]}
 
     def _expand_components(self, raw_instances: list, issues: list) -> list[dict]:
-        """Expand component ops (pattern) into a flat instance list; ops added in later tasks."""
+        """Expand component ops (replace, then mirror, then pattern) into a flat instance list.
+
+        A ``mirror`` instance references an already-declared source (document order); a forward or
+        unknown ``of`` reference is refused id-attributed. ``replace`` swaps the geometry ref
+        first; ``pattern`` arrays last so a replaced/mirrored instance can also be patterned.
+        """
         out: list[dict] = []
+        by_id: dict[str, dict] = {}
         for inst in raw_instances:
+            resolved = inst
+            if "replace" in resolved:
+                resolved = self._replace.apply(resolved, resolved["replace"])
+            if "mirror" in resolved or "of" in resolved:
+                source = by_id.get(resolved.get("of"))
+                if source is None:
+                    issues.append({"instance_id": resolved.get("id"),
+                                   "message": f"mirror source {resolved.get('of')!r} is not "
+                                              "declared before it"})
+                    continue
+                resolved = self._mirror.reflect(
+                    resolved, source, (resolved.get("mirror") or {}).get("plane", "XY"))
             try:
-                out.extend(self._pattern.expand(inst))
+                expanded = self._pattern.expand(resolved)
             except ComponentPatternError as exc:
-                issues.append({"instance_id": inst.get("id"), "message": str(exc)})
+                issues.append({"instance_id": resolved.get("id"), "message": str(exc)})
+                continue
+            for entry in expanded:
+                by_id[entry["id"]] = entry
+                out.append(entry)
         return out
 
     def _place(self, instance: dict, placements_mm: dict,

@@ -113,17 +113,26 @@ definitions {
   # (explicit) or connect (connector-driven snap). `lock` grounds the instance in the solve.
   instance {
     type = object
-    required = ["id", "file", "part"]
+    # Only `id` is required: an instance is a part ({file, part}), a sub-assembly (`assembly`), or
+    # a `mirror`/`replace` of another instance (bucket 5.7). The builder validates the combination.
+    required = ["id"]
     properties {
       id { type = string }
       file { type = string }
       part { type = string }
+      # A nested sub-assembly reference (a .asm.hocon path); recursively built + composed (5.7).
+      assembly { type = string }
       placement = ${definitions.placement}
       connect = ${definitions.connect}
       lock { type = boolean }
       # A component pattern: array this instance's part at each placement (bucket 5.7). The
       # PatternParams vocabulary is the real gate; permissive here.
       pattern { type = object }
+      # A component mirror: reflect an already-declared source instance (`of`) across a plane.
+      mirror { type = object }
+      of { type = string }
+      # A component replace: swap the referenced {file, part} / assembly, keeping id + placement.
+      replace { type = object }
     }
   }
 }
