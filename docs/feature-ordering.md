@@ -229,9 +229,14 @@ solid by another body; the tool body must be built earlier so the reference reso
 
 - **Why:** the tool is a boolean operand (inside = shape & tool, outside = shape - tool); it
   must exist when the split runs.
-- **Failure mode:** a tool-body split before its tool is built fails reference resolution
-  (skip-and-suppress).
-- **Seen in:** gate-3.7 `bimetal_bushing` (a bushing split by a sleeve tool body).
+- **Failure mode:** a tool-body split before its tool is built fails reference resolution.
+- **Running-solid nuance:** `split` partitions the RUNNING solid (the last solid feature), not
+  a named target. Build the tool body BEFORE the target so the target stays the running solid;
+  if the tool extrude is authored LAST it becomes the running solid and the split partitions
+  the tool instead (silently wrong: one region comes out empty). Build tool, then target, then
+  split.
+- **Seen in:** gate-3.7 `bimetal_bushing` (the sleeve tool is built first so the bushing is the
+  running solid at the split; authoring the sleeve last gave a zero-volume second region).
 
 ### 13. Direct-edit ops (`defeature`, `offset`) come AFTER the geometry they act on
 
