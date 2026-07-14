@@ -153,6 +153,9 @@ definitions {
       # circular pattern {point,dir}); accept both so both ops validate.
       axis { type = ["string", "object"] }
       count { type = integer, minimum = 1 }
+      # pattern: suppress = born-once ordinals to drop; placements = table-driven rows.
+      suppress { type = array, items { type = integer } }
+      placements { type = array, items { type = object } }
       # A per-feature material override (bodies this feature mints inherit it) + an optional
       # inline mat_data that deep-merges onto the referenced material record (bucket 3.5).
       material { type = string }

@@ -29,6 +29,13 @@ class PatternOp:
         try:
             specs = PatternPlacements(
                 kwargs, anchor=self._anchor(kwargs, shape_in, kernel)).specs()
+            # Per-instance suppress drops the named born-once ordinals BEFORE union. Note:
+            # union_bodies numbers body/0..N by list position, so suppressing an INTERIOR
+            # ordinal renumbers later bodies under this producer (a suppress-stable id map is a
+            # follow-up); suppressing END ordinals leaves the rest stable, the common case (a
+            # bolt circle missing a couple of clocking holes).
+            suppress = set(kwargs.get("suppress", []))
+            specs = [spec for k, spec in enumerate(specs) if k not in suppress]
             # Seed (ordinal 0) is the untouched source; copies apply their transform. This
             # keeps instance 0 geometrically exact and defines the stable generation order.
             copies = [shape_in if not spec else kernel.transform(shape_in, **spec)
