@@ -113,6 +113,11 @@ _ANGULAR_DEFLECTION = 0.2
 
 _DEFAULT_FONT = "Arial"
 
+# Curved-edge projection samples a spline/bezier edge at this many parameters (0..1 inclusive)
+# to fit an interpolated construction spline. Pinned for deterministic names + goldens; enough
+# points to capture a single freeform sketch edge without over-fitting.
+_PROJECT_SPLINE_SAMPLES = 12
+
 
 def _resolve_font(font: str) -> str:
     """Return ``font`` if installed, else the default (logged).
@@ -1450,11 +1455,18 @@ def _project_edge(edge: Any, basis: Any) -> dict:
         return {"kind": "circle", "center": (center.X, center.Y),
                 "radius": float(edge.radius)}
     if name in ("bspline", "bezier"):
-        # Projecting a curved (spline/bezier) edge into a 2D descriptor is deferred: OCCT
-        # hands back a BSpline we do not decompose, and no current feature projects a
-        # spline. Fail loudly rather than silently mangling the curve into a line.
-        raise NotImplementedError(
-            "projecting spline/bezier edges onto a sketch plane is not yet supported")
+        # OCCT hands back a BSpline/Bezier curve we do not analytically decompose into a sketch
+        # primitive. Instead sample the edge at a PINNED number of parameters (deterministic,
+        # so names + goldens are stable) and project each point; the result is an INTERPOLATED
+        # spline construction entity passing through the sampled points (build123d rebuilds it
+        # with make_spline). This is how NX/Creo project a freeform edge into a sketch: a fitted
+        # spline through sampled points, not the exact analytic curve.
+        points = []
+        for i in range(_PROJECT_SPLINE_SAMPLES):
+            t = i / (_PROJECT_SPLINE_SAMPLES - 1)
+            local = basis.to_local_coords(edge.position_at(t))
+            points.append((local.X, local.Y))
+        return {"kind": "spline", "points": points}
     a = basis.to_local_coords(edge.position_at(0))
     b = basis.to_local_coords(edge.position_at(1))
     pa, pb = (a.X, a.Y), (b.X, b.Y)

@@ -37,9 +37,15 @@ def test_open_bezier_path_wire_has_length():
     assert wire.length > 0
 
 
-def test_project_spline_edge_is_not_supported():
+def test_project_spline_edge_samples_an_interpolated_curve():
     from ncad.kernel.build123d_kernel import _build_edge, _project_edge
     basis = _kernel_basis()
     edge = _build_edge({"kind": "bezier", "points": [(0, 0), (1, 2), (3, 2), (4, 0)]}, basis)
-    with pytest.raises(NotImplementedError, match="spline"):
-        _project_edge(edge, basis)
+    # A curved edge projects to a sampled interpolated spline descriptor (no longer refused).
+    descriptor = _project_edge(edge, basis)
+    assert descriptor["kind"] == "spline"
+    assert len(descriptor["points"]) >= 3
+    # The sampled endpoints match the curve's endpoints (start (0,0), end (4,0) on the plane).
+    first, last = descriptor["points"][0], descriptor["points"][-1]
+    assert abs(first[0]) < 1e-6 and abs(first[1]) < 1e-6
+    assert abs(last[0] - 4.0) < 1e-6 and abs(last[1]) < 1e-6

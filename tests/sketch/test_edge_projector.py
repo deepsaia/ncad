@@ -19,6 +19,26 @@ def test_circle_becomes_construction_circle():
     assert all(e.get("construction") is True for e in ents)
 
 
+def test_spline_becomes_interpolated_construction_curve():
+    pts = [(0.0, 0.0), (5.0, 3.0), (10.0, 0.0)]
+    ents, degen = EdgeProjector().project([{"kind": "spline", "points": pts}])
+    assert degen == 0
+    curves = [e for e in ents if e["type"] == "interpolated"]
+    points = [e for e in ents if e["type"] == "point"]
+    assert len(curves) == 1 and len(points) == len(pts)
+    # The curve references the point ids in order, and all entities are construction geometry.
+    assert curves[0]["points"] == [p["id"] for p in points]
+    assert all(e.get("construction") is True for e in ents)
+
+
+def test_bezier_projection_becomes_bezier_construction_curve():
+    pts = [(0.0, 0.0), (5.0, 3.0), (10.0, 0.0)]
+    ents, _ = EdgeProjector().project([{"kind": "bezier", "points": pts}])
+    curves = [e for e in ents if e["type"] == "bezier"]
+    assert len(curves) == 1
+    assert all(e.get("construction") is True for e in ents)
+
+
 def test_degenerate_edges_are_skipped_and_counted():
     ents, degen = EdgeProjector().project([
         {"kind": "line", "points": [(0.0, 0.0), (10.0, 0.0)]},

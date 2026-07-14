@@ -43,6 +43,21 @@ def _entities_for(edge_id: str, descriptor: dict) -> list[dict]:
             {"id": edge_id, "type": "circle", "center": f"{edge_id}/c",
              "radius": descriptor["radius"], "construction": True},
         ]
+    if kind in ("spline", "bezier"):
+        # A projected freeform edge: fixed points plus an interpolated (spline) or bezier
+        # construction curve through them. build123d rebuilds the curve from these points.
+        pts = descriptor["points"]
+        entity_type = "bezier" if kind == "bezier" else "interpolated"
+        entities: list[dict] = []
+        point_ids: list[str] = []
+        for i, (px, py) in enumerate(pts):
+            pid = f"{edge_id}/p{i:03d}"
+            point_ids.append(pid)
+            entities.append({"id": pid, "type": "point", "at": [px, py],
+                             "construction": True})
+        entities.append({"id": edge_id, "type": entity_type, "points": point_ids,
+                         "construction": True})
+        return entities
     if kind == "arc":
         (sx, sy), (mx, my), (ex, ey) = descriptor["points"]
         cx, cy = _circumcenter((sx, sy), (mx, my), (ex, ey))
