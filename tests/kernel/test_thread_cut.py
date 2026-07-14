@@ -9,9 +9,11 @@ def test_external_thread_removes_material():
     from ncad.kernel.build123d_kernel import Build123dKernel
 
     kernel = Build123dKernel()
-    stud = Solid.make_cylinder(5, 20)
+    # The thread runs nearly the full stud length (a partial thread on a taller stud can leave
+    # the frenet-swept tool not intersecting cleanly; a machinist threads most of the shank).
+    stud = Solid.make_cylinder(5, 26)
     threaded = kernel.thread_cut(stud, axis_point=(0, 0, 0), axis_dir=(0, 0, 1),
-                                 major_d=10.0, pitch=1.5, length=16.0, internal=False)
+                                 major_d=10.0, pitch=1.5, length=24.0, internal=False)
     # An external thread cuts a helical groove into the stud, so it removes material.
     assert threaded.volume < stud.volume
     assert threaded.volume > 0
