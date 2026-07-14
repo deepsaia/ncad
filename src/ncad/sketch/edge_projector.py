@@ -44,8 +44,10 @@ def _entities_for(edge_id: str, descriptor: dict) -> list[dict]:
              "radius": descriptor["radius"], "construction": True},
         ]
     if kind in ("spline", "bezier"):
-        # A projected freeform edge: fixed points plus an interpolated (spline) or bezier
-        # construction curve through them. build123d rebuilds the curve from these points.
+        # A projected freeform edge: its sampled points are FIXED reference geometry (pinned at
+        # their projected location, well-constrained by construction, like the offset-derived and
+        # arc_polar endpoints), plus an interpolated (spline) or bezier construction curve through
+        # them. build123d rebuilds the curve from these points.
         pts = descriptor["points"]
         entity_type = "bezier" if kind == "bezier" else "interpolated"
         entities: list[dict] = []
@@ -54,9 +56,9 @@ def _entities_for(edge_id: str, descriptor: dict) -> list[dict]:
             pid = f"{edge_id}/p{i:03d}"
             point_ids.append(pid)
             entities.append({"id": pid, "type": "point", "at": [px, py],
-                             "construction": True})
+                             "construction": True, "fixed": True})
         entities.append({"id": edge_id, "type": entity_type, "points": point_ids,
-                         "construction": True})
+                         "construction": True, "fixed": True})
         return entities
     if kind == "arc":
         (sx, sy), (mx, my), (ex, ey) = descriptor["points"]

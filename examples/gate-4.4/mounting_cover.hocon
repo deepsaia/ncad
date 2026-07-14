@@ -1,0 +1,37 @@
+schema_version = 2
+units = mm
+# A round mounting cover (gearbox / pump end cap): a d140 x 10 plate with a central pilot bore
+# and SIX counterbored bolt holes on a d100 bolt circle, drilled by a FEATURE PATTERN. A single
+# stepped counterbore cutter (a d9 through shaft fused to a d15 x 5 counterbore head) is built
+# FIRST at the 3-o'clock bolt position, then feature_pattern replays that cut at 6 circular
+# positions about the axis. This is the NX/Creo/Fusion "pattern feature": pattern the cut's
+# EFFECT, not a body. The cutter is built before the plate so the plate (bored) is the running
+# solid the feature pattern acts on (feature-ordering rule 12e).
+parts {
+  mounting_cover {
+    profile = solid
+    material = aluminum_6061
+    features = [
+      # Stepped counterbore cutter built ONCE at the 3-o'clock bolt position (x=50 on the d100
+      # bolt circle): a d9 shaft through the full thickness fused to a d15 x 5 counterbore head at
+      # the top. This fused solid is the reusable tool the feature pattern replays.
+      { id = shaft_sk, op = sketch, plane = XY,
+        elements = [ { id = s, type = circle, d = 9, at = [ 50, 0 ] } ] }
+      { id = shaft, op = extrude, profile = shaft_sk, distance = 10 }
+      { id = cbore_sk, op = sketch, plane = XY, plane_offset = 5,
+        elements = [ { id = h, type = circle, d = 15, at = [ 50, 0 ] } ] }
+      { id = cbore, op = extrude, profile = cbore_sk, distance = 5 }
+      { id = cutter, op = boolean, operation = union, target = shaft, tool = cbore }
+      # Cover plate: d140 disk, 10mm thick.
+      { id = plate_sk, op = sketch, plane = XY, elements = [ { id = c, type = circle, d = 140 } ] }
+      { id = plate, op = extrude, profile = plate_sk, distance = 10 }
+      # Central pilot bore d40 through.
+      { id = bore_sk, op = sketch, plane = XY, elements = [ { id = b, type = circle, d = 40 } ] }
+      { id = bore_tool, op = extrude, profile = bore_sk, distance = 10 }
+      { id = bored, op = boolean, operation = cut, target = plate, tool = bore_tool }
+      # Feature pattern: replay the counterbore cut at 6 positions about the Z axis.
+      { id = bolts, op = feature_pattern, tool = cutter, operation = cut,
+        kind = circular, count = 6, axis = { point = [ 0, 0, 0 ], dir = [ 0, 0, 1 ] } }
+    ]
+  }
+}
