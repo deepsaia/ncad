@@ -123,12 +123,17 @@ class DocumentBuilder:
                 logger.warning("part %s did not build; skipping export. reason(s): %s",
                                name, reasons)
                 continue
+            bodies = self._body_materials(result.shape, part, material_library)
+            # The authored per-body appearance color is model data, so export writes it (the
+            # glTF baseColorFactor) - default per-body colors then port to any renderer, not
+            # just our viewer overlay. Only bodies with an authored appearance.color are set.
+            body_colors = {b["id"]: _rgba(b["appearance_color"]) for b in bodies
+                           if b.get("appearance_color") is not None}
             written: list[str] = []
             for fmt in resolved_formats:
                 artifact_path = os.path.join(out_dir, f"{name}.{_FORMAT_EXTENSIONS[fmt]}")
-                self._kernel.export(result.shape, artifact_path)
+                self._kernel.export(result.shape, artifact_path, body_colors=body_colors)
                 written.append(artifact_path)
-            bodies = self._body_materials(result.shape, part, material_library)
             self._write_element_map(element_map, out_dir, name, bodies, result.shape)
             self._write_hierarchy(part, out_dir, name, statuses, bodies)
             SketchStatusSidecar(out_dir).write(name, statuses)
@@ -269,3 +274,15 @@ class DocumentBuilder:
                 color = mat.get("appearance", {}).get("color")
             out.append({"id": body.id, "material": name, "appearance_color": color})
         return out
+
+
+def _rgba(color: Any) -> tuple[float, float, float, float]:
+    """Normalize an authored appearance color to an (r, g, b, a) tuple in 0..1.
+
+    Accepts a 3-tuple/list (rgb, alpha defaults to 1) or a 4-tuple (rgba). Values are assumed
+    already in 0..1 (the authored appearance convention).
+    """
+    vals = [float(c) for c in color]
+    if len(vals) == 3:
+        vals.append(1.0)
+    return (vals[0], vals[1], vals[2], vals[3])

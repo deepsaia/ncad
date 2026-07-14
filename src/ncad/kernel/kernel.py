@@ -509,8 +509,13 @@ class Kernel(ABC):
         """
 
     @abstractmethod
-    def export(self, solid: Any, path: str) -> None:
-        """Write ``solid`` to ``path``; format inferred from the extension."""
+    def export(self, solid: Any, path: str, body_colors: dict | None = None) -> None:
+        """Write ``solid`` to ``path``; format inferred from the extension.
+
+        ``body_colors`` (optional) maps a body id to an ``(r, g, b, a)`` color in 0..1; a glTF
+        export writes it as the per-body PBR baseColorFactor so authored appearance colors port
+        to other renderers. Ignored for STEP/STL.
+        """
 
     @abstractmethod
     def export_assembly(self, components: list[dict], path: str) -> None:

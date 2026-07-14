@@ -1149,13 +1149,22 @@ class Build123dKernel(Kernel):
                 history.generated_from[descriptor["handle"]] = list(input_handles)
         return history
 
-    def export(self, solid: Any, path: str) -> None:
+    def export(self, solid: Any, path: str, body_colors: dict | None = None) -> None:
         if isinstance(solid, BodySet):
             # A multibody part exports as a compound: STEP as a multi-solid assembly, glTF as
             # one mesh per body solid, in body order (parallel to mesh_body_ids via the shared
-            # _export_solids). Single-shape export is unchanged.
-            from build123d import Compound
-            solid = Compound(children=[one for _bid, one in self._export_solids(solid)])
+            # _export_solids). Single-shape export is unchanged. When body_colors is given
+            # (body_id -> rgba in 0..1), bake each body solid's color so default per-body
+            # colors port to any glTF renderer (build123d exports Shape.color as the PBR
+            # baseColorFactor); the interactive viewer color-picker stays a viewer overlay.
+            from build123d import Color, Compound
+            children = []
+            for bid, one in self._export_solids(solid):
+                rgba = (body_colors or {}).get(bid)
+                if rgba is not None:
+                    one.color = Color(*rgba)  # pyrefly: ignore[bad-argument-type]
+                children.append(one)
+            solid = Compound(children=children)
         lowered = path.lower()
         if lowered.endswith(".glb"):
             export_gltf(solid, path, unit=Unit.MM, binary=True,
