@@ -596,7 +596,12 @@ class Build123dKernel(Kernel):
         crest = 0.05 * pitch
         tri = pplane * Polygon((crest, -pitch / 2.0), (-depth, 0.0), (crest, pitch / 2.0),
                                align=None)
-        tool = sweep(tri, path=helix)  # pyrefly: ignore[bad-argument-type]
+        # is_frenet=True locks the profile to the helix Frenet frame so its normal always
+        # points at the axis; every turn then cuts to the SAME depth (measured: constant 0.364
+        # vs a plain sweep's 0.08..0.55 wander, which is the ragged-thread artifact). This is
+        # only correct because the helix is built in-place on the target axis (an earlier bug
+        # relocated a plain-swept tool with a Plane mapping, which made frenet miss the cut).
+        tool = sweep(tri, path=helix, is_frenet=True)  # pyrefly: ignore[bad-argument-type]
         result = solid - tool if not internal else solid + tool
         return result if isinstance(result, Solid) else Solid(result.wrapped)
 
