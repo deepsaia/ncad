@@ -30,4 +30,5 @@ class RevolveOp:
         except KernelOpError as exc:
             return OpResult(shape=None, provenance={},
                             issues=[BuildIssue(node_id=feature_id, message=str(exc))])
-        return OpResult(shape=solid, provenance={}, issues=[])
+        return OpResult(shape=solid, provenance={}, issues=[],
+                        history=kernel.history([shape_in], solid))

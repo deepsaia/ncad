@@ -36,4 +36,7 @@ class DefeatureOp:
         if not run.accepted:
             return OpResult(shape=None,
                             issues=[BuildIssue(node_id, run.reason or "defeature not accepted")])
-        return OpResult(shape=run.shape)
+        # Real per-op lineage when defeature ran in-process (the OCP Defeaturing maker was
+        # stashed). A subprocess-isolated run on foreign geometry has no in-process maker, so
+        # history() falls back to geometric carry-forward.
+        return OpResult(shape=run.shape, history=kernel.history([shape_in], run.shape))
