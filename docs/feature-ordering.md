@@ -188,6 +188,19 @@ when the rib runs.
 
 ---
 
+### 12b. A modeled thread comes after the stud/bore it threads
+
+The `thread` op cuts a helical groove on the running solid about an axis. The cylindrical
+stud (external) or bore (internal) it threads must already exist, and any dress-up on the
+threaded region should precede the thread (a fillet/chamfer after a modeled thread hits the
+thousands of thread edges and is slow/fragile).
+
+- **Why:** the thread tool is booleaned with the running solid; there must be a cylinder to
+  groove, and OCCT dress-up on a threaded surface is fragile.
+- **Failure mode:** threading before the stud exists grooves nothing; filleting after a
+  thread can segfault/hang on the thread crest edges.
+- **Seen in:** gate-2.10 `hex_bolt` (thread after the shank, dress-up before).
+
 ### 13. Direct-edit ops (`defeature`, `offset`) come AFTER the geometry they act on
 
 Direct/synchronous ops edit the *current* B-rep in place (design section 3): they consume the

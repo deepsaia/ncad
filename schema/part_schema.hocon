@@ -98,6 +98,12 @@ definitions {
       neutral_offset { type = number }
       size { type = string }
       fit { enum = ["close", "normal", "loose", "tapped"] }
+      # Modeled thread (thread op): crest diameter + pitch (or from `size`), thread `length`
+      # along the axis, and internal (a tapped bore) vs external (a stud).
+      major_d { type = number, exclusiveMinimum = 0 }
+      pitch { type = number, exclusiveMinimum = 0 }
+      length { type = number, exclusiveMinimum = 0 }
+      internal { type = boolean }
       counterbore { type = object }
       countersink { type = object }
       thread { type = string }

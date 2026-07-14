@@ -387,6 +387,18 @@ class FakeKernel(Kernel):
         volume = max(self.volume(solid) * factor, 1e-9)
         return _FakeCombined(volume, self.bounding_box(solid))
 
+    def thread_cut(self, solid: Any, *, axis_point: Point3, axis_dir: Point3,
+                   major_d: float, pitch: float, length: float, internal: bool) -> Any:
+        # A modeled thread removes (external) or adds (internal) ~ a helical groove volume:
+        # thread height ~ 0.6*pitch, turns ~ length/pitch. Deterministic + sign by mode.
+        if pitch <= 0.0:
+            raise KernelOpError(f"thread pitch must be positive; got {pitch}")
+        turns = length / pitch
+        groove = 0.6 * pitch * pitch * turns * math.pi
+        base = self.volume(solid)
+        volume = base - groove if not internal else base + groove
+        return _FakeCombined(max(volume, 1e-9), self.bounding_box(solid))
+
     def wrap(self, solid: Any, face: Any, *, text: str | None = None,
              profile: Any = None, font_size: float = 5.0, font: str = "Arial",
              font_style: str = "regular", depth: float = 1.0, mode: str = "emboss",

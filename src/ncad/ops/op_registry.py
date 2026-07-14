@@ -32,6 +32,7 @@ from ncad.ops.shell_op import ShellOp
 from ncad.ops.sketch_op import SketchOp
 from ncad.ops.split_op import SplitOp
 from ncad.ops.sweep_op import SweepOp
+from ncad.ops.thread_op import ThreadOp
 from ncad.ops.transform_op import TransformOp
 from ncad.ops.wrap_op import WrapOp
 
@@ -84,4 +85,5 @@ class OpRegistry:
         registry.register("transform", TransformOp().build)
         registry.register("datum_plane", DatumPlaneOp().build)
         registry.register("datum_axis", DatumAxisOp().build)
+        registry.register("thread", ThreadOp().build)
         return registry

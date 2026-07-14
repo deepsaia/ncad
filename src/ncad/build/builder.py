@@ -59,6 +59,7 @@ _REF_FIELDS: dict[str, dict[str, str]] = {
     "relate": {"reference": "face", "moving": "face"},
     "datum_plane": {"face": "face"},
     "datum_axis": {"face": "face", "edge": "edges", "planes": "shape_list"},
+    "thread": {"axis": "datum"},
 }
 _EDGE_KEYWORDS = ("all", "top", "bottom", "vertical", "horizontal")
 _FACE_KEYWORDS = ("all", "top", "bottom", "vertical", "horizontal")

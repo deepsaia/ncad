@@ -514,6 +514,38 @@ class Build123dKernel(Kernel):
         maker.Build()
         return Solid(maker.Shape())
 
+    def thread_cut(self, solid: Any, *, axis_point: Point3, axis_dir: Point3,
+                   major_d: float, pitch: float, length: float, internal: bool) -> Any:
+        if pitch <= 0.0:
+            raise KernelOpError(f"thread pitch must be positive; got {pitch}")
+        return self._robust(self._do_thread_cut, solid, axis_point, axis_dir, major_d,
+                            pitch, length, internal, name="thread")
+
+    @staticmethod
+    def _do_thread_cut(solid: Any, axis_point: Point3, axis_dir: Point3, major_d: float,
+                       pitch: float, length: float, internal: bool) -> Any:
+        from build123d import Polygon, Solid
+        # A modeled thread: sweep a triangular profile along a helix and boolean it with the
+        # cylinder. The profile STRADDLES the crest radius (inner ~ r - 0.6*pitch, outer ~
+        # r + 0.1*pitch) so an external cut actually removes a helical groove (verified). The
+        # helix is generated about +Z at the origin, then the whole tool is located onto the
+        # requested axis. depth (thread height) scales with pitch (~0.6P, the ISO thread form).
+        radius = major_d / 2.0
+        helix = Helix(pitch=pitch, height=length, radius=radius)
+        pplane = Plane(origin=helix @ 0, z_dir=helix % 0)
+        inner = -0.6 * pitch
+        outer = 0.1 * pitch
+        tri = pplane * Polygon((inner, -pitch / 2.0), (outer, 0.0), (inner, pitch / 2.0),
+                               align=None)
+        tool = sweep(tri, path=helix)  # pyrefly: ignore[bad-argument-type]
+        # Place the origin-Z thread tool onto the requested axis.
+        frame = Plane(origin=Vector(*axis_point),
+                      z_dir=Vector(*axis_dir))  # pyrefly: ignore[no-matching-overload]
+        placed_tool = frame * tool
+        placed_solid = solid
+        result = placed_solid - placed_tool if not internal else placed_solid + placed_tool
+        return result if isinstance(result, Solid) else Solid(result.wrapped)
+
     def wrap(self, solid: Any, face: Any, *, text: str | None = None,
              profile: Any = None, font_size: float = 5.0, font: str = "Arial",
              font_style: str = "regular", depth: float = 1.0, mode: str = "emboss",

@@ -276,6 +276,17 @@ class Kernel(ABC):
         """
 
     @abstractmethod
+    def thread_cut(self, solid: Any, *, axis_point: Point3, axis_dir: Point3,
+                   major_d: float, pitch: float, length: float, internal: bool) -> Any:
+        """Cut (or add) a modeled helical thread on ``solid`` about the given axis.
+
+        A triangular thread profile swept along a helix (``pitch``, ``length``, crest
+        ``major_d``) straddles the crest radius; ``internal=False`` cuts an EXTERNAL thread
+        (a stud), ``internal=True`` adds relief for an internal thread (a tapped hole).
+        Raises KernelOpError on failure or non-positive pitch.
+        """
+
+    @abstractmethod
     def wrap(self, solid: Any, face: Any, *, text: str | None = None,
              profile: Any = None, font_size: float = 5.0, font: str = "Arial",
              font_style: str = "regular", depth: float = 1.0, mode: str = "emboss",
