@@ -287,6 +287,11 @@ direct-modeling-envelope.md`), enforced by the DirectEditGuard before the kernel
   feature that creates that round face. It applies a rigid transform at build time and is not
   maintained if upstream geometry later changes (maintained relations are Phase 5 assembly mates,
   not direct editing).
+- **`relate moving_body=<id>` (4.4) needs a prior multibody producer.** With `moving_body` set,
+  `relate` moves ONE named body of the running BodySet and passes the rest through with their
+  born-once ids; so it must come after a keep-separate producer (a `boolean union merge=false`, a
+  `split`, or a feature that keeps bodies apart). On a single-body running shape `moving_body` is
+  refused (there is no body set to index). Same one-shot rule as the whole-body `relate`.
 
 - **Failure mode:** a `defeature` on a plain prism face is a silent OCCT no-op (the oracle
   rejects it); the robust target is a face whose removal genuinely changes the solid (a boss top

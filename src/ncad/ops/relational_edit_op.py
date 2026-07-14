@@ -9,6 +9,8 @@ symmetric); non-planar elements are refused. No maintenance/DoF (that is Phase 5
 import logging
 from typing import Any
 
+from ncad.kernel.body import Body
+from ncad.kernel.body_set import BodySet
 from ncad.ops.build_issue import BuildIssue
 from ncad.ops.op_result import OpResult
 from ncad.ops.relational_solver import RelationalSolver
@@ -38,6 +40,12 @@ class RelationalEditOp:
         if transform is None:
             # Already satisfied: leave the body as is.
             return OpResult(shape=shape_in)
+        # moving_body names ONE body of a multibody running shape to move; the rest pass through
+        # unchanged (their ids and provenance survive). Absent it, the whole running solid moves
+        # (single-body behavior, unchanged).
+        moving_body = params.get("moving_body")
+        if moving_body is not None:
+            return self._move_one_body(shape_in, moving_body, transform, node_id, kernel)
         try:
             moved = kernel.transform(shape_in, move=transform["move"], rotate=transform["rotate"])
         except Exception as exc:  # noqa: BLE001 - a KernelOpError becomes an id-attributed issue
@@ -47,6 +55,32 @@ class RelationalEditOp:
             return OpResult(shape=None,
                             issues=[BuildIssue(node_id, "relate produced a degenerate solid")])
         return OpResult(shape=moved)
+
+    def _move_one_body(self, shape_in: Any, moving_body: str, transform: dict,
+                       node_id: str, kernel: Any) -> OpResult:
+        """Apply ``transform`` to just ``moving_body`` of a multibody running shape."""
+        if not isinstance(shape_in, BodySet):
+            return OpResult(shape=None, issues=[BuildIssue(
+                node_id, "relate moving_body needs a multibody running shape")])
+        try:
+            target = shape_in.by_id(moving_body)
+        except KeyError:
+            return OpResult(shape=None, issues=[BuildIssue(
+                node_id, f"relate moving_body references unknown body id {moving_body!r}")])
+        try:
+            moved = kernel.transform(target.shape, move=transform["move"],
+                                     rotate=transform["rotate"])
+        except Exception as exc:  # noqa: BLE001 - a KernelOpError becomes an id-attributed issue
+            logger.warning("relate transform failed on %s: %s", node_id, exc)
+            return OpResult(shape=None, issues=[BuildIssue(node_id, f"relate failed: {exc}")])
+        if moved is None or kernel.volume(moved) <= 0.0:
+            return OpResult(shape=None,
+                            issues=[BuildIssue(node_id, "relate produced a degenerate solid")])
+        # Rebuild the BodySet with the moved body in place; every other body keeps its id +
+        # provenance (a body is born once, never re-minted by a later move).
+        rebuilt = [Body(id=b.id, kind=b.kind, shape=(moved if b.id == moving_body else b.shape),
+                        created_by=b.created_by) for b in shape_in.bodies]
+        return OpResult(shape=BodySet(rebuilt))
 
     def _solve(self, relation: str, reference: Any, moving: Any) -> dict | None | str:
         """Return a transform dict, None (already satisfied), or a refusal-reason string."""

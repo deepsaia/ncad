@@ -136,6 +136,7 @@ modeling, the domain profiles, CAM/PCB seams, and a plugin layer.
 | 14 | Multibody dynamics · advanced surfacing · hardening | motion/surface | `[ ]` |
 | 15 | **CAM seam & first toolpaths** (process profile) `(A)` | cam | `[ ]` |
 | 16 | **PCB/ECAD seam & board-to-solid** (data-model profile) `(A)` | ecad | `[ ]` |
+| 17 | **Robotics & physics-engine simulation** (MuJoCo first-class backend) `(A)` | robotics | `[ ]` |
 | P | References/provenance · caching · viewer · testing · migration | cross-cutting | `[~]` |
 
 > **Buckets, not just phases.** Each phase below is decomposed into numbered
@@ -1056,6 +1057,11 @@ refs); **carried by** STEP AP242 (Phase 13).
       cylindricity), orientation (parallelism/perpendicularity/angularity),
       location (position/concentricity/symmetry), runout
 - [ ] **Dimensional tolerances**, **surface finish**, **weld symbols**, notes
+- [ ] **Tolerance / GD&T stack-up analysis** *(owned, geometric - not a physics
+      solver)*: worst-case and statistical (RSS) dimension-chain analysis over an
+      assembly's dims + mates; ncad has the dimensions and the assembly, so this is
+      ours to compute (no external engine). Reports the accumulated tolerance and the
+      contributing chain by `id`. `(A)`
 - [ ] **Two forms:** semantic (machine-readable) + presentation (graphic in saved
       views)
 - [ ] **Saved 3D views**; PMI shown in the viewer
@@ -1326,19 +1332,29 @@ with lightweight reps; interference query stays interactive.
 - [ ] **PartCAD plugin**: PartCAD YAML ⇄ ncad document (target compatibility,
       isolated, maintainable)
 - [ ] **Other plugins** (same contract): OpenSCAD import; vendor/format converters
-- [ ] **FEA/CFD export seam** *(delegate the solve, never write one, design §17)*:
-      export the geometry + a **mesh + boundary-conditions** deck to a mature **open
-      FEM engine** (**CalculiX**, **Elmer**, **Z88**), the way FreeCAD shells out.
-      ncad owns the model - geometry, a mesh (via **Gmsh**), the analytical model from
-      the structural profile (§Phase 11), loads/constraints/materials as authored
-      inputs - and writes the engine's input deck (e.g. CalculiX/Abaqus-style `.inp`,
-      or `.unv`); the analysis runs **outside** ncad, results are read back for display
-      only. Not a solver we write (the FEA/CFD line, design §17); `(A)`
+- [ ] **Analysis export seams** *(delegate every field/system solve, never write one,
+      design §17; see "Analysis & simulation strategy" below for the full map)*. ncad
+      owns the *model* (geometry, mesh via **Gmsh**, the analytical/network model from
+      the domain profiles, and loads/BCs/materials as authored inputs) and writes each
+      engine's input deck; the solve runs **outside** ncad, results read back for
+      display only. Each is `(A)`:
+  - **Structural / thermal FEA (solid mesh):** **CalculiX** (also modal/thermal),
+    **Code_Aster**, **Z88**; deck = CalculiX/Abaqus-style `.inp` or `.unv`
+  - **1D frame / beam structural:** **frame3dd** or **PyNite** (pure Python, can run
+    in-process) or **OpenSees** (seismic) - fed directly by the structural profile's
+    analytical line/node model (§Phase 11), a much lighter seam than solid FEA
+  - **CFD / multiphysics:** **Elmer**
+  - **Pipe-network flow (hydraulics):** **EPANET** - fed by the process-plant piping
+    network (§Phase 11); the P&ID/route topology *is* the EPANET input
+  - **1D fluid-power / hydraulic-mechanical systems:** **OpenModelica** (Modelica.Fluid
+    / OpenHydraulics) - a system sim that can *drive* motion (§Phase 6) as a driver
+    source, not just a downstream analysis
 - [ ] (later) JT / 3D-PDF lightweight exchange
 
 **Gate:** a PartCAD assembly imports as an ncad document and re-exports as STEP
 AP242 without loss of structure; a part exports a valid mesh + boundary-condition
-deck that an open FEM engine (CalculiX) loads and solves.
+deck that an open FEM engine (CalculiX) loads and solves; a structural frame exports
+to frame3dd/PyNite and a piping network to EPANET.
 
 ---
 
@@ -1348,9 +1364,12 @@ deck that an open FEM engine (CalculiX) loads and solves.
 
 - [ ] **Multibody dynamics (MBD), rigid bodies only:** mass/inertia (from
       `BRepGProp`) + gravity, forces/torques, springs/dampers, **simple contact** >>
-      reaction forces & accelerations (Ondsel MbD solver). **Line drawn here**
-      (design §19): *no* flexible/FEM-coupled bodies, friction-rich or continuous
-      contact. That is physics-engine / FEA territory and an export concern (§17).
+      reaction forces & accelerations (**Ondsel** MbD solver, the Adams-class accurate
+      rigid-body dynamics). **Line drawn here** for the *engineering-dynamics* solve
+      (design §19): *no* flexible/FEM-coupled bodies. Contact-rich, friction-rich, and
+      robotics-grade simulation is **not squeezed into Ondsel** - it is delegated to a
+      real physics engine, which ncad adopts as a first-class backend (see Phase 17,
+      robotics / physics-engine simulation).
 - [ ] **Advanced surfacing:** true Class A stays **out of scope** unless a licensable
       specialist module (e.g. C3D FairCurveModeler) is adopted (design §19); this
       bucket is that evaluation, not a build commitment.
@@ -1442,6 +1461,83 @@ lowering), Phase 13 (interchange). Built late; the seam is designed from Phase 0
 > the data model + geometric DRC + 3D lowering; **delegates** routing, autoplacement,
 > fab output, and physics DRC to **KiCad**. Gerber/ODB++/IPC-2581 are **plugin
 > converters** (design §14).
+
+---
+
+## Phase 17: Robotics & physics-engine simulation `(A)`
+
+**Goal:** a **first-class robotics backend** - drive and simulate robots/mechanisms
+with contact-rich, friction-rich, fast physics that the engineering-dynamics solver
+(Ondsel, Phase 14) deliberately does not cover. **Depends on** Phase 5 (assemblies /
+joints), Phase 6 (motion / kinematics). Built late; the seam is designed from the
+joint model.
+
+> **Why a physics engine, and why MuJoCo.** Ondsel gives *accurate* rigid-body
+> engineering dynamics (reaction forces, correct pendulum period). It does **not**
+> give the fast, stable, contact-rich simulation robotics needs (grasping, walking,
+> manipulation, sim-to-real, RL/control). That is a **physics engine**, a different
+> tool, and ncad adopts **MuJoCo** (Apache-2.0) as a **first-class backend** for it
+> (Project Chrono, BSD, is the alternative behind the same seam). This is delegation
+> like the rest (§17): ncad owns the *model* (bodies, joints, geometry, inertias,
+> actuators, contacts) and lowers it to the engine; the engine owns the *solve*.
+
+- [ ] **Robot / mechanism model:** the assembly joint graph (§7) + link geometry +
+      mass/inertia (`BRepGProp`) + **actuators** (motors/drivers on joint DoF) +
+      **contact geometry** (collision shapes) as a first-class robot description
+- [ ] **Lower to MuJoCo:** export the model to **MJCF** (MuJoCo's XML) - bodies,
+      joints (revolute/slider/ball/free), inertials, geoms/collision, actuators,
+      equality constraints; the piping/structural/assembly geometry provides the
+      shapes. (MJCF/URDF export is the design §14 interchange, shared with the
+      articulated-asset exchange.)
+- [ ] **Simulate & read back:** run MuJoCo for contact-rich dynamics, control, and
+      **sim-to-real**-style rollouts; stream states back to the viewer (§13 playback);
+      trace curves / measures over time (§8) come back the same channel as kinematics
+- [ ] **Control & RL hooks:** expose the model for external controllers / RL
+      (MuJoCo's home turf); ncad supplies the environment, not the policy
+- [ ] **URDF interop:** import/export **URDF** (the ROS robot format) so ncad robots
+      round-trip with the robotics ecosystem; **Isaac / PyBullet / Drake** reachable
+      behind the same lower-to-description seam `(A)`
+
+**Gate:** an articulated robot (a serial arm, from Phase 6's robot-arm example)
+lowers to MJCF, simulates a contact task in MuJoCo, and plays the result back in the
+viewer; the same model round-trips to URDF.
+
+> **Ownership line:** ncad owns the robot **model** (links, joints, inertias,
+> actuators, collision geometry) + MJCF/URDF lowering + result playback; **delegates**
+> the physics solve, control, and RL to **MuJoCo** (first-class) / Chrono / Isaac.
+> The engineering-dynamics solve stays Ondsel (Phase 14); this is the robotics /
+> contact-simulation seam.
+
+---
+
+## Analysis & simulation strategy (the owned-vs-delegated map)
+
+One principle governs every analysis domain: **ncad owns the *model* (geometry, mesh,
+the analytical/network abstraction, joints, inertias, loads/BCs as authored inputs)
+and the *constraint/kinematic* solve; every *field-physics* and *contact-physics*
+solve is delegated to a mature open engine behind an export/interface seam. ncad never
+writes a field solver** (design §17), the same discipline as the kernel (OCCT), CAM
+(Clipper2/opencamlib), and PCB (KiCad) decisions.
+
+| Domain | What it solves | ncad status | Open engine | Fed by |
+|--------|----------------|-------------|-------------|--------|
+| Statics (assembly) | constraint solution + DoF | **Owned** (Ph 5) | `py-slvs` | assembly mates |
+| Kinematics | geometry-driven motion, FK/IK | **Owned** (Ph 6) | `py-slvs` stepped | joints/drivers |
+| Rigid-body dynamics (MBD) | forces >> reactions/accel | **Owned, bounded** (Ph 14) | **Ondsel** | mass props |
+| Robotics / contact physics | contact-rich sim, control, RL | **Delegated, first-class** (Ph 17) | **MuJoCo** (Chrono/Isaac alt) | robot model >> MJCF/URDF |
+| Structural FEA (solid) | stress/strain/modal/thermal | **Delegated** (Ph 13) | **CalculiX** / Code_Aster / Z88 | mesh (Gmsh) + BCs |
+| 1D frame / beam | member forces, deflection | **Delegated** (Ph 13) | **frame3dd** / **PyNite** / OpenSees | structural analytical model |
+| CFD / multiphysics | flow/thermal fields | **Delegated** (Ph 13) | **Elmer** | mesh + BCs |
+| Pipe-network flow (hydraulics) | node pressures, pipe flows | **Delegated** (Ph 13) | **EPANET** | piping network / P&ID |
+| Fluid-power / hydraulic systems (1D) | circuit pressure/flow, actuator motion | **Delegated** (Ph 13) | **OpenModelica** (Modelica.Fluid) | can *drive* motion (Ph 6) |
+| Mass properties | mass, CoG, inertia | **Owned** | `BRepGProp` (OCCT) | the solid |
+| Tolerance / GD&T stack-up | worst-case/statistical dim chains | **Owned** `(A)` | (ncad, geometric) | dims + assembly (Ph 8) |
+
+**Deliberately out of scope** (specialist, revisit only via a licensable/plugin
+module): fatigue, acoustic, electromagnetic (Elmer touches EM), injection-mold flow,
+topology optimization / generative design (needs an FEA loop + optimizer), and any
+*flexible-body* / FEM-coupled dynamics. All would be **delegate-or-plugin** if ever
+pursued, never a solver we write.
 
 ---
 
