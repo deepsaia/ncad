@@ -238,6 +238,20 @@ solid by another body; the tool body must be built earlier so the reference reso
 - **Seen in:** gate-3.7 `bimetal_bushing` (the sleeve tool is built first so the bushing is the
   running solid at the split; authoring the sleeve last gave a zero-volume second region).
 
+### 12e. A feature_pattern / feature_mirror needs its tool feature built first, and applies to the running solid
+
+`feature_pattern` / `feature_mirror` re-apply a tool feature's cut/boss: they reference a
+tool-producing feature (its output solid is the cutter/boss) and apply a multi-tool boolean to
+the RUNNING solid. Two order rules follow (same shape as 12c split-by-tool):
+
+- The **tool feature must be built first** so the reference resolves.
+- Build the tool feature BEFORE the target so the TARGET is the running solid; if the tool
+  extrude is authored last it becomes the running solid and the pattern operates on the tool
+  (fails or is silently wrong). Build tool, then target, then feature_pattern.
+- **Failure mode:** cutter-last gives "cut failed: dimensions inconsistent" (cutting the cutter
+  by copies of itself).
+- **Seen in:** gate-4.4 `mounting_cover` (the counterbore cutter is built before the cover).
+
 ### 13. Direct-edit ops (`defeature`, `offset`) come AFTER the geometry they act on
 
 Direct/synchronous ops edit the *current* B-rep in place (design section 3): they consume the

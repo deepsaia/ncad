@@ -15,6 +15,7 @@ from ncad.ops.datum_plane_op import DatumPlaneOp
 from ncad.ops.defeature_op import DefeatureOp
 from ncad.ops.draft_op import DraftOp
 from ncad.ops.extrude_op import ExtrudeOp
+from ncad.ops.feature_pattern_op import FeaturePatternOp
 from ncad.ops.fillet_op import FilletOp
 from ncad.ops.groove_op import GrooveOp
 from ncad.ops.hole_op import HoleOp
@@ -86,4 +87,5 @@ class OpRegistry:
         registry.register("datum_plane", DatumPlaneOp().build)
         registry.register("datum_axis", DatumAxisOp().build)
         registry.register("thread", ThreadOp().build)
+        registry.register("feature_pattern", FeaturePatternOp().build)
         return registry
