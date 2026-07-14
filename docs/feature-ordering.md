@@ -284,7 +284,10 @@ direct-modeling-envelope.md`), enforced by the DirectEditGuard before the kernel
   `relate` (planar parallel/coplanar/perpendicular/symmetric, or coaxial/tangent) must come AFTER
   the features that build both the moving body and the geometry the reference belongs to. The
   coaxial/tangent variants (4.3b) need a CYLINDRICAL reference face, so they must follow the
-  feature that creates that round face. It applies a rigid transform at build time and is not
+  feature that creates that round face. Tangent has two forms: plane-to-cylinder (moving face
+  planar) and cylinder-to-cylinder (4.4, moving face also cylindrical, `internal=true` for inside
+  tangency); both need the round face(s) built first. It applies a rigid transform at build time
+  and is not
   maintained if upstream geometry later changes (maintained relations are Phase 5 assembly mates,
   not direct editing).
 - **`relate moving_body=<id>` (4.4) needs a prior multibody producer.** With `moving_body` set,

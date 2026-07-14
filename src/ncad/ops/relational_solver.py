@@ -51,12 +51,15 @@ class RelationalSolver:
     """Computes the rigid transform for a one-shot planar relation."""
 
     def solve(self, relation: str, ref: Frame, moving: Frame,
-              radius: float | None = None) -> dict[str, Any] | None:
+              radius: float | None = None, radius2: float | None = None,
+              internal: bool = False) -> dict[str, Any] | None:
         """Return the transform for ``relation``, or None when already satisfied / degenerate.
 
         For planar relations the frames are ``(normal, point)``; for coaxial the frames are
         ``(axis_location, axis_direction)``; for tangent ``ref`` is ``(axis_location,
-        axis_direction)`` with ``radius`` and ``moving`` is a planar ``(normal, point)``.
+        axis_direction)`` with ``radius`` and ``moving`` is a planar ``(normal, point)`` OR (the
+        cylinder-to-cylinder form) a second ``(axis_location, axis_direction)`` with ``radius2``.
+        ``internal`` selects internal tangency (one cylinder inside the other) for cyl-cyl.
         """
         if relation == "parallel":
             return self._align(ref, moving, target_dot=1.0, translate=False)
@@ -69,6 +72,8 @@ class RelationalSolver:
         if relation == "coaxial":
             return self._coaxial(ref, moving)
         if relation == "tangent":
+            if radius2 is not None:
+                return self._tangent_cylinders(ref, moving, radius, radius2, internal)
             return self._tangent(ref, moving, radius)
         logger.warning("unknown relation %r", relation)
         return None
@@ -135,6 +140,36 @@ class RelationalSolver:
         rotate = self._rotation_to(n_m, p_m, radial, target_dot=1.0)
         # Move the plane along the radial direction so its point sits exactly `radius` from axis.
         move = _scale(radial, radius - current)
+        if rotate is None and _norm(move) < _EPS:
+            return None
+        return {"rotate": rotate, "move": move}
+
+    def _tangent_cylinders(self, ref: Frame, moving: Frame, radius: float | None,
+                           radius2: float | None, internal: bool) -> dict[str, Any] | None:
+        # ref/moving = (axis_location, axis_direction) of each cylinder. Make the axes parallel,
+        # then set their perpendicular (center-to-center) distance to r1+r2 (external tangency,
+        # surfaces touch on the outside) or |r1-r2| (internal, one cylinder rides inside the
+        # other). Pure position/orientation: same one-shot model as the plane-cylinder tangent.
+        if radius is None or radius2 is None:
+            return None
+        loc_ref, dir_ref = ref[0], _unit(ref[1])
+        loc_m, dir_m = moving[0], _unit(moving[1])
+        rotate = self._rotation_to(dir_m, loc_m, dir_ref, target_dot=1.0)
+        # Perpendicular offset of the moving axis from the reference axis (drop the along-axis
+        # component). This is the current center-to-center distance; scale it to the target.
+        gap = _sub(loc_m, loc_ref)
+        radial = _sub(gap, _scale(dir_ref, _dot(gap, dir_ref)))
+        current = _norm(radial)
+        if current < _EPS:
+            # Axes are collinear: no radial direction to place along (pick one perpendicular to
+            # the axis so the result is deterministic).
+            radial = _cross(dir_ref, (1.0, 0.0, 0.0))
+            if _norm(radial) < _EPS:
+                radial = _cross(dir_ref, (0.0, 1.0, 0.0))
+            current = 0.0
+        radial = _unit(radial)
+        target = abs(radius - radius2) if internal else (radius + radius2)
+        move = _scale(radial, target - current)
         if rotate is None and _norm(move) < _EPS:
             return None
         return {"rotate": rotate, "move": move}

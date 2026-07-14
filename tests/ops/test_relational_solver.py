@@ -68,3 +68,32 @@ def test_tangent_moves_plane_to_radius_distance() -> None:
     result = solver.solve("tangent", ((0, 0, 0), (0, 0, 1)), ((1, 0, 0), (20, 0, 0)), radius=5.0)
     assert result is not None
     assert math.isclose(result["move"][0], -15.0, abs_tol=1e-6)
+
+
+def test_tangent_cylinders_external_sets_center_distance_to_sum() -> None:
+    solver = RelationalSolver()
+    # Both axes along Z (already parallel). Reference r=5 at origin, moving r=3 at x=20.
+    # External tangency: center-to-center distance becomes 5+3=8, so x moves from 20 to 8.
+    result = solver.solve("tangent", ((0, 0, 0), (0, 0, 1)), ((20, 0, 0), (0, 0, 1)),
+                          radius=5.0, radius2=3.0)
+    assert result is not None
+    assert math.isclose(result["move"][0], -12.0, abs_tol=1e-6)
+    assert math.isclose(result["move"][1], 0.0, abs_tol=1e-9)
+
+
+def test_tangent_cylinders_internal_sets_center_distance_to_difference() -> None:
+    solver = RelationalSolver()
+    # Internal tangency: center distance becomes |5-3|=2, so x moves from 20 to 2.
+    result = solver.solve("tangent", ((0, 0, 0), (0, 0, 1)), ((20, 0, 0), (0, 0, 1)),
+                          radius=5.0, radius2=3.0, internal=True)
+    assert result is not None
+    assert math.isclose(result["move"][0], -18.0, abs_tol=1e-6)
+
+
+def test_tangent_cylinders_aligns_nonparallel_axes() -> None:
+    solver = RelationalSolver()
+    # Moving axis along X, reference along Z: needs a rotation to make the axes parallel.
+    result = solver.solve("tangent", ((0, 0, 0), (0, 0, 1)), ((0, 0, 0), (1, 0, 0)),
+                          radius=5.0, radius2=3.0)
+    assert result is not None and result["rotate"] is not None
+    assert math.isclose(abs(result["rotate"]["angle"]), 90.0, abs_tol=1e-6)

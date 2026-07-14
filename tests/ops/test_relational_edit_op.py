@@ -81,6 +81,18 @@ def test_relate_coaxial_noncylindrical_refused() -> None:
     assert errors and errors[0].node_id == "rel"
 
 
+def test_relate_tangent_cylinder_to_cylinder_applies() -> None:
+    kernel = FakeKernel()
+    solid = _box(kernel)
+    ref = _cyl_face((0, 0, 0), (0, 0, 1), 5.0, (0, 0, 5))
+    moving = _cyl_face((20, 0, 0), (0, 0, 1), 3.0, (20, 0, 5))  # cylindrical moving face
+    result = RelationalEditOp().build(
+        solid, {"id": "rel", "relation": "tangent",
+                "__refs__": {"reference": ref, "moving": moving}}, {}, kernel)
+    assert result.shape is not None
+    assert not [i for i in result.issues if i.level == "error"]
+
+
 def test_relate_tangent_plane_to_cylinder_applies() -> None:
     kernel = FakeKernel()
     solid = _box(kernel)

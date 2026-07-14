@@ -34,7 +34,7 @@ class RelationalEditOp:
         if reference is None or moving is None:
             return OpResult(shape=None,
                             issues=[BuildIssue(node_id, "relate needs reference and moving faces")])
-        transform = self._solve(relation, reference, moving)
+        transform = self._solve(relation, reference, moving, params)
         if isinstance(transform, str):
             return OpResult(shape=None, issues=[BuildIssue(node_id, transform)])
         if transform is None:
@@ -82,7 +82,8 @@ class RelationalEditOp:
                         created_by=b.created_by) for b in shape_in.bodies]
         return OpResult(shape=BodySet(rebuilt))
 
-    def _solve(self, relation: str, reference: Any, moving: Any) -> dict | None | str:
+    def _solve(self, relation: str, reference: Any, moving: Any,
+               params: dict) -> dict | None | str:
         """Return a transform dict, None (already satisfied), or a refusal-reason string."""
         if relation in ("parallel", "coplanar", "perpendicular", "symmetric"):
             ref_frame = self._planar_frame(reference)
@@ -99,11 +100,20 @@ class RelationalEditOp:
         if relation == "tangent":
             ref_axis = self._axis_frame(reference)
             radius = self._radius(reference)
-            moving_plane = self._planar_frame(moving)
             if ref_axis is None or radius is None:
                 return "tangent refused: reference must be a cylinder"
+            # Cylinder-to-cylinder tangent when the moving face is also a cylinder; otherwise the
+            # plane-to-cylinder form (moving face planar).
+            moving_axis = self._axis_frame(moving)
+            moving_radius = self._radius(moving)
+            if moving_axis is not None and moving_radius is not None:
+                internal = bool(params.get("internal", False))
+                return RelationalSolver().solve(
+                    "tangent", ref_axis, moving_axis, radius=radius,
+                    radius2=moving_radius, internal=internal)
+            moving_plane = self._planar_frame(moving)
             if moving_plane is None:
-                return "tangent refused: moving face must be planar"
+                return "tangent refused: moving face must be planar or cylindrical"
             return RelationalSolver().solve("tangent", ref_axis, moving_plane, radius=radius)
         return f"relate refused: unknown relation {relation!r}"
 
