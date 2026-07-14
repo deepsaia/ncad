@@ -32,3 +32,32 @@ def test_offset_shifts_origin_along_axes() -> None:
     # +Z-normal frame at origin, offset 5 along Z -> origin lifts to z=5.
     f = ConnectorFrame.from_planar((0, 0, 0), (0, 0, 1), offset=[0, 0, 5])
     assert math.isclose(f.origin[2], 5.0, abs_tol=1e-9)
+
+
+def test_from_point_gives_origin_only_frame() -> None:
+    f = ConnectorFrame.from_point((1.0, 2.0, 3.0))
+    assert f.origin == (1.0, 2.0, 3.0)
+    assert _orthonormal(f)
+    assert f.radius is None
+
+
+def test_from_edge_uses_direction_as_z() -> None:
+    f = ConnectorFrame.from_edge((0.0, 0.0, 0.0), (0.0, 0.0, 2.0))
+    assert f.z == (0.0, 0.0, 1.0)
+    assert _orthonormal(f)
+
+
+def test_from_planar_carries_radius_none_by_default() -> None:
+    f = ConnectorFrame.from_planar((0.0, 0.0, 0.0), (0.0, 0.0, 1.0))
+    assert f.radius is None
+
+
+def test_from_axis_can_carry_radius() -> None:
+    f = ConnectorFrame.from_axis((0.0, 0.0, 0.0), (0.0, 0.0, 1.0), radius=4.0)
+    assert f.radius == 4.0
+
+
+def test_from_datum_uses_direction_as_z() -> None:
+    f = ConnectorFrame.from_datum((0.0, 0.0, 0.0), (0.0, 1.0, 0.0))
+    assert f.z == (0.0, 1.0, 0.0)
+    assert _orthonormal(f)

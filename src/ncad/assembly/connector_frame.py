@@ -50,12 +50,17 @@ def _secondary_for(z: Vec, secondary: Vec | None) -> Vec:
 
 @dataclass
 class ConnectorFrame:
-    """An origin plus an orthonormal (x, y, z) triad for a mate connector."""
+    """An origin plus an orthonormal (x, y, z) triad for a mate connector.
+
+    ``radius`` is the connector's characteristic radius when it comes from a cylinder (None
+    otherwise); a tangent mate reads it (bucket 5.7).
+    """
 
     origin: Vec
     x: Vec
     y: Vec
     z: Vec
+    radius: float | None = None
 
     @classmethod
     def from_planar(cls, center: Vec, normal: Vec, secondary: Vec | None = None,
@@ -69,13 +74,40 @@ class ConnectorFrame:
 
     @classmethod
     def from_axis(cls, location: Vec, direction: Vec, secondary: Vec | None = None,
-                  offset: list | None = None) -> "ConnectorFrame":
+                  offset: list | None = None, radius: float | None = None) -> "ConnectorFrame":
         """Frame for a cylinder axis: Z = axis direction, origin = axis location."""
         z = _unit((float(direction[0]), float(direction[1]), float(direction[2])))
         x = _secondary_for(z, secondary)
         y = _cross(z, x)
         origin = (float(location[0]), float(location[1]), float(location[2]))
+        r = float(radius) if radius is not None else None
+        return cls(_apply_offset(origin, x, y, z, offset), x, y, z, r)
+
+    @classmethod
+    def from_edge(cls, midpoint: Vec, direction: Vec, secondary: Vec | None = None,
+                  offset: list | None = None) -> "ConnectorFrame":
+        """Frame for an edge: Z = edge direction (tangent), origin = edge midpoint."""
+        z = _unit((float(direction[0]), float(direction[1]), float(direction[2])))
+        x = _secondary_for(z, secondary)
+        y = _cross(z, x)
+        origin = (float(midpoint[0]), float(midpoint[1]), float(midpoint[2]))
         return cls(_apply_offset(origin, x, y, z, offset), x, y, z)
+
+    @classmethod
+    def from_point(cls, location: Vec, secondary: Vec | None = None,
+                   offset: list | None = None) -> "ConnectorFrame":
+        """Frame for a point/vertex: origin = the point, Z = world +Z (a stable default triad)."""
+        z = (0.0, 0.0, 1.0)
+        x = _secondary_for(z, secondary)
+        y = _cross(z, x)
+        origin = (float(location[0]), float(location[1]), float(location[2]))
+        return cls(_apply_offset(origin, x, y, z, offset), x, y, z)
+
+    @classmethod
+    def from_datum(cls, origin: Vec, direction: Vec, secondary: Vec | None = None,
+                   offset: list | None = None) -> "ConnectorFrame":
+        """Frame for a datum: Z = the datum plane normal / datum axis direction."""
+        return cls.from_axis(origin, direction, secondary, offset)
 
 
 def _apply_offset(origin: Vec, x: Vec, y: Vec, z: Vec, offset: list | None) -> Vec:

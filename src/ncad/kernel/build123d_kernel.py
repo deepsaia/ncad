@@ -1349,10 +1349,16 @@ def _describe_edge(edge: Any) -> dict:
                 and abs(direction.Y) < 1e-6)
     mid = edge.position_at(0.5)
     box = edge.bounding_box()
+    length = edge.length
+    # Chord direction (start -> end), normalized; the tangent frame Z for an edge-derived mate
+    # connector (bucket 5.7). A degenerate/zero-length edge falls back to +Z.
+    unit = (direction.X / length, direction.Y / length, direction.Z / length) if length > 1e-9 \
+        else (0.0, 0.0, 1.0)
     return {
         "kind": "edge", "handle": edge, "geom_type": _geom_name(edge),
-        "length": edge.length,
+        "length": length,
         "center": (mid.X, mid.Y, mid.Z),
+        "edge_direction": unit,
         "orientation": "vertical" if vertical else "horizontal",
         "min_z": box.min.Z, "mid_z": mid.Z, "max_z": box.max.Z,
     }
