@@ -556,24 +556,39 @@ but the *model* is designed to full generality so no later bucket is a breaking 
   `flanged_coupling` with per-body signature + mass-props goldens, STEP, determinism, additive
   composition. **Phase 3 COMPLETE.**
 
-**Deferred backlog (Phase 3 buckets, gather here so nothing is lost):**
-- **Patterns (3.2):** **feature pattern** (re-apply the last feature's cut/boss at each
-  location, distinct from the body pattern shipped in 3.2); pattern *drivers*
-  (curve-driven / sketch-driven / table-driven / fill / geometry-pattern /
-  pattern-of-pattern) on the same instance model; per-instance suppress/skip (now cheap
-  given the stable ordinal ids from 3.2); spacing modes (spacing vs extent). Circular
-  `rotate = false` (translate-only) already ships; all of the above are additive.
-- **Mirror (3.3):** **feature mirror** (re-apply a feature's cut/boss reflected, shares the
-  feature-replay limitation that deferred feature pattern); mirror across a **face** (vs a
-  plane).
-- **Boolean / split (3.4):** split by a **tool body / face / sketch** (vs a plane) and
-  region-select of the resulting pieces; a body **Selector** for `scope` (by tag / material /
-  bbox) instead of an explicit id list.
-- **Materials / mass (3.5):** CAE solving from `structural`/`thermal` (stored + queryable now,
-  computed nothing yet); temperature-dependent properties; full MatML / Creo `.mtl` import;
-  moments of inertia / inertia tensor. (Viewer by-material coloring shipped as viewer polish.)
-  **More multi-material example parts** (bi-material inserts, weldments, assemblies) as later
-  phases add richer parts, so the material + mass path is exercised on believable geometry.
+**Bucket 3.7: Phase 3 completeness** `[x]` **COMPLETE** (the third completeness-program bucket)
+- [x] **Pattern drivers:** table-driven (explicit placements), curve/path-driven (sampled
+      along a finite edge/sketch path), and fill (grid over a face region, clipped by
+      `face.is_inside`, hex `stagger` option); plus **per-instance suppress** and
+      **spacing-vs-extent** linear modes.
+- [x] **Mirror across a planar face** (vs a base plane / {point, normal}).
+- [x] **Split by a tool body** (region partition inside/outside, vs a plane).
+- [x] **Body Selector scope:** `scope = "select bodies where ..."` (a `bodies` collection over
+      the running BodySet, by `tag`/`created_by`) alongside the explicit id list.
+- [x] **Inertia tensor** in mass properties (full 3x3 + principal moments, per body + roll-up,
+      mass-scaled by density; OCCT `GProp_GProps.MatrixOfInertia`).
+- [x] **Authored per-body appearance color written on glTF export** (baseColorFactor), so
+      default per-body colors port to any renderer (not just the viewer overlay).
+- **Gate:** `examples/gate-3.7/` real parts (bolt-circle flange with 2 suppressed holes; a
+      pin-grid heat sink via fill; a steel+bronze bimetal bushing) build deterministically +
+      STEP round-trip + golden signatures. **Phase 3 completeness CLOSED.** Next completeness
+      bucket: 4.4.
+
+> **Bucket 3.7 dispositions (moved to a later phase, or called out as undoable/deferred):**
+> - **Moved to a later phase:** **feature pattern + feature mirror** (re-apply a feature's
+>   cut/boss at transformed/reflected locations) >> **Phase 4** - they need a feature-REPLAY
+>   engine (none exists; overlaps Phase 4's persistent-name/history work). **CAE solving from
+>   structural/thermal + temperature-dependent properties** >> **Phase 10** (analysis). **Full
+>   MatML / Creo `.mtl` import** >> a later interchange bucket.
+> - **Called out (built a robust subset, dropped the rest):** **geometry-pattern**
+>   (drive by another feature's instance positions) - instance placement lists are not
+>   addressable across features; use table/curve/fill. **Split-by-face/sketch** - not built
+>   (split-by-tool-body ships); a face/sketch cutter is a later add. **Per-region material on
+>   `split`** - a split mints both regions under one feature, so one `material` field cannot
+>   color them separately (build a true bi-material part as two bodies, each under its own
+>   feature); per-region material on split is a follow-up. **`material`-attribute body
+>   selection** - the boolean op lacks the builder's feature-to-material map, so body-scope
+>   selects by `tag`/`created_by` today; material-in-scope is a follow-up.
 - **Cross-cutting (3.2 + 3.3 + 3.4):** general **datum planes / axes** as first-class
   referenceable entities for pattern/mirror/split references (shares the datum work deferred
   from Phase 2, and from loft in 2.4).
