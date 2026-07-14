@@ -106,6 +106,27 @@ class FakeKernel(Kernel):
     def wire(self, edges: list, plane: str, offset: float = 0.0) -> Any:
         return _FakeWire(edges, plane, offset)
 
+    def fill_points(self, face: Any, spacing: float, stagger: bool = False) -> list:
+        # Fake model: a grid over the face's 2D point ring bbox (no is_inside clip; the fake
+        # face is a convex polygon). Fill patterns are exercised on the real kernel.
+        pts = getattr(face, "points", [])
+        if not pts:
+            return []
+        xs = [p[0] for p in pts]
+        ys = [p[1] for p in pts]
+        out: list = []
+        row = 0
+        y = min(ys)
+        while y <= max(ys) + 1e-9:
+            offset = spacing / 2.0 if (stagger and row % 2) else 0.0
+            x = min(xs) + offset
+            while x <= max(xs) + 1e-9:
+                out.append((x, y, 0.0))
+                x += spacing
+            y += spacing
+            row += 1
+        return out
+
     def sample_curve(self, curve: Any, count: int) -> list:
         # Fake model: sample a straight segment between a datum axis's point and point+dir
         # (curve patterns are exercised on the real kernel; this keeps the ABC satisfied and

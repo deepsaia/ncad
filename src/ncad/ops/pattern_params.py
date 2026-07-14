@@ -40,8 +40,30 @@ def pattern_kwargs(params: dict) -> dict:
     if kind == "curve":
         return {"kind": "curve", "merge": merge, "curve": _curve(params),
                 "suppress": suppress}
+    if kind == "fill":
+        return {"kind": "fill", "merge": merge, "fill": _fill(params),
+                "suppress": suppress}
     raise PatternParamError(
-        f"pattern 'kind' must be 'linear', 'circular', 'table', or 'curve'; got {kind!r}")
+        f"pattern 'kind' must be 'linear', 'circular', 'table', 'curve', or 'fill'; "
+        f"got {kind!r}")
+
+
+def _fill(params: dict) -> dict:
+    """Fill pattern: a 'region' face reference filled at 'spacing' (optional hex 'stagger').
+
+    The op resolves the region face and computes interior grid points via the kernel, then
+    fills them into the placement spec. Geometry-pattern (drive by another feature's instance
+    positions) is NOT supported: instance placement lists are not addressable across features
+    today; use table (explicit placements) or curve/fill instead.
+    """
+    if "region" not in params:
+        raise PatternParamError("fill pattern needs a 'region' face reference")
+    if "spacing" not in params:
+        raise PatternParamError("fill pattern needs a 'spacing'")
+    spacing = float(params["spacing"])
+    if spacing <= 0.0:
+        raise PatternParamError(f"fill pattern 'spacing' must be positive; got {spacing}")
+    return {"spacing": spacing, "stagger": bool(params.get("stagger", False))}
 
 
 def _curve(params: dict) -> dict:

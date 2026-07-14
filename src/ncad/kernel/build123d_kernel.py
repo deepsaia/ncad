@@ -414,6 +414,26 @@ class Build123dKernel(Kernel):
             return ((origin.X, origin.Y, origin.Z), (direction.X, direction.Y, direction.Z))
         raise KernelOpError(f"unknown datum_axis method {method!r}")
 
+    def fill_points(self, face: Any, spacing: float, stagger: bool = False) -> list:
+        # A grid of interior points over a planar face at `spacing`, clipped to the face by
+        # is_inside (so a non-rectangular face fills correctly). stagger offsets alternate rows
+        # by half a step (a hex/staggered fill). Used by the fill pattern.
+        bb = face.bounding_box()
+        pts: list = []
+        row = 0
+        y = bb.min.Y
+        while y <= bb.max.Y + 1e-9:
+            offset = spacing / 2.0 if (stagger and row % 2) else 0.0
+            x = bb.min.X + offset
+            while x <= bb.max.X + 1e-9:
+                p = Vector(x, y, bb.min.Z)
+                if face.is_inside(p):
+                    pts.append((p.X, p.Y, p.Z))
+                x += spacing
+            y += spacing
+            row += 1
+        return pts
+
     def sample_curve(self, curve: Any, count: int) -> list:
         # Uniformly sample a curve (a Wire/Edge or a datum axis) at count points, returning
         # (point, unit-tangent) tuples. t in [0, 1]; count 1 samples the start. Used by the

@@ -148,6 +148,14 @@ class Kernel(ABC):
         """
 
     @abstractmethod
+    def fill_points(self, face: Any, spacing: float, stagger: bool = False) -> list:
+        """Interior grid points over a planar ``face`` at ``spacing`` (clipped to the face).
+
+        ``stagger`` offsets alternate rows by half a step (a hex/staggered fill). Returns
+        ``[(x, y, z), ...]``. Used by the fill pattern.
+        """
+
+    @abstractmethod
     def sample_curve(self, curve: Any, count: int) -> list:
         """Uniformly sample ``curve`` at ``count`` points -> ``[(point, unit_tangent), ...]``.
 

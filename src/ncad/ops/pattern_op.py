@@ -36,6 +36,15 @@ class PatternOp:
             samples = kernel.sample_curve(path, kwargs["curve"]["count"])
             kwargs["curve"]["points"] = [p for p, _t in samples]
             kwargs["curve"]["tangents"] = [t for _p, t in samples]
+        elif kwargs["kind"] == "fill":
+            region = params.get("__refs__", {}).get("region")
+            if region is None:
+                return OpResult(shape=None, provenance={}, issues=[BuildIssue(
+                    node_id=feature_id, message="fill pattern 'region' did not resolve")])
+            # A `face` ref resolves to an element descriptor; fill_points needs the face handle.
+            region_face = region.handle if hasattr(region, "handle") else region
+            kwargs["fill"]["points"] = kernel.fill_points(
+                region_face, kwargs["fill"]["spacing"], kwargs["fill"]["stagger"])
         try:
             specs = PatternPlacements(
                 kwargs, anchor=self._anchor(kwargs, shape_in, kernel)).specs()

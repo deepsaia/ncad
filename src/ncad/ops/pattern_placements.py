@@ -31,7 +31,8 @@ class PatternPlacements:
             return self._circular_specs(self._kwargs["circular"])
         if kind == "table":
             return self._table_specs(self._kwargs["table"])
-        return self._curve_specs(self._kwargs["curve"])
+        # curve and fill both place instances at pre-computed points (relative to the seed).
+        return self._curve_specs(self._kwargs[kind])
 
     def _table_specs(self, rows: list[dict]) -> list[dict]:
         """One spec per explicit placement row: move to ``at``, optional +Z rotate."""
