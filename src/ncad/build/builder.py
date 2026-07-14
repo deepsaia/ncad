@@ -62,6 +62,7 @@ _REF_FIELDS: dict[str, dict[str, str]] = {
     "offset": {"face": "face"},
     "move_face": {"face": "face"},
     "relate": {"reference": "face", "moving": "face"},
+    "reposition_hole": {"hole": "face"},
     "datum_plane": {"face": "face"},
     "datum_axis": {"face": "face", "edge": "edges", "planes": "shape_list"},
     "thread": {"axis": "datum"},

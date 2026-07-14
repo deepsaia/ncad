@@ -290,6 +290,11 @@ direct-modeling-envelope.md`), enforced by the DirectEditGuard before the kernel
   and is not
   maintained if upstream geometry later changes (maintained relations are Phase 5 assembly mates,
   not direct editing).
+- **`reposition_hole` (4.4) comes after the drilled hole it moves.** It reads a hole's
+  cylindrical face, fills the hole (fuse a plug), and re-cuts at the target, so it must follow the
+  feature (or import) that created the hole; a `select faces where type='cylinder'` reference must
+  resolve to that hole. `replace_face` is NOT available (OCCT/OCP cannot construct the required
+  face-modification tool; see `docs/research/direct-modeling-occt-ceiling.md`).
 - **`relate moving_body=<id>` (4.4) needs a prior multibody producer.** With `moving_body` set,
   `relate` moves ONE named body of the running BodySet and passes the rest through with their
   born-once ids; so it must come after a keep-separate producer (a `boolean union merge=false`, a
