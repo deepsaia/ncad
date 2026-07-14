@@ -1,9 +1,13 @@
-"""The ``thread`` feature op: cut a modeled helical thread on the running solid.
+"""The ``thread`` feature op: annotate (cosmetic) or cut (modeled) a thread on the running solid.
 
-Matches the NX/Creo/Fusion Thread feature: applied to a cylindrical stud (external) or a
-bore (internal), it cuts a real helical thread. The size drives pitch + major diameter via
-the hole-size table (``size``), or they are given explicitly (``major_d`` + ``pitch``). The
-axis defaults to Z at the origin; give ``axis`` (X/Y/Z, {point, dir}, or a datum) to place it.
+Matches the NX/Creo/Fusion Thread feature, which DEFAULTS to a COSMETIC thread: a callout
+(e.g. "M10x1.5") recorded as metadata, no geometry change - light, robust, and all a
+machinist needs. A real helical thread is an explicit opt-in (``modeled = true``), built by
+sweeping a V profile along a helix; it is reliable on a clean cylindrical stud about the
+origin axis and best-effort on composed geometry (OCCT thread booleans are fragile, which is
+why cosmetic is the default). The size drives pitch + major diameter via the hole-size table
+(``size``), or they are given explicitly (``major_d`` + ``pitch``). The axis defaults to Z at
+the origin; give ``axis`` (X/Y/Z, {point, dir}, or a datum) to place it.
 """
 
 from typing import Any
@@ -27,6 +31,12 @@ class ThreadOp:
                             issues=[BuildIssue(node_id=feature_id,
                                                message="thread has no solid to thread")])
         refs = params.get("__refs__", {})
+        # Cosmetic thread (the default, like NX/Creo/Fusion): a callout on provenance, no
+        # geometry change. The running solid passes through unchanged.
+        if not bool(params.get("modeled", False)):
+            callout = _callout(params)
+            return OpResult(shape=shape_in, provenance={feature_id: f"thread={callout}"},
+                            issues=[])
         try:
             major_d, pitch = _thread_dims(params)
             axis_point, axis_dir = _thread_axis(params, refs)
@@ -36,7 +46,7 @@ class ThreadOp:
         if "length" not in params:
             return OpResult(shape=None, provenance={},
                             issues=[BuildIssue(node_id=feature_id,
-                                               message="thread needs a 'length'")])
+                                               message="modeled thread needs a 'length'")])
         try:
             result = kernel.thread_cut(
                 shape_in, axis_point=axis_point, axis_dir=axis_dir, major_d=major_d,
@@ -46,6 +56,18 @@ class ThreadOp:
             return OpResult(shape=None, provenance={},
                             issues=[BuildIssue(node_id=feature_id, message=str(exc))])
         return OpResult(shape=result, provenance={}, issues=[])
+
+
+def _callout(params: dict) -> str:
+    """The cosmetic thread callout string, e.g. 'M10' or 'M10x1.5' or a custom size."""
+    if "size" in params:
+        size = str(params["size"])
+        if "pitch" in params:
+            return f"{size}x{float(params['pitch'])}"
+        return size
+    if "major_d" in params and "pitch" in params:
+        return f"M{float(params['major_d'])}x{float(params['pitch'])}"
+    return "thread"
 
 
 def _thread_dims(params: dict) -> tuple[float, float]:

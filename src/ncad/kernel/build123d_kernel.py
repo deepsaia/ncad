@@ -578,25 +578,26 @@ class Build123dKernel(Kernel):
     def _do_thread_cut(solid: Any, axis_point: Point3, axis_dir: Point3, major_d: float,
                        pitch: float, length: float, internal: bool) -> Any:
         from build123d import Polygon, Solid
-        # A modeled thread: sweep a triangular profile along a helix and boolean it with the
-        # cylinder. The profile STRADDLES the crest radius (inner ~ r - 0.6*pitch, outer ~
-        # r + 0.1*pitch) so an external cut actually removes a helical groove (verified). The
-        # helix is generated about +Z at the origin, then the whole tool is located onto the
-        # requested axis. depth (thread height) scales with pitch (~0.6P, the ISO thread form).
+        # A modeled thread: sweep a V profile along a helix built DIRECTLY on the target axis
+        # (Helix center + direction), then boolean it with the solid. Building the helix in
+        # place avoids a fragile Plane-based relocation of the swept tool (that mapping left
+        # the tool mis-placed so the cut removed nothing). The profile plane is derived from
+        # the helix start tangent so the profile stays radially oriented turn to turn, cutting
+        # a consistent-depth groove.
         radius = major_d / 2.0
-        helix = Helix(pitch=pitch, height=length, radius=radius)
+        helix = Helix(pitch=pitch, height=length, radius=radius, center=tuple(axis_point),
+                      direction=tuple(axis_dir))
         pplane = Plane(origin=helix @ 0, z_dir=helix % 0)
-        inner = -0.6 * pitch
-        outer = 0.1 * pitch
-        tri = pplane * Polygon((inner, -pitch / 2.0), (outer, 0.0), (inner, pitch / 2.0),
+        # ISO 60-degree V groove: the triangle BASE spans one pitch at (just beyond) the crest
+        # surface; the APEX points INWARD to the root (~0.61*pitch deep). In the profile plane
+        # +x is the outward radial direction, so the apex x is negative and the base x is a
+        # small positive crest overshoot.
+        depth = 0.61 * pitch
+        crest = 0.05 * pitch
+        tri = pplane * Polygon((crest, -pitch / 2.0), (-depth, 0.0), (crest, pitch / 2.0),
                                align=None)
         tool = sweep(tri, path=helix)  # pyrefly: ignore[bad-argument-type]
-        # Place the origin-Z thread tool onto the requested axis.
-        frame = Plane(origin=Vector(*axis_point),
-                      z_dir=Vector(*axis_dir))  # pyrefly: ignore[no-matching-overload]
-        placed_tool = frame * tool
-        placed_solid = solid
-        result = placed_solid - placed_tool if not internal else placed_solid + placed_tool
+        result = solid - tool if not internal else solid + tool
         return result if isinstance(result, Solid) else Solid(result.wrapped)
 
     def wrap(self, solid: Any, face: Any, *, text: str | None = None,

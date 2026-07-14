@@ -29,9 +29,12 @@ _EXAMPLE_DOCS = sorted(p for p in _EXAMPLES_DIR.glob("gate-*/*.hocon")
 # the test fills in at runtime), which the FakeKernel cannot produce, so it is covered by
 # test_imported_edit.py. A `coaxial` relate needs a cylindrical reference face (the FakeKernel
 # has none, so axis_of returns None), so it is real-kernel-only, covered by its signature golden
-# + test_relational_coaxial_real.py.
+# + test_relational_coaxial_real.py. A `select faces where type = 'cylinder'` selector (curved
+# wrap targets) and a `modeled = true` thread need real B-rep curved geometry the FakeKernel
+# lacks, so those are real-kernel-only (covered by gate-2.10's signature goldens + the wrap /
+# thread kernel tests).
 _FAKE_KERNEL_SKIP = ("project", "sources =", "op = defeature", "op = import",
-                     "relation = coaxial")
+                     "relation = coaxial", "type = 'cylinder'", "modeled = true")
 _FAKE_KERNEL_DOCS = [p for p in _EXAMPLE_DOCS
                      if not any(token in p.read_text() for token in _FAKE_KERNEL_SKIP)]
 
