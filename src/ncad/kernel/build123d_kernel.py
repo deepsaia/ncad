@@ -61,6 +61,7 @@ from OCP.BRepFilletAPI import (
     BRepFilletAPI_MakeChamfer,  # pyrefly: ignore[missing-module-attribute]
     BRepFilletAPI_MakeFillet,  # pyrefly: ignore[missing-module-attribute]
 )
+from OCP.BRepGProp import BRepGProp  # pyrefly: ignore[missing-module-attribute]
 from OCP.BRepOffsetAPI import (
     BRepOffsetAPI_DraftAngle,  # pyrefly: ignore[missing-module-attribute]
     BRepOffsetAPI_MakePipeShell,  # pyrefly: ignore[missing-module-attribute]
@@ -73,6 +74,7 @@ from OCP.gp import (
     gp_Pln,  # pyrefly: ignore[missing-module-attribute]
     gp_Pnt,  # pyrefly: ignore[missing-module-attribute]
 )
+from OCP.GProp import GProp_GProps  # pyrefly: ignore[missing-module-attribute]
 from OCP.TColgp import TColgp_Array1OfPnt  # pyrefly: ignore[missing-module-attribute]
 from OCP.TColStd import TColStd_Array1OfReal  # pyrefly: ignore[missing-module-attribute]
 from OCP.TopAbs import TopAbs_EDGE, TopAbs_FACE  # pyrefly: ignore[missing-module-attribute]
@@ -158,6 +160,19 @@ def _wrap_curved(solid: Any, face: Any, shape2d: Any, offset: Point2, rotation: 
                 tool = extrude(pf, amount=abs(depth), dir=grow)  # pyrefly: ignore[bad-argument-type]
                 result = result + tool if mode == "emboss" else result - tool
     return result
+
+
+def _axis_to_wire(axis: Any) -> Any:
+    """A finite Wire from a datum axis ``((ox,oy,oz), (dx,dy,dz))`` (unit length 1 by dir).
+
+    A datum axis is infinite; sampling needs a finite span, so build a unit-length segment
+    from the axis point along its direction. The caller controls extent by the number of
+    samples * the pattern spacing, not by this segment's length.
+    """
+    (ox, oy, oz), (dx, dy, dz) = axis
+    start = Vector(ox, oy, oz)
+    end = Vector(ox + dx, oy + dy, oz + dz)
+    return Wire([Edge.make_line(start, end)])  # pyrefly: ignore[bad-argument-type]
 
 
 def _basis(plane: Any, offset: float) -> Any:
@@ -400,6 +415,39 @@ class Build123dKernel(Kernel):
             origin = planes[0].origin
             return ((origin.X, origin.Y, origin.Z), (direction.X, direction.Y, direction.Z))
         raise KernelOpError(f"unknown datum_axis method {method!r}")
+
+    def fill_points(self, face: Any, spacing: float, stagger: bool = False) -> list:
+        # A grid of interior points over a planar face at `spacing`, clipped to the face by
+        # is_inside (so a non-rectangular face fills correctly). stagger offsets alternate rows
+        # by half a step (a hex/staggered fill). Used by the fill pattern.
+        bb = face.bounding_box()
+        pts: list = []
+        row = 0
+        y = bb.min.Y
+        while y <= bb.max.Y + 1e-9:
+            offset = spacing / 2.0 if (stagger and row % 2) else 0.0
+            x = bb.min.X + offset
+            while x <= bb.max.X + 1e-9:
+                p = Vector(x, y, bb.min.Z)
+                if face.is_inside(p):
+                    pts.append((p.X, p.Y, p.Z))
+                x += spacing
+            y += spacing
+            row += 1
+        return pts
+
+    def sample_curve(self, curve: Any, count: int) -> list:
+        # Uniformly sample a curve (a Wire/Edge or a datum axis) at count points, returning
+        # (point, unit-tangent) tuples. t in [0, 1]; count 1 samples the start. Used by the
+        # curve/path pattern to place instances along a rail.
+        wire = curve if hasattr(curve, "__matmul__") else _axis_to_wire(curve)
+        out: list = []
+        for i in range(count):
+            t = 0.0 if count <= 1 else i / (count - 1)
+            p = wire @ t
+            d = wire % t
+            out.append(((p.X, p.Y, p.Z), (d.X, d.Y, d.Z)))
+        return out
 
     def wire(self, edges: list, plane: Any, offset: float = 0.0) -> Any:
         basis = _basis(plane, offset)
@@ -797,6 +845,17 @@ class Build123dKernel(Kernel):
         ocp = importlib.metadata.version("cadquery-ocp")
         return f"build123d={b123d};ocp={ocp}"
 
+    def inertia(self, solid: Any) -> dict:
+        # The volume inertia tensor of the solid, via OCCT GProp_GProps.MatrixOfInertia
+        # (density 1 here: geometry-only, like volume; the mass layer scales by material
+        # density). Returns the full symmetric 3x3 matrix + the three principal moments.
+        props = GProp_GProps()
+        BRepGProp.VolumeProperties_s(_wrapped(solid), props)
+        matrix = props.MatrixOfInertia()
+        rows = [[matrix.Value(i, j) for j in (1, 2, 3)] for i in (1, 2, 3)]
+        moments = props.PrincipalProperties().Moments()
+        return {"matrix": rows, "principal": [moments[0], moments[1], moments[2]]}
+
     def signature(self, solid: Any) -> dict:
         if isinstance(solid, BodySet):
             # Per-body signatures, ordered by a deterministic key (body id, then volume, then
@@ -897,6 +956,19 @@ class Build123dKernel(Kernel):
     def _do_split(shape: Any, split_plane: Any, keep_enum: Any) -> Any:
         """The raw single-side split (wrapped by _robust)."""
         return shape.split(split_plane, keep=keep_enum)
+
+    def split_by_tool(self, shape: Any, tool: Any, keep: str = "both") -> list:
+        # Partition `shape` by a TOOL BODY (vs a plane): the region INSIDE the tool
+        # (shape & tool) and the region OUTSIDE it (shape - tool). keep="inside" /
+        # "outside" returns one region; "both" returns [inside, outside]. Each region may be a
+        # Compound of several solids (a slab through the middle leaves two outside pieces).
+        inside = self._robust(self._do_intersect, [shape, tool], name="split")
+        if keep == "inside":
+            return [inside]
+        outside = self._robust(self._do_cut, shape, [tool], name="split")
+        if keep == "outside":
+            return [outside]
+        return [inside, outside]
 
     @staticmethod
     def _do_gscale(shape: Any, scale: Any) -> Any:
@@ -1077,13 +1149,22 @@ class Build123dKernel(Kernel):
                 history.generated_from[descriptor["handle"]] = list(input_handles)
         return history
 
-    def export(self, solid: Any, path: str) -> None:
+    def export(self, solid: Any, path: str, body_colors: dict | None = None) -> None:
         if isinstance(solid, BodySet):
             # A multibody part exports as a compound: STEP as a multi-solid assembly, glTF as
             # one mesh per body solid, in body order (parallel to mesh_body_ids via the shared
-            # _export_solids). Single-shape export is unchanged.
-            from build123d import Compound
-            solid = Compound(children=[one for _bid, one in self._export_solids(solid)])
+            # _export_solids). Single-shape export is unchanged. When body_colors is given
+            # (body_id -> rgba in 0..1), bake each body solid's color so default per-body
+            # colors port to any glTF renderer (build123d exports Shape.color as the PBR
+            # baseColorFactor); the interactive viewer color-picker stays a viewer overlay.
+            from build123d import Color, Compound
+            children = []
+            for bid, one in self._export_solids(solid):
+                rgba = (body_colors or {}).get(bid)
+                if rgba is not None:
+                    one.color = Color(*rgba)  # pyrefly: ignore[bad-argument-type]
+                children.append(one)
+            solid = Compound(children=children)
         lowered = path.lower()
         if lowered.endswith(".glb"):
             export_gltf(solid, path, unit=Unit.MM, binary=True,

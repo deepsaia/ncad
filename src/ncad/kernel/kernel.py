@@ -148,6 +148,22 @@ class Kernel(ABC):
         """
 
     @abstractmethod
+    def fill_points(self, face: Any, spacing: float, stagger: bool = False) -> list:
+        """Interior grid points over a planar ``face`` at ``spacing`` (clipped to the face).
+
+        ``stagger`` offsets alternate rows by half a step (a hex/staggered fill). Returns
+        ``[(x, y, z), ...]``. Used by the fill pattern.
+        """
+
+    @abstractmethod
+    def sample_curve(self, curve: Any, count: int) -> list:
+        """Uniformly sample ``curve`` at ``count`` points -> ``[(point, unit_tangent), ...]``.
+
+        ``curve`` is a kernel Wire/Edge handle or a datum axis ``(point, dir)`` tuple. Used by
+        the curve/path pattern to place instances along a rail. count 1 samples the start.
+        """
+
+    @abstractmethod
     def wire(self, edges: list, plane: str, offset: float = 0.0) -> Any:
         """An OPEN wire (a path) from ordered edge descriptors on ``plane``.
 
@@ -427,6 +443,21 @@ class Kernel(ABC):
         """
 
     @abstractmethod
+    def inertia(self, solid: Any) -> dict:
+        """The volume inertia tensor of ``solid`` -> ``{"matrix": 3x3, "principal": [i1,i2,i3]}``.
+
+        Density-1 (geometry-only, like volume); the mass layer scales by material density.
+        """
+
+    @abstractmethod
+    def split_by_tool(self, shape: Any, tool: Any, keep: str = "both") -> list:
+        """Partition ``shape`` by a TOOL BODY: the region inside the tool + the region outside.
+
+        ``keep`` is ``"both"`` (return ``[inside, outside]``), ``"inside"``, or ``"outside"``.
+        Each region may be a Compound of several solids. Raises KernelOpError on failure.
+        """
+
+    @abstractmethod
     def defeature(self, solid: Any, face: Any) -> Any:
         """Remove ``face`` from ``solid`` (BRepAlgoAPI_Defeaturing); raise on OCCT failure."""
 
@@ -478,8 +509,13 @@ class Kernel(ABC):
         """
 
     @abstractmethod
-    def export(self, solid: Any, path: str) -> None:
-        """Write ``solid`` to ``path``; format inferred from the extension."""
+    def export(self, solid: Any, path: str, body_colors: dict | None = None) -> None:
+        """Write ``solid`` to ``path``; format inferred from the extension.
+
+        ``body_colors`` (optional) maps a body id to an ``(r, g, b, a)`` color in 0..1; a glTF
+        export writes it as the per-body PBR baseColorFactor so authored appearance colors port
+        to other renderers. Ignored for STEP/STL.
+        """
 
     @abstractmethod
     def export_assembly(self, components: list[dict], path: str) -> None:

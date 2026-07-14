@@ -107,6 +107,13 @@ it sees several bodies (per-body dispatch is the `scope` field's job, 3.4).
   `merge = false` and treat the result as a multibody part).
 - **Seen in:** gate-3.2 `patterned_bodies` (`spoke_hub` overlaps at the axis to fuse to one
   solid; `pattern_studs` keeps 12 separate bodies).
+- **Curve/path pattern (3.7):** a `kind = curve` pattern follows a FINITE path (an open
+  sketch or an edge) with real length; the path feature must be built first (the pattern
+  references it, and the path carries the extent the instances span). A datum AXIS is
+  infinite/unit-length and is NOT a curve-pattern path (use a linear pattern with a spacing
+  along the axis instead); a curve pattern along a unit datum axis collapses all instances
+  into ~1mm. Seen in gate-3.7 `bolt_circle_flange` (a circular hole pattern) and the
+  curve-pattern build test (a block along an open-sketch rail).
 
 ### 8. `mirror` reflects the running result, so place it after the geometry to reflect
 
@@ -200,6 +207,36 @@ thousands of thread edges and is slow/fragile).
 - **Failure mode:** threading before the stud exists grooves nothing; filleting after a
   thread can segfault/hang on the thread crest edges.
 - **Seen in:** gate-2.10 `hex_bolt` (thread after the shank, dress-up before).
+
+### 12d. A body-Selector scope needs a prior multibody producer
+
+A `boolean` (or scoped op) whose `scope` is a `select bodies where ...` query resolves against
+the running BodySet, so a multibody producer (a keep-separate `pattern` / `mirror` / `split`)
+must run first. Body attributes queryable in scope today are the born-once id (as `tag`) and
+`created_by`; material-in-scope needs the builder's feature-to-material map (a follow-up).
+
+- **Why:** the query filters the running bodies; a single-body running shape has nothing to
+  select across.
+- **Failure mode:** a scope query on a single-body running shape is refused ("scope query
+  needs a multibody running shape").
+- **Seen in:** gate-3.7 `bimetal_bushing` / the scope-query build test (fuse pattern bodies by
+  created_by).
+
+### 12c. A tool-body split needs the tool body built first
+
+A `split` with a `tool` reference (split-by-tool-body, vs a plane) partitions the running
+solid by another body; the tool body must be built earlier so the reference resolves.
+
+- **Why:** the tool is a boolean operand (inside = shape & tool, outside = shape - tool); it
+  must exist when the split runs.
+- **Failure mode:** a tool-body split before its tool is built fails reference resolution.
+- **Running-solid nuance:** `split` partitions the RUNNING solid (the last solid feature), not
+  a named target. Build the tool body BEFORE the target so the target stays the running solid;
+  if the tool extrude is authored LAST it becomes the running solid and the split partitions
+  the tool instead (silently wrong: one region comes out empty). Build tool, then target, then
+  split.
+- **Seen in:** gate-3.7 `bimetal_bushing` (the sleeve tool is built first so the bushing is the
+  running solid at the split; authoring the sleeve last gave a zero-volume second region).
 
 ### 13. Direct-edit ops (`defeature`, `offset`) come AFTER the geometry they act on
 

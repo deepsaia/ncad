@@ -9,6 +9,8 @@ from ncad.kernel.kernel_op_error import KernelOpError
 from ncad.ops.boolean_params import BooleanParamError, boolean_kwargs
 from ncad.ops.build_issue import BuildIssue
 from ncad.ops.op_result import OpResult
+from ncad.refs.selector import Selector
+from ncad.refs.selector_error import SelectorError
 
 
 class BooleanOp:
@@ -67,8 +69,24 @@ class BooleanOp:
 
     def _scope_mode(self, shape_in: Any, kwargs: dict, feature_id: str,
                     kernel: Kernel) -> Any:
-        """Combine named bodies of the running BodySet; pass the rest through untouched."""
+        """Combine named bodies of the running BodySet; pass the rest through untouched.
+
+        ``scope`` is an explicit body-id list, or is resolved here from a ``scope_query``
+        (``select bodies where ...``) against the running BodySet.
+        """
         scope = kwargs["scope"]
+        if kwargs.get("scope_query") is not None:
+            if not isinstance(shape_in, BodySet):
+                return BuildIssue(node_id=feature_id, message=(
+                    "boolean scope query needs a multibody running shape"))
+            resolved = _select_body_ids(kwargs["scope_query"], shape_in)
+            if isinstance(resolved, BuildIssue):
+                return resolved
+            if not resolved:
+                query = kwargs["scope_query"]
+                return BuildIssue(node_id=feature_id,
+                                  message=f"scope query matched no bodies: {query!r}")
+            scope = resolved
         if not isinstance(shape_in, BodySet):
             # A single-body running shape: scope only makes sense for its one body. More than
             # one requested id cannot resolve, so that is an error.
@@ -123,3 +141,28 @@ def _single(shapes: list) -> Any:
             "boolean cut target must be a single body; got a multibody target "
             "(cut per body or use scope mode)")
     return shapes[0]
+
+
+class _BodyElement:
+    """Adapts a Body to the Selector element interface (kind + attrs).
+
+    A body's queryable attributes are its born-once id (as ``tag``) and its creating feature
+    (``created_by``). Material-in-scope needs the builder's feature->material map, which the op
+    does not have, so ``material`` selection over bodies is a follow-up (use ``tag`` /
+    ``created_by`` here).
+    """
+
+    def __init__(self, body: Any) -> None:
+        self._body = body
+        self.kind = "body"
+        self.attrs = {"tag": body.id, "created_by": body.created_by}
+
+
+def _select_body_ids(query: str, bodies: BodySet) -> Any:
+    """Resolve a ``select bodies where ...`` query to the matching body ids, or a BuildIssue."""
+    elements = [_BodyElement(b) for b in bodies.bodies]
+    try:
+        matched = Selector().select(query, elements)
+    except SelectorError as exc:
+        return BuildIssue(node_id="boolean", message=f"scope query: {exc}")
+    return [e.attrs["tag"] for e in matched]

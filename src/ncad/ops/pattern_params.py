@@ -27,12 +27,66 @@ def pattern_kwargs(params: dict) -> dict:
     """Return the validated placement description for a pattern feature."""
     kind = params.get("kind")
     merge = bool(params.get("merge", True))
+    suppress = _suppress(params.get("suppress"))
     if kind == "linear":
-        return {"kind": "linear", "merge": merge, "linear": _linear(params)}
+        return {"kind": "linear", "merge": merge, "linear": _linear(params),
+                "suppress": suppress}
     if kind == "circular":
-        return {"kind": "circular", "merge": merge, "circular": _circular(params)}
+        return {"kind": "circular", "merge": merge, "circular": _circular(params),
+                "suppress": suppress}
+    if kind == "table":
+        return {"kind": "table", "merge": merge, "table": _table(params),
+                "suppress": suppress}
+    if kind == "curve":
+        return {"kind": "curve", "merge": merge, "curve": _curve(params),
+                "suppress": suppress}
+    if kind == "fill":
+        return {"kind": "fill", "merge": merge, "fill": _fill(params),
+                "suppress": suppress}
     raise PatternParamError(
-        f"pattern 'kind' must be 'linear' or 'circular'; got {kind!r}")
+        f"pattern 'kind' must be 'linear', 'circular', 'table', 'curve', or 'fill'; "
+        f"got {kind!r}")
+
+
+def _fill(params: dict) -> dict:
+    """Fill pattern: a 'region' face reference filled at 'spacing' (optional hex 'stagger').
+
+    The op resolves the region face and computes interior grid points via the kernel, then
+    fills them into the placement spec. Geometry-pattern (drive by another feature's instance
+    positions) is NOT supported: instance placement lists are not addressable across features
+    today; use table (explicit placements) or curve/fill instead.
+    """
+    if "region" not in params:
+        raise PatternParamError("fill pattern needs a 'region' face reference")
+    if "spacing" not in params:
+        raise PatternParamError("fill pattern needs a 'spacing'")
+    spacing = float(params["spacing"])
+    if spacing <= 0.0:
+        raise PatternParamError(f"fill pattern 'spacing' must be positive; got {spacing}")
+    return {"spacing": spacing, "stagger": bool(params.get("stagger", False))}
+
+
+def _curve(params: dict) -> dict:
+    """Curve/path pattern: a 'path' reference + count (+ optional tangent align).
+
+    The op resolves the path ref and samples it via the kernel, then fills in points/tangents
+    before calling PatternPlacements; here we only validate the count + align knobs.
+    """
+    if "path" not in params:
+        raise PatternParamError("curve pattern needs a 'path' reference (a datum/edge/sketch)")
+    return {"count": _count(params.get("count"), "curve"),
+            "align": bool(params.get("align", False))}
+
+
+def _suppress(value: object) -> list[int]:
+    """A list of born-once ordinals to drop from the generated instances (default none)."""
+    if value is None:
+        return []
+    if not isinstance(value, list) or not all(
+            isinstance(v, int) and not isinstance(v, bool) for v in value):
+        raise PatternParamError(
+            f"pattern 'suppress' must be a list of integers; got {value!r}")
+    return [int(v) for v in value]
 
 
 def _linear(params: dict) -> dict:
@@ -45,14 +99,37 @@ def _linear(params: dict) -> dict:
 
 
 def _axis_step(spec: dict, field: str) -> dict:
-    """One linear direction: nonzero dir, nonzero spacing, integer count >= 1."""
+    """One linear direction: nonzero dir, spacing OR extent, integer count >= 1.
+
+    ``spacing`` is the per-step distance; ``extent`` is the TOTAL span (per-step =
+    extent / (count - 1), or 0 for a single instance). Exactly one is given.
+    """
     direction = _nonzero_vec3(spec.get("dir"), f"{field}.dir")
-    if "spacing" not in spec:
-        raise PatternParamError(f"linear pattern '{field}' needs a 'spacing'")
-    spacing = float(spec["spacing"])
-    if spacing == 0.0:
-        raise PatternParamError(f"linear pattern '{field}' spacing must be nonzero")
-    return {"dir": direction, "spacing": spacing, "count": _count(spec.get("count"), field)}
+    count = _count(spec.get("count"), field)
+    if "extent" in spec:
+        extent = float(spec["extent"])
+        spacing = extent / (count - 1) if count > 1 else 0.0
+    elif "spacing" in spec:
+        spacing = float(spec["spacing"])
+        if spacing == 0.0:
+            raise PatternParamError(f"linear pattern '{field}' spacing must be nonzero")
+    else:
+        raise PatternParamError(f"linear pattern '{field}' needs a 'spacing' or 'extent'")
+    return {"dir": direction, "spacing": spacing, "count": count}
+
+
+def _table(params: dict) -> list[dict]:
+    """Explicit placement rows: [{at:[x,y,z], rotate?:deg}, ...] (table-driven pattern)."""
+    rows = params.get("placements")
+    if not isinstance(rows, list) or not rows:
+        raise PatternParamError("table pattern needs a non-empty 'placements' list")
+    out: list[dict] = []
+    for i, row in enumerate(rows):
+        entry: dict = {"at": _vec3(row.get("at"), f"placements[{i}].at")}
+        if "rotate" in row:
+            entry["rotate"] = float(row["rotate"])
+        out.append(entry)
+    return out
 
 
 def _circular(params: dict) -> dict:

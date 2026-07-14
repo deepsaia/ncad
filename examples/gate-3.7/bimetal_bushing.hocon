@@ -1,0 +1,40 @@
+schema_version = 2
+units = mm
+# A bimetal bushing: a bronze inner liner pressed into a steel outer shell, kept as two
+# addressable bodies with distinct materials. A real, recognizable part exercising per-body
+# materials (bronze + steel, each carried on its minting feature via created_by) which drive
+# the By-Material view, the per-body inertia tensor, and baked per-body glTF colors. The two
+# concentric annular bodies are kept separate (a keep-separate union), each born under its own
+# feature so each keeps its own material.
+#
+# NOTE on split-by-tool + material: `split keep=both` mints both regions under ONE feature, so
+# a single `material` field would color BOTH regions the same (there is no per-region material
+# on split yet - a follow-up). To get a true BI-material part today, build each region as its
+# own feature (below); split-by-tool is exercised for its geometry in the kernel/build tests.
+materials {
+  bronze { physical { density = 8800 } appearance { color = [ 0.72, 0.45, 0.20 ] } }
+}
+parts {
+  bimetal_bushing {
+    profile = solid
+    material = steel_1018
+    features = [
+      # Bronze inner liner: an annulus d26 outer, d16 bore, 30 tall (its own material=bronze).
+      { id = liner_od_sk, op = sketch, plane = XY, elements = [ { id = a, type = circle, d = 26 } ] }
+      { id = liner_od, op = extrude, profile = liner_od_sk, distance = 30, material = bronze }
+      { id = liner_bore_sk, op = sketch, plane = XY, elements = [ { id = h, type = circle, d = 16 } ] }
+      { id = liner_bore, op = extrude, profile = liner_bore_sk, distance = 30 }
+      { id = liner, op = boolean, operation = cut, target = liner_od, tool = liner_bore,
+        material = bronze }
+      # Steel outer shell: an annulus d40 outer, d26 bore, 30 tall (inherits the part steel).
+      { id = shell_od_sk, op = sketch, plane = XY, elements = [ { id = o, type = circle, d = 40 } ] }
+      { id = shell_od, op = extrude, profile = shell_od_sk, distance = 30 }
+      { id = shell_bore_sk, op = sketch, plane = XY, elements = [ { id = s, type = circle, d = 26 } ] }
+      { id = shell_bore, op = extrude, profile = shell_bore_sk, distance = 30 }
+      { id = shell, op = boolean, operation = cut, target = shell_od, tool = shell_bore }
+      # Keep both bodies separate + addressable (bronze liner + steel shell), a 2-body part.
+      { id = bushing, op = boolean, operation = union, target = shell, tool = liner,
+        merge = false }
+    ]
+  }
+}

@@ -24,9 +24,41 @@ class PatternPlacements:
 
     def specs(self) -> list[dict]:
         """Ordered transform-kwargs, one per instance; index 0 is identity ({})."""
-        if self._kwargs["kind"] == "linear":
+        kind = self._kwargs["kind"]
+        if kind == "linear":
             return self._linear_specs(self._kwargs["linear"])
-        return self._circular_specs(self._kwargs["circular"])
+        if kind == "circular":
+            return self._circular_specs(self._kwargs["circular"])
+        if kind == "table":
+            return self._table_specs(self._kwargs["table"])
+        # curve and fill both place instances at pre-computed points (relative to the seed).
+        return self._curve_specs(self._kwargs[kind])
+
+    def _table_specs(self, rows: list[dict]) -> list[dict]:
+        """One spec per explicit placement row: move to ``at``, optional +Z rotate."""
+        specs: list[dict] = []
+        for row in rows:
+            at = row["at"]
+            spec: dict = {} if at == (0.0, 0.0, 0.0) else {"move": at}
+            if "rotate" in row:
+                spec["rotate"] = {"axis": (0.0, 0.0, 1.0), "angle": row["rotate"],
+                                  "about": at}
+            specs.append(spec)
+        return specs
+
+    def _curve_specs(self, spec: dict) -> list[dict]:
+        """Move each instance from the seed (first sampled point) to its sampled point.
+
+        Positions are the core path-pattern behavior; tangent-align is a follow-up (it needs a
+        rotate-between-tangents transform).
+        """
+        points = spec["points"]
+        seed = points[0]
+        specs: list[dict] = []
+        for i, point in enumerate(points):
+            move = _sub(point, seed)
+            specs.append({} if (i == 0 or move == (0.0, 0.0, 0.0)) else {"move": move})
+        return specs
 
     def _linear_specs(self, spec: dict) -> list[dict]:
         """Row-major grid: ordinal = iy*count_x + ix; move sums the two axis steps."""

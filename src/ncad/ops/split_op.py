@@ -20,13 +20,18 @@ class SplitOp:
             return OpResult(shape=None, provenance={},
                             issues=[BuildIssue(node_id=feature_id,
                                                message="split has no solid")])
+        tool = params.get("__refs__", {}).get("tool")
         try:
-            kwargs = split_kwargs(params)
+            kwargs = split_kwargs(params, has_tool=tool is not None)
         except SplitParamError as exc:
             return OpResult(shape=None, provenance={},
                             issues=[BuildIssue(node_id=feature_id, message=str(exc))])
         try:
-            parts = kernel.split(shape_in, plane=kwargs["plane"], keep=kwargs["keep"])
+            # Split by a TOOL BODY (region partition) if a tool is referenced, else by a plane.
+            if tool is not None:
+                parts = kernel.split_by_tool(shape_in, tool, keep=kwargs["keep"])
+            else:
+                parts = kernel.split(shape_in, plane=kwargs["plane"], keep=kwargs["keep"])
             if len(parts) == 1:
                 result_shape = parts[0]           # keep=top/bottom: a single shape
             else:

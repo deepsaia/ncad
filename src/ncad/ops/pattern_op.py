@@ -26,9 +26,35 @@ class PatternOp:
         except PatternParamError as exc:
             return OpResult(shape=None, provenance={},
                             issues=[BuildIssue(node_id=feature_id, message=str(exc))])
+        # A curve pattern samples its driving path (resolved by the builder into refs["path"])
+        # via the kernel, then fills points/tangents into the (kernel-free) placement spec.
+        if kwargs["kind"] == "curve":
+            path = params.get("__refs__", {}).get("path")
+            if path is None:
+                return OpResult(shape=None, provenance={}, issues=[BuildIssue(
+                    node_id=feature_id, message="curve pattern 'path' did not resolve")])
+            samples = kernel.sample_curve(path, kwargs["curve"]["count"])
+            kwargs["curve"]["points"] = [p for p, _t in samples]
+            kwargs["curve"]["tangents"] = [t for _p, t in samples]
+        elif kwargs["kind"] == "fill":
+            region = params.get("__refs__", {}).get("region")
+            if region is None:
+                return OpResult(shape=None, provenance={}, issues=[BuildIssue(
+                    node_id=feature_id, message="fill pattern 'region' did not resolve")])
+            # A `face` ref resolves to an element descriptor; fill_points needs the face handle.
+            region_face = region.handle if hasattr(region, "handle") else region
+            kwargs["fill"]["points"] = kernel.fill_points(
+                region_face, kwargs["fill"]["spacing"], kwargs["fill"]["stagger"])
         try:
             specs = PatternPlacements(
                 kwargs, anchor=self._anchor(kwargs, shape_in, kernel)).specs()
+            # Per-instance suppress drops the named born-once ordinals BEFORE union. Note:
+            # union_bodies numbers body/0..N by list position, so suppressing an INTERIOR
+            # ordinal renumbers later bodies under this producer (a suppress-stable id map is a
+            # follow-up); suppressing END ordinals leaves the rest stable, the common case (a
+            # bolt circle missing a couple of clocking holes).
+            suppress = set(kwargs.get("suppress", []))
+            specs = [spec for k, spec in enumerate(specs) if k not in suppress]
             # Seed (ordinal 0) is the untouched source; copies apply their transform. This
             # keeps instance 0 geometrically exact and defines the stable generation order.
             copies = [shape_in if not spec else kernel.transform(shape_in, **spec)

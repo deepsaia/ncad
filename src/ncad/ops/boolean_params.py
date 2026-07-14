@@ -33,13 +33,22 @@ def boolean_kwargs(params: dict) -> dict:
             raise BooleanParamError(
                 "boolean 'scope' mode takes no 'tool'/'tools' (it combines running bodies)")
         scope = params["scope"]
+        # scope is a nonempty list of born-once body ids, OR a `select bodies where ...`
+        # Selector query string the op resolves against the running BodySet.
+        if isinstance(scope, str) and scope.strip().lower().startswith("select bodies"):
+            return {"operation": operation, "mode": "scope", "merge": merge,
+                    "scope": None, "scope_query": scope}
         if not isinstance(scope, list) or not scope or not all(
                 isinstance(s, str) for s in scope):
-            raise BooleanParamError("boolean 'scope' must be a nonempty list of body ids")
-        return {"operation": operation, "mode": "scope", "merge": merge, "scope": list(scope)}
+            raise BooleanParamError(
+                "boolean 'scope' must be a nonempty list of body ids or a "
+                "'select bodies where ...' query")
+        return {"operation": operation, "mode": "scope", "merge": merge, "scope": list(scope),
+                "scope_query": None}
     # ref mode: needs exactly one of tool / tools.
     if has_tool and has_tools:
         raise BooleanParamError("boolean names both 'tool' and 'tools'; use one")
     if not has_tool and not has_tools:
         raise BooleanParamError("boolean ref mode needs a 'tool' or 'tools' (or use 'scope')")
-    return {"operation": operation, "mode": "ref", "merge": merge, "scope": None}
+    return {"operation": operation, "mode": "ref", "merge": merge, "scope": None,
+            "scope_query": None}

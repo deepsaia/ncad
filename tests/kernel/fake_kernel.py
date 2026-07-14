@@ -106,6 +106,38 @@ class FakeKernel(Kernel):
     def wire(self, edges: list, plane: str, offset: float = 0.0) -> Any:
         return _FakeWire(edges, plane, offset)
 
+    def fill_points(self, face: Any, spacing: float, stagger: bool = False) -> list:
+        # Fake model: a grid over the face's 2D point ring bbox (no is_inside clip; the fake
+        # face is a convex polygon). Fill patterns are exercised on the real kernel.
+        pts = getattr(face, "points", [])
+        if not pts:
+            return []
+        xs = [p[0] for p in pts]
+        ys = [p[1] for p in pts]
+        out: list = []
+        row = 0
+        y = min(ys)
+        while y <= max(ys) + 1e-9:
+            offset = spacing / 2.0 if (stagger and row % 2) else 0.0
+            x = min(xs) + offset
+            while x <= max(xs) + 1e-9:
+                out.append((x, y, 0.0))
+                x += spacing
+            y += spacing
+            row += 1
+        return out
+
+    def sample_curve(self, curve: Any, count: int) -> list:
+        # Fake model: sample a straight segment between a datum axis's point and point+dir
+        # (curve patterns are exercised on the real kernel; this keeps the ABC satisfied and
+        # supports the (point, dir) axis form used in fast tests).
+        (ox, oy, oz), (dx, dy, dz) = curve
+        out: list = []
+        for i in range(count):
+            t = 0.0 if count <= 1 else i / (count - 1)
+            out.append(((ox + dx * t, oy + dy * t, oz + dz * t), (dx, dy, dz)))
+        return out
+
     def datum_plane(self, method: str, params: dict, refs: dict) -> Any:
         # A datum is reference geometry, not a solid; the fake kernel returns a marker dict
         # carrying the method so op-through-build tests can assert it was produced.
@@ -638,6 +670,27 @@ class FakeKernel(Kernel):
             return [bottom]
         return [top, bottom]
 
+    def inertia(self, solid: Any) -> dict:
+        # Fake model: a diagonal tensor proportional to volume (no true second moments; the
+        # real kernel computes the OCCT tensor). Deterministic, symmetric, positive-diagonal.
+        v = self.volume(solid)
+        diag = max(v, 1e-9)
+        return {"matrix": [[diag, 0.0, 0.0], [0.0, diag, 0.0], [0.0, 0.0, diag]],
+                "principal": [diag, diag, diag]}
+
+    def split_by_tool(self, shape: Any, tool: Any, keep: str = "both") -> list:
+        # Analytic partition by a tool body: inside = the tool's volume clamped to the shape,
+        # outside = the remainder. Enough for op/volume tests; the real kernel does the boolean.
+        shape_v = self.volume(shape)
+        tool_v = self.volume(tool)
+        inside = _FakeCombined(min(tool_v, shape_v), self.bounding_box(shape))
+        outside = _FakeCombined(max(shape_v - tool_v, 0.0), self.bounding_box(shape))
+        if keep == "inside":
+            return [inside]
+        if keep == "outside":
+            return [outside]
+        return [inside, outside]
+
     def volume(self, solid: Any) -> float:
         if isinstance(solid, BodySet):
             return sum(self.volume(b.shape) for b in solid.bodies)
@@ -677,7 +730,7 @@ class FakeKernel(Kernel):
         # Bucket 0.1 uses the XY plane; extrude along +Z by distance.
         return ((min(xs), min(ys), 0.0), (max(xs), max(ys), solid.distance))
 
-    def export(self, solid: Any, path: str) -> None:
+    def export(self, solid: Any, path: str, body_colors: dict | None = None) -> None:
         raise NotImplementedError("FakeKernel does not export geometry")
 
     def export_assembly(self, components: list[dict], path: str) -> None:
