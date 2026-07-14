@@ -45,6 +45,7 @@ _REF_FIELDS: dict[str, dict[str, str]] = {
     "loft": {"sections": "shape_list", "guides": "shape_list"},
     "mirror": {"face": "face"},
     "feature_pattern": {"tool": "shape"},
+    "feature_mirror": {"tool": "shape", "face": "face"},
     "split": {"tool": "shape"},
     "pattern": {"path": "shape", "region": "face"},
     "rib": {"profile": "shape", "target": "shape", "profiles": "shape_list"},
