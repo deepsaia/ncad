@@ -107,6 +107,13 @@ it sees several bodies (per-body dispatch is the `scope` field's job, 3.4).
   `merge = false` and treat the result as a multibody part).
 - **Seen in:** gate-3.2 `patterned_bodies` (`spoke_hub` overlaps at the axis to fuse to one
   solid; `pattern_studs` keeps 12 separate bodies).
+- **Curve/path pattern (3.7):** a `kind = curve` pattern follows a FINITE path (an open
+  sketch or an edge) with real length; the path feature must be built first (the pattern
+  references it, and the path carries the extent the instances span). A datum AXIS is
+  infinite/unit-length and is NOT a curve-pattern path (use a linear pattern with a spacing
+  along the axis instead); a curve pattern along a unit datum axis collapses all instances
+  into ~1mm. Seen in gate-3.7 `bolt_circle_flange` (a circular hole pattern) and the
+  curve-pattern build test (a block along an open-sketch rail).
 
 ### 8. `mirror` reflects the running result, so place it after the geometry to reflect
 

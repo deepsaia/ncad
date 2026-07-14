@@ -37,8 +37,23 @@ def pattern_kwargs(params: dict) -> dict:
     if kind == "table":
         return {"kind": "table", "merge": merge, "table": _table(params),
                 "suppress": suppress}
+    if kind == "curve":
+        return {"kind": "curve", "merge": merge, "curve": _curve(params),
+                "suppress": suppress}
     raise PatternParamError(
-        f"pattern 'kind' must be 'linear', 'circular', or 'table'; got {kind!r}")
+        f"pattern 'kind' must be 'linear', 'circular', 'table', or 'curve'; got {kind!r}")
+
+
+def _curve(params: dict) -> dict:
+    """Curve/path pattern: a 'path' reference + count (+ optional tangent align).
+
+    The op resolves the path ref and samples it via the kernel, then fills in points/tangents
+    before calling PatternPlacements; here we only validate the count + align knobs.
+    """
+    if "path" not in params:
+        raise PatternParamError("curve pattern needs a 'path' reference (a datum/edge/sketch)")
+    return {"count": _count(params.get("count"), "curve"),
+            "align": bool(params.get("align", False))}
 
 
 def _suppress(value: object) -> list[int]:

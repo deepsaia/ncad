@@ -26,6 +26,16 @@ class PatternOp:
         except PatternParamError as exc:
             return OpResult(shape=None, provenance={},
                             issues=[BuildIssue(node_id=feature_id, message=str(exc))])
+        # A curve pattern samples its driving path (resolved by the builder into refs["path"])
+        # via the kernel, then fills points/tangents into the (kernel-free) placement spec.
+        if kwargs["kind"] == "curve":
+            path = params.get("__refs__", {}).get("path")
+            if path is None:
+                return OpResult(shape=None, provenance={}, issues=[BuildIssue(
+                    node_id=feature_id, message="curve pattern 'path' did not resolve")])
+            samples = kernel.sample_curve(path, kwargs["curve"]["count"])
+            kwargs["curve"]["points"] = [p for p, _t in samples]
+            kwargs["curve"]["tangents"] = [t for _p, t in samples]
         try:
             specs = PatternPlacements(
                 kwargs, anchor=self._anchor(kwargs, shape_in, kernel)).specs()

@@ -106,6 +106,17 @@ class FakeKernel(Kernel):
     def wire(self, edges: list, plane: str, offset: float = 0.0) -> Any:
         return _FakeWire(edges, plane, offset)
 
+    def sample_curve(self, curve: Any, count: int) -> list:
+        # Fake model: sample a straight segment between a datum axis's point and point+dir
+        # (curve patterns are exercised on the real kernel; this keeps the ABC satisfied and
+        # supports the (point, dir) axis form used in fast tests).
+        (ox, oy, oz), (dx, dy, dz) = curve
+        out: list = []
+        for i in range(count):
+            t = 0.0 if count <= 1 else i / (count - 1)
+            out.append(((ox + dx * t, oy + dy * t, oz + dz * t), (dx, dy, dz)))
+        return out
+
     def datum_plane(self, method: str, params: dict, refs: dict) -> Any:
         # A datum is reference geometry, not a solid; the fake kernel returns a marker dict
         # carrying the method so op-through-build tests can assert it was produced.

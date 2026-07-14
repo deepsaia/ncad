@@ -148,6 +148,14 @@ class Kernel(ABC):
         """
 
     @abstractmethod
+    def sample_curve(self, curve: Any, count: int) -> list:
+        """Uniformly sample ``curve`` at ``count`` points -> ``[(point, unit_tangent), ...]``.
+
+        ``curve`` is a kernel Wire/Edge handle or a datum axis ``(point, dir)`` tuple. Used by
+        the curve/path pattern to place instances along a rail. count 1 samples the start.
+        """
+
+    @abstractmethod
     def wire(self, edges: list, plane: str, offset: float = 0.0) -> Any:
         """An OPEN wire (a path) from ordered edge descriptors on ``plane``.
 

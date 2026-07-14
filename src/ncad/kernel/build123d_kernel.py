@@ -160,6 +160,19 @@ def _wrap_curved(solid: Any, face: Any, shape2d: Any, offset: Point2, rotation: 
     return result
 
 
+def _axis_to_wire(axis: Any) -> Any:
+    """A finite Wire from a datum axis ``((ox,oy,oz), (dx,dy,dz))`` (unit length 1 by dir).
+
+    A datum axis is infinite; sampling needs a finite span, so build a unit-length segment
+    from the axis point along its direction. The caller controls extent by the number of
+    samples * the pattern spacing, not by this segment's length.
+    """
+    (ox, oy, oz), (dx, dy, dz) = axis
+    start = Vector(ox, oy, oz)
+    end = Vector(ox + dx, oy + dy, oz + dz)
+    return Wire([Edge.make_line(start, end)])  # pyrefly: ignore[bad-argument-type]
+
+
 def _basis(plane: Any, offset: float) -> Any:
     """The build123d Plane to sketch on: a base-plane string (+ offset), or a datum Plane.
 
@@ -400,6 +413,19 @@ class Build123dKernel(Kernel):
             origin = planes[0].origin
             return ((origin.X, origin.Y, origin.Z), (direction.X, direction.Y, direction.Z))
         raise KernelOpError(f"unknown datum_axis method {method!r}")
+
+    def sample_curve(self, curve: Any, count: int) -> list:
+        # Uniformly sample a curve (a Wire/Edge or a datum axis) at count points, returning
+        # (point, unit-tangent) tuples. t in [0, 1]; count 1 samples the start. Used by the
+        # curve/path pattern to place instances along a rail.
+        wire = curve if hasattr(curve, "__matmul__") else _axis_to_wire(curve)
+        out: list = []
+        for i in range(count):
+            t = 0.0 if count <= 1 else i / (count - 1)
+            p = wire @ t
+            d = wire % t
+            out.append(((p.X, p.Y, p.Z), (d.X, d.Y, d.Z)))
+        return out
 
     def wire(self, edges: list, plane: Any, offset: float = 0.0) -> Any:
         basis = _basis(plane, offset)

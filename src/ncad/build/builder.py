@@ -43,6 +43,7 @@ _REF_FIELDS: dict[str, dict[str, str]] = {
     "sweep": {"profile": "input", "path": "shape", "sections": "shape_list",
               "guides": "shape_list"},
     "loft": {"sections": "shape_list", "guides": "shape_list"},
+    "pattern": {"path": "shape"},
     "rib": {"profile": "shape", "target": "shape", "profiles": "shape_list"},
     "shell": {"openings": "face_list"},
     "draft": {"faces": "face_list"},
