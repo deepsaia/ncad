@@ -15,6 +15,8 @@ class AttributeModel:
         "kind", "type", "created_by", "tag", "orientation",
         "normal_x", "normal_y", "normal_z", "area", "length",
         "min_z", "mid_z", "max_z",
+        # body attributes (a body Selector scope: select bodies where material/tag = ...).
+        "material",
     })
 
     def is_known(self, name: str) -> bool:

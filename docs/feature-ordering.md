@@ -208,6 +208,20 @@ thousands of thread edges and is slow/fragile).
   thread can segfault/hang on the thread crest edges.
 - **Seen in:** gate-2.10 `hex_bolt` (thread after the shank, dress-up before).
 
+### 12d. A body-Selector scope needs a prior multibody producer
+
+A `boolean` (or scoped op) whose `scope` is a `select bodies where ...` query resolves against
+the running BodySet, so a multibody producer (a keep-separate `pattern` / `mirror` / `split`)
+must run first. Body attributes queryable in scope today are the born-once id (as `tag`) and
+`created_by`; material-in-scope needs the builder's feature-to-material map (a follow-up).
+
+- **Why:** the query filters the running bodies; a single-body running shape has nothing to
+  select across.
+- **Failure mode:** a scope query on a single-body running shape is refused ("scope query
+  needs a multibody running shape").
+- **Seen in:** gate-3.7 `bimetal_bushing` / the scope-query build test (fuse pattern bodies by
+  created_by).
+
 ### 12c. A tool-body split needs the tool body built first
 
 A `split` with a `tool` reference (split-by-tool-body, vs a plane) partitions the running

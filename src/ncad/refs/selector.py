@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 _GRAMMAR = r"""
     start: "select" COLLECTION "where" predicate
-    COLLECTION: "edges" | "faces" | "vertices"
+    COLLECTION: "edges" | "faces" | "vertices" | "bodies"
     ?predicate: or_expr
     ?or_expr: and_expr ("or" and_expr)*      -> or_node
     ?and_expr: atom ("and" atom)*            -> and_node
@@ -35,7 +35,8 @@ _GRAMMAR = r"""
     %ignore WS
 """
 
-_COLLECTION_KIND = {"edges": "edge", "faces": "face", "vertices": "vertex"}
+_COLLECTION_KIND = {"edges": "edge", "faces": "face", "vertices": "vertex",
+                    "bodies": "body"}
 
 
 class Selector:
