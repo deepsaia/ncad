@@ -29,6 +29,20 @@ fuse other bodies onto it or `hole` pierces it.
   exception).
 - **Seen in:** gate-2.9 `mounting_bracket`.
 
+### 1b. A `primitive` is a no-input base body (a SOLID producer), like a sketch+extrude base
+
+A `primitive` (box/cylinder/sphere/cone/torus/wedge, bucket 1.9) takes no `shape_in`: it mints a
+base solid and becomes the running solid, exactly like an `import` or the first sketch+extrude. So a
+part may START from a primitive (no prior feature), and a later `boolean`/dress-up/`hole` targets it
+like any base body. It is NOT in `_NON_SOLID_OPS` (it produces a solid, so it is the running solid
+for the next op).
+
+- **Failure mode:** none specific to ordering; a primitive with a bad kind / missing dimension is an
+  id-attributed BuildIssue (it never silently produces nothing). Dress-up ordering (rule 1) applies:
+  fillet/shell the primitive while it is a clean prism, before fusing other bodies.
+- **Seen in:** gate-1.9 `finial` (a primitive cylinder base + primitive sphere cap, unioned with a
+  twisted-extrude shaft).
+
 ### 2. Fillet before draft
 
 If you both fillet the vertical corners and draft the side walls, fillet FIRST.
