@@ -103,6 +103,16 @@ class SlvsSolver(SketchSolver):
                 # circle radius; its center + major_axis_end points carry the rest of the DOF.
                 circle_dist[entity["id"]] = system.addDistanceV(
                     float(entity["minor_radius"]), group=_SKETCH_GROUP)
+            elif kind == "bezier" and len(entity.get("points", [])) == 4 \
+                    and not (entity.get("construction") or entity.get("fixed")):
+                # A 4-control-point bezier is a py-slvs cubic: it FLEXES in the solve (its interior
+                # control points move under constraints), unlike a pinned/point-defined spline, and
+                # it can be a tangent/smooth target against a line. Multi-point beziers and
+                # interpolated (fit-point) splines stay point-defined (their defining points carry
+                # the DOF and the analytic curve is derived downstream).
+                pts = [point_handles[pid] for pid in entity["points"]]
+                curve_handles[entity["id"]] = system.addCubic(
+                    workplane, pts[0], pts[1], pts[2], pts[3], group=_SKETCH_GROUP)
             # bezier/interpolated are NOT registered as solver curves: their defining
             # points (registered above) carry all DOF; the curve is derived downstream.
             # ellipse_arc/conic are the same: py-slvs has no such primitive, so their
@@ -270,6 +280,15 @@ class SlvsSolver(SketchSolver):
         elif ta in ("arc", "circle") and tb in ("arc", "circle"):
             system.addCurvesTangent(True, False, ctx.curves[a], ctx.curves[b],
                                     wrkpln=ctx.workplane, group=_SKETCH_GROUP)
+        elif "bezier" in (ta, tb) and "line" in (ta, tb):
+            cub_id, line_id = (a, b) if ta == "bezier" else (b, a)
+            if cub_id not in ctx.curves:
+                raise ConstraintError(
+                    f"tangent to bezier {cub_id!r} needs a 4-control-point (flexible cubic) "
+                    "bezier; multi-point/fit-point splines have no tangent handle")
+            at_end = _touches_cubic_end(ctx.entities[cub_id], ctx.entities[line_id])
+            system.addCubicLineTangent(at_end, ctx.curves[cub_id], ctx.curves[line_id],
+                                       wrkpln=ctx.workplane, group=_SKETCH_GROUP)
         else:
             raise ConstraintError(f"tangent needs arc+line or two curves, got {ta}+{tb}")
 
@@ -374,6 +393,12 @@ class SlvsSolver(SketchSolver):
         elif ta in ("arc", "circle") and tb in ("arc", "circle"):
             system.addCurvesTangent(True, False, ctx.curves[a], ctx.curves[b],
                                     wrkpln=ctx.workplane, group=_SKETCH_GROUP)
+        elif "bezier" in (ta, tb) and "line" in (ta, tb):
+            # A 4-point flexible cubic (it passed the solver-curve guard above) tangent to a line.
+            cub_id, line_id = (a, b) if ta == "bezier" else (b, a)
+            at_end = _touches_cubic_end(ctx.entities[cub_id], ctx.entities[line_id])
+            system.addCubicLineTangent(at_end, ctx.curves[cub_id], ctx.curves[line_id],
+                                       wrkpln=ctx.workplane, group=_SKETCH_GROUP)
         else:
             raise ConstraintError(f"smooth (g1) needs arc/line/circle curves, got {ta}+{tb}")
 
@@ -462,6 +487,11 @@ def _defining_points(entity: dict) -> list[str]:
 def _touches_arc_end(arc: dict, line: dict) -> bool:
     """Whether the line meets the arc at the arc's end point (else its start)."""
     return arc["end"] in (line.get("p1"), line.get("p2"))
+
+
+def _touches_cubic_end(bezier: dict, line: dict) -> bool:
+    """Whether the line meets the cubic at its LAST control point (else its first)."""
+    return bezier["points"][-1] in (line.get("p1"), line.get("p2"))
 
 
 def _two_lines_of(constraint: dict, name: str) -> tuple[str, str]:

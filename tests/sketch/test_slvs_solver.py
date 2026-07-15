@@ -486,6 +486,55 @@ def test_symmetric_h_wrong_ref_count_is_error():
     assert r.status == "inconsistent"
 
 
+def test_four_point_bezier_registers_as_flexible_cubic():
+    # A free 4-point cubic: the two interior control points are unpinned, so DOF > 0 and it solves.
+    ents = [
+        {"id": "p0", "type": "point", "at": [0, 0]},
+        {"id": "p1", "type": "point", "at": [3, 5]},
+        {"id": "p2", "type": "point", "at": [7, 5]},
+        {"id": "p3", "type": "point", "at": [10, 0]},
+        {"id": "cub", "type": "bezier", "points": ["p0", "p1", "p2", "p3"]},
+    ]
+    cons = [{"type": "fix", "of": "p0"}]
+    r = SlvsSolver().solve(ents, cons, "sk")
+    assert r.status in ("well_constrained", "under_constrained")
+    assert not any(i.level == "error" for i in r.issues)
+    assert r.dof > 0  # interior control points are free (a flexible spline)
+
+
+def test_cubic_tangent_to_line_removes_a_dof():
+    # A 4-point cubic whose end joins a line; tangent-to-line couples them (removes a DOF vs free).
+    ents = [
+        {"id": "p0", "type": "point", "at": [0, 0]},
+        {"id": "p1", "type": "point", "at": [3, 5]},
+        {"id": "p2", "type": "point", "at": [7, 5]},
+        {"id": "p3", "type": "point", "at": [10, 0]},
+        {"id": "q", "type": "point", "at": [15, 0]},
+        {"id": "cub", "type": "bezier", "points": ["p0", "p1", "p2", "p3"]},
+        {"id": "ln", "type": "line", "p1": "p3", "p2": "q"},
+    ]
+    base = [{"type": "fix", "of": "p0"}, {"type": "fix", "of": "p3"}, {"type": "fix", "of": "q"}]
+    free = SlvsSolver().solve(ents, base, "sk")
+    tangent = SlvsSolver().solve(ents, base + [{"type": "tangent", "of": ["cub", "ln"]}], "sk")
+    assert tangent.status in ("well_constrained", "under_constrained")
+    assert not any(i.level == "error" for i in tangent.issues)
+    assert tangent.dof < free.dof
+
+
+def test_tangent_to_non_cubic_bezier_is_error():
+    # A 3-point bezier is NOT a solver cubic (only 4-point registers); tangent to it is refused.
+    ents = [
+        {"id": "p0", "type": "point", "at": [0, 0]},
+        {"id": "p1", "type": "point", "at": [5, 5]},
+        {"id": "p2", "type": "point", "at": [10, 0]},
+        {"id": "q", "type": "point", "at": [15, 0]},
+        {"id": "bz", "type": "bezier", "points": ["p0", "p1", "p2"]},
+        {"id": "ln", "type": "line", "p1": "p2", "p2": "q"},
+    ]
+    r = SlvsSolver().solve(ents, [{"type": "tangent", "of": ["bz", "ln"]}], "sk")
+    assert r.status == "inconsistent"
+
+
 def test_well_constrained_has_no_failing_ids():
     entities = [
         {"id": "p0", "type": "point", "at": [0.0, 0.0]},
