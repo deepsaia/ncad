@@ -90,7 +90,8 @@ build+render+total timing split (plus a real axes_coincident solver fix + a per-
 bucket 5.6 (interference + BOM + AP242 + capstone) is DONE, CLOSING PHASE 5 - exact OCCT
 interference (distance + boolean-volume arbiter), assembly BOM + roll-up mass, structured STEP AP242
 (XCAF/XDE), viewer surfacing, and the gate-5.6 capstone (revolute-mated bracket+lever, STEP round-
-trip). **PHASE 5 IS COMPLETE.** NEXT: Phase 6 (motion) or 5.5b (exploded views). Per-phase deferred
+trip). **PHASE 5 IS COMPLETE.** NEXT: Phase 6 (motion). Exploded views are moved out of Phase 5 to
+a later presentation phase (after the domain profiles). Per-phase deferred
 items are gathered in the deferred-backlog sections below each phase's bucket list, so nothing is lost.
 
 v1 proved the *pattern*: `spec >> build >> BOM >> view`, determinism, build123d/OCCT,
@@ -856,7 +857,9 @@ sub-assembly, four component-patterned bolts, a tangent stop, an edge-derived co
 part + assembly schemas and every example, a rectangle `at`-offset in the elements sketch path
 (consistent with circle/text), and a solver fix to preserve the authored pose of instances that do
 not participate in a mate/joint (so a patterned/rotated instance keeps its rotation). **Phase 5 is
-COMPLETE.** NEXT: Phase 6 (motion) or 5.5b (exploded views).
+COMPLETE.** NEXT: Phase 6 (motion). Exploded views are moved out of Phase 5 to a later presentation
+phase (after the domain profiles); they are a documentation/presentation artifact, not an
+assembly-modeling gap.
 
 - [x] **Instances & structure:** components, sub-assemblies,
       replace/pattern/mirror component
@@ -886,7 +889,9 @@ COMPLETE.** NEXT: Phase 6 (motion) or 5.5b (exploded views).
       mesh/Manifold path deferred to Phase 6/12)
 - [x] **Assembly BOM** across instances + roll-up mass properties; balloons later
       (Phase 7) (5.6: part-grouped line items + qty + roll-up mass/world-COG via solved placements)
-- [ ] **Exploded views** (definition; rendered in viewer) (deferred to 5.5b)
+- [ ] **Exploded views** (definition; rendered in viewer) (MOVED out of Phase 5 to a later
+      presentation phase, after the domain profiles; a documentation artifact, not an
+      assembly-modeling gap)
 
 **Gate: MET (5.6 capstone).** A two-part revolute-mated assembly (bracket + lever, gate-5.6) exports
 as structured STEP AP242 (round-trips as a 2-component assembly tree; opens in FreeCAD = documented
@@ -972,8 +977,8 @@ is COMPLETE.**
   fixed via the poly gizmo; (2) instance-origin vs connector-frame overlap CONFIRMED correct/expected
   (they coincide in position; the "diagonally opposite" look is the connector's face-derived
   orientation vs world axes, not a bug) - left co-located, not artificially offset. **5.5 follow-ups
-  (deferred):** exploded views -> **5.5b**; browser-side assemble already shipped in 5.0; per-row
-  eye-icon visibility a possible later add.
+  (deferred):** exploded views -> a later presentation phase (after the domain profiles);
+  browser-side assemble already shipped in 5.0; per-row eye-icon visibility a possible later add.
 - **Profiling / observability (future, near Phase 12):** the 5.5 build+render timing split is a
   starting point. A fuller version = OpenTelemetry spans across generate>>build>>solve>>tessellate>>
   export + a profiling dashboard. Deferred until we know which spans matter (needs a
@@ -986,9 +991,12 @@ is COMPLETE.**
 - **Kernel cold-start warmup (found in 5.5):** the first build/assemble in a fresh `ncad view`
   process takes ~11s (one-time OCP/build123d import + kernel + py-slvs warmup); subsequent builds are
   near-instant. Optionally warm the kernel at server startup so the user's first real build is warm.
-- **Exploded views (5.5b):** an exploded-view definition (per-instance offset along an axis, in the
-  sidecar or an auto-explode) rendered with a slider. Split from 5.5 because it carries a real
-  data-model + Python side (its own spec); the 5.5 viewer interaction work is its foundation.
+- **Exploded views (MOVED to a later presentation phase, after the domain profiles):** an
+  exploded-view definition (per-instance offset along an axis, in the sidecar or an auto-explode)
+  rendered with a slider. It is a documentation/presentation artifact (a sibling of drafting views,
+  Phase 7, and PMI, Phase 8), NOT an assembly-modeling gap, so it does not belong in the Phase 5
+  completeness scope. Carries a real data-model + Python side (its own spec); the 5.5 viewer
+  interaction work is its foundation.
 - **Interference/clearance + BOM + STEP (5.6): DONE.** Exact OCCT pairwise interference
   (`BRepExtrema_DistShapeShape` + boolean-common-volume arbiter -> interfering/touching/clearance),
   assembly BOM + roll-up mass/world-COG across instances, structured STEP AP242 (XCAF/XDE,
