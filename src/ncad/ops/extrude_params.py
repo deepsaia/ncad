@@ -38,6 +38,18 @@ def extrude_kwargs(params: dict, refs: dict) -> dict:
         raise ExtrudeParamError(
             "extrude 'second_distance' requires end = two_side")
     kwargs: dict = {"draft": float(params.get("draft", 0.0))}
+    # A twist rotates the profile about the extrude axis over the full distance (NX/Creo "extrude
+    # with twist"). It needs a finite length (not until/to_face) and cannot combine with draft
+    # (build123d's twisted extrude has no taper).
+    twist = float(params.get("twist", 0.0))
+    if twist != 0.0:
+        if end in _UNTIL or end in ("to_face", "to_surface"):
+            raise ExtrudeParamError(
+                "extrude 'twist' needs a finite length (not until/to_face/to_surface)")
+        if float(params.get("draft", 0.0)) != 0.0:
+            raise ExtrudeParamError(
+                "extrude 'twist' and 'draft' cannot combine (one or the other)")
+    kwargs["twist"] = twist
     if "thin" in params:
         kwargs["thin"] = float(params["thin"])
     if end in ("blind", "symmetric", "two_side"):

@@ -384,6 +384,20 @@ five buckets; the phase gate is the 1.5 gate.
 > is orientation-invariant = CAM stock size; closest_points / gyradius self-consistent);
 > intentionally no new `.hocon` (a kernel query, not a feature).
 
+> **Bucket 1.9 (base primitives + twisted extrude + max-fillet) - DONE.** The third
+> library-capability-audit near-term pick (Section B, dress-up / base-feature completeness). Built:
+> a **`primitive`** base-body op (box/cylinder/sphere/cone/torus/wedge, a no-sketch SOLID producer
+> that can start a part or be booleaned; `d`/`r` + `plane`/`at`/`plane_offset` for 3D placement),
+> **twisted extrude** (a `twist` angle on `extrude`, routing to
+> `Solid.extrude_linear_with_rotation`; refuses twist+until/target and twist+draft), and
+> **`max_fillet`** (a kernel query for the largest feasible fillet radius, a validator/hint).
+> **DROPPED (called out, never faked):** the 3D full-round fillet ("Full Round Blend") - build123d
+> `full_round` is a 2D SKETCH op, OCCT `BRepFilletAPI` is edge-fillet only, so a true
+> full-round-blend needs a commercial kernel. **CALLED OUT redundant:** `extrude_taper` (the
+> existing `draft=` already does draft-on-extrude). **Already shipped:** 2D sketch fillet/chamfer as
+> `modify: fillet`/`chamfer` ops. Gate: `examples/gate-1.9/finial.hocon` (a turned finial: primitive
+> cylinder base + twisted square shaft + primitive sphere cap + base fillet, one clean solid).
+
 ---
 
 ## Phase 2: Core solid features (sketched + dress-up)

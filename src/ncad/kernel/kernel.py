@@ -34,14 +34,28 @@ class Kernel(ABC):
     def extrude(self, face: Any, distance: float | None = None, *,
                 symmetric: bool = False, second_distance: float | None = None,
                 draft: float = 0.0, thin: float | None = None,
-                until: str | None = None, target: Any = None) -> Any:
+                until: str | None = None, target: Any = None, twist: float = 0.0) -> Any:
         """Extrude ``face`` into a solid.
 
         ``distance`` blind along the normal; ``symmetric`` centers that total distance on
         the face plane; ``second_distance`` adds a second extrude the other way (fused);
         ``draft`` tapers the walls (degrees); ``thin`` makes a wall of that thickness;
         ``until``/``target`` extrude up to a boundary (``"last"`` = through everything,
-        ``"next"`` = to the next face, or a resolved ``target`` face/solid).
+        ``"next"`` = to the next face, or a resolved ``target`` face/solid);
+        ``twist`` rotates the profile about the extrude axis over the full distance (degrees;
+        requires a finite ``distance``, not compatible with ``until``/``target``/``draft``).
+        """
+
+    @abstractmethod
+    def make_primitive(self, kind: str, dims: dict, plane: str, at: Point2,
+                       plane_offset: float = 0.0) -> Any:
+        """A primitive base solid: ``kind`` in {box, cylinder, sphere, cone, torus, wedge}.
+
+        ``dims`` carries resolved numeric dimensions (box: w/d/h; cylinder: radius/h; sphere:
+        radius; cone: bottom_radius/top_radius/h; torus: major_radius/minor_radius; wedge:
+        dx/dy/dz). ``plane`` is the base plane ("XY"/"XZ"/"YZ"), ``at`` the 2D origin offset on it,
+        and ``plane_offset`` shifts that plane along its normal (elevation). A no-sketch base body
+        (a part may start from a primitive).
         """
 
     @abstractmethod
@@ -246,6 +260,13 @@ class Kernel(ABC):
 
         Note: a true two-face-set face fillet (rolling a ball tangent to two non-adjacent face
         sets) is not native to OCCT; this rounds the faces' bounding edges.
+        """
+
+    @abstractmethod
+    def max_fillet(self, solid: Any, edges: list) -> float:
+        """The largest feasible fillet radius for ``edges`` of ``solid`` (a validator/hint).
+
+        A fillet at this radius builds; a materially larger one fails. Query-only (no feature).
         """
 
     @abstractmethod

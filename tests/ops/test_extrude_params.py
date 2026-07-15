@@ -4,7 +4,22 @@ from ncad.ops.extrude_params import ExtrudeParamError, extrude_kwargs
 
 
 def test_blind_default():
-    assert extrude_kwargs({"distance": 8}, {}) == {"distance": 8.0, "draft": 0.0}
+    assert extrude_kwargs({"distance": 8}, {}) == {"distance": 8.0, "draft": 0.0, "twist": 0.0}
+
+
+def test_twist_passes_through():
+    kw = extrude_kwargs({"end": "blind", "distance": 40, "twist": 90}, {})
+    assert kw["twist"] == 90.0
+
+
+def test_twist_with_until_raises():
+    with pytest.raises(ExtrudeParamError):
+        extrude_kwargs({"end": "through_all", "twist": 90}, {})
+
+
+def test_twist_with_draft_raises():
+    with pytest.raises(ExtrudeParamError):
+        extrude_kwargs({"end": "blind", "distance": 40, "twist": 90, "draft": 3}, {})
 
 
 def test_symmetric():

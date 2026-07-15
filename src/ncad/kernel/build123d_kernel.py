@@ -216,8 +216,21 @@ class Build123dKernel(Kernel):
     def extrude(self, face: Any, distance: float | None = None, *,
                 symmetric: bool = False, second_distance: float | None = None,
                 draft: float = 0.0, thin: float | None = None,
-                until: str | None = None, target: Any = None) -> Any:
+                until: str | None = None, target: Any = None, twist: float = 0.0) -> Any:
         to_extrude = _thin_ring(face, thin) if thin is not None else face
+        if twist != 0.0:
+            # A twisted prism: the profile rotates `twist` degrees about the extrude axis over the
+            # full distance (NX/Creo "extrude with twist"). Needs a finite length; no until/target
+            # boundary and no draft (build123d's twisted extrude carries no taper).
+            if until is not None or target is not None:
+                raise KernelOpError("twisted extrude needs a finite distance (no until/target)")
+            if distance is None:
+                raise KernelOpError("twisted extrude needs a distance")
+            if draft != 0.0:
+                raise KernelOpError("twisted extrude cannot combine with draft")
+            normal = to_extrude.normal_at() * float(distance)
+            return Solid.extrude_linear_with_rotation(
+                to_extrude, center=to_extrude.center(), normal=normal, angle=twist)
         if until is not None or target is not None:
             until_token = _UNTIL_TOKENS.get(until) if until is not None else None
             return extrude(to_extrude, until=until_token, target=target, taper=draft)
@@ -512,6 +525,29 @@ class Build123dKernel(Kernel):
         base = Plane(origin=Vector(*center), z_dir=_AXES[axis].direction)
         return Solid.make_cone(bottom_diameter / 2.0, top_diameter / 2.0, length, base)
 
+    def make_primitive(self, kind: str, dims: dict, plane: str, at: Point2,
+                       plane_offset: float = 0.0) -> Any:
+        # A primitive base body on the sketch plane (shifted by plane_offset along its normal) at
+        # the `at` origin (build123d Solid.make_*).
+        base = _basis(plane, plane_offset)
+        origin = base.from_local_coords(Vector(float(at[0]), float(at[1]), 0.0))
+        located = Plane(origin=origin, x_dir=base.x_dir,  # pyrefly: ignore[no-matching-overload]
+                        z_dir=base.z_dir)
+        if kind == "box":
+            return Solid.make_box(dims["w"], dims["d"], dims["h"], located)
+        if kind == "cylinder":
+            return Solid.make_cylinder(dims["radius"], dims["h"], located)
+        if kind == "sphere":
+            return Solid.make_sphere(dims["radius"], located)
+        if kind == "cone":
+            return Solid.make_cone(dims["bottom_radius"], dims["top_radius"], dims["h"], located)
+        if kind == "torus":
+            return Solid.make_torus(dims["major_radius"], dims["minor_radius"], located)
+        if kind == "wedge":
+            dx, dy, dz = dims["dx"], dims["dy"], dims["dz"]
+            return Solid.make_wedge(dx, dy, dz, 0.0, 0.0, dx, dz, located)
+        raise KernelOpError(f"unknown primitive kind {kind!r}")
+
     def cut(self, solid: Any, tools: list) -> Any:
         return self._robust(self._do_cut, solid, tools, name="cut")
 
@@ -523,6 +559,13 @@ class Build123dKernel(Kernel):
 
     def fillet_edges(self, solid: Any, edges: list, radius: float) -> Any:
         return self._robust(self._do_fillet, solid, edges, radius, name="fillet")
+
+    def max_fillet(self, solid: Any, edges: list) -> float:
+        """The largest feasible fillet radius for ``edges`` via build123d Solid.max_fillet."""
+        try:
+            return float(_b3d(solid).max_fillet(edges, tolerance=0.1, max_iterations=10))
+        except Exception as exc:  # noqa: BLE001 - OCCT raises broadly; wrap with context
+            raise KernelOpError(f"max_fillet failed: {exc}") from exc
 
     def fillet_variable(self, solid: Any, edges: list, radius_start: float,
                         radius_end: float) -> Any:

@@ -27,6 +27,7 @@ from ncad.ops.move_face_op import MoveFaceOp
 from ncad.ops.offset_face_op import OffsetFaceOp
 from ncad.ops.pattern_op import PatternOp
 from ncad.ops.pocket_op import PocketOp
+from ncad.ops.primitive_op import PrimitiveOp
 from ncad.ops.relational_edit_op import RelationalEditOp
 from ncad.ops.reposition_hole_op import RepositionHoleOp
 from ncad.ops.revolve_op import RevolveOp
@@ -65,6 +66,7 @@ class OpRegistry:
         registry.register("sketch", SketchOp().build)
         registry.register("extrude", ExtrudeOp().build)
         registry.register("pocket", PocketOp().build)
+        registry.register("primitive", PrimitiveOp().build)
         registry.register("hole", HoleOp().build)
         registry.register("import", ImportOp().build)
         registry.register("defeature", DefeatureOp().build)

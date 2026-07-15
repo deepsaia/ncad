@@ -35,21 +35,26 @@ deferred. (`point-on-circle` is already covered by the existing `point_on` const
 
 ---
 
-## B. Direct / dress-up ops (build123d + OCP) - BUILDABLE, verified
+## B. Direct / dress-up ops - mostly SHIPPED (bucket 1.9)
 
-| Capability | build123d call (spiked OK) | NX/Creo/Fusion analogue | ncad phase |
+Bucket 1.9 shipped the buildable Section-B items: **twisted extrude** (a `twist` on `extrude`),
+**`max_fillet`** (largest-feasible-radius validator), and **primitive base bodies** (a `primitive`
+op: box/cylinder/sphere/cone/torus/wedge). 2D sketch fillet/chamfer already shipped as sketch
+`modify` ops. What REMAINS:
+
+| Capability | build123d call | NX/Creo/Fusion analogue | disposition |
 |---|---|---|---|
-| **Twisted / helical extrude** | `Solid.extrude_linear_with_rotation` (twist 45deg -> vol OK) | NX/Creo "extrude with twist"; Fusion coil-ish | Phase 2 follow-up |
-| **Tapered extrude (native)** | `Solid.extrude_taper` | draft-on-extrude (have via `draft=` kwarg; native taper is cleaner) | Phase 2 (partly have) |
-| **full-round fillet** (replace a face with a tangent round) | `full_round` (sig verified) | NX/Creo "Full Round Blend"; Fusion full-round fillet | Phase 2 dress-up follow-up |
-| **max feasible fillet** (largest radius that builds) | `Solid.max_fillet` (box -> 9.95) | interactive "max radius" hint | Phase 2 helper / validator |
-| **2D fillet/chamfer on a sketch wire** | `Wire.fillet_2d` / `chamfer_2d` (rect -> 8 edges) | sketch fillet (all sketchers) | Phase 1 follow-up |
-| **dprism (draft-prism pocket/pad)** | `Solid.dprism` | Creo "Sketched draft prism" | Phase 2 follow-up |
-| **primitives: sphere / torus / wedge** | `Solid.make_sphere/torus/wedge` (vols OK) | primitive bodies (all) | Phase 2/9 follow-up |
+| **3D full-round fillet** ("Full Round Blend") | none (see below) | NX/Creo "Full Round Blend"; Fusion full-round fillet | DROPPED - not buildable on this stack |
+| **tapered extrude (native)** | `Solid.extrude_taper` | draft-on-extrude | REDUNDANT - `extrude` already has `draft=` |
+| **dprism (draft-prism pocket/pad)** | `Solid.dprism` | Creo "Sketched draft prism" | niche, deferred |
 
-**NX/Creo/Fusion parity note:** `full_round` and twisted extrude are named features in all three;
-they are one op-module each over a working call. `max_fillet` is the "why did my fillet fail"
-oracle turned into a positive hint (a nice validator upgrade for Phase 4's envelope work).
+**Full-round-3D drop rationale:** build123d's `full_round` is a 2D SKETCH operation (it rounds a
+profile end with a Voronoi-largest-circle arc and returns a Sketch), NOT the 3D "Full Round Blend"
+(a variable ball rolling tangent between two side faces, consuming the middle face). OCCT's
+`BRepFilletAPI` is edge-fillet only; there is no native full-round-blend, and synthesizing one
+(remove the middle face + loft a tangent surface) is fragile/segfault-prone. A true full-round-blend
+needs a commercial kernel or a from-scratch surface construction. Called out, not faked; revisit if
+the kernel gains it.
 
 ---
 
@@ -110,19 +115,20 @@ Those rows are removed. What REMAINS:
 
 ## Recommended near-term picks (highest parity-per-effort)
 
-These are the ones to schedule next, because each is a thin, well-bounded op over a verified call
-and each is a named feature in NX/Creo/Fusion. (SHIPPED and removed: pick 1 sketch-constraint
-completeness = bucket 1.7; the Measure mini-bucket = bucket 1.8.)
+The cheap, thin, one-op-each near-term picks are now SHIPPED: pick 1 sketch-constraint completeness
+= bucket 1.7; the Measure mini-bucket = bucket 1.8; dress-up + base primitives (B) = bucket 1.9
+(twisted extrude, max_fillet, `primitive` op; full-round-3D dropped, taper redundant). What remains
+is phase-sized, not a thin near-term pick:
 
-1. **Dress-up completeness (B) - NEXT.** full-round fillet (`full_round`), twisted extrude
-   (`Solid.extrude_linear_with_rotation`), native tapered extrude (`Solid.extrude_taper`), and
-   `max_fillet` as a validator hint. Named Phase-2 dress-up features, one op-module each over a
-   verified build123d call. 2D sketch fillet/chamfer (`Wire.fillet_2d`/`chamfer_2d`) can ride
-   along (Phase 1). `dprism` + primitives (sphere/torus/wedge) optional add-ons.
+- **Surfacing (C) -> Phase 9** (`Face.make_surface`/`make_bezier_surface`/`thicken`/`sew`).
+- **Drafting via HLR (D) -> Phase 7** (`Shape.project_to_viewport`; SVG import).
+- **Solver-flexible multi-segment / fit-point splines (A) -> deferred** (`addCubic` chaining).
+- **Sheet-metal brake-forming -> Phase 11** (`make_brake_formed`).
+- **Curve utilities (F) -> Phase 1/3/9 helpers** (`distribute_locations`, `trim`, curvature).
+- **`dprism` (B)** niche, deferred; **`do_children_intersect` (E)** -> Phase 5 interference follow-up.
 
-Larger, phase-sized (record only): surfacing (C -> Phase 9), drafting via HLR (D -> Phase 7),
-solver-flexible multi-segment splines (A -> deferred), sheet-metal brake-forming
-(`make_brake_formed` -> Phase 11), curve utilities (F -> Phase 1/3/9 helpers).
+The audit is now essentially drained of cheap wins; the next substantial capability work is a
+phase-sized subsystem (surfacing / drafting), scheduled with its own brainstorm when picked up.
 
 ---
 

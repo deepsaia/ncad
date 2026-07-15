@@ -55,3 +55,21 @@ def test_inertia_gyradius_matches_box_analytic():
                        math.sqrt((a * a + b * b) / 12.0)])
     assert all(math.isclose(g, x, rel_tol=1e-3)
                for g, x in zip(sorted(inertia["gyradius"]), analytic))
+
+
+def test_max_fillet_returns_a_feasible_radius():
+    import pytest as _pytest
+    from build123d import Solid
+
+    from ncad.kernel.build123d_kernel import Build123dKernel
+    from ncad.kernel.kernel_op_error import KernelOpError
+
+    kernel = Build123dKernel()
+    box = Solid.make_box(20, 20, 20)
+    edges = box.edges()
+    r = kernel.max_fillet(box, edges)
+    assert 9.0 < r < 10.0  # about half the 20 dimension
+    # A fillet AT the returned radius builds; well above it fails (the validator's contract).
+    assert kernel.fillet_edges(box, edges, r * 0.98) is not None
+    with _pytest.raises((KernelOpError, Exception)):
+        kernel.fillet_edges(box, edges, r * 1.5)
