@@ -68,7 +68,11 @@ class SketchOp:
         # A primitive element sketch has no solver: it is trivially well-constrained.
         well = SketchStatus(feature_id, "well", 0)
         if kind == "rectangle":
-            points = self._rectangle_points(element["w"], element["h"])
+            # A rectangle may be authored off-origin via `at` (its center), like circle/text;
+            # default to the origin.
+            at = element.get("at", (0.0, 0.0))
+            points = self._rectangle_points(element["w"], element["h"],
+                                            (float(at[0]), float(at[1])))
             return OpResult(shape=kernel.polygon_face(points, plane, offset=offset),
                             provenance={}, issues=[], status_report=well)
         if kind == "circle":
@@ -181,10 +185,13 @@ class SketchOp:
         return OpResult(shape=face, provenance={}, issues=issues, status_report=status)
 
     @staticmethod
-    def _rectangle_points(width: float, height: float) -> list[Point2]:
-        """Corner ring of a ``width`` x ``height`` rectangle centred on the origin."""
+    def _rectangle_points(width: float, height: float,
+                          at: Point2 = (0.0, 0.0)) -> list[Point2]:
+        """Corner ring of a ``width`` x ``height`` rectangle centred on ``at`` (default origin)."""
         half_w, half_h = width / 2.0, height / 2.0
-        return [(-half_w, -half_h), (half_w, -half_h), (half_w, half_h), (-half_w, half_h)]
+        cx, cy = at
+        return [(cx - half_w, cy - half_h), (cx + half_w, cy - half_h),
+                (cx + half_w, cy + half_h), (cx - half_w, cy + half_h)]
 
     @staticmethod
     def _polygon_points(element: dict) -> list[Point2]:

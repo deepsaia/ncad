@@ -1,0 +1,32 @@
+schema_version = 1
+units = mm
+# Bucket 5.7 CAPSTONE: a plate-mount swivel caster, laid out clash-free in a shared world frame
+# (the parts are authored in-place, so explicit placements seat them without overlap). It
+# exercises every 5.7 feature on one real, recognizable product:
+#   - a NESTED SUB-ASSEMBLY: the wheel+axle sub-assembly (wheel_axle.asm.hocon) dropped to the fork
+#     axle height (z = -28) and composed as one rigid body (swivel/axle, swivel/wheel).
+#   - COMPONENT PATTERN: four mounting bolts arrayed on the plate bolt circle (bolt/0..bolt/3),
+#     each passing through a clearance hole in the plate.
+#   - a TANGENT mate: the swivel stop's face seats tangent to the fork post (a cylinder connector).
+#   - an EDGE-derived connector: the plate mountEdge (a top-face edge) is a named frame.
+# The plate is grounded; the fork straddles the wheel as a U-yoke; nothing interferes.
+metadata {
+  description = "Swivel caster: sub-assembly wheel, patterned bolts, tangent stop, edge connector"
+  tags = [ caster, assembly, capstone ]
+}
+assembly {
+  instances = [
+    { id = plate, file = "caster.hocon", part = top_plate, lock = true }
+    { id = fork, file = "caster.hocon", part = fork, lock = true,
+      placement = { position = [ 0, 0, 0 ] } }
+    { id = swivel, assembly = "wheel_axle.asm.hocon", placement = { position = [ 0, 0, -28 ] } }
+    { id = bolt, file = "caster.hocon", part = bolt,
+      pattern = { kind = circular, count = 4, axis = { point = [ 0, 0, 0 ], dir = [ 0, 0, 1 ] } } }
+    { id = stop, file = "caster.hocon", part = stop, placement = { position = [ 0, 0, 0 ] } }
+  ]
+  constraints = [
+    { id = seatStop, type = tangent, between = [
+      { instance = stop, connector = face },
+      { instance = fork, connector = post } ] }
+  ]
+}

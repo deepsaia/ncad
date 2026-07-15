@@ -279,11 +279,17 @@ class AssemblyBuilder:
                                "signature": [a.to_dict() for a in signature], "ok": True})
         ground_ids = self._ground_ids(document, constraints, instances)
         outcome = self._solver.solve(local_frames, primitives, ground_ids, placements_mm)
-        # Overwrite each solved instance's placement + world connector frames (baked to metres).
+        # Instances that actually PARTICIPATE in a primitive (referenced by a mate/joint) take the
+        # solved pose; untouched instances keep their authored placement. The solver seeds rotation
+        # as identity (a 5.3+ refinement), so overwriting a non-participating instance would drop an
+        # authored rotation (e.g. a component-patterned bolt); guarding on participation preserves
+        # it. Grounded instances also keep their authored placement (they never move).
+        participants = {ref["instance"] for p in primitives
+                        for ref in (p.get("a_ref"), p.get("b_ref")) if ref} - set(ground_ids)
         by_id = {inst["id"]: inst for inst in instances}
         for iid, matrix_mm in outcome.placements.items():
             inst = by_id.get(iid)
-            if inst is None:
+            if inst is None or iid not in participants:
                 continue
             inst["placement"] = _bake_matrix(matrix_mm, to_metres)
             inst["connectors"] = [_bake_frame(cid, _world_frame(frame, matrix_mm), to_metres)
