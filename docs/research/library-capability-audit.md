@@ -84,18 +84,15 @@ would also give Phase 1 a "trace a logo/outline into a sketch" path (Fusion "Ins
 
 ---
 
-## E. Measurement / analysis (build123d Shape) - BUILDABLE, verified, cross-cutting
+## E. Measurement / analysis (build123d Shape) - mostly SHIPPED (bucket 1.8)
+
+Bucket 1.8 shipped the Measure kernel surface: `oriented_bounding_box`, `closest_points`, and
+radius of gyration folded into `inertia` (plus scalar min-distance `distance`, already in 5.6).
+Those rows are removed. What REMAINS:
 
 | Capability | build123d call (spiked OK) | NX/Creo/Fusion analogue | ncad phase |
 |---|---|---|---|
-| **Oriented (minimum) bounding box** | `Shape.oriented_bounding_box` -> OBB | "Measure > bounding box (min)"; stock/blank sizing | Phase 4/9 helper; Phase 15 CAM stock |
-| **Closest points / min distance between shapes** | `Shape.closest_points`, `distance_to` | "Measure > distance between" | assembly/measure helper |
-| **Radius of gyration / richer mass props** | `Shape.radius_of_gyration`, `compute_mass` | inertia report (have MatrixOfInertia; this adds gyradius) | Phase 3/9 mass follow-up |
-| **do_children_intersect** (fast self-clash) | `Compound.do_children_intersect` | interference quick-check | Phase 5 interference follow-up |
-
-**NX/Creo/Fusion parity note:** these feed a first-class **Measure** capability (a tool every
-reference package has) and give CAM (Phase 15) its stock/blank from the oriented bbox. Cheap, high
-utility, cross-cutting - a good "measurements" mini-bucket.
+| **do_children_intersect** (fast self-clash) | `Compound.do_children_intersect` | interference quick-check | MOVED to the Phase 5 interference follow-up (overlaps InterferenceChecker) |
 
 ---
 
@@ -114,19 +111,18 @@ utility, cross-cutting - a good "measurements" mini-bucket.
 ## Recommended near-term picks (highest parity-per-effort)
 
 These are the ones to schedule next, because each is a thin, well-bounded op over a verified call
-and each is a named feature in NX/Creo/Fusion. (Pick 1, sketch-constraint completeness, SHIPPED as
-bucket 1.7 and is removed from this list.)
+and each is a named feature in NX/Creo/Fusion. (SHIPPED and removed: pick 1 sketch-constraint
+completeness = bucket 1.7; the Measure mini-bucket = bucket 1.8.)
 
-1. **Measure mini-bucket (E)** - oriented bbox, min-distance-between, closest points, gyradius.
-   Cross-cutting; also unlocks CAM stock later. **Next up.**
-2. **full-round fillet + twisted extrude + native taper (B)** - three named dress-up features,
-   one op-module each. Phase 2 completeness.
-3. **`max_fillet` as a validator hint (B/E)** - turns fillet failures into a positive max-radius
-   suggestion; folds into the Phase 4 direct-edit envelope work.
+1. **Dress-up completeness (B) - NEXT.** full-round fillet (`full_round`), twisted extrude
+   (`Solid.extrude_linear_with_rotation`), native tapered extrude (`Solid.extrude_taper`), and
+   `max_fillet` as a validator hint. Named Phase-2 dress-up features, one op-module each over a
+   verified build123d call. 2D sketch fillet/chamfer (`Wire.fillet_2d`/`chamfer_2d`) can ride
+   along (Phase 1). `dprism` + primitives (sphere/torus/wedge) optional add-ons.
 
 Larger, phase-sized (record only): surfacing (C -> Phase 9), drafting via HLR (D -> Phase 7),
 solver-flexible multi-segment splines (A -> deferred), sheet-metal brake-forming
-(`make_brake_formed` -> Phase 11).
+(`make_brake_formed` -> Phase 11), curve utilities (F -> Phase 1/3/9 helpers).
 
 ---
 
