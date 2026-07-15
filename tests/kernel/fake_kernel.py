@@ -675,10 +675,18 @@ class FakeKernel(Kernel):
     def inertia(self, solid: Any) -> dict:
         # Fake model: a diagonal tensor proportional to volume (no true second moments; the
         # real kernel computes the OCCT tensor). Deterministic, symmetric, positive-diagonal.
+        # gyradius approximates the uniform-box CENTROIDAL radius of gyration from the bbox
+        # extents (the real kernel measures about the WORLD axes, so it is placement-dependent;
+        # this analytic stand-in is enough for the Fake's shape/length checks).
         v = self.volume(solid)
         diag = max(v, 1e-9)
+        (minx, miny, minz), (maxx, maxy, maxz) = self.bounding_box(solid)
+        dx, dy, dz = maxx - minx, maxy - miny, maxz - minz
+        gyradius = [((dy * dy + dz * dz) / 12.0) ** 0.5,
+                    ((dx * dx + dz * dz) / 12.0) ** 0.5,
+                    ((dx * dx + dy * dy) / 12.0) ** 0.5]
         return {"matrix": [[diag, 0.0, 0.0], [0.0, diag, 0.0], [0.0, 0.0, diag]],
-                "principal": [diag, diag, diag]}
+                "principal": [diag, diag, diag], "gyradius": gyradius}
 
     def split_by_tool(self, shape: Any, tool: Any, keep: str = "both") -> list:
         # Analytic partition by a tool body: inside = the tool's volume clamped to the shape,
@@ -704,6 +712,15 @@ class FakeKernel(Kernel):
             return solid.face.area * solid.distance
         return _polygon_area(solid.face.points) * solid.distance
 
+    def oriented_bounding_box(self, solid: Any) -> dict:
+        # Analytic stand-in: the Fake has no rotation model, so its minimum box IS its
+        # axis-aligned box (true oriented minimization is real-kernel-only, like the analytic
+        # inertia/mirror stubs). size = AABB extents, axes = world X/Y/Z.
+        (minx, miny, minz), (maxx, maxy, maxz) = self.bounding_box(solid)
+        return {"size": (maxx - minx, maxy - miny, maxz - minz),
+                "center": ((minx + maxx) / 2.0, (miny + maxy) / 2.0, (minz + maxz) / 2.0),
+                "axes": [(1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)]}
+
     def place(self, shape: Any, matrix: list[list[float]]) -> Any:
         """Placing solids for interference/STEP is real-kernel only (FakeKernel is analytic)."""
         raise NotImplementedError("FakeKernel does not implement place (real-kernel only)")
@@ -711,6 +728,11 @@ class FakeKernel(Kernel):
     def distance(self, shape_a: Any, shape_b: Any) -> float:
         """Interference is a real-kernel concern (analytic FakeKernel has no B-rep distance)."""
         raise NotImplementedError("FakeKernel does not implement distance (real-kernel only)")
+
+    def closest_points(self, shape_a: Any, shape_b: Any) -> tuple:
+        """The nearest point pair is a B-rep query (real-kernel only, like distance)."""
+        raise NotImplementedError(
+            "FakeKernel does not implement closest_points (real-kernel only)")
 
     def common_volume(self, shape_a: Any, shape_b: Any) -> float:
         """Interference is a real-kernel concern (no boolean intersection in the FakeKernel)."""

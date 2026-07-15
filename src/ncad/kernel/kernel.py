@@ -367,6 +367,16 @@ class Kernel(ABC):
         """Axis-aligned bounds of ``solid`` as ``((minx,miny,minz),(maxx,maxy,maxz))``."""
 
     @abstractmethod
+    def oriented_bounding_box(self, solid: Any) -> dict:
+        """The minimum (oriented) bounding box of ``solid``.
+
+        Returns ``{"size": (dx, dy, dz), "center": (x, y, z), "axes": [x_dir, y_dir, z_dir]}``
+        where ``size[i]`` is the extent along unit direction ``axes[i]`` (dimensions plus
+        orientation, as NX/Creo report a min bounding box). Unlike ``bounding_box`` (axis-aligned),
+        this is the tightest box at any orientation; it is the CAM stock/blank primitive.
+        """
+
+    @abstractmethod
     def place(self, shape: Any, matrix: list[list[float]]) -> Any:
         """Return ``shape`` placed by a row-major 4x4 rigid matrix (rotation top-left, translation
         in the last row): the assembly placement convention, to world-place an instance solid."""
@@ -374,6 +384,14 @@ class Kernel(ABC):
     @abstractmethod
     def distance(self, shape_a: Any, shape_b: Any) -> float:
         """Minimum distance between two solids (0.0 if touching or overlapping)."""
+
+    @abstractmethod
+    def closest_points(self, shape_a: Any, shape_b: Any) -> tuple[Point3, Point3]:
+        """The nearest point pair ``(point_on_a, point_on_b)`` between two shapes (world coords).
+
+        The point-level companion to ``distance`` (the scalar gap); the pair coincides when the
+        shapes touch or overlap.
+        """
 
     @abstractmethod
     def common_volume(self, shape_a: Any, shape_b: Any) -> float:
@@ -444,9 +462,11 @@ class Kernel(ABC):
 
     @abstractmethod
     def inertia(self, solid: Any) -> dict:
-        """The volume inertia tensor of ``solid`` -> ``{"matrix": 3x3, "principal": [i1,i2,i3]}``.
+        """The volume inertia of ``solid`` -> ``{"matrix": 3x3, "principal": [i1,i2,i3],
+        "gyradius": [gx,gy,gz]}``.
 
         Density-1 (geometry-only, like volume); the mass layer scales by material density.
+        ``gyradius`` is the radius of gyration about the world X, Y, Z axes.
         """
 
     @abstractmethod

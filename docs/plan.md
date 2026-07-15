@@ -370,6 +370,20 @@ five buckets; the phase gate is the 1.5 gate.
 > `examples/gate-1.7/rocker_arm.hocon` (a symmetric 2:1 lever using symmetric_h + length_ratio +
 > point_line_distance + a tangent-driven flexible bezier end blend, solving dof 0).
 
+> **Bucket 1.8 (measure kernel surface) - DONE.** The second library-capability-audit near-term
+> pick (Section E): a first-class MEASURE surface every reference tool has, as reusable Kernel
+> methods (no authored HOCON op; measurement is a query, not a model feature). Added
+> **`oriented_bounding_box`** (the minimum/oriented bounding box: size + center + axes; NX/Creo
+> "min bbox" and the CAM stock/blank primitive), **`closest_points`** (the nearest point pair
+> between two shapes, the point-level companion to the existing scalar `distance`), and folded the
+> **radius of gyration** into the `inertia` report (`gyradius` about the world X/Y/Z axes). Real
+> kernel via build123d `Shape.oriented_bounding_box` / `closest_points` / `radius_of_gyration`;
+> FakeKernel stubs (OBB analytic as the AABB; closest_points real-kernel-only like `distance`).
+> **`do_children_intersect` MOVED** to the Phase 5 interference follow-up (it overlaps the existing
+> `InterferenceChecker`). Gate: a slow real-kernel measurement test on the gate-1.7 rocker arm (OBB
+> is orientation-invariant = CAM stock size; closest_points / gyradius self-consistent);
+> intentionally no new `.hocon` (a kernel query, not a feature).
+
 ---
 
 ## Phase 2: Core solid features (sketched + dress-up)

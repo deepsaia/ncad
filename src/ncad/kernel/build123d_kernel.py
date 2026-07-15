@@ -901,13 +901,19 @@ class Build123dKernel(Kernel):
     def inertia(self, solid: Any) -> dict:
         # The volume inertia tensor of the solid, via OCCT GProp_GProps.MatrixOfInertia
         # (density 1 here: geometry-only, like volume; the mass layer scales by material
-        # density). Returns the full symmetric 3x3 matrix + the three principal moments.
+        # density). Returns the full symmetric 3x3 matrix + the three principal moments + the
+        # radius of gyration about each world axis (a standard mass-properties report field).
         props = GProp_GProps()
         BRepGProp.VolumeProperties_s(_wrapped(solid), props)
         matrix = props.MatrixOfInertia()
         rows = [[matrix.Value(i, j) for j in (1, 2, 3)] for i in (1, 2, 3)]
         moments = props.PrincipalProperties().Moments()
-        return {"matrix": rows, "principal": [moments[0], moments[1], moments[2]]}
+        shape = _b3d(solid)
+        gyradius = [shape.radius_of_gyration(Axis.X),
+                    shape.radius_of_gyration(Axis.Y),
+                    shape.radius_of_gyration(Axis.Z)]
+        return {"matrix": rows, "principal": [moments[0], moments[1], moments[2]],
+                "gyradius": gyradius}
 
     def signature(self, solid: Any) -> dict:
         if isinstance(solid, BodySet):
@@ -1049,6 +1055,18 @@ class Build123dKernel(Kernel):
         box = solid.bounding_box()
         return (tuple(box.min), tuple(box.max))
 
+    def oriented_bounding_box(self, solid: Any) -> dict:
+        # The minimum (oriented) bounding box via build123d Shape.oriented_bounding_box: the
+        # tightest box at any orientation (NX/Creo min bbox; the CAM stock primitive). size[i]
+        # is the extent along axes[i].
+        obb = _b3d(solid).oriented_bounding_box()
+        center = obb.center()
+        return {"size": (obb.size.X, obb.size.Y, obb.size.Z),
+                "center": (center.X, center.Y, center.Z),
+                "axes": [(obb.x_direction.X, obb.x_direction.Y, obb.x_direction.Z),
+                         (obb.y_direction.X, obb.y_direction.Y, obb.y_direction.Z),
+                         (obb.z_direction.X, obb.z_direction.Y, obb.z_direction.Z)]}
+
     def place(self, shape: Any, matrix: list[list[float]]) -> Any:
         """Place a solid by a row-major 4x4 rigid matrix (assembly placement convention)."""
         return Location(_trsf_from(matrix)) * shape
@@ -1058,6 +1076,16 @@ class Build123dKernel(Kernel):
         calc = BRepExtrema_DistShapeShape(_wrapped(shape_a), _wrapped(shape_b))
         calc.Perform()
         return float(calc.Value())
+
+    def closest_points(self, shape_a: Any, shape_b: Any) -> tuple:
+        """The nearest point pair between two shapes via BRepExtrema_DistShapeShape (world mm)."""
+        calc = BRepExtrema_DistShapeShape(_wrapped(shape_a), _wrapped(shape_b))
+        calc.Perform()
+        if not calc.IsDone() or calc.NbSolution() < 1:
+            raise KernelOpError("closest_points: no solution (degenerate or empty shape)")
+        pa = calc.PointOnShape1(1)
+        pb = calc.PointOnShape2(1)
+        return ((pa.X(), pa.Y(), pa.Z()), (pb.X(), pb.Y(), pb.Z()))
 
     def common_volume(self, shape_a: Any, shape_b: Any) -> float:
         """Volume of the boolean intersection (mm^3); 0.0 when disjoint or merely touching."""
