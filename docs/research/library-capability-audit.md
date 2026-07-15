@@ -18,29 +18,20 @@ at the bottom), then spiked the high-value unused ones.
 
 ## A. Sketch solver (py-slvs) - constraints we do not expose yet
 
-ncad's sketch solver uses ~20 of py-slvs's ~50 `add*` calls. The authored sketch-constraint
-vocabulary today: horizontal, vertical, coincident, distance, radius, diameter, parallel,
-perpendicular, equal, symmetric, midpoint, collinear, concentric, tangent, fix, angle,
-minor_radius. Every reference tool's sketcher has more. These are **pure lowering additions** in
-`slvs_solver.py` (a new `_c_*` handler + a schema enum entry), the cheapest parity wins we have.
+**Bucket 1.7 (DONE) shipped most of this section**: length_ratio, length_difference, equal_angle,
+point_line_distance, points_horizontal/vertical, symmetric_h/v, and a solver-flexible 4-point cubic
+bezier (`addCubic` + `addCubicLineTangent`). Those rows are removed below. What genuinely REMAINS:
 
 | Missing constraint | py-slvs call (verified present) | NX/Creo/Fusion analogue | ncad phase |
 |---|---|---|---|
-| **equal length/radius already partial** -> add **equal-angle** | `addEqualAngle` | "Equal" on angles (all sketchers) | Phase 1 follow-up |
-| **length ratio** (A = k*B) | `addLengthRatio` | Creo/NX proportional dims | Phase 1 follow-up |
-| **length difference** | `addLengthDifference` | driven relations | Phase 1 follow-up |
-| **point-on-circle** (endpoint on an arc/circle) | `addPointOnCircle` | "Coincident" point-to-curve (all) | Phase 1 follow-up |
-| **point-in-plane / point-line-distance** | `addPointLineDistance` | perpendicular distance dim | Phase 1 follow-up |
-| **same-orientation** | `addSameOrientation` | "Equal"/"Parallel" on curves | Phase 1 follow-up |
-| **horizontal/vertical POINT alignment** (two points share x or y) | `addPointsHorizontal` / `addPointsVertical` | Fusion horizontal/vertical between points | Phase 1 follow-up |
-| **explicit symmetric variants** | `addSymmetricHorizontal` / `addSymmetricVertical` | symmetry about an axis | Phase 1 follow-up |
-| **arc-line / curves tangent (richer)** | `addArcLineTangent` (have), `addCurvesTangent` (have) | tangent-to-spline | mostly covered |
-| **cubic / spline as a solver curve** | `addCubic`, `addCubicLineTangent` | control-point splines that flex in the solve | Phase 1 follow-up (today splines are point-defined, pinned) |
+| **same-orientation** (two curves/normals share orientation) | `addSameOrientation` | "Equal"/"Parallel" sense on curves | Phase 1 follow-up (niche) |
+| **solver-flexible MULTI-SEGMENT / fit-point spline** | `addCubic` chaining + cross-segment G1/G2 | a fit-point spline whose many segments flex together | deferred (its own effort) |
 
-**NX/Creo/Fusion parity note:** the biggest conceptual gap is that ncad splines are pinned
-reference points, not solver-flexible cubics. `addCubic` + `addCubicLineTangent` would let a sketch
-spline participate in the solve (tangent handles, curvature continuity) as it does in Fusion's
-"fit point spline" with tangency. That is a real Phase-1-completeness item, deferred here.
+**Parity note:** 1.7 made a SINGLE 4-control-point bezier flex in the solve (one `addCubic`
+segment). A multi-point fit-point spline that flexes needs chaining several `addCubic` segments with
+cross-segment tangent/curvature continuity; py-slvs has no fit-point primitive, so multi-point and
+`interpolated` splines stay point-defined/pinned. That chaining is a separate, larger effort,
+deferred. (`point-on-circle` is already covered by the existing `point_on` constraint.)
 
 ---
 
@@ -122,20 +113,19 @@ utility, cross-cutting - a good "measurements" mini-bucket.
 
 ## Recommended near-term picks (highest parity-per-effort)
 
-These are the ones I would schedule first, because each is a thin, well-bounded op over a verified
-call and each is a named feature in NX/Creo/Fusion:
+These are the ones to schedule next, because each is a thin, well-bounded op over a verified call
+and each is a named feature in NX/Creo/Fusion. (Pick 1, sketch-constraint completeness, SHIPPED as
+bucket 1.7 and is removed from this list.)
 
-1. **Sketch-constraint completeness (A)** - equal-angle, point-on-curve, length-ratio,
-   point-h/v, symmetric-h/v. Pure `slvs_solver` lowering + schema enum. Phase 1 completeness.
-2. **Measure mini-bucket (E)** - oriented bbox, min-distance-between, closest points, gyradius.
-   Cross-cutting; also unlocks CAM stock later.
-3. **full-round fillet + twisted extrude + native taper (B)** - three named dress-up features,
+1. **Measure mini-bucket (E)** - oriented bbox, min-distance-between, closest points, gyradius.
+   Cross-cutting; also unlocks CAM stock later. **Next up.**
+2. **full-round fillet + twisted extrude + native taper (B)** - three named dress-up features,
    one op-module each. Phase 2 completeness.
-4. **`max_fillet` as a validator hint (B/E)** - turns fillet failures into a positive max-radius
+3. **`max_fillet` as a validator hint (B/E)** - turns fillet failures into a positive max-radius
    suggestion; folds into the Phase 4 direct-edit envelope work.
 
 Larger, phase-sized (record only): surfacing (C -> Phase 9), drafting via HLR (D -> Phase 7),
-solver-flexible splines (A -> Phase 1 completeness), sheet-metal brake-forming
+solver-flexible multi-segment splines (A -> deferred), sheet-metal brake-forming
 (`make_brake_formed` -> Phase 11).
 
 ---
@@ -152,15 +142,15 @@ TopLoc, TopExp, TopAbs, TDocStd, TDataStd, TColStd, TCollection, TColgp, STEPCAF
 Interface, GProp, Geom, BRepPrimAPI, BRepOffsetAPI, BRepGProp, BRepFilletAPI, BRepExtrema,
 BRepBuilderAPI, BRepAlgoAPI, BRep.
 
-**py-slvs `add*` ncad calls (~20 of ~50):** addAngle, addArcLineTangent, addArcOfCircle,
-addCircleV, addCurvesTangent, addDiameter, addDistanceV, addEqualLength, addEqualRadius,
+**py-slvs `add*` ncad calls (~30 of ~50, after bucket 1.7):** addAngle, addArcLineTangent,
+addArcOfCircle, addCircleV, addCubic, addCubicLineTangent, addCurvesTangent, addDiameter,
+addDistanceV, addEqualAngle, addEqualLength, addEqualRadius, addLengthDifference, addLengthRatio,
 addLineHorizontal, addLineSegment, addLineVertical, addMidPoint, addNormal2d, addNormal3dV,
-addParallel, addParamV, addPerpendicular, addPoint2dV, addPoint3dV, addPointOnCircle, addPointOnLine,
-addPointsCoincident, addPointsDistance, addPointsProjectDistance, addSymmetricLine, addTransform,
-addWhereDragged, addWorkplane.
+addParallel, addParamV, addPerpendicular, addPoint2dV, addPoint3dV, addPointLineDistance,
+addPointOnCircle, addPointOnLine, addPointsCoincident, addPointsDistance, addPointsHorizontal,
+addPointsProjectDistance, addPointsVertical, addSymmetricHorizontal, addSymmetricLine,
+addSymmetricVertical, addTransform, addWhereDragged, addWorkplane.
 
-**py-slvs `add*` NOT yet used:** addConstraint(V), addCubic, addCubicLineTangent, addDistance,
-addEntity, addEqualAngle, addEqualLengthPointLineDistance, addEqualLineArcLength,
-addEqualPointLineDistance, addLengthDifference, addLengthRatio, addNormal3d, addPointInPlane,
-addPointLineDistance, addPointPlaneDistance, addPointsHorizontal, addPointsVertical,
-addSameOrientation, addSymmetric, addSymmetricHorizontal, addSymmetricVertical, addTranslate.
+**py-slvs `add*` NOT yet used:** addConstraint(V), addDistance, addEntity,
+addEqualLengthPointLineDistance, addEqualLineArcLength, addEqualPointLineDistance, addNormal3d,
+addPointInPlane, addPointPlaneDistance, addSameOrientation, addSymmetric, addTranslate.

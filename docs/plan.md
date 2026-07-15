@@ -352,6 +352,24 @@ five buckets; the phase gate is the 1.5 gate.
 > deferred, and it is moved to the Phase 4 backlog (reference-layer capability).
 > (Construction/reference geometry shipped in 1.4.)
 
+> **Bucket 1.7 (sketch solver completeness) - DONE.** The first bucket implementing the
+> library-capability audit's near-term picks (`docs/research/library-capability-audit.md`):
+> py-slvs constraints ncad had not yet exposed, for NX/Creo/Fusion/Onshape sketch parity. Shipped
+> as pure `slvs_solver` lowering (no schema change; the constraints array is permissive): the
+> dimensional/relational constraints **length_ratio**, **length_difference**, **equal_angle**,
+> **point_line_distance**, the point-alignment constraints **points_horizontal** /
+> **points_vertical**, and the axis-implicit **symmetric_h** / **symmetric_v** (mapped to CAD
+> vocabulary: symmetric_h flips y about the horizontal axis, the inverse of SolveSpace's
+> arrow-direction naming). Plus a **solver-flexible 4-control-point cubic bezier**: a 4-point
+> `bezier` (not construction/fixed) registers as a py-slvs cubic so it FLEXES in the solve, and
+> `tangent`/`smooth` between such a cubic and a line lowers to `addCubicLineTangent` (a Fusion/
+> Onshape control-point spline that flexes). **Called out, not faked:** multi-point beziers and
+> `interpolated` (fit-point) splines stay point-defined/pinned (py-slvs has no fit-point spline;
+> multi-segment cubic chaining with cross-segment continuity is a separate, deferred effort), and
+> G2 curvature continuity stays refused (py-slvs expresses G1 only). Gate:
+> `examples/gate-1.7/rocker_arm.hocon` (a symmetric 2:1 lever using symmetric_h + length_ratio +
+> point_line_distance + a tangent-driven flexible bezier end blend, solving dof 0).
+
 ---
 
 ## Phase 2: Core solid features (sketched + dress-up)

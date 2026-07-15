@@ -51,6 +51,12 @@ class SlvsSolver(SketchSolver):
         "concentric": "_c_concentric", "tangent": "_c_tangent", "fix": "_c_fix",
         "angle": "_c_angle", "diameter": "_c_diameter",
         "minor_radius": "_c_minor_radius", "smooth": "_c_smooth",
+        "length_ratio": "_c_length_ratio", "length_difference": "_c_length_difference",
+        "equal_angle": "_c_equal_angle",
+        "points_horizontal": "_c_points_horizontal",
+        "points_vertical": "_c_points_vertical",
+        "point_line_distance": "_c_point_line_distance",
+        "symmetric_h": "_c_symmetric_h", "symmetric_v": "_c_symmetric_v",
     }
 
     def solve(self, entities: list[dict], constraints: list[dict],
@@ -97,6 +103,16 @@ class SlvsSolver(SketchSolver):
                 # circle radius; its center + major_axis_end points carry the rest of the DOF.
                 circle_dist[entity["id"]] = system.addDistanceV(
                     float(entity["minor_radius"]), group=_SKETCH_GROUP)
+            elif kind == "bezier" and len(entity.get("points", [])) == 4 \
+                    and not (entity.get("construction") or entity.get("fixed")):
+                # A 4-control-point bezier is a py-slvs cubic: it FLEXES in the solve (its interior
+                # control points move under constraints), unlike a pinned/point-defined spline, and
+                # it can be a tangent/smooth target against a line. Multi-point beziers and
+                # interpolated (fit-point) splines stay point-defined (their defining points carry
+                # the DOF and the analytic curve is derived downstream).
+                pts = [point_handles[pid] for pid in entity["points"]]
+                curve_handles[entity["id"]] = system.addCubic(
+                    workplane, pts[0], pts[1], pts[2], pts[3], group=_SKETCH_GROUP)
             # bezier/interpolated are NOT registered as solver curves: their defining
             # points (registered above) carry all DOF; the curve is derived downstream.
             # ellipse_arc/conic are the same: py-slvs has no such primitive, so their
@@ -264,6 +280,15 @@ class SlvsSolver(SketchSolver):
         elif ta in ("arc", "circle") and tb in ("arc", "circle"):
             system.addCurvesTangent(True, False, ctx.curves[a], ctx.curves[b],
                                     wrkpln=ctx.workplane, group=_SKETCH_GROUP)
+        elif "bezier" in (ta, tb) and "line" in (ta, tb):
+            cub_id, line_id = (a, b) if ta == "bezier" else (b, a)
+            if cub_id not in ctx.curves:
+                raise ConstraintError(
+                    f"tangent to bezier {cub_id!r} needs a 4-control-point (flexible cubic) "
+                    "bezier; multi-point/fit-point splines have no tangent handle")
+            at_end = _touches_cubic_end(ctx.entities[cub_id], ctx.entities[line_id])
+            system.addCubicLineTangent(at_end, ctx.curves[cub_id], ctx.curves[line_id],
+                                       wrkpln=ctx.workplane, group=_SKETCH_GROUP)
         else:
             raise ConstraintError(f"tangent needs arc+line or two curves, got {ta}+{tb}")
 
@@ -289,6 +314,57 @@ class SlvsSolver(SketchSolver):
     def _c_diameter(self, system: Any, constraint: dict, ctx: _Ctx) -> None:
         system.addDiameter(float(constraint["value"]), ctx.curves[constraint["of"]],
                            group=_SKETCH_GROUP)
+
+    def _c_length_ratio(self, system: Any, constraint: dict, ctx: _Ctx) -> None:
+        a, b = _two_lines_of(constraint, "length_ratio")
+        system.addLengthRatio(_value(constraint, "length_ratio"), ctx.curves[a],
+                              ctx.curves[b], wrkpln=ctx.workplane, group=_SKETCH_GROUP)
+
+    def _c_length_difference(self, system: Any, constraint: dict, ctx: _Ctx) -> None:
+        a, b = _two_lines_of(constraint, "length_difference")
+        system.addLengthDifference(_value(constraint, "length_difference"), ctx.curves[a],
+                                   ctx.curves[b], wrkpln=ctx.workplane, group=_SKETCH_GROUP)
+
+    def _c_equal_angle(self, system: Any, constraint: dict, ctx: _Ctx) -> None:
+        lines = constraint.get("lines") or []
+        if len(lines) != 4:
+            raise ConstraintError("equal_angle needs exactly 4 lines [l1, l2, l3, l4]")
+        l1, l2, l3, l4 = (ctx.curves[x] for x in lines)
+        # supplement=False: the two ANGLES (l1->l2 and l3->l4) are made equal.
+        system.addEqualAngle(False, l1, l2, l3, l4, wrkpln=ctx.workplane, group=_SKETCH_GROUP)
+
+    def _c_points_horizontal(self, system: Any, constraint: dict, ctx: _Ctx) -> None:
+        a, b = _two_points_of(constraint, "points_horizontal")
+        system.addPointsHorizontal(ctx.points[a], ctx.points[b], ctx.workplane,
+                                   group=_SKETCH_GROUP)
+
+    def _c_points_vertical(self, system: Any, constraint: dict, ctx: _Ctx) -> None:
+        a, b = _two_points_of(constraint, "points_vertical")
+        system.addPointsVertical(ctx.points[a], ctx.points[b], ctx.workplane,
+                                 group=_SKETCH_GROUP)
+
+    def _c_point_line_distance(self, system: Any, constraint: dict, ctx: _Ctx) -> None:
+        line_id = constraint.get("of")
+        if ctx.entities.get(line_id, {}).get("type") != "line":
+            raise ConstraintError("point_line_distance 'of' must be a line")
+        system.addPointLineDistance(_value(constraint, "point_line_distance"),
+                                    ctx.points[constraint["point"]], ctx.curves[line_id],
+                                    wrkpln=ctx.workplane, group=_SKETCH_GROUP)
+
+    def _c_symmetric_h(self, system: Any, constraint: dict, ctx: _Ctx) -> None:
+        # symmetric_h = symmetric ABOUT the horizontal (X) axis: the pair's y flips, x is shared.
+        # SolveSpace names this by the constraint-arrow direction, so its addSymmetricVertical is
+        # the y-flip (mirror across the horizontal axis); we map to CAD vocabulary here.
+        a, b = _two_points_of(constraint, "symmetric_h")
+        system.addSymmetricVertical(ctx.points[a], ctx.points[b], ctx.workplane,
+                                    group=_SKETCH_GROUP)
+
+    def _c_symmetric_v(self, system: Any, constraint: dict, ctx: _Ctx) -> None:
+        # symmetric_v = symmetric ABOUT the vertical (Y) axis: the pair's x flips, y is shared.
+        # SolveSpace's addSymmetricHorizontal is the x-flip (mirror across the vertical axis).
+        a, b = _two_points_of(constraint, "symmetric_v")
+        system.addSymmetricHorizontal(ctx.points[a], ctx.points[b], ctx.workplane,
+                                      group=_SKETCH_GROUP)
 
     def _c_smooth(self, system: Any, constraint: dict, ctx: _Ctx) -> None:
         """G1 tangent continuity between two curves sharing an endpoint.
@@ -317,6 +393,12 @@ class SlvsSolver(SketchSolver):
         elif ta in ("arc", "circle") and tb in ("arc", "circle"):
             system.addCurvesTangent(True, False, ctx.curves[a], ctx.curves[b],
                                     wrkpln=ctx.workplane, group=_SKETCH_GROUP)
+        elif "bezier" in (ta, tb) and "line" in (ta, tb):
+            # A 4-point flexible cubic (it passed the solver-curve guard above) tangent to a line.
+            cub_id, line_id = (a, b) if ta == "bezier" else (b, a)
+            at_end = _touches_cubic_end(ctx.entities[cub_id], ctx.entities[line_id])
+            system.addCubicLineTangent(at_end, ctx.curves[cub_id], ctx.curves[line_id],
+                                       wrkpln=ctx.workplane, group=_SKETCH_GROUP)
         else:
             raise ConstraintError(f"smooth (g1) needs arc/line/circle curves, got {ta}+{tb}")
 
@@ -405,6 +487,35 @@ def _defining_points(entity: dict) -> list[str]:
 def _touches_arc_end(arc: dict, line: dict) -> bool:
     """Whether the line meets the arc at the arc's end point (else its start)."""
     return arc["end"] in (line.get("p1"), line.get("p2"))
+
+
+def _touches_cubic_end(bezier: dict, line: dict) -> bool:
+    """Whether the line meets the cubic at its LAST control point (else its first)."""
+    return bezier["points"][-1] in (line.get("p1"), line.get("p2"))
+
+
+def _two_lines_of(constraint: dict, name: str) -> tuple[str, str]:
+    """The two line ids a ratio/difference constraint relates; raise if not exactly two."""
+    lines = constraint.get("lines") or []
+    if len(lines) != 2:
+        raise ConstraintError(f"{name} needs exactly 2 lines [a, b]")
+    return lines[0], lines[1]
+
+
+def _value(constraint: dict, name: str) -> float:
+    """A required numeric constraint value; raise ConstraintError when absent."""
+    value = constraint.get("value")
+    if value is None:
+        raise ConstraintError(f"{name} needs a numeric 'value'")
+    return float(value)
+
+
+def _two_points_of(constraint: dict, name: str) -> tuple[str, str]:
+    """The two point ids a point-pair constraint relates; raise if not exactly two."""
+    points = constraint.get("points") or []
+    if len(points) != 2:
+        raise ConstraintError(f"{name} needs exactly 2 points [a, b]")
+    return points[0], points[1]
 
 
 def _measure(constraint: dict, positions: dict, radii: dict, entities: dict) -> float:

@@ -352,6 +352,189 @@ def test_overconstrained_reports_failing_constraint_ids():
     assert any(fid in ("d_ten", "d_twenty") for fid in result.failing_ids)
 
 
+def test_length_ratio_scales_one_line_to_another():
+    import math
+    ents = _two_lines()
+    cons = [{"type": "fix", "of": "a"}, {"type": "fix", "of": "b"},
+            {"type": "fix", "of": "c"}, {"type": "horizontal", "of": "l1"},
+            {"type": "length_ratio", "lines": ["l1", "l0"], "value": 2.0}]
+    r = SlvsSolver().solve(ents, cons, "sk")
+    assert r.status in ("well_constrained", "under_constrained")
+    (ax, ay), (bx, by) = r.positions["a"], r.positions["b"]
+    (cx, cy), (dx, dy) = r.positions["c"], r.positions["d"]
+    len_l0 = math.hypot(bx - ax, by - ay)
+    len_l1 = math.hypot(dx - cx, dy - cy)
+    assert math.isclose(len_l1, 2.0 * len_l0, rel_tol=1e-3)
+
+
+def test_length_difference_sets_the_gap():
+    import math
+    ents = _two_lines()
+    cons = [{"type": "fix", "of": "a"}, {"type": "fix", "of": "b"},
+            {"type": "fix", "of": "c"}, {"type": "horizontal", "of": "l1"},
+            {"type": "length_difference", "lines": ["l1", "l0"], "value": 5.0}]
+    r = SlvsSolver().solve(ents, cons, "sk")
+    (ax, ay), (bx, by) = r.positions["a"], r.positions["b"]
+    (cx, cy), (dx, dy) = r.positions["c"], r.positions["d"]
+    assert math.isclose(math.hypot(dx - cx, dy - cy) - math.hypot(bx - ax, by - ay),
+                        5.0, abs_tol=1e-3)
+
+
+def test_equal_angle_matches_two_angle_pairs():
+    ents = [
+        {"id": "o", "type": "point", "at": [0, 0]},
+        {"id": "a", "type": "point", "at": [10, 0]},
+        {"id": "b", "type": "point", "at": [8, 5]},
+        {"id": "c", "type": "point", "at": [7, 7]},
+        {"id": "d", "type": "point", "at": [3, 9]},
+        {"id": "l0", "type": "line", "p1": "o", "p2": "a"},
+        {"id": "l1", "type": "line", "p1": "o", "p2": "b"},
+        {"id": "l2", "type": "line", "p1": "o", "p2": "c"},
+        {"id": "l3", "type": "line", "p1": "o", "p2": "d"},
+    ]
+    cons = [{"type": "fix", "of": "o"}, {"type": "fix", "of": "a"}, {"type": "fix", "of": "c"},
+            {"type": "distance", "points": ["o", "b"], "value": 10},
+            {"type": "distance", "points": ["o", "d"], "value": 10},
+            {"type": "equal_angle", "lines": ["l0", "l1", "l2", "l3"]}]
+    r = SlvsSolver().solve(ents, cons, "sk")
+    assert r.status in ("well_constrained", "under_constrained")
+    assert not any(i.level == "error" for i in r.issues)
+
+
+def test_length_ratio_wrong_ref_count_is_error():
+    ents = _two_lines()
+    r = SlvsSolver().solve(ents, [{"type": "length_ratio", "lines": ["l0"], "value": 2}], "sk")
+    assert r.status == "inconsistent"
+
+
+def test_length_difference_missing_value_is_error():
+    ents = _two_lines()
+    r = SlvsSolver().solve(ents, [{"type": "length_difference", "lines": ["l0", "l1"]}], "sk")
+    assert r.status == "inconsistent"
+
+
+def test_points_horizontal_aligns_y():
+    ents = [{"id": "p0", "type": "point", "at": [0, 0]},
+            {"id": "p1", "type": "point", "at": [10, 4]}]
+    cons = [{"type": "fix", "of": "p0"}, {"type": "points_horizontal", "points": ["p0", "p1"]}]
+    r = SlvsSolver().solve(ents, cons, "sk")
+    assert abs(r.positions["p1"][1] - r.positions["p0"][1]) < 1e-6
+
+
+def test_points_vertical_aligns_x():
+    ents = [{"id": "p0", "type": "point", "at": [0, 0]},
+            {"id": "p1", "type": "point", "at": [4, 10]}]
+    cons = [{"type": "fix", "of": "p0"}, {"type": "points_vertical", "points": ["p0", "p1"]}]
+    r = SlvsSolver().solve(ents, cons, "sk")
+    assert abs(r.positions["p1"][0] - r.positions["p0"][0]) < 1e-6
+
+
+def test_point_line_distance_sets_perpendicular_gap():
+    import math
+    ents = [{"id": "a", "type": "point", "at": [0, 0]}, {"id": "b", "type": "point", "at": [10, 0]},
+            {"id": "p", "type": "point", "at": [5, 2]},
+            {"id": "l0", "type": "line", "p1": "a", "p2": "b"}]
+    cons = [{"type": "fix", "of": "a"}, {"type": "fix", "of": "b"},
+            {"type": "point_line_distance", "point": "p", "of": "l0", "value": 8}]
+    r = SlvsSolver().solve(ents, cons, "sk")
+    # line l0 is along y=0, so p's perpendicular distance is |y_p| == 8.
+    assert math.isclose(abs(r.positions["p"][1]), 8.0, abs_tol=1e-4)
+
+
+def test_point_line_distance_of_non_line_is_error():
+    ents = [{"id": "cp", "type": "point", "at": [0, 0]}, {"id": "p", "type": "point", "at": [5, 2]},
+            {"id": "c0", "type": "circle", "center": "cp", "radius": 5}]
+    r = SlvsSolver().solve(
+        ents, [{"type": "point_line_distance", "point": "p", "of": "c0", "value": 8}], "sk")
+    assert r.status == "inconsistent"
+
+
+def test_points_horizontal_wrong_ref_count_is_error():
+    ents = [{"id": "p0", "type": "point", "at": [0, 0]}]
+    r = SlvsSolver().solve(ents, [{"type": "points_horizontal", "points": ["p0"]}], "sk")
+    assert r.status == "inconsistent"
+
+
+def test_symmetric_h_mirrors_across_horizontal_axis():
+    # Symmetric-about-H: the two points share x and have opposite y about y=0 (workplane origin).
+    ents = [{"id": "p0", "type": "point", "at": [3, 5]},
+            {"id": "p1", "type": "point", "at": [4, -6]},
+            {"id": "anchor", "type": "point", "at": [3, 5]}]
+    cons = [{"type": "fix", "of": "anchor"},
+            {"type": "coincident", "points": ["p0", "anchor"]},
+            {"type": "symmetric_h", "points": ["p0", "p1"]}]
+    r = SlvsSolver().solve(ents, cons, "sk")
+    (x0, y0), (x1, y1) = r.positions["p0"], r.positions["p1"]
+    assert abs(x1 - x0) < 1e-6 and abs(y1 + y0) < 1e-6
+
+
+def test_symmetric_v_mirrors_across_vertical_axis():
+    ents = [{"id": "p0", "type": "point", "at": [5, 3]},
+            {"id": "p1", "type": "point", "at": [-6, 4]},
+            {"id": "anchor", "type": "point", "at": [5, 3]}]
+    cons = [{"type": "fix", "of": "anchor"},
+            {"type": "coincident", "points": ["p0", "anchor"]},
+            {"type": "symmetric_v", "points": ["p0", "p1"]}]
+    r = SlvsSolver().solve(ents, cons, "sk")
+    (x0, y0), (x1, y1) = r.positions["p0"], r.positions["p1"]
+    assert abs(y1 - y0) < 1e-6 and abs(x1 + x0) < 1e-6
+
+
+def test_symmetric_h_wrong_ref_count_is_error():
+    ents = [{"id": "p0", "type": "point", "at": [0, 0]}]
+    r = SlvsSolver().solve(ents, [{"type": "symmetric_h", "points": ["p0"]}], "sk")
+    assert r.status == "inconsistent"
+
+
+def test_four_point_bezier_registers_as_flexible_cubic():
+    # A free 4-point cubic: the two interior control points are unpinned, so DOF > 0 and it solves.
+    ents = [
+        {"id": "p0", "type": "point", "at": [0, 0]},
+        {"id": "p1", "type": "point", "at": [3, 5]},
+        {"id": "p2", "type": "point", "at": [7, 5]},
+        {"id": "p3", "type": "point", "at": [10, 0]},
+        {"id": "cub", "type": "bezier", "points": ["p0", "p1", "p2", "p3"]},
+    ]
+    cons = [{"type": "fix", "of": "p0"}]
+    r = SlvsSolver().solve(ents, cons, "sk")
+    assert r.status in ("well_constrained", "under_constrained")
+    assert not any(i.level == "error" for i in r.issues)
+    assert r.dof > 0  # interior control points are free (a flexible spline)
+
+
+def test_cubic_tangent_to_line_removes_a_dof():
+    # A 4-point cubic whose end joins a line; tangent-to-line couples them (removes a DOF vs free).
+    ents = [
+        {"id": "p0", "type": "point", "at": [0, 0]},
+        {"id": "p1", "type": "point", "at": [3, 5]},
+        {"id": "p2", "type": "point", "at": [7, 5]},
+        {"id": "p3", "type": "point", "at": [10, 0]},
+        {"id": "q", "type": "point", "at": [15, 0]},
+        {"id": "cub", "type": "bezier", "points": ["p0", "p1", "p2", "p3"]},
+        {"id": "ln", "type": "line", "p1": "p3", "p2": "q"},
+    ]
+    base = [{"type": "fix", "of": "p0"}, {"type": "fix", "of": "p3"}, {"type": "fix", "of": "q"}]
+    free = SlvsSolver().solve(ents, base, "sk")
+    tangent = SlvsSolver().solve(ents, base + [{"type": "tangent", "of": ["cub", "ln"]}], "sk")
+    assert tangent.status in ("well_constrained", "under_constrained")
+    assert not any(i.level == "error" for i in tangent.issues)
+    assert tangent.dof < free.dof
+
+
+def test_tangent_to_non_cubic_bezier_is_error():
+    # A 3-point bezier is NOT a solver cubic (only 4-point registers); tangent to it is refused.
+    ents = [
+        {"id": "p0", "type": "point", "at": [0, 0]},
+        {"id": "p1", "type": "point", "at": [5, 5]},
+        {"id": "p2", "type": "point", "at": [10, 0]},
+        {"id": "q", "type": "point", "at": [15, 0]},
+        {"id": "bz", "type": "bezier", "points": ["p0", "p1", "p2"]},
+        {"id": "ln", "type": "line", "p1": "p2", "p2": "q"},
+    ]
+    r = SlvsSolver().solve(ents, [{"type": "tangent", "of": ["bz", "ln"]}], "sk")
+    assert r.status == "inconsistent"
+
+
 def test_well_constrained_has_no_failing_ids():
     entities = [
         {"id": "p0", "type": "point", "at": [0.0, 0.0]},
