@@ -1049,6 +1049,18 @@ class Build123dKernel(Kernel):
         box = solid.bounding_box()
         return (tuple(box.min), tuple(box.max))
 
+    def oriented_bounding_box(self, solid: Any) -> dict:
+        # The minimum (oriented) bounding box via build123d Shape.oriented_bounding_box: the
+        # tightest box at any orientation (NX/Creo min bbox; the CAM stock primitive). size[i]
+        # is the extent along axes[i].
+        obb = _b3d(solid).oriented_bounding_box()
+        center = obb.center()
+        return {"size": (obb.size.X, obb.size.Y, obb.size.Z),
+                "center": (center.X, center.Y, center.Z),
+                "axes": [(obb.x_direction.X, obb.x_direction.Y, obb.x_direction.Z),
+                         (obb.y_direction.X, obb.y_direction.Y, obb.y_direction.Z),
+                         (obb.z_direction.X, obb.z_direction.Y, obb.z_direction.Z)]}
+
     def place(self, shape: Any, matrix: list[list[float]]) -> Any:
         """Place a solid by a row-major 4x4 rigid matrix (assembly placement convention)."""
         return Location(_trsf_from(matrix)) * shape

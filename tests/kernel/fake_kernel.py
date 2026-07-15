@@ -704,6 +704,15 @@ class FakeKernel(Kernel):
             return solid.face.area * solid.distance
         return _polygon_area(solid.face.points) * solid.distance
 
+    def oriented_bounding_box(self, solid: Any) -> dict:
+        # Analytic stand-in: the Fake has no rotation model, so its minimum box IS its
+        # axis-aligned box (true oriented minimization is real-kernel-only, like the analytic
+        # inertia/mirror stubs). size = AABB extents, axes = world X/Y/Z.
+        (minx, miny, minz), (maxx, maxy, maxz) = self.bounding_box(solid)
+        return {"size": (maxx - minx, maxy - miny, maxz - minz),
+                "center": ((minx + maxx) / 2.0, (miny + maxy) / 2.0, (minz + maxz) / 2.0),
+                "axes": [(1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)]}
+
     def place(self, shape: Any, matrix: list[list[float]]) -> Any:
         """Placing solids for interference/STEP is real-kernel only (FakeKernel is analytic)."""
         raise NotImplementedError("FakeKernel does not implement place (real-kernel only)")

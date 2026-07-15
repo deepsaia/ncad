@@ -367,6 +367,16 @@ class Kernel(ABC):
         """Axis-aligned bounds of ``solid`` as ``((minx,miny,minz),(maxx,maxy,maxz))``."""
 
     @abstractmethod
+    def oriented_bounding_box(self, solid: Any) -> dict:
+        """The minimum (oriented) bounding box of ``solid``.
+
+        Returns ``{"size": (dx, dy, dz), "center": (x, y, z), "axes": [x_dir, y_dir, z_dir]}``
+        where ``size[i]`` is the extent along unit direction ``axes[i]`` (dimensions plus
+        orientation, as NX/Creo report a min bounding box). Unlike ``bounding_box`` (axis-aligned),
+        this is the tightest box at any orientation; it is the CAM stock/blank primitive.
+        """
+
+    @abstractmethod
     def place(self, shape: Any, matrix: list[list[float]]) -> Any:
         """Return ``shape`` placed by a row-major 4x4 rigid matrix (rotation top-left, translation
         in the last row): the assembly placement convention, to world-place an instance solid."""
