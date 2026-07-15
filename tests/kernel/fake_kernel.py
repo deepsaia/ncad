@@ -721,6 +721,11 @@ class FakeKernel(Kernel):
         """Interference is a real-kernel concern (analytic FakeKernel has no B-rep distance)."""
         raise NotImplementedError("FakeKernel does not implement distance (real-kernel only)")
 
+    def closest_points(self, shape_a: Any, shape_b: Any) -> tuple:
+        """The nearest point pair is a B-rep query (real-kernel only, like distance)."""
+        raise NotImplementedError(
+            "FakeKernel does not implement closest_points (real-kernel only)")
+
     def common_volume(self, shape_a: Any, shape_b: Any) -> float:
         """Interference is a real-kernel concern (no boolean intersection in the FakeKernel)."""
         raise NotImplementedError("FakeKernel does not implement common_volume (real-kernel only)")

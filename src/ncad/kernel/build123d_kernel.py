@@ -1071,6 +1071,16 @@ class Build123dKernel(Kernel):
         calc.Perform()
         return float(calc.Value())
 
+    def closest_points(self, shape_a: Any, shape_b: Any) -> tuple:
+        """The nearest point pair between two shapes via BRepExtrema_DistShapeShape (world mm)."""
+        calc = BRepExtrema_DistShapeShape(_wrapped(shape_a), _wrapped(shape_b))
+        calc.Perform()
+        if not calc.IsDone() or calc.NbSolution() < 1:
+            raise KernelOpError("closest_points: no solution (degenerate or empty shape)")
+        pa = calc.PointOnShape1(1)
+        pb = calc.PointOnShape2(1)
+        return ((pa.X(), pa.Y(), pa.Z()), (pb.X(), pb.Y(), pb.Z()))
+
     def common_volume(self, shape_a: Any, shape_b: Any) -> float:
         """Volume of the boolean intersection (mm^3); 0.0 when disjoint or merely touching."""
         inter = _b3d(shape_a) & _b3d(shape_b)

@@ -1,3 +1,4 @@
+import math
 
 import pytest
 
@@ -19,3 +20,19 @@ def test_oriented_bbox_recovers_true_dimensions_when_rotated():
     aabb = sorted([hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]])
     obb_sorted = sorted(obb["size"])
     assert all(o <= a + 1e-6 for o, a in zip(obb_sorted, aabb))
+
+
+def test_closest_points_pair_is_consistent_with_distance():
+    from build123d import Location, Solid
+
+    from ncad.kernel.build123d_kernel import Build123dKernel
+
+    kernel = Build123dKernel()
+    a = Solid.make_box(10, 10, 10)
+    b = Solid.make_box(4, 4, 4).moved(Location((25, 0, 0)))
+    pa, pb = kernel.closest_points(a, b)
+    # The facing points: a's +x face (x=10) and b's -x face (x=25).
+    assert math.isclose(pa[0], 10.0, abs_tol=1e-6)
+    assert math.isclose(pb[0], 25.0, abs_tol=1e-6)
+    # The separation of the pair equals the scalar min distance (consistency invariant).
+    assert math.isclose(math.dist(pa, pb), kernel.distance(a, b), abs_tol=1e-6)

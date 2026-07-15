@@ -386,6 +386,14 @@ class Kernel(ABC):
         """Minimum distance between two solids (0.0 if touching or overlapping)."""
 
     @abstractmethod
+    def closest_points(self, shape_a: Any, shape_b: Any) -> tuple[Point3, Point3]:
+        """The nearest point pair ``(point_on_a, point_on_b)`` between two shapes (world coords).
+
+        The point-level companion to ``distance`` (the scalar gap); the pair coincides when the
+        shapes touch or overlap.
+        """
+
+    @abstractmethod
     def common_volume(self, shape_a: Any, shape_b: Any) -> float:
         """Volume of the boolean intersection of two solids (0.0 if disjoint or merely touching)."""
 
