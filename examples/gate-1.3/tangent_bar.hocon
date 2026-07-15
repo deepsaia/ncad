@@ -1,5 +1,9 @@
 schema_version = 1
 units = mm
+metadata {
+  description = "Tangent bar"
+  tags = [ g1_3, part ]
+}
 # A stadium bar whose arc caps are tangent to the straight top/bottom, fixed and
 # dimensioned. A driven (reference) dimension measures the overall span without
 # constraining it. Demonstrates tangent constraints + a driven dimension reading back.

@@ -1,5 +1,9 @@
 schema_version = 2
 units = mm
+metadata {
+  description = "Mirrored hinge"
+  tags = [ g4_4, part ]
+}
 # A door hinge leaf with a mirrored strap boss and a separate pin body seated coaxially in the
 # knuckle bore. Exercises three 4.4 features on one real, recognizable part:
 #   - feature_mirror: a reinforcing strap boss on the +y half is MIRRORED across the XZ plane to

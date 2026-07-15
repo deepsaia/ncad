@@ -1,5 +1,9 @@
 schema_version = 1
 units = mm
+metadata {
+  description = "Two body clip"
+  tags = [ g0_5, part ]
+}
 # A base plate with a raised rail unioned on, then a slot cut across the rail. The
 # boolean names its target and tool; the pocket names the unioned body. Reordering any
 # of these before its input is defined is rejected pre-build by the dependency validator.

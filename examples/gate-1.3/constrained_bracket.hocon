@@ -1,5 +1,9 @@
 schema_version = 1
 units = mm
+metadata {
+  description = "Constrained bracket"
+  tags = [ g1_3, part ]
+}
 # A fully-constrained plate: one corner fixed, sides horizontal/vertical, width+height
 # dimensioned. Solves to dof 0 (well-constrained), no under-constrained warning.
 parameters { w = 60, h = 40, t = 10 }

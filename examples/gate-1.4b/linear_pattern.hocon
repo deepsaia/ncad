@@ -1,5 +1,9 @@
 schema_version = 1
 units = mm
+metadata {
+  description = "Linear pattern"
+  tags = [ g1_4b, part ]
+}
 # A linear pattern replicating a small square profile four times along X. Each copy is a
 # closed loop, so the four copies are four disjoint loops: this documents entity-level
 # replication (a multi-loop face is deferred until WireOrderer supports multiple loops).

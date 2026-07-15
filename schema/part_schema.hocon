@@ -212,6 +212,16 @@ definitions {
       }
     }
   }
+
+  # Optional document metadata (extensible): a human description + freeform tags. Permissive (no
+  # additionalProperties) so more sub-keys (author, revision, ...) can be added without a bump.
+  metadata {
+    type = object
+    properties {
+      description { type = string }
+      tags { type = array, items { type = string } }
+    }
+  }
 }
 
 type = object
@@ -219,6 +229,7 @@ required = ["schema_version", "units", "parts"]
 properties {
   schema_version { type = integer, minimum = 1 }
   units { enum = ["mm", "m", "in"] }
+  metadata = ${definitions.metadata}
   parameters { type = object }
   datums { type = object }
   # A document-inline material library (name -> mat_data record) and/or an external

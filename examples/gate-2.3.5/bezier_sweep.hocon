@@ -1,5 +1,9 @@
 schema_version = 2
 units = mm
+metadata {
+  description = "Bezier sweep"
+  tags = [ g2_3_5, part ]
+}
 # An open BEZIER path (control points p0..p3) swept with a small circular profile. Proves
 # the "smooth sweep path for free" goal of the spline bucket. Single-path sweep; round-trips
 # to STEP (bucket 2.0).

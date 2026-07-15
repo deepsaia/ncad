@@ -5,6 +5,10 @@
 # faces, so this example is real-kernel-only (excluded from the FakeKernel sweep).
 schema_version = 2
 units = mm
+metadata {
+  description = "Coaxial bosses"
+  tags = [ g4_3b, part ]
+}
 parts {
   coaxial_bosses {
     profile = solid

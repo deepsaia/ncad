@@ -1,5 +1,9 @@
 schema_version = 1
 units = mm
+metadata {
+  description = "Circular pattern"
+  tags = [ g1_4b, part ]
+}
 # A circular pattern replicating a small round hole profile six times about the origin.
 # Each copy is a self-closed circle, so the six copies are six disjoint loops: like the
 # linear pattern, this documents entity-level replication (a multi-loop face is deferred

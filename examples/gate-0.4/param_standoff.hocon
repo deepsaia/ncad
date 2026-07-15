@@ -1,5 +1,9 @@
 schema_version = 1
 units = mm
+metadata {
+  description = "Param standoff"
+  tags = [ g0_4, part ]
+}
 # A round standoff: a cylindrical boss on a square base with an axial through-bore.
 # Driven entirely by parameters so a viewer edit shows incremental rebuild: change
 # `bore_d` and only the bore pocket re-runs; change `base_w` and the base sketch + pad

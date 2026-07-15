@@ -4,6 +4,10 @@
 # reports its BOM + roll-up mass, and its interference is checked (the coaxial pin reads correctly).
 schema_version = 1
 units = mm
+metadata {
+  description = "Mated bracket assembly"
+  tags = [ g5_6, assembly ]
+}
 assembly {
   instances = [
     { id = base, file = "mated_bracket.hocon", part = bracket, lock = true }

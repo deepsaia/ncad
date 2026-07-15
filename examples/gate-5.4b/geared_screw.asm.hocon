@@ -4,6 +4,10 @@
 # at a 2:1 ratio (declared + validated + shown; ENFORCED during motion in Phase 6).
 schema_version = 1
 units = mm
+metadata {
+  description = "Geared screw assembly"
+  tags = [ g5_4b, assembly ]
+}
 assembly {
   instances = [
     { id = block, file = "geared_screw.hocon", part = block, lock = true }

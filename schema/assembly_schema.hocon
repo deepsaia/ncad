@@ -138,6 +138,16 @@ definitions {
       replace { type = object }
     }
   }
+
+  # Optional document metadata (extensible): a human description + freeform tags. Permissive so
+  # more sub-keys can be added without a schema bump (matches the part schema).
+  metadata {
+    type = object
+    properties {
+      description { type = string }
+      tags { type = array, items { type = string } }
+    }
+  }
 }
 
 type = object
@@ -145,6 +155,7 @@ required = ["schema_version", "units", "assembly"]
 properties {
   schema_version { type = integer, minimum = 1 }
   units { enum = ["mm", "m", "in"] }
+  metadata = ${definitions.metadata}
   assembly {
     type = object
     required = ["instances"]

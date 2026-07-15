@@ -1,5 +1,9 @@
 schema_version = 2
 units = mm
+metadata {
+  description = "Multibody algebra"
+  tags = [ g3_4, part ]
+}
 # Boolean upgrades + multibody algebra. `split_block`: a block split by a plane into 2
 # addressable bodies. `multi_cut`: a plate cut by three disjoint tool bodies in one boolean.
 # `scoped_merge`: a 3-body linear pattern with a scope-mode union that merges bodies 0 and 2,

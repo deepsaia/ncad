@@ -3,6 +3,10 @@
 # DoF free about the shared axis. The joint carries a DoF signature [rot Z] that Phase 6 will drive.
 schema_version = 1
 units = mm
+metadata {
+  description = "Pinned lever assembly"
+  tags = [ g5_4a, assembly ]
+}
 assembly {
   instances = [
     { id = base, file = "pinned_lever.hocon", part = bracket, lock = true }

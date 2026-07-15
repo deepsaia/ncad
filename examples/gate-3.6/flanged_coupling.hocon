@@ -1,5 +1,9 @@
 schema_version = 2
 units = mm
+metadata {
+  description = "Flanged coupling"
+  tags = [ g3_6, part ]
+}
 # Phase 3 capstone: a flanged shaft coupling composing the whole phase in one believable part.
 # An aluminium flange with a bolt-circle of 6 holes (a cutter placed at the bolt radius via
 # `circle at`, circular-patterned, then boolean-cut) and a central bore, plus a steel hub kept

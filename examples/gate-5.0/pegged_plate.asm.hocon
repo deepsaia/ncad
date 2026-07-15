@@ -6,6 +6,10 @@
 # mate connectors (bucket 5.1) will let a placement reference a face/hole instead of the origin.
 schema_version = 1
 units = mm
+metadata {
+  description = "Pegged plate assembly"
+  tags = [ g5_0, assembly ]
+}
 assembly {
   instances = [
     { id = base, file = "plate.hocon", part = plate }

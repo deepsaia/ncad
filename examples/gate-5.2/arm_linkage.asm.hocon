@@ -4,6 +4,10 @@
 # coaxially on the bracket top. The constraint solver is bucket 5.2; DoF-bearing joints are 5.4.
 schema_version = 1
 units = mm
+metadata {
+  description = "Arm linkage assembly"
+  tags = [ g5_2, assembly ]
+}
 assembly {
   instances = [
     { id = base, file = "arm_linkage.hocon", part = bracket, lock = true }

@@ -1,5 +1,9 @@
 schema_version = 2
 units = mm
+metadata {
+  description = "Connected stack"
+  tags = [ g5_1, part ]
+}
 parts {
   # A plate with a `top` mate connector on its upper face (Z = +normal, origin = face center).
   plate { profile = solid,
