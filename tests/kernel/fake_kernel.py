@@ -383,6 +383,13 @@ class FakeKernel(Kernel):
         return _FakeCombined(self.volume(solid) - radius * 4 * len(faces),
                              self.bounding_box(solid))
 
+    def max_fillet(self, solid: Any, edges: list) -> float:
+        # Analytic proxy: half the smallest bbox extent (a coarse largest-feasible-radius
+        # stand-in; the real kernel binary-searches the true value). Enough for the validator's
+        # shape tests.
+        (minx, miny, minz), (maxx, maxy, maxz) = self.bounding_box(solid)
+        return min(maxx - minx, maxy - miny, maxz - minz) / 2.0
+
     def chamfer_vertices(self, solid: Any, vertices: list, distance: float) -> Any:
         # A corner facet removes ~ a small tetrahedral volume per vertex.
         return _FakeCombined(self.volume(solid) - distance * len(vertices),

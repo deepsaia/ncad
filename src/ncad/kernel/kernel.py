@@ -261,6 +261,13 @@ class Kernel(ABC):
         """
 
     @abstractmethod
+    def max_fillet(self, solid: Any, edges: list) -> float:
+        """The largest feasible fillet radius for ``edges`` of ``solid`` (a validator/hint).
+
+        A fillet at this radius builds; a materially larger one fails. Query-only (no feature).
+        """
+
+    @abstractmethod
     def chamfer_vertices(self, solid: Any, vertices: list, distance: float) -> Any:
         """Facet a corner ``vertex`` by bevelling the edges meeting it (a vertex chamfer)."""
 

@@ -558,6 +558,13 @@ class Build123dKernel(Kernel):
     def fillet_edges(self, solid: Any, edges: list, radius: float) -> Any:
         return self._robust(self._do_fillet, solid, edges, radius, name="fillet")
 
+    def max_fillet(self, solid: Any, edges: list) -> float:
+        """The largest feasible fillet radius for ``edges`` via build123d Solid.max_fillet."""
+        try:
+            return float(_b3d(solid).max_fillet(edges, tolerance=0.1, max_iterations=10))
+        except Exception as exc:  # noqa: BLE001 - OCCT raises broadly; wrap with context
+            raise KernelOpError(f"max_fillet failed: {exc}") from exc
+
     def fillet_variable(self, solid: Any, edges: list, radius_start: float,
                         radius_end: float) -> Any:
         return self._robust(self._do_fillet_variable, solid, edges, radius_start,

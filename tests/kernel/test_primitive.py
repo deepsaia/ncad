@@ -19,3 +19,11 @@ def test_fake_primitive_volumes():
     cone = kernel.make_primitive("cone", {"bottom_radius": 10.0, "top_radius": 0.0, "h": 20.0},
                                  "XY", (0.0, 0.0))
     assert math.isclose(kernel.volume(cone), math.pi / 3.0 * 20.0 * 100.0, rel_tol=1e-6)
+
+
+def test_fake_max_fillet_is_bounded_positive():
+    kernel = FakeKernel()
+    box = kernel.make_primitive("box", {"w": 20.0, "d": 20.0, "h": 20.0}, "XY", (0.0, 0.0))
+    r = kernel.max_fillet(box, kernel.edges_of(box))
+    # A feasible radius: positive and no larger than half the smallest extent (10).
+    assert 0.0 < r <= 10.0 + 1e-9
