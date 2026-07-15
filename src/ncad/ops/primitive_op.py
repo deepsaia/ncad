@@ -26,7 +26,8 @@ class PrimitiveOp:
             return OpResult(shape=None, issues=[BuildIssue(node_id=node_id, message=str(exc))])
         try:
             shape = kernel.make_primitive(
-                kwargs["kind"], kwargs["dims"], kwargs["plane"], kwargs["at"])
+                kwargs["kind"], kwargs["dims"], kwargs["plane"], kwargs["at"],
+                kwargs["plane_offset"])
         except KernelOpError as exc:
             return OpResult(shape=None, issues=[BuildIssue(
                 node_id=node_id, message=f"primitive {kwargs['kind']!r} failed: {exc}")])

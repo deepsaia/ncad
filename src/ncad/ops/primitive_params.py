@@ -23,8 +23,9 @@ def primitive_kwargs(params: dict) -> dict:
     dims = _dims_for(kind, params)
     plane = params.get("plane", "XY")
     at = params.get("at", [0.0, 0.0])
+    plane_offset = float(params.get("plane_offset", 0.0))
     return {"kind": kind, "dims": dims, "plane": plane,
-            "at": (float(at[0]), float(at[1]))}
+            "at": (float(at[0]), float(at[1])), "plane_offset": plane_offset}
 
 
 def _radius(params: dict, kind: str, d_key: str, r_key: str) -> float:

@@ -1,0 +1,29 @@
+schema_version = 2
+units = mm
+# Bucket 1.9 gate: a turned finial / newel-post cap, exercising the new base-feature + dress-up
+# capabilities:
+#   - a PRIMITIVE cylinder base (a no-sketch base body).
+#   - a TWISTED EXTRUDE square shaft (twist = 90 about the extrude axis) unioned on top.
+#   - a PRIMITIVE sphere cap (elevated via plane_offset) unioned above.
+#   - a base-rim fillet (radius chosen well under the base's max_fillet, so it always builds).
+# The result is one clean solid. A real, recognizable turned ornament.
+metadata {
+  description = "Turned finial: cylinder base, twisted square shaft, sphere cap"
+  tags = [ g1_9, finial, primitives, twist ]
+}
+parts {
+  finial {
+    profile = solid
+    material = aluminium_6061
+    features = [
+      { id = base, op = primitive, kind = cylinder, d = 30, h = 8 }
+      { id = shaft_sk, op = sketch, plane = XY, plane_offset = 8,
+        elements = [ { id = r, type = rectangle, w = 16, h = 16 } ] }
+      { id = shaft, op = extrude, profile = shaft_sk, distance = 40, twist = 90 }
+      { id = with_shaft, op = boolean, operation = union, target = base, tool = shaft }
+      { id = cap, op = primitive, kind = sphere, d = 24, plane_offset = 48 }
+      { id = finial, op = boolean, operation = union, target = with_shaft, tool = cap }
+      { id = round, op = fillet, edges = bottom, radius = 2 }
+    ]
+  }
+}

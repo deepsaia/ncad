@@ -525,9 +525,11 @@ class Build123dKernel(Kernel):
         base = Plane(origin=Vector(*center), z_dir=_AXES[axis].direction)
         return Solid.make_cone(bottom_diameter / 2.0, top_diameter / 2.0, length, base)
 
-    def make_primitive(self, kind: str, dims: dict, plane: str, at: Point2) -> Any:
-        # A primitive base body on the sketch plane at the `at` origin (build123d Solid.make_*).
-        base = _basis(plane, 0.0)
+    def make_primitive(self, kind: str, dims: dict, plane: str, at: Point2,
+                       plane_offset: float = 0.0) -> Any:
+        # A primitive base body on the sketch plane (shifted by plane_offset along its normal) at
+        # the `at` origin (build123d Solid.make_*).
+        base = _basis(plane, plane_offset)
         origin = base.from_local_coords(Vector(float(at[0]), float(at[1]), 0.0))
         located = Plane(origin=origin, x_dir=base.x_dir,  # pyrefly: ignore[no-matching-overload]
                         z_dir=base.z_dir)
