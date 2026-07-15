@@ -345,6 +345,13 @@ class FakeKernel(Kernel):
              top_diameter: float, length: float) -> Any:
         return _FakeCone(center, axis, bottom_diameter, top_diameter, length)
 
+    def make_primitive(self, kind: str, dims: dict, plane: str, at: Point2) -> Any:
+        # Analytic base body: exact volume per kind + a coarse axis-aligned bbox at the origin
+        # (the fake has no rotation/plane model; real placement is real-kernel-only).
+        volume, half = _primitive_volume_and_half(kind, dims)
+        bounds = ((-half[0], -half[1], -half[2]), (half[0], half[1], half[2]))
+        return _FakeCombined(volume, bounds)
+
     def cut(self, solid: Any, tools: list) -> Any:
         # Cutting keeps the outer bounds of the solid being drilled/pocketed.
         return _FakeCombined(self.volume(solid) - sum(self.volume(t) for t in tools),
@@ -832,6 +839,30 @@ def _prismatoid_volume(stack: list[tuple[float, float]]) -> float:
         (a0, z0), (a1, z1) = stack[i], stack[i + 1]
         total += (a0 + a1) / 2.0 * abs(z1 - z0)
     return total
+
+
+def _primitive_volume_and_half(kind: str, dims: dict) -> tuple[float, tuple]:
+    """Analytic (volume, half-extents) for a primitive kind (the fake's base-body model)."""
+    if kind == "box":
+        w, d, h = dims["w"], dims["d"], dims["h"]
+        return w * d * h, (w / 2.0, d / 2.0, h / 2.0)
+    if kind == "sphere":
+        r = dims["radius"]
+        return 4.0 / 3.0 * math.pi * r ** 3, (r, r, r)
+    if kind == "cylinder":
+        r, h = dims["radius"], dims["h"]
+        return math.pi * r * r * h, (r, r, h / 2.0)
+    if kind == "cone":
+        big, small, h = dims["bottom_radius"], dims["top_radius"], dims["h"]
+        vol = math.pi / 3.0 * h * (big * big + big * small + small * small)
+        return vol, (big, big, h / 2.0)
+    if kind == "torus":
+        major, minor = dims["major_radius"], dims["minor_radius"]
+        return 2.0 * math.pi ** 2 * major * minor * minor, (major + minor, major + minor, minor)
+    if kind == "wedge":
+        dx, dy, dz = dims["dx"], dims["dy"], dims["dz"]
+        return dx * dy * dz, (dx / 2.0, dy / 2.0, dz / 2.0)
+    raise KernelOpError(f"unknown primitive kind {kind!r}")
 
 
 def _polygon_area(points: list[Point2]) -> float:

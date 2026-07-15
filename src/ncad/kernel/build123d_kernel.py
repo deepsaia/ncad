@@ -512,6 +512,27 @@ class Build123dKernel(Kernel):
         base = Plane(origin=Vector(*center), z_dir=_AXES[axis].direction)
         return Solid.make_cone(bottom_diameter / 2.0, top_diameter / 2.0, length, base)
 
+    def make_primitive(self, kind: str, dims: dict, plane: str, at: Point2) -> Any:
+        # A primitive base body on the sketch plane at the `at` origin (build123d Solid.make_*).
+        base = _basis(plane, 0.0)
+        origin = base.from_local_coords(Vector(float(at[0]), float(at[1]), 0.0))
+        located = Plane(origin=origin, x_dir=base.x_dir,  # pyrefly: ignore[no-matching-overload]
+                        z_dir=base.z_dir)
+        if kind == "box":
+            return Solid.make_box(dims["w"], dims["d"], dims["h"], located)
+        if kind == "cylinder":
+            return Solid.make_cylinder(dims["radius"], dims["h"], located)
+        if kind == "sphere":
+            return Solid.make_sphere(dims["radius"], located)
+        if kind == "cone":
+            return Solid.make_cone(dims["bottom_radius"], dims["top_radius"], dims["h"], located)
+        if kind == "torus":
+            return Solid.make_torus(dims["major_radius"], dims["minor_radius"], located)
+        if kind == "wedge":
+            dx, dy, dz = dims["dx"], dims["dy"], dims["dz"]
+            return Solid.make_wedge(dx, dy, dz, 0.0, 0.0, dx, dz, located)
+        raise KernelOpError(f"unknown primitive kind {kind!r}")
+
     def cut(self, solid: Any, tools: list) -> Any:
         return self._robust(self._do_cut, solid, tools, name="cut")
 

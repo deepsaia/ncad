@@ -45,6 +45,16 @@ class Kernel(ABC):
         """
 
     @abstractmethod
+    def make_primitive(self, kind: str, dims: dict, plane: str, at: Point2) -> Any:
+        """A primitive base solid: ``kind`` in {box, cylinder, sphere, cone, torus, wedge}.
+
+        ``dims`` carries resolved numeric dimensions (box: w/d/h; cylinder: radius/h; sphere:
+        radius; cone: bottom_radius/top_radius/h; torus: major_radius/minor_radius; wedge:
+        dx/dy/dz). ``plane`` is the base plane ("XY"/"XZ"/"YZ") and ``at`` the 2D origin offset on
+        it. A no-sketch base body (a part may start from a primitive).
+        """
+
+    @abstractmethod
     def revolve(self, face: Any, axis_point: Point3, axis_dir: Point3, *,
                 angle: float = 360.0, symmetric: bool = False,
                 thin: float | None = None) -> Any:
