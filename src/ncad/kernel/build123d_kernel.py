@@ -901,13 +901,19 @@ class Build123dKernel(Kernel):
     def inertia(self, solid: Any) -> dict:
         # The volume inertia tensor of the solid, via OCCT GProp_GProps.MatrixOfInertia
         # (density 1 here: geometry-only, like volume; the mass layer scales by material
-        # density). Returns the full symmetric 3x3 matrix + the three principal moments.
+        # density). Returns the full symmetric 3x3 matrix + the three principal moments + the
+        # radius of gyration about each world axis (a standard mass-properties report field).
         props = GProp_GProps()
         BRepGProp.VolumeProperties_s(_wrapped(solid), props)
         matrix = props.MatrixOfInertia()
         rows = [[matrix.Value(i, j) for j in (1, 2, 3)] for i in (1, 2, 3)]
         moments = props.PrincipalProperties().Moments()
-        return {"matrix": rows, "principal": [moments[0], moments[1], moments[2]]}
+        shape = _b3d(solid)
+        gyradius = [shape.radius_of_gyration(Axis.X),
+                    shape.radius_of_gyration(Axis.Y),
+                    shape.radius_of_gyration(Axis.Z)]
+        return {"matrix": rows, "principal": [moments[0], moments[1], moments[2]],
+                "gyradius": gyradius}
 
     def signature(self, solid: Any) -> dict:
         if isinstance(solid, BodySet):

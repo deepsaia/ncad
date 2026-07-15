@@ -675,10 +675,18 @@ class FakeKernel(Kernel):
     def inertia(self, solid: Any) -> dict:
         # Fake model: a diagonal tensor proportional to volume (no true second moments; the
         # real kernel computes the OCCT tensor). Deterministic, symmetric, positive-diagonal.
+        # gyradius approximates the uniform-box CENTROIDAL radius of gyration from the bbox
+        # extents (the real kernel measures about the WORLD axes, so it is placement-dependent;
+        # this analytic stand-in is enough for the Fake's shape/length checks).
         v = self.volume(solid)
         diag = max(v, 1e-9)
+        (minx, miny, minz), (maxx, maxy, maxz) = self.bounding_box(solid)
+        dx, dy, dz = maxx - minx, maxy - miny, maxz - minz
+        gyradius = [((dy * dy + dz * dz) / 12.0) ** 0.5,
+                    ((dx * dx + dz * dz) / 12.0) ** 0.5,
+                    ((dx * dx + dy * dy) / 12.0) ** 0.5]
         return {"matrix": [[diag, 0.0, 0.0], [0.0, diag, 0.0], [0.0, 0.0, diag]],
-                "principal": [diag, diag, diag]}
+                "principal": [diag, diag, diag], "gyradius": gyradius}
 
     def split_by_tool(self, shape: Any, tool: Any, keep: str = "both") -> list:
         # Analytic partition by a tool body: inside = the tool's volume clamped to the shape,

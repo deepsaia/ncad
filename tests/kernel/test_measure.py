@@ -16,3 +16,10 @@ def test_fake_oriented_bounding_box_shape():
     # Axes are orthonormal (the Fake returns world X/Y/Z).
     for a in obb["axes"]:
         assert math.isclose(math.hypot(*a), 1.0, abs_tol=1e-9)
+
+
+def test_fake_inertia_has_gyradius_triple():
+    kernel = FakeKernel()
+    inertia = kernel.inertia(_box(kernel))
+    assert set(inertia) >= {"matrix", "principal", "gyradius"}
+    assert len(inertia["gyradius"]) == 3

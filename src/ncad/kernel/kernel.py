@@ -462,9 +462,11 @@ class Kernel(ABC):
 
     @abstractmethod
     def inertia(self, solid: Any) -> dict:
-        """The volume inertia tensor of ``solid`` -> ``{"matrix": 3x3, "principal": [i1,i2,i3]}``.
+        """The volume inertia of ``solid`` -> ``{"matrix": 3x3, "principal": [i1,i2,i3],
+        "gyradius": [gx,gy,gz]}``.
 
         Density-1 (geometry-only, like volume); the mass layer scales by material density.
+        ``gyradius`` is the radius of gyration about the world X, Y, Z axes.
         """
 
     @abstractmethod

@@ -36,3 +36,22 @@ def test_closest_points_pair_is_consistent_with_distance():
     assert math.isclose(pb[0], 25.0, abs_tol=1e-6)
     # The separation of the pair equals the scalar min distance (consistency invariant).
     assert math.isclose(math.dist(pa, pb), kernel.distance(a, b), abs_tol=1e-6)
+
+
+def test_inertia_gyradius_matches_box_analytic():
+    from build123d import Location, Solid
+
+    from ncad.kernel.build123d_kernel import Build123dKernel
+
+    kernel = Build123dKernel()
+    a, b, c = 20.0, 10.0, 5.0
+    # Center the box on the world origin so the world-axis gyradius equals the centroidal value
+    # k = sqrt((d1^2 + d2^2) / 12) for the two extents perpendicular to each axis (gyradius is
+    # measured about the world X/Y/Z axes, so placement matters).
+    box = Solid.make_box(a, b, c).moved(Location((-a / 2, -b / 2, -c / 2)))
+    inertia = kernel.inertia(box)
+    analytic = sorted([math.sqrt((b * b + c * c) / 12.0),
+                       math.sqrt((a * a + c * c) / 12.0),
+                       math.sqrt((a * a + b * b) / 12.0)])
+    assert all(math.isclose(g, x, rel_tol=1e-3)
+               for g, x in zip(sorted(inertia["gyradius"]), analytic))
