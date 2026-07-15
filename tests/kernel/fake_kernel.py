@@ -271,7 +271,9 @@ class FakeKernel(Kernel):
     def extrude(self, face: Any, distance: float | None = None, *,
                 symmetric: bool = False, second_distance: float | None = None,
                 draft: float = 0.0, thin: float | None = None,
-                until: str | None = None, target: Any = None) -> Any:
+                until: str | None = None, target: Any = None, twist: float = 0.0) -> Any:
+        # twist is ignored in the analytic model: a twisted prism has the same volume as the
+        # straight one (true twisted geometry is real-kernel-only).
         # Effective +Z height carries the end-condition analytically: blind/symmetric use
         # `distance` (symmetric only re-centers, so total height is unchanged); two_side
         # sums both sides; until/target take the target's bbox height. draft is ignored in

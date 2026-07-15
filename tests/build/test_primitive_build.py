@@ -25,7 +25,7 @@ def test_primitive_then_boolean_composes_on_real_kernel():
     from ncad.kernel.build123d_kernel import Build123dKernel
 
     doc = _doc([
-        # Center the box on the origin (at = -w/2, -d/2) so the origin-centered hole is fully inside.
+        # Center the box on the origin (at = -w/2, -d/2) so the centered hole is fully inside.
         {"id": "base", "op": "primitive", "kind": "box", "w": 40, "d": 40, "h": 10,
          "at": [-20, -20]},
         {"id": "hole_sk", "op": "sketch", "plane": "XY",

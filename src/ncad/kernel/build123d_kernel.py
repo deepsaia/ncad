@@ -216,8 +216,21 @@ class Build123dKernel(Kernel):
     def extrude(self, face: Any, distance: float | None = None, *,
                 symmetric: bool = False, second_distance: float | None = None,
                 draft: float = 0.0, thin: float | None = None,
-                until: str | None = None, target: Any = None) -> Any:
+                until: str | None = None, target: Any = None, twist: float = 0.0) -> Any:
         to_extrude = _thin_ring(face, thin) if thin is not None else face
+        if twist != 0.0:
+            # A twisted prism: the profile rotates `twist` degrees about the extrude axis over the
+            # full distance (NX/Creo "extrude with twist"). Needs a finite length; no until/target
+            # boundary and no draft (build123d's twisted extrude carries no taper).
+            if until is not None or target is not None:
+                raise KernelOpError("twisted extrude needs a finite distance (no until/target)")
+            if distance is None:
+                raise KernelOpError("twisted extrude needs a distance")
+            if draft != 0.0:
+                raise KernelOpError("twisted extrude cannot combine with draft")
+            normal = to_extrude.normal_at() * float(distance)
+            return Solid.extrude_linear_with_rotation(
+                to_extrude, center=to_extrude.center(), normal=normal, angle=twist)
         if until is not None or target is not None:
             until_token = _UNTIL_TOKENS.get(until) if until is not None else None
             return extrude(to_extrude, until=until_token, target=target, taper=draft)

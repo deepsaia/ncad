@@ -34,14 +34,16 @@ class Kernel(ABC):
     def extrude(self, face: Any, distance: float | None = None, *,
                 symmetric: bool = False, second_distance: float | None = None,
                 draft: float = 0.0, thin: float | None = None,
-                until: str | None = None, target: Any = None) -> Any:
+                until: str | None = None, target: Any = None, twist: float = 0.0) -> Any:
         """Extrude ``face`` into a solid.
 
         ``distance`` blind along the normal; ``symmetric`` centers that total distance on
         the face plane; ``second_distance`` adds a second extrude the other way (fused);
         ``draft`` tapers the walls (degrees); ``thin`` makes a wall of that thickness;
         ``until``/``target`` extrude up to a boundary (``"last"`` = through everything,
-        ``"next"`` = to the next face, or a resolved ``target`` face/solid).
+        ``"next"`` = to the next face, or a resolved ``target`` face/solid);
+        ``twist`` rotates the profile about the extrude axis over the full distance (degrees;
+        requires a finite ``distance``, not compatible with ``until``/``target``/``draft``).
         """
 
     @abstractmethod
