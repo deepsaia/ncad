@@ -1,0 +1,88 @@
+schema_version = 2
+units = mm
+# The parts of a plate-mount swivel caster (bucket 5.7 capstone), authored in a shared world frame
+# and laid out clash-free. Coordinate plan (mm):
+#   plate  : 60x60x6 at z 0..6; d12 swivel bore + four d6 bolt holes on a r22 circle.
+#   fork   : a clevis. bridge z -6..0 (under the plate); swivel post d11 z 0..12 (up through the
+#            bore); two legs at y +/-11 (y 8..14, -14..-8) hanging z -34..-6 straddling the wheel;
+#            a d7 axle bore through both legs at z -28.
+#   wheel  : d40, 14 wide (y +/-7), a d7 axle bore; rides between the legs (1 mm clearance/side).
+#   axle   : d6 rod along y (the wheel spins on it; d7 bores give running clearance).
+#   bolt   : a cap screw, head above the plate + a d5 shank hanging DOWN through the d6 hole.
+#   stop   : a tab beside the post whose -x face seats tangent to the post.
+metadata {
+  description = "Swivel caster parts: top plate, clevis fork, wheel, axle, cap-screw bolt, stop"
+  tags = [ caster, hardware, capstone ]
+}
+parts {
+  top_plate { profile = solid, material = steel_1018,
+    connectors = [
+      { id = swivelBore, at = "select faces where type = 'cylinder' and area > 150" }
+      { id = mountEdge, at = "select edges where type = 'line' and max_z > 5.9 and orientation = 'horizontal'" }
+    ],
+    features = [
+      { id = sk, op = sketch, plane = XY, elements = [ { id = r, type = rectangle, w = 60, h = 60 } ] }
+      { id = plate, op = extrude, profile = sk, distance = 6 }
+      { id = bore, op = hole, plane = XY, positions = [ [ 0, 0 ] ], diameter = 12, through = true }
+      { id = boltholes, op = hole, plane = XY,
+        positions = [ [ 22, 0 ], [ -22, 0 ], [ 0, 22 ], [ 0, -22 ] ], diameter = 6, through = true }
+    ] }
+  fork { profile = solid, material = steel_1018,
+    connectors = [
+      { id = post, at = "select faces where type = 'cylinder' and max_z > 6" }
+      { id = axleBore, at = "select faces where type = 'cylinder' and max_z < 0" }
+    ],
+    features = [
+      { id = bridge_sk, op = sketch, plane = XY, plane_offset = -6,
+        elements = [ { id = r, type = rectangle, w = 24, h = 28 } ] }
+      { id = bridge, op = extrude, profile = bridge_sk, distance = 6 }
+      { id = post_sk, op = sketch, plane = XY, elements = [ { id = c, type = circle, d = 11 } ] }
+      { id = post, op = extrude, profile = post_sk, distance = 12 }
+      { id = withpost, op = boolean, operation = union, target = bridge, tool = post }
+      { id = legL_sk, op = sketch, plane = XY, plane_offset = -34,
+        elements = [ { id = r, type = rectangle, w = 20, h = 6, at = [ 0, 11 ] } ] }
+      { id = legL, op = extrude, profile = legL_sk, distance = 28 }
+      { id = withL, op = boolean, operation = union, target = withpost, tool = legL }
+      { id = legR_sk, op = sketch, plane = XY, plane_offset = -34,
+        elements = [ { id = r, type = rectangle, w = 20, h = 6, at = [ 0, -11 ] } ] }
+      { id = legR, op = extrude, profile = legR_sk, distance = 28 }
+      { id = yoke, op = boolean, operation = union, target = withL, tool = legR }
+      { id = axle_sk, op = sketch, plane = XZ, elements = [ { id = c, type = circle, d = 7, at = [ 0, -28 ] } ] }
+      { id = axle_tool, op = extrude, profile = axle_sk, end = symmetric, distance = 40 }
+      { id = bored, op = boolean, operation = cut, target = yoke, tool = axle_tool }
+    ] }
+  wheel { profile = solid, material = aluminium_6061,
+    connectors = [ { id = hub, at = "select faces where type = 'cylinder' and area < 350" } ],
+    features = [
+      { id = sk, op = sketch, plane = XZ, elements = [ { id = c, type = circle, d = 40 } ] }
+      { id = disc, op = extrude, profile = sk, end = symmetric, distance = 14 }
+      { id = bore_sk, op = sketch, plane = XZ, elements = [ { id = c, type = circle, d = 7 } ] }
+      { id = bore_tool, op = extrude, profile = bore_sk, end = symmetric, distance = 20 }
+      { id = bored, op = boolean, operation = cut, target = disc, tool = bore_tool }
+    ] }
+  axle { profile = solid, material = steel_1018,
+    connectors = [ { id = shaft, at = "select faces where type = 'cylinder'" } ],
+    features = [
+      { id = sk, op = sketch, plane = XZ, elements = [ { id = c, type = circle, d = 6 } ] }
+      { id = rod, op = extrude, profile = sk, end = symmetric, distance = 34 }
+    ] }
+  # Cap screw at the r22 bolt circle: a d9 head (z 6..9) on top of the plate + a d5 shank hanging
+  # down through the plate (z -6..6) inside the d6 clearance hole.
+  bolt { profile = solid, material = steel_1018,
+    features = [
+      { id = shank_sk, op = sketch, plane = XY, plane_offset = -6,
+        elements = [ { id = c, type = circle, d = 5, at = [ 22, 0 ] } ] }
+      { id = shank, op = extrude, profile = shank_sk, distance = 12 }
+      { id = head_sk, op = sketch, plane = XY, plane_offset = 6,
+        elements = [ { id = c, type = circle, d = 9, at = [ 22, 0 ] } ] }
+      { id = head, op = extrude, profile = head_sk, distance = 3 }
+      { id = screw, op = boolean, operation = union, target = shank, tool = head }
+    ] }
+  stop { profile = solid, material = steel_1018,
+    connectors = [ { id = face, at = "select faces where type = 'plane' and normal_x < -0.9" } ],
+    features = [
+      { id = sk, op = sketch, plane = XY, plane_offset = 6,
+        elements = [ { id = r, type = rectangle, w = 8, h = 8, at = [ 10, 12 ] } ] }
+      { id = block, op = extrude, profile = sk, distance = 6 }
+    ] }
+}

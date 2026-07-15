@@ -3,6 +3,10 @@
 # `top` connector (a one-shot rigid frame coincidence; the constraint solver is bucket 5.2).
 schema_version = 1
 units = mm
+metadata {
+  description = "Connected stack assembly"
+  tags = [ g5_1, assembly ]
+}
 assembly {
   instances = [
     { id = base, file = "connected_stack.hocon", part = plate }

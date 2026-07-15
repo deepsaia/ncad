@@ -1,5 +1,9 @@
 schema_version = 1
 units = mm
+metadata {
+  description = "Slotted tab"
+  tags = [ g1_2, part ]
+}
 # One part built from two curved sketches: a slot-shaped plate (the slot sugar lowers to
 # 2 lines + 2 semicircular arc caps, an exact stadium) with a round hole pocketed through
 # it (a first-class circle entity dimensioned by a radius constraint). Each sketch is a

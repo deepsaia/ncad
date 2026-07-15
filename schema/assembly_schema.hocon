@@ -57,11 +57,13 @@ definitions {
     properties {
       id { type = string }
       type { enum = ["coincident", "mate", "flush", "align", "concentric", "parallel",
-                     "perpendicular", "angle", "distance", "offset", "lock"] }
+                     "perpendicular", "angle", "distance", "offset", "lock",
+                     "tangent", "symmetric", "width"] }
+      # up to THREE refs: symmetric/width use the third as the 'about' / second bounding plane.
       between {
         type = array
         minItems = 1
-        maxItems = 2
+        maxItems = 3
         items = ${definitions.mate_ref}
       }
       value { type = number }
@@ -96,7 +98,7 @@ definitions {
     required = ["id", "type", "between"]
     properties {
       id { type = string }
-      type { enum = ["gear", "belt", "rack_pinion", "universal"] }
+      type { enum = ["gear", "belt", "rack_pinion", "universal", "cam"] }
       between {
         type = array
         minItems = 2
@@ -104,6 +106,9 @@ definitions {
         items { type = string }
       }
       ratio { type = number }
+      # A cam coupling's follower rides this profile curve (a selector/persistent-name ref on the
+      # cam part); curved-contact enforcement is Phase 6. Bucket 5.7.
+      profile { type = string }
     }
   }
 
@@ -111,14 +116,36 @@ definitions {
   # (explicit) or connect (connector-driven snap). `lock` grounds the instance in the solve.
   instance {
     type = object
-    required = ["id", "file", "part"]
+    # Only `id` is required: an instance is a part ({file, part}), a sub-assembly (`assembly`), or
+    # a `mirror`/`replace` of another instance (bucket 5.7). The builder validates the combination.
+    required = ["id"]
     properties {
       id { type = string }
       file { type = string }
       part { type = string }
+      # A nested sub-assembly reference (a .asm.hocon path); recursively built + composed (5.7).
+      assembly { type = string }
       placement = ${definitions.placement}
       connect = ${definitions.connect}
       lock { type = boolean }
+      # A component pattern: array this instance's part at each placement (bucket 5.7). The
+      # PatternParams vocabulary is the real gate; permissive here.
+      pattern { type = object }
+      # A component mirror: reflect an already-declared source instance (`of`) across a plane.
+      mirror { type = object }
+      of { type = string }
+      # A component replace: swap the referenced {file, part} / assembly, keeping id + placement.
+      replace { type = object }
+    }
+  }
+
+  # Optional document metadata (extensible): a human description + freeform tags. Permissive so
+  # more sub-keys can be added without a schema bump (matches the part schema).
+  metadata {
+    type = object
+    properties {
+      description { type = string }
+      tags { type = array, items { type = string } }
     }
   }
 }
@@ -128,6 +155,7 @@ required = ["schema_version", "units", "assembly"]
 properties {
   schema_version { type = integer, minimum = 1 }
   units { enum = ["mm", "m", "in"] }
+  metadata = ${definitions.metadata}
   assembly {
     type = object
     required = ["instances"]

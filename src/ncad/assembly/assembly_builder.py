@@ -16,6 +16,9 @@ from typing import Any
 
 from ncad.assembly.assembly_bom import AssemblyBom
 from ncad.assembly.assembly_placement import AssemblyPlacement
+from ncad.assembly.component_mirror import ComponentMirror
+from ncad.assembly.component_pattern import ComponentPattern, ComponentPatternError
+from ncad.assembly.component_replace import ComponentReplace
 from ncad.assembly.connector_frame import ConnectorFrame
 from ncad.assembly.connector_resolver import ConnectorResolver
 from ncad.assembly.coupling import Coupling
@@ -25,6 +28,7 @@ from ncad.assembly.interference_checker import InterferenceChecker
 from ncad.assembly.joint_lowering import JointError, JointLowering
 from ncad.assembly.mate_lowering import MateError, MateLowering
 from ncad.assembly.mate_solver import MateSolver
+from ncad.assembly.sub_assembly_composer import SubAssemblyComposer
 from ncad.build.document_builder import DocumentBuilder
 from ncad.build.mass_calculator import MassCalculator
 from ncad.build.material_error import MaterialError
@@ -47,6 +51,10 @@ class AssemblyBuilder:
         self._loader = SpecLoader()
         self._validator = AssemblySchemaValidator()
         self._placement = AssemblyPlacement()
+        self._pattern = ComponentPattern()
+        self._mirror = ComponentMirror()
+        self._replace = ComponentReplace()
+        self._composer = SubAssemblyComposer()
         self._connectors = ConnectorResolver()
         self._snap = FrameSnap()
         self._lowering = MateLowering()
@@ -57,8 +65,17 @@ class AssemblyBuilder:
         self._bom = AssemblyBom()
         self._mass = MassCalculator(kernel)
 
-    def assemble(self, asm_path: str, out_dir: str) -> dict:
-        """Compose the assembly at ``asm_path`` into ``out_dir``; return sidecar path + issues."""
+    def assemble(self, asm_path: str, out_dir: str,
+                 _visited: frozenset = frozenset()) -> dict:
+        """Compose the assembly at ``asm_path`` into ``out_dir``; return sidecar path + issues.
+
+        ``_visited`` carries the ancestor .asm.hocon paths for sub-assembly cycle detection
+        (bucket 5.7); callers use the default empty set.
+        """
+        abs_path = os.path.abspath(asm_path)
+        if abs_path in _visited:
+            raise ValueError(f"circular sub-assembly reference: {abs_path}")
+        _visited = _visited | {abs_path}
         document = self._loader.load(asm_path)
         schema_issues = self._validator.validate(document)
         if schema_issues:
@@ -67,6 +84,13 @@ class AssemblyBuilder:
         os.makedirs(out_dir, exist_ok=True)
         asm_dir = os.path.dirname(os.path.abspath(asm_path))
         name = _stem(asm_path)
+        # Expand component ops (pattern; mirror/replace/sub-assembly in later tasks) into a flat
+        # instance list BEFORE placement/solve, so the rest of the pipeline sees plain instances.
+        pre_issues: list[dict] = []
+        expanded = self._expand_components(document["assembly"]["instances"], pre_issues)
+        # Replace the instance list in place with the expanded one so the whole pipeline (place,
+        # solve, analyze) iterates the flattened instances; the document dict stays typed.
+        document["assembly"]["instances"] = expanded
         # Part glbs export in metres (build123d export_gltf scales the document unit to metres),
         # so the scene sidecar bakes placements to metres too. The viewer then consumes the scene
         # unit-agnostic, exactly as it does a single-part glb.
@@ -83,8 +107,15 @@ class AssemblyBuilder:
         placements_mm: dict[str, list[list[float]]] = {}
         local_frames: dict[str, dict[str, ConnectorFrame]] = {}
         instances: list[dict] = []
-        issues: list[dict] = []
+        issues: list[dict] = list(pre_issues)
         for instance in document["assembly"]["instances"]:
+            if instance.get("assembly"):
+                # A nested sub-assembly: build it recursively and compose its solved instances
+                # under this instance's placement (bucket 5.7). It occupies a rigid-body slot in
+                # placements_mm so a later mate/connect can target it as one body.
+                instances.extend(self._compose_sub_assembly(
+                    instance, asm_dir, out_dir, _visited, to_metres, placements_mm, issues))
+                continue
             glb = self._ensure_part_glb(instance, asm_dir, out_dir, builders, built_glbs, issues)
             if glb is None:
                 continue
@@ -117,6 +148,66 @@ class AssemblyBuilder:
                        "joints": joints_out, "couplings": couplings_out,
                        "interference": interference, "bom": bom, "mass": mass}, handle)
         return {"sidecar": sidecar, "issues": issues, "instances": [i["id"] for i in instances]}
+
+    def _expand_components(self, raw_instances: list, issues: list) -> list[dict]:
+        """Expand component ops (replace, then mirror, then pattern) into a flat instance list.
+
+        A ``mirror`` instance references an already-declared source (document order); a forward or
+        unknown ``of`` reference is refused id-attributed. ``replace`` swaps the geometry ref
+        first; ``pattern`` arrays last so a replaced/mirrored instance can also be patterned.
+        """
+        out: list[dict] = []
+        by_id: dict[str, dict] = {}
+        for inst in raw_instances:
+            resolved = inst
+            if "replace" in resolved:
+                resolved = self._replace.apply(resolved, resolved["replace"])
+            if "mirror" in resolved or "of" in resolved:
+                source = by_id.get(resolved.get("of"))
+                if source is None:
+                    issues.append({"instance_id": resolved.get("id"),
+                                   "message": f"mirror source {resolved.get('of')!r} is not "
+                                              "declared before it"})
+                    continue
+                resolved = self._mirror.reflect(
+                    resolved, source, (resolved.get("mirror") or {}).get("plane", "XY"))
+            try:
+                expanded = self._pattern.expand(resolved)
+            except ComponentPatternError as exc:
+                issues.append({"instance_id": resolved.get("id"), "message": str(exc)})
+                continue
+            for entry in expanded:
+                by_id[entry["id"]] = entry
+                out.append(entry)
+        return out
+
+    def _compose_sub_assembly(self, instance: dict, asm_dir: str, out_dir: str,
+                              visited: frozenset, to_metres: float,
+                              placements_mm: dict, issues: list) -> list[dict]:
+        """Build a nested sub-assembly and compose its instances under this instance's placement.
+
+        The child assembles into the same out_dir (its own sidecar + STEP); its solved instances
+        (placements already baked to metres) are re-parented under the parent placement, also baked
+        to metres, so the composed scene stays in one unit space. A circular reference raises inside
+        the recursive assemble and is turned into an id-attributed issue here.
+        """
+        iid = instance["id"]
+        child_path = os.path.join(asm_dir, instance["assembly"])
+        try:
+            child = self.assemble(child_path, out_dir, visited)
+        except ValueError as exc:
+            issues.append({"instance_id": iid, "message": f"sub-assembly {iid!r}: {exc}"})
+            return []
+        for child_issue in child["issues"]:
+            issues.append({"instance_id": iid,
+                           "message": f"{iid}/{child_issue.get('instance_id', '?')}: "
+                                      f"{child_issue.get('message', '')}"})
+        child_sidecar_path = os.path.join(out_dir, f"{_stem(child_path)}{_ASSEMBLY_SUFFIX}")
+        with open(child_sidecar_path, encoding="utf-8") as handle:
+            child_doc = json.load(handle)
+        parent_metres = _bake_matrix(self._placement.matrix(instance.get("placement"), 1.0),
+                                     to_metres)
+        return self._composer.compose(child_doc["instances"], parent_metres, iid)
 
     def _place(self, instance: dict, placements_mm: dict,
                local_frames: dict, issues: list) -> list[list[float]]:
@@ -159,7 +250,7 @@ class AssemblyBuilder:
         # the sidecar even when there is nothing to solve. Phase 6 enforces them.
         couplings_out = [
             Coupling(id=c["id"], type=c["type"], between=list(c.get("between", [])),
-                     ratio=c.get("ratio")).to_dict()
+                     ratio=c.get("ratio"), profile=c.get("profile")).to_dict()
             for c in (document["assembly"].get("couplings") or [])]
         if not constraints and not joints:
             return ({"status": "well_constrained", "dof": 0, "explanation": "no constraints",
@@ -188,11 +279,17 @@ class AssemblyBuilder:
                                "signature": [a.to_dict() for a in signature], "ok": True})
         ground_ids = self._ground_ids(document, constraints, instances)
         outcome = self._solver.solve(local_frames, primitives, ground_ids, placements_mm)
-        # Overwrite each solved instance's placement + world connector frames (baked to metres).
+        # Instances that actually PARTICIPATE in a primitive (referenced by a mate/joint) take the
+        # solved pose; untouched instances keep their authored placement. The solver seeds rotation
+        # as identity (a 5.3+ refinement), so overwriting a non-participating instance would drop an
+        # authored rotation (e.g. a component-patterned bolt); guarding on participation preserves
+        # it. Grounded instances also keep their authored placement (they never move).
+        participants = {ref["instance"] for p in primitives
+                        for ref in (p.get("a_ref"), p.get("b_ref")) if ref} - set(ground_ids)
         by_id = {inst["id"]: inst for inst in instances}
         for iid, matrix_mm in outcome.placements.items():
             inst = by_id.get(iid)
-            if inst is None:
+            if inst is None or iid not in participants:
                 continue
             inst["placement"] = _bake_matrix(matrix_mm, to_metres)
             inst["connectors"] = [_bake_frame(cid, _world_frame(frame, matrix_mm), to_metres)
@@ -314,25 +411,37 @@ class AssemblyBuilder:
         return prims, signature
 
     def _lower_mate(self, mate: dict, local_frames: dict, issues: list) -> list[dict] | None:
-        """Resolve a mate's refs + lower to primitives with a_ref/b_ref attached; None on error."""
+        """Resolve a mate's refs + lower to primitives with a_ref/b_ref attached; None on error.
+
+        A mate references up to THREE connectors (between[0..2]); symmetric/width use the third as
+        the 'about' / second bounding plane. Each primitive's a/b role tag (``A.*``/``B.*``/
+        ``C.*``) selects which between-entry the solver resolves, so a primitive can target any of
+        the three connectors.
+        """
         between = mate.get("between") or []
         a_ref = between[0] if len(between) >= 1 else None
         b_ref = between[1] if len(between) >= 2 else None
+        c_ref = between[2] if len(between) >= 3 else None
         frame_a = self._frame_for(a_ref, local_frames)
         frame_b = self._frame_for(b_ref, local_frames) if b_ref else None
+        frame_c = self._frame_for(c_ref, local_frames) if c_ref else None
         if frame_a is None or (b_ref is not None and frame_b is None):
             issues.append({"constraint_id": mate.get("id"),
                            "message": f"mate {mate.get('id')!r} references an unknown connector"})
             return None
+        lowering_mate = dict(mate)
+        if frame_c is not None:
+            lowering_mate["_frame_c"] = frame_c
         try:
-            prims = self._lowering.lower(mate, frame_a, frame_b)
+            prims = self._lowering.lower(lowering_mate, frame_a, frame_b)
         except MateError as exc:
             issues.append({"constraint_id": mate.get("id"), "message": str(exc)})
             return None
+        by_role: dict[str, dict | None] = {"A": a_ref, "B": b_ref, "C": c_ref}
         for prim in prims:
             prim["id"] = mate["id"]
-            prim["a_ref"] = a_ref
-            prim["b_ref"] = b_ref
+            prim["a_ref"] = by_role.get(_role(prim.get("a")) or "A", a_ref)
+            prim["b_ref"] = by_role.get(_role(prim.get("b")) or "B", b_ref)
         return prims
 
     def _frame_for(self, ref: dict | None,
@@ -412,6 +521,13 @@ class AssemblyBuilder:
         glb = os.path.basename(artifacts[part_name])
         built_glbs[key] = glb
         return glb
+
+
+def _role(tag: str | None) -> str | None:
+    """The connector role letter (A/B/C) from a primitive role tag like 'A.origin' or 'C.plane'."""
+    if not tag:
+        return None
+    return tag.split(".", 1)[0]
 
 
 def _appearance_color(resolver: Any, shape: Any, kernel: Any) -> tuple | None:

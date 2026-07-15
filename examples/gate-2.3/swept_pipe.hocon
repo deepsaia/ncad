@@ -1,5 +1,9 @@
 schema_version = 2
 units = mm
+metadata {
+  description = "Swept pipe"
+  tags = [ g2_3, part ]
+}
 # A round pipe: a circular profile swept along a path with a ROUNDED (arc) corner. The arc
 # joins the vertical rise to the horizontal run tangentially. Its center (5,15) is 5 from
 # both legs, and it is authored start=c end=b so the CCW arc is the SHORT (minor) way, else

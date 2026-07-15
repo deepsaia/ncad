@@ -7,6 +7,10 @@
 # and a square bore straight down the axis.
 schema_version = 2
 units = mm
+metadata {
+  description = "Hex boss"
+  tags = [ g0_2, part ]
+}
 parameters {
   flat_r = 45
   flange_t = 12

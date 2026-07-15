@@ -1,5 +1,9 @@
 schema_version = 2
 units = mm
+metadata {
+  description = "Mounting cover"
+  tags = [ g4_4, part ]
+}
 # A round mounting cover (gearbox / pump end cap): a d140 x 10 plate with a central pilot bore
 # and SIX counterbored bolt holes on a d100 bolt circle, drilled by a FEATURE PATTERN. A single
 # stepped counterbore cutter (a d9 through shaft fused to a d15 x 5 counterbore head) is built

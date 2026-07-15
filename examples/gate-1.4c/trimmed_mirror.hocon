@@ -1,5 +1,9 @@
 schema_version = 1
 units = mm
+metadata {
+  description = "Trimmed mirror"
+  tags = [ g1_4c, part ]
+}
 # The gate profile: a right-side open chain whose overshooting top edge is TRIMMED back
 # to the right edge (welding to its top corner), then the whole chain is MIRRORED across
 # the Y axis to close a symmetric hexagonal plate. Proves trim + mirror compose into one

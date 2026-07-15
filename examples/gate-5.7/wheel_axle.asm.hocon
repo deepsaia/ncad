@@ -1,0 +1,20 @@
+schema_version = 1
+units = mm
+# The wheel + axle sub-assembly of the caster (bucket 5.7): the wheel is pinned to the axle by a
+# revolute joint (free to spin). This sub-assembly is instanced into the top-level caster assembly
+# and composed as one rigid body.
+metadata {
+  description = "Wheel pinned to an axle by a revolute (free to spin)"
+  tags = [ caster, sub-assembly ]
+}
+assembly {
+  instances = [
+    { id = axle, file = "caster.hocon", part = axle, lock = true }
+    { id = wheel, file = "caster.hocon", part = wheel }
+  ]
+  joints = [
+    { id = spin, type = revolute, between = [
+      { instance = axle, connector = shaft },
+      { instance = wheel, connector = hub } ] }
+  ]
+}

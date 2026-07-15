@@ -34,6 +34,7 @@ class AssemblySchemaValidator:
                 message=error.message)
             for error in self._validator.iter_errors(document)
         ]
+        issues.extend(self._instance_geometry_source(document))
         issues.extend(self._duplicate_ids(document))
         issues.extend(self._duplicate_constraint_ids(document))
         issues.extend(self._duplicate_joint_ids(document))
@@ -42,6 +43,32 @@ class AssemblySchemaValidator:
         issues.extend(self._coupling_id_collisions(document))
         issues.extend(self._coupling_joint_refs(document))
         return issues
+
+    def _instance_geometry_source(self, document: dict) -> list[SchemaIssue]:
+        """Each instance must name exactly one geometry source.
+
+        A part ({file, part}), a sub-assembly (`assembly`), a `mirror`/`of` reflection, or a
+        `replace` swap. A {file} without {part} (or vice versa) is a contract error, as is an
+        instance naming none of the above.
+        """
+        out: list[SchemaIssue] = []
+        for instance in document.get("assembly", {}).get("instances", []):
+            iid = instance.get("id")
+            has_part = "file" in instance and "part" in instance
+            partial_part = ("file" in instance) != ("part" in instance)
+            has_assembly = "assembly" in instance
+            has_mirror = "mirror" in instance or "of" in instance
+            has_replace = "replace" in instance
+            if partial_part and not has_replace:
+                out.append(SchemaIssue(
+                    location="assembly.instances",
+                    message=f"instance {iid!r} needs both 'file' and 'part'"))
+            elif not (has_part or has_assembly or has_mirror or has_replace):
+                out.append(SchemaIssue(
+                    location="assembly.instances",
+                    message=f"instance {iid!r} needs a geometry source "
+                            "(file+part, assembly, mirror/of, or replace)"))
+        return out
 
     def _duplicate_ids(self, document: dict) -> list[SchemaIssue]:
         """One issue per repeated instance id (author-controlled reference names)."""

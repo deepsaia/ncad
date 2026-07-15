@@ -1,5 +1,9 @@
 schema_version = 1
 units = mm
+metadata {
+  description = "Param plate"
+  tags = [ g0_4, part ]
+}
 # A fully parameter-driven plate: edit any value and rebuild. Only the dirty suffix
 # re-executes (bucket 0.4). E.g. change `thickness` and the sketch is a cache hit,
 # while the pad and holes re-run; change `hole_d` and the sketch + pad stay cached.

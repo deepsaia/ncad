@@ -1,5 +1,9 @@
 schema_version = 1
 units = mm
+metadata {
+  description = "Constrained rect"
+  tags = [ g1_1, part ]
+}
 # A rectangle authored as a constrained sketch: 4 points + 4 lines, made rectangular by
 # horizontal/vertical constraints and sized by two distances. The solver closes it; the
 # extrude turns it into a block. This is the "hello world" of the constraint solver.

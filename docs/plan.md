@@ -843,30 +843,44 @@ mass/world-COG via solved placements); AssemblyBuilder writes `interference`/`bo
 blocks + a structured `.step`; viewer surfacing (interference in Logs + Hierarchy clash badges,
 assembly BOM/mass panel, assembly By-Material view) + a build/render timing split; and the gate-5.6
 capstone (a revolute-mated bracket+lever: clearance-correct interference, BOM/mass, STEP AP242
-write>>read round-trip). FreeCAD-opens is a documented manual step. **Phase 5 is COMPLETE.** NEXT:
-Phase 6 (motion) or 5.5b (exploded views).
+write>>read round-trip). FreeCAD-opens is a documented manual step. **Bucket 5.7 (Phase 5
+completeness) is DONE, closing the phases-1-5 completeness program:** edge/point/datum-derived mate
+connectors (+ a connector `radius`); tangent/symmetric/width mates (lowered to the existing
+point-plane-distance core; symmetric/width take a third `about` ref); component pattern / mirror /
+replace (instance-level ops expanded before the solve, ids `<id>/<n>` / mirror `of` a declared
+source / replace swaps the geometry ref); nested sub-assembly rendering (an `assembly` instance is
+recursively built + composed, ids namespaced `parent/child`, cycles refused); a declarative `cam`
+coupling (profile-bearing, enforced in Phase 6); the gate-5.7 caster capstone (a wheel+axle
+sub-assembly, four component-patterned bolts, a tangent stop, an edge-derived connector, clash-free
++ STEP AP242). Also a document-level `metadata {description, tags}` field (extensible) across the
+part + assembly schemas and every example, a rectangle `at`-offset in the elements sketch path
+(consistent with circle/text), and a solver fix to preserve the authored pose of instances that do
+not participate in a mate/joint (so a patterned/rotated instance keeps its rotation). **Phase 5 is
+COMPLETE.** NEXT: Phase 6 (motion) or 5.5b (exploded views).
 
-- [ ] **Instances & structure:** components, sub-assemblies, flexible
-      sub-assemblies, replace/pattern/mirror component
-      (5.0 shipped flat instances + explicit placement; sub-assembly rendering + component
-      pattern/mirror/replace deferred, see the Phase 5 backlog)
+- [x] **Instances & structure:** components, sub-assemblies,
+      replace/pattern/mirror component
+      (5.0 shipped flat instances + explicit placement; 5.7 shipped nested sub-assembly rendering +
+      component pattern/mirror/replace. Flexible sub-assemblies + top-down/in-context stay deferred,
+      see the backlog)
 - [x] **Mate connectors / ports:** named coordinate frames on parts (the shared
       primitive for both families below)
       (5.1 shipped part-level connectors + connector-to-connector `connect` snap + viewer overlay;
-      assembly-level ad-hoc connectors + edge/point/datum-derived connectors deferred, see backlog)
+      5.7 added edge/point/datum-derived connectors + a connector radius. Assembly-level ad-hoc
+      connectors still deferred)
 - [x] **Assembly constraints:** mate/coincident, **align**, **flush**, **offset**,
       angle, **tangent**, parallel, perpendicular, concentric, symmetric, distance,
       width, lock
-      (5.2 shipped 8 mates lowering to the normal-form core + py-slvs solve; tangent/symmetric/
-      width and raw-geometry-ref mates deferred, see backlog)
+      (5.2 shipped 8 mates; 5.7 added tangent/symmetric/width. Raw-geometry-ref mates still
+      deferred, see backlog)
 - [x] **Joints (DoF-bearing):** **fixed/rigid**, **revolute/pin**,
       **slider/prismatic**, cylindrical, planar, **ball/spherical**, universal,
       screw, gear, rack-pinion, cam, belt, point-on-line/slot
       (5.4a shipped the 7 lower pairs + DoF signature + static solve; 5.4b shipped screw (fully
-      solved) + gear/belt/rack_pinion/universal as declared couplings; cam + coupling ENFORCEMENT
-      (Phase 6) + time-varying driving (Phase 6) remain)
+      solved) + gear/belt/rack_pinion/universal as declared couplings; 5.7 shipped cam as a declared
+      coupling. Coupling ENFORCEMENT + time-varying driving are Phase 6)
 - [ ] **Top-down / in-context:** skeleton / master model; publish geometry; change
-      propagation
+      propagation (MOVED to a later phase, see backlog; NOT v1-excluded)
 - [x] **Interference / clearance** (static): exact (`BRepExtrema_DistShapeShape`)
       (5.6: pairwise distance + boolean-common-volume arbiter -> interfering/touching/clearance;
       mesh/Manifold path deferred to Phase 6/12)
@@ -986,11 +1000,31 @@ is COMPLETE.**
   version-fragile on real B-rep (the tree/colors survive; names verified at the kernel-test level).
   Also still open from earlier buckets: OpenTelemetry spans + profiling dashboard; the
   `build_file`-builds-all-parts redundancy; kernel cold-start warmup.
-- **Structure:** nested sub-assembly RENDERING (the 5.0 doc model allows a `.asm.hocon` instance
-  ref; recursive compose deferred); component pattern/mirror/replace; flexible sub-assemblies;
-  top-down / in-context skeleton + published geometry + change propagation.
+- **Structure / connectors / mates (5.7): DONE.** Nested sub-assembly rendering (recursive compose,
+  `parent/child` ids, cycle detection); component pattern/mirror/replace (instance-level ops
+  expanded before the solve); edge/point/datum-derived mate connectors + connector radius;
+  tangent/symmetric/width mates; declarative `cam` coupling. The gate-5.7 caster capstone exercises
+  all of them clash-free. **5.7 findings + follow-ups (deferred):** (1) the mate solver seeds
+  rotation as identity, so a component-patterned/rotated instance would lose its rotation if the
+  solver overwrote it; 5.7 guards the overwrite to instances that PARTICIPATE in a mate/joint
+  (untouched instances keep their authored pose). A proper rotation-seed is a later solver
+  refinement. (2) A sub-assembly is composed render-only (it is not a rigid body in the PARENT's
+  mate solve, and its instances are not in the parent BOM/interference; the child has its own
+  sidecar with its own BOM/interference). Mating ONTO a sub-assembly connector is a follow-up.
+  (3) The elements-path sketch now honours a rectangle `at` offset (was origin-only; circle/text
+  already did). Still deferred: assembly-level ad-hoc connectors; raw-geometry-ref mates; flexible
+  sub-assemblies.
+- **Top-down / in-context (MOVED to a later phase, NOT v1-excluded):** skeleton / master model
+  publishing geometry that parts reference, with cross-part change propagation. A distinct
+  subsystem that touches the part-build pipeline and pairs with parametric change-propagation;
+  scheduled as its own bucket in a later phase (a top-down-design bucket alongside / after
+  Phases 6-7), not attempted in the phases-1-5 completeness program.
 - **Large-assembly scale (design section 7; also Phase 12):** lightweight representations,
   lazy/on-demand load, simplified reps / LOD, spatial index (BVH/octree), display states.
+
+**The phases-1-5 completeness program (buckets 1.6 / 2.10 / 3.7 / 4.4 / 5.7) is COMPLETE.** Every
+in-phase gap across Phases 1-5 has been built, moved to its proper phase, or called out and dropped
+as genuinely undoable on the current stack.
 
 ---
 

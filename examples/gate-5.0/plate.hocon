@@ -1,5 +1,9 @@
 schema_version = 2
 units = mm
+metadata {
+  description = "Plate"
+  tags = [ g5_0, part ]
+}
 parts {
   plate { profile = solid, features = [
     { id = sk, op = sketch, plane = XY, elements = [ { id = r, type = rectangle, w = 60, h = 40 } ] }

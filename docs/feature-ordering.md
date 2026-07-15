@@ -330,6 +330,30 @@ its seed pose (from `connect`/`placement`) and reports free DoF rather than erro
 - **Seen in:** gate-5.2 `arm_linkage` (bracket grounded via `lock`, lever mated concentric +
   coincident onto it).
 
+### 13. Component ops expand in document order; a mirror/replace source must precede it (5.7)
+
+Instance-level component operations expand into the flat instance list BEFORE placement/solve:
+`replace` (swap the geometry ref) then `mirror` (reflect a source instance) then `pattern` (array).
+A `mirror` (or bare `of`) instance references an already-declared SOURCE instance by id, resolved
+single-pass in document order, so the source must appear earlier in `instances[]`; a
+forward/unknown `of` is an id-attributed issue and that instance is dropped (the rest still
+compose), the same discipline as a `connect` target.
+
+- **Failure mode:** `{ id = right, mirror = { plane = YZ }, of = left }` placed BEFORE `left` is
+  declared drops `right` with "mirror source 'left' is not declared before it"; move it after the
+  source. A `pattern` with a bad kind is an id-attributed issue on that instance.
+
+### 14. A sub-assembly builds and freezes before its parent composes it; no cycles (5.7)
+
+An `assembly` instance (a nested `.asm.hocon`) is built independently (its own mate solve frozen at
+compose time), then its solved instances are re-parented under the parent placement with
+`parent/child` ids. A sub-assembly is treated as ONE rigid body by the parent's placement/mates. A
+`.asm.hocon` that references an ancestor (a cycle) is refused id-attributed via a visited-set.
+
+- **Failure mode:** a circular sub-assembly reference is caught and reported ("circular
+  sub-assembly reference"), not infinitely recursed; a child that fails to solve surfaces its issue
+  namespaced `parentId/childId` and the parent still writes.
+
 ---
 
 ## How to work when order bites you

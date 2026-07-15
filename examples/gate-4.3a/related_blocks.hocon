@@ -4,6 +4,10 @@
 # two-body moving relation needs multibody addressing deferred past 4.3a.
 schema_version = 2
 units = mm
+metadata {
+  description = "Related blocks"
+  tags = [ g4_3a, part ]
+}
 parts {
   related_blocks {
     profile = solid

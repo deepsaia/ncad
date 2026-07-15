@@ -1,5 +1,9 @@
 schema_version = 1
 units = mm
+metadata {
+  description = "Param bar"
+  tags = [ g0_4, part ]
+}
 # A slotted bar: a long block with a central pocket slot, driven by a `wall` expression
 # so the slot tracks the bar size. Small and quick to rebuild, so it shows the
 # same-document-is-deterministic half of the gate as clearly as the incremental half.

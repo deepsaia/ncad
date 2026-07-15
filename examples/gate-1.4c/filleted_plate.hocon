@@ -1,5 +1,9 @@
 schema_version = 1
 units = mm
+metadata {
+  description = "Filleted plate"
+  tags = [ g1_4c, part ]
+}
 # A rectangle with its two top corners rounded by a corner fillet. Proves fillet trims
 # the corner lines back to tangent points and inserts a tangent arc that closes the loop.
 parameters { w = 40, h = 24, r = 6, t = 5 }

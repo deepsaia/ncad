@@ -1,5 +1,9 @@
 schema_version = 1
 units = mm
+metadata {
+  description = "Rounded bar"
+  tags = [ g1_2, part ]
+}
 # A D-shaped profile: a rectangle with a rounded (arc) top, authored as 3 lines + 1 arc.
 # Proves a profile mixing straight and curved edges solves and builds. The bottom is
 # horizontal, the sides vertical, and the width/height are dimensioned; the arc cap

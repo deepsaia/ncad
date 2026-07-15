@@ -1,5 +1,9 @@
 schema_version = 1
 units = mm
+metadata {
+  description = "Editable bracket"
+  tags = [ g0_5, part ]
+}
 # Bucket 0.5 demo: edit `thickness` and only the dirty suffix rebuilds; the fillet's
 # selector reference and the holes' generative `pad.cap(+Z)` reference both survive.
 # Delete the `pad` feature and the dependents report failure by id, never silent garbage.

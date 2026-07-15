@@ -2,6 +2,10 @@
 # rectangle >> extrude >> 4 corner holes (placed via a margin expression) >> edge fillet.
 schema_version = 2
 units = mm
+metadata {
+  description = "Bracket"
+  tags = [ g0_2, part ]
+}
 parameters {
   w = 80
   h = 60

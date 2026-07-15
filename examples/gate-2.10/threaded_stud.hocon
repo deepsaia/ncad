@@ -1,5 +1,9 @@
 schema_version = 2
 units = mm
+metadata {
+  description = "Threaded stud"
+  tags = [ g2_10, part ]
+}
 # A threaded stud: a plain cylindrical rod with a MODELED (real helical) M10 thread cut over
 # its length. Shows the explicit modeled-thread opt-in (`modeled = true`), which sweeps a V
 # profile along a helix on the clean origin-axis cylinder (the geometry pro tools reserve for

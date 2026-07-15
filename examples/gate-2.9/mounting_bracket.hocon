@@ -1,5 +1,9 @@
 schema_version = 2
 units = mm
+metadata {
+  description = "Mounting bracket"
+  tags = [ g2_9, part ]
+}
 # Phase 2 capstone: a mounting bracket - an extruded base plate whose outer corners are
 # filleted and side walls drafted, then shelled to a wall, with a revolved cylindrical boss
 # unioned on top, a triangular gusset bracing the boss to the plate, a symmetric

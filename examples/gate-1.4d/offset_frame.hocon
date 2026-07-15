@@ -1,5 +1,9 @@
 schema_version = 1
 units = mm
+metadata {
+  description = "Offset frame"
+  tags = [ g1_4d, part ]
+}
 # The gate: a rectangular loop offset INWARD by 4 with mitred corners becomes a smaller
 # rectangle that builds a face. loop_offset replaces the source loop (single-loop; a ring
 # / face-with-hole is deferred multi-loop work). Negative distance insets regardless of
