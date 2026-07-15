@@ -352,6 +352,67 @@ def test_overconstrained_reports_failing_constraint_ids():
     assert any(fid in ("d_ten", "d_twenty") for fid in result.failing_ids)
 
 
+def test_length_ratio_scales_one_line_to_another():
+    import math
+    ents = _two_lines()
+    cons = [{"type": "fix", "of": "a"}, {"type": "fix", "of": "b"},
+            {"type": "fix", "of": "c"}, {"type": "horizontal", "of": "l1"},
+            {"type": "length_ratio", "lines": ["l1", "l0"], "value": 2.0}]
+    r = SlvsSolver().solve(ents, cons, "sk")
+    assert r.status in ("well_constrained", "under_constrained")
+    (ax, ay), (bx, by) = r.positions["a"], r.positions["b"]
+    (cx, cy), (dx, dy) = r.positions["c"], r.positions["d"]
+    len_l0 = math.hypot(bx - ax, by - ay)
+    len_l1 = math.hypot(dx - cx, dy - cy)
+    assert math.isclose(len_l1, 2.0 * len_l0, rel_tol=1e-3)
+
+
+def test_length_difference_sets_the_gap():
+    import math
+    ents = _two_lines()
+    cons = [{"type": "fix", "of": "a"}, {"type": "fix", "of": "b"},
+            {"type": "fix", "of": "c"}, {"type": "horizontal", "of": "l1"},
+            {"type": "length_difference", "lines": ["l1", "l0"], "value": 5.0}]
+    r = SlvsSolver().solve(ents, cons, "sk")
+    (ax, ay), (bx, by) = r.positions["a"], r.positions["b"]
+    (cx, cy), (dx, dy) = r.positions["c"], r.positions["d"]
+    assert math.isclose(math.hypot(dx - cx, dy - cy) - math.hypot(bx - ax, by - ay),
+                        5.0, abs_tol=1e-3)
+
+
+def test_equal_angle_matches_two_angle_pairs():
+    ents = [
+        {"id": "o", "type": "point", "at": [0, 0]},
+        {"id": "a", "type": "point", "at": [10, 0]},
+        {"id": "b", "type": "point", "at": [8, 5]},
+        {"id": "c", "type": "point", "at": [7, 7]},
+        {"id": "d", "type": "point", "at": [3, 9]},
+        {"id": "l0", "type": "line", "p1": "o", "p2": "a"},
+        {"id": "l1", "type": "line", "p1": "o", "p2": "b"},
+        {"id": "l2", "type": "line", "p1": "o", "p2": "c"},
+        {"id": "l3", "type": "line", "p1": "o", "p2": "d"},
+    ]
+    cons = [{"type": "fix", "of": "o"}, {"type": "fix", "of": "a"}, {"type": "fix", "of": "c"},
+            {"type": "distance", "points": ["o", "b"], "value": 10},
+            {"type": "distance", "points": ["o", "d"], "value": 10},
+            {"type": "equal_angle", "lines": ["l0", "l1", "l2", "l3"]}]
+    r = SlvsSolver().solve(ents, cons, "sk")
+    assert r.status in ("well_constrained", "under_constrained")
+    assert not any(i.level == "error" for i in r.issues)
+
+
+def test_length_ratio_wrong_ref_count_is_error():
+    ents = _two_lines()
+    r = SlvsSolver().solve(ents, [{"type": "length_ratio", "lines": ["l0"], "value": 2}], "sk")
+    assert r.status == "inconsistent"
+
+
+def test_length_difference_missing_value_is_error():
+    ents = _two_lines()
+    r = SlvsSolver().solve(ents, [{"type": "length_difference", "lines": ["l0", "l1"]}], "sk")
+    assert r.status == "inconsistent"
+
+
 def test_well_constrained_has_no_failing_ids():
     entities = [
         {"id": "p0", "type": "point", "at": [0.0, 0.0]},

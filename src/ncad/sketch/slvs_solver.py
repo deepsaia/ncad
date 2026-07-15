@@ -51,6 +51,8 @@ class SlvsSolver(SketchSolver):
         "concentric": "_c_concentric", "tangent": "_c_tangent", "fix": "_c_fix",
         "angle": "_c_angle", "diameter": "_c_diameter",
         "minor_radius": "_c_minor_radius", "smooth": "_c_smooth",
+        "length_ratio": "_c_length_ratio", "length_difference": "_c_length_difference",
+        "equal_angle": "_c_equal_angle",
     }
 
     def solve(self, entities: list[dict], constraints: list[dict],
@@ -290,6 +292,24 @@ class SlvsSolver(SketchSolver):
         system.addDiameter(float(constraint["value"]), ctx.curves[constraint["of"]],
                            group=_SKETCH_GROUP)
 
+    def _c_length_ratio(self, system: Any, constraint: dict, ctx: _Ctx) -> None:
+        a, b = _two_lines_of(constraint, "length_ratio")
+        system.addLengthRatio(_value(constraint, "length_ratio"), ctx.curves[a],
+                              ctx.curves[b], wrkpln=ctx.workplane, group=_SKETCH_GROUP)
+
+    def _c_length_difference(self, system: Any, constraint: dict, ctx: _Ctx) -> None:
+        a, b = _two_lines_of(constraint, "length_difference")
+        system.addLengthDifference(_value(constraint, "length_difference"), ctx.curves[a],
+                                   ctx.curves[b], wrkpln=ctx.workplane, group=_SKETCH_GROUP)
+
+    def _c_equal_angle(self, system: Any, constraint: dict, ctx: _Ctx) -> None:
+        lines = constraint.get("lines") or []
+        if len(lines) != 4:
+            raise ConstraintError("equal_angle needs exactly 4 lines [l1, l2, l3, l4]")
+        l1, l2, l3, l4 = (ctx.curves[x] for x in lines)
+        # supplement=False: the two ANGLES (l1->l2 and l3->l4) are made equal.
+        system.addEqualAngle(False, l1, l2, l3, l4, wrkpln=ctx.workplane, group=_SKETCH_GROUP)
+
     def _c_smooth(self, system: Any, constraint: dict, ctx: _Ctx) -> None:
         """G1 tangent continuity between two curves sharing an endpoint.
 
@@ -405,6 +425,22 @@ def _defining_points(entity: dict) -> list[str]:
 def _touches_arc_end(arc: dict, line: dict) -> bool:
     """Whether the line meets the arc at the arc's end point (else its start)."""
     return arc["end"] in (line.get("p1"), line.get("p2"))
+
+
+def _two_lines_of(constraint: dict, name: str) -> tuple[str, str]:
+    """The two line ids a ratio/difference constraint relates; raise if not exactly two."""
+    lines = constraint.get("lines") or []
+    if len(lines) != 2:
+        raise ConstraintError(f"{name} needs exactly 2 lines [a, b]")
+    return lines[0], lines[1]
+
+
+def _value(constraint: dict, name: str) -> float:
+    """A required numeric constraint value; raise ConstraintError when absent."""
+    value = constraint.get("value")
+    if value is None:
+        raise ConstraintError(f"{name} needs a numeric 'value'")
+    return float(value)
 
 
 def _measure(constraint: dict, positions: dict, radii: dict, entities: dict) -> float:
