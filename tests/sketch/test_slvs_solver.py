@@ -455,6 +455,37 @@ def test_points_horizontal_wrong_ref_count_is_error():
     assert r.status == "inconsistent"
 
 
+def test_symmetric_h_mirrors_across_horizontal_axis():
+    # Symmetric-about-H: the two points share x and have opposite y about y=0 (workplane origin).
+    ents = [{"id": "p0", "type": "point", "at": [3, 5]},
+            {"id": "p1", "type": "point", "at": [4, -6]},
+            {"id": "anchor", "type": "point", "at": [3, 5]}]
+    cons = [{"type": "fix", "of": "anchor"},
+            {"type": "coincident", "points": ["p0", "anchor"]},
+            {"type": "symmetric_h", "points": ["p0", "p1"]}]
+    r = SlvsSolver().solve(ents, cons, "sk")
+    (x0, y0), (x1, y1) = r.positions["p0"], r.positions["p1"]
+    assert abs(x1 - x0) < 1e-6 and abs(y1 + y0) < 1e-6
+
+
+def test_symmetric_v_mirrors_across_vertical_axis():
+    ents = [{"id": "p0", "type": "point", "at": [5, 3]},
+            {"id": "p1", "type": "point", "at": [-6, 4]},
+            {"id": "anchor", "type": "point", "at": [5, 3]}]
+    cons = [{"type": "fix", "of": "anchor"},
+            {"type": "coincident", "points": ["p0", "anchor"]},
+            {"type": "symmetric_v", "points": ["p0", "p1"]}]
+    r = SlvsSolver().solve(ents, cons, "sk")
+    (x0, y0), (x1, y1) = r.positions["p0"], r.positions["p1"]
+    assert abs(y1 - y0) < 1e-6 and abs(x1 + x0) < 1e-6
+
+
+def test_symmetric_h_wrong_ref_count_is_error():
+    ents = [{"id": "p0", "type": "point", "at": [0, 0]}]
+    r = SlvsSolver().solve(ents, [{"type": "symmetric_h", "points": ["p0"]}], "sk")
+    assert r.status == "inconsistent"
+
+
 def test_well_constrained_has_no_failing_ids():
     entities = [
         {"id": "p0", "type": "point", "at": [0.0, 0.0]},

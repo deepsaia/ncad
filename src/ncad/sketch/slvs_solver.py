@@ -56,6 +56,7 @@ class SlvsSolver(SketchSolver):
         "points_horizontal": "_c_points_horizontal",
         "points_vertical": "_c_points_vertical",
         "point_line_distance": "_c_point_line_distance",
+        "symmetric_h": "_c_symmetric_h", "symmetric_v": "_c_symmetric_v",
     }
 
     def solve(self, entities: list[dict], constraints: list[dict],
@@ -330,6 +331,21 @@ class SlvsSolver(SketchSolver):
         system.addPointLineDistance(_value(constraint, "point_line_distance"),
                                     ctx.points[constraint["point"]], ctx.curves[line_id],
                                     wrkpln=ctx.workplane, group=_SKETCH_GROUP)
+
+    def _c_symmetric_h(self, system: Any, constraint: dict, ctx: _Ctx) -> None:
+        # symmetric_h = symmetric ABOUT the horizontal (X) axis: the pair's y flips, x is shared.
+        # SolveSpace names this by the constraint-arrow direction, so its addSymmetricVertical is
+        # the y-flip (mirror across the horizontal axis); we map to CAD vocabulary here.
+        a, b = _two_points_of(constraint, "symmetric_h")
+        system.addSymmetricVertical(ctx.points[a], ctx.points[b], ctx.workplane,
+                                    group=_SKETCH_GROUP)
+
+    def _c_symmetric_v(self, system: Any, constraint: dict, ctx: _Ctx) -> None:
+        # symmetric_v = symmetric ABOUT the vertical (Y) axis: the pair's x flips, y is shared.
+        # SolveSpace's addSymmetricHorizontal is the x-flip (mirror across the vertical axis).
+        a, b = _two_points_of(constraint, "symmetric_v")
+        system.addSymmetricHorizontal(ctx.points[a], ctx.points[b], ctx.workplane,
+                                      group=_SKETCH_GROUP)
 
     def _c_smooth(self, system: Any, constraint: dict, ctx: _Ctx) -> None:
         """G1 tangent continuity between two curves sharing an endpoint.
