@@ -413,6 +413,48 @@ def test_length_difference_missing_value_is_error():
     assert r.status == "inconsistent"
 
 
+def test_points_horizontal_aligns_y():
+    ents = [{"id": "p0", "type": "point", "at": [0, 0]},
+            {"id": "p1", "type": "point", "at": [10, 4]}]
+    cons = [{"type": "fix", "of": "p0"}, {"type": "points_horizontal", "points": ["p0", "p1"]}]
+    r = SlvsSolver().solve(ents, cons, "sk")
+    assert abs(r.positions["p1"][1] - r.positions["p0"][1]) < 1e-6
+
+
+def test_points_vertical_aligns_x():
+    ents = [{"id": "p0", "type": "point", "at": [0, 0]},
+            {"id": "p1", "type": "point", "at": [4, 10]}]
+    cons = [{"type": "fix", "of": "p0"}, {"type": "points_vertical", "points": ["p0", "p1"]}]
+    r = SlvsSolver().solve(ents, cons, "sk")
+    assert abs(r.positions["p1"][0] - r.positions["p0"][0]) < 1e-6
+
+
+def test_point_line_distance_sets_perpendicular_gap():
+    import math
+    ents = [{"id": "a", "type": "point", "at": [0, 0]}, {"id": "b", "type": "point", "at": [10, 0]},
+            {"id": "p", "type": "point", "at": [5, 2]},
+            {"id": "l0", "type": "line", "p1": "a", "p2": "b"}]
+    cons = [{"type": "fix", "of": "a"}, {"type": "fix", "of": "b"},
+            {"type": "point_line_distance", "point": "p", "of": "l0", "value": 8}]
+    r = SlvsSolver().solve(ents, cons, "sk")
+    # line l0 is along y=0, so p's perpendicular distance is |y_p| == 8.
+    assert math.isclose(abs(r.positions["p"][1]), 8.0, abs_tol=1e-4)
+
+
+def test_point_line_distance_of_non_line_is_error():
+    ents = [{"id": "cp", "type": "point", "at": [0, 0]}, {"id": "p", "type": "point", "at": [5, 2]},
+            {"id": "c0", "type": "circle", "center": "cp", "radius": 5}]
+    r = SlvsSolver().solve(
+        ents, [{"type": "point_line_distance", "point": "p", "of": "c0", "value": 8}], "sk")
+    assert r.status == "inconsistent"
+
+
+def test_points_horizontal_wrong_ref_count_is_error():
+    ents = [{"id": "p0", "type": "point", "at": [0, 0]}]
+    r = SlvsSolver().solve(ents, [{"type": "points_horizontal", "points": ["p0"]}], "sk")
+    assert r.status == "inconsistent"
+
+
 def test_well_constrained_has_no_failing_ids():
     entities = [
         {"id": "p0", "type": "point", "at": [0.0, 0.0]},

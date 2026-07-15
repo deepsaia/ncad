@@ -53,6 +53,9 @@ class SlvsSolver(SketchSolver):
         "minor_radius": "_c_minor_radius", "smooth": "_c_smooth",
         "length_ratio": "_c_length_ratio", "length_difference": "_c_length_difference",
         "equal_angle": "_c_equal_angle",
+        "points_horizontal": "_c_points_horizontal",
+        "points_vertical": "_c_points_vertical",
+        "point_line_distance": "_c_point_line_distance",
     }
 
     def solve(self, entities: list[dict], constraints: list[dict],
@@ -310,6 +313,24 @@ class SlvsSolver(SketchSolver):
         # supplement=False: the two ANGLES (l1->l2 and l3->l4) are made equal.
         system.addEqualAngle(False, l1, l2, l3, l4, wrkpln=ctx.workplane, group=_SKETCH_GROUP)
 
+    def _c_points_horizontal(self, system: Any, constraint: dict, ctx: _Ctx) -> None:
+        a, b = _two_points_of(constraint, "points_horizontal")
+        system.addPointsHorizontal(ctx.points[a], ctx.points[b], ctx.workplane,
+                                   group=_SKETCH_GROUP)
+
+    def _c_points_vertical(self, system: Any, constraint: dict, ctx: _Ctx) -> None:
+        a, b = _two_points_of(constraint, "points_vertical")
+        system.addPointsVertical(ctx.points[a], ctx.points[b], ctx.workplane,
+                                 group=_SKETCH_GROUP)
+
+    def _c_point_line_distance(self, system: Any, constraint: dict, ctx: _Ctx) -> None:
+        line_id = constraint.get("of")
+        if ctx.entities.get(line_id, {}).get("type") != "line":
+            raise ConstraintError("point_line_distance 'of' must be a line")
+        system.addPointLineDistance(_value(constraint, "point_line_distance"),
+                                    ctx.points[constraint["point"]], ctx.curves[line_id],
+                                    wrkpln=ctx.workplane, group=_SKETCH_GROUP)
+
     def _c_smooth(self, system: Any, constraint: dict, ctx: _Ctx) -> None:
         """G1 tangent continuity between two curves sharing an endpoint.
 
@@ -441,6 +462,14 @@ def _value(constraint: dict, name: str) -> float:
     if value is None:
         raise ConstraintError(f"{name} needs a numeric 'value'")
     return float(value)
+
+
+def _two_points_of(constraint: dict, name: str) -> tuple[str, str]:
+    """The two point ids a point-pair constraint relates; raise if not exactly two."""
+    points = constraint.get("points") or []
+    if len(points) != 2:
+        raise ConstraintError(f"{name} needs exactly 2 points [a, b]")
+    return points[0], points[1]
 
 
 def _measure(constraint: dict, positions: dict, radii: dict, entities: dict) -> float:
