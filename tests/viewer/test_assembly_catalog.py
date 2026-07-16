@@ -19,6 +19,14 @@ def test_catalog_rejects_unsafe_assembly_name(tmp_path: Path) -> None:
     assert catalog.resolve_assembly("../etc/passwd") is None
 
 
+def test_catalog_lists_motion_names(tmp_path: Path) -> None:
+    (tmp_path / "crank_slider.motion.json").write_text(json.dumps({"name": "crank_slider"}))
+    (tmp_path / "four_bar.motion.json").write_text(json.dumps({"name": "four_bar"}))
+    (tmp_path / "static_rig.assembly.json").write_text(json.dumps({"name": "static_rig"}))
+    catalog = ModelCatalog(str(tmp_path))
+    assert catalog.motion_names() == ["crank_slider", "four_bar"]  # sorted, only motion sidecars
+
+
 def test_catalog_resolves_motion_sidecar(tmp_path: Path) -> None:
     (tmp_path / "crank_slider.motion.json").write_text(
         json.dumps({"name": "crank_slider", "frames": []}))

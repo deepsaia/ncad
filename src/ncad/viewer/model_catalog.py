@@ -80,6 +80,15 @@ class ModelCatalog:
             return None
         return candidate if os.path.isfile(candidate) else None
 
+    def motion_names(self) -> list[str]:
+        """Assembly names that have a motion trajectory (files ending in .motion.json)."""
+        if not os.path.isdir(self._directory):
+            return []
+        suffix = ".motion.json"
+        return sorted(entry[: -len(suffix)] for entry in os.listdir(self._directory)
+                      if entry.lower().endswith(suffix)
+                      and os.path.isfile(os.path.join(self._directory, entry)))
+
     def resolve_motion(self, name: str) -> str | None:
         """Safe absolute path to ``<name>.motion.json`` (the trajectory), or None if absent.
 

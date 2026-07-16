@@ -81,6 +81,8 @@ class _ViewerRequestHandler(BaseHTTPRequestHandler):
             self._send_model_list()
         elif path == "/api/assemblies":
             self._send_json(200, {"assemblies": self._catalog.assembly_names()})
+        elif path == "/api/motions":
+            self._send_json(200, {"motions": self._catalog.motion_names()})
         elif path.startswith(_MOTION_ROUTE):
             self._send_motion(path[len(_MOTION_ROUTE) :])
         elif path.startswith(_ASSEMBLY_ROUTE):

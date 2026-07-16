@@ -449,6 +449,7 @@
     <div id="view-mode-switch" class="view-mode-switch">
       <button id="mode-parts" class="mode-btn active" data-mode="parts">Parts</button>
       <button id="mode-assemblies" class="mode-btn" data-mode="assemblies">Assemblies</button>
+      <button id="mode-motion" class="mode-btn" data-mode="motion">Motion</button>
     </div>
     <div>
       <div class="label">Spec</div>
@@ -777,7 +778,7 @@ renderer.domElement.addEventListener("click", ev => {
   const hits = raycaster.intersectObjects(pickParts, false);
   // Assemblies: a click selects the hit mesh's instance (highlight + tree sync); empty space
   // clears. This runs regardless of elementMap (an assembly has none; it is a part concept).
-  if (viewMode === "assemblies") {
+  if (isAssemblyScene()) {
     selectInstance(hits.length ? hits[0].object.userData.instanceId : null);
     return;
   }
@@ -1075,6 +1076,10 @@ let assemblyMaterials = {};
 // (which reaches distinctMaterials -> reads viewMode); a later `let` would be a temporal dead
 // zone and throw during init, blanking the whole viewer.
 let viewMode = localStorage.getItem("ncad.viewMode") || "parts";
+// Both Assemblies and Motion render a composed assembly scene (instances placed by matrices), so
+// scene behavior (pick-by-instance, per-instance material, connector/joint overlays, the timeline)
+// keys off this, while the model-list source + spec kind stay per-mode.
+function isAssemblyScene() { return viewMode === "assemblies" || viewMode === "motion"; }
 // Assembly selection / highlight / isolate (bucket 5.5). instanceMeshMap: instanceId -> [meshes],
 // published by loadAssembly once all glbs load. Declared before bindVcToggle (isolate) runs.
 let instanceMeshMap = {};
@@ -1142,7 +1147,7 @@ function clearModel() {
 function applyMode() {
   if (!modelRoot) return;
   if (mode === "bymaterial") {
-    if (viewMode === "assemblies") {
+    if (isAssemblyScene()) {
       // Assemblies: color each instance's meshes by that INSTANCE's part material (from the
       // sidecar), since an assembly has no per-part element map. Each instance is one part.
       for (const id in instanceMeshMap) {
@@ -1179,7 +1184,7 @@ function applyMode() {
 }
 
 function hasMaterials() {
-  if (viewMode === "assemblies") {
+  if (isAssemblyScene()) {
     return Object.values(assemblyMaterials).some(m => m.material);
   }
   const els = (elementMap && elementMap.elements) || [];
@@ -1192,7 +1197,7 @@ function hasMaterials() {
 function distinctMaterials() {
   const seen = new Map();
   let hasNone = false;
-  const entries = viewMode === "assemblies"
+  const entries = isAssemblyScene()
     ? Object.values(assemblyMaterials).map(m => ({material: m.material,
                                                   appearance_color: m.appearance_color}))
     : ((elementMap && elementMap.elements) || []);
@@ -1616,9 +1621,10 @@ bindVcToggle("isolate", "ncad.isolate", v => { isolateOn = v; refreshInstanceVis
 bindVcToggle("joints", "ncad.joints", v => { showJoints = v; jointGizmos.forEach(g => { g.visible = v; }); });
 document.getElementById("vc-reset").addEventListener("click", () => { if (modelRoot) frameModel(); });
 
-// The assembly-only floating controls show only in Assemblies mode.
+// The assembly floating controls show in Assemblies AND Motion mode (both render a scene of placed
+// instances with origins/connectors/joint overlays).
 function syncAssemblyControls() {
-  const on = viewMode === "assemblies";
+  const on = isAssemblyScene();
   document.getElementById("vc-assembly").hidden = !on;
   document.getElementById("vc-asm-sep").hidden = !on;
 }
@@ -1832,8 +1838,9 @@ function renderSpecTree(filter) {
   const all = flattenSpecs(specTree, []);
   const q = (filter || "").toLowerCase();
   // The combobox shows only specs of the current mode's kind: Assemblies mode lists .asm.hocon
-  // documents, Parts mode lists part documents.
-  const wantKind = viewMode === "assemblies" ? "assembly" : "part";
+  // documents, Parts mode lists part documents. Motion mode also drives from .asm.hocon documents
+  // (a motion block lives in an assembly), so it lists assembly specs too.
+  const wantKind = isAssemblyScene() ? "assembly" : "part";
   const matches = all.filter(s => s.kind === wantKind && s.path.toLowerCase().includes(q));
   box.innerHTML = "";
   let currentDir = null;
@@ -1959,6 +1966,41 @@ function selectAssembly(name, verbose, timing) {
   refreshAssemblies();
 }
 
+// ---- Motion mode ----
+// A driven assembly (one with a <name>.motion.json trajectory) shown with a playback timeline.
+// It loads the SAME scene as Assemblies mode (loadAssembly), then setupMotion (called inside
+// loadAssembly) reveals the timeline because it is Motion mode.
+function refreshMotions() {
+  return fetch("/api/motions").then(r => r.json()).then(data => {
+    renderMotionList(data.motions || []); return data.motions || []; });
+}
+
+function renderMotionList(names) {
+  const list = document.getElementById("model-list");
+  list.innerHTML = "";
+  if (!names.length) {
+    list.innerHTML = '<div class="panel-empty">no driven assemblies in out/ (add a motion block)</div>';
+    return;
+  }
+  for (const name of names) {
+    const row = document.createElement("div");
+    row.className = "model-row" + (activeModel === name ? " active" : "");
+    const label = document.createElement("div");
+    label.className = "name"; label.textContent = name; label.title = name;
+    row.appendChild(label);
+    row.addEventListener("click", () => selectMotion(name));
+    list.appendChild(row);
+  }
+  scrollActiveIntoView(list);
+}
+
+function selectMotion(name) {
+  activeModel = name;
+  localStorage.setItem("ncad.active.motion", name);
+  loadAssembly(name, false);
+  refreshMotions();
+}
+
 function assembleSpec(spec) {
   if (!spec) { toast("select an assembly spec first", true); return; }
   spinner.style.display = "block";
@@ -1967,12 +2009,19 @@ function assembleSpec(spec) {
                            body: JSON.stringify({ spec }) })
     .then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.error || "assemble failed"); return d; })
     .then(d => {
-      renderAssemblyList(d.assemblies || []);
       assemblySources[d.assembled] = spec;  // remember the source for regenerate
       // Timing (build vs render, a profiling starting point): the server build_ms + a render-done
       // callback that fires when loadAssembly finishes placing the scene. total = now - t0.
       const timing = { t0, buildMs: d.build_ms };
-      if (d.assembled) selectAssembly(d.assembled, true, timing);  // verbose: a genuine (re)compose
+      // Motion mode: refresh the motion list + select via motion (reveals the timeline); otherwise
+      // the assembly list + selectAssembly.
+      if (viewMode === "motion") {
+        refreshMotions();
+        if (d.assembled) selectMotion(d.assembled);
+      } else {
+        renderAssemblyList(d.assemblies || []);
+        if (d.assembled) selectAssembly(d.assembled, true, timing);  // verbose: a real (re)compose
+      }
       const issues = (d.issues || []).length;
       toast("assembled " + d.assembled + (issues ? ` (${issues} issue(s))` : ""));
     })
@@ -2178,6 +2227,9 @@ function resetMotion() {
 
 function setupMotion(name, instanceNodes) {
   resetMotion();
+  // The timeline is a Motion-mode feature; in Assemblies mode a driven assembly still loads, just
+  // without playback (that is what the Motion tab is for).
+  if (viewMode !== "motion") return;
   fetch(`/api/motion/${encodeURIComponent(name)}`).then(r => {
     if (!r.ok) return null;   // 404: this assembly has no motion, leave the bar hidden
     return r.json();
@@ -2460,6 +2512,7 @@ function setViewMode(next) {
   localStorage.setItem("ncad.viewMode", next);
   document.getElementById("mode-parts").classList.toggle("active", next === "parts");
   document.getElementById("mode-assemblies").classList.toggle("active", next === "assemblies");
+  document.getElementById("mode-motion").classList.toggle("active", next === "motion");
   syncAssemblyControls();
   // Switching mode must NOT open the spec dropdown (renderSpecTree un-hides it); clear the
   // search and keep the tree hidden. It re-renders (mode-filtered) on the input's focus/input.
@@ -2474,6 +2527,13 @@ function setViewMode(next) {
     refreshAssemblies().then(names => {
       if (!names || !names.length) return;
       selectAssembly(bootModel(names, "assemblies", null) || names[0]);
+    });
+  } else if (next === "motion") {
+    // Motion mode lists only assemblies that have a motion trajectory sidecar; selecting one loads
+    // that assembly (its parts) and reveals the timeline (the timeline shows only in Motion mode).
+    refreshMotions().then(names => {
+      if (!names || !names.length) return;
+      selectMotion(bootModel(names, "motion", null) || names[0]);
     });
   } else {
     refreshModels().then(models => {
@@ -2542,8 +2602,9 @@ specClearEl.addEventListener("mousedown", ev => {
   specSearchEl.focus();
 });
 document.getElementById("spec-build").addEventListener("click", () => {
-  // Dispatch by mode: Parts builds a part spec; Assemblies composes an assembly document.
-  if (viewMode === "assemblies") assembleSpec(selectedSpec); else build(selectedSpec);
+  // Dispatch by mode: Parts builds a part spec; Assemblies + Motion compose an assembly document
+  // (Motion then shows the trajectory that assemble produced from the document's motion block).
+  if (isAssemblyScene()) assembleSpec(selectedSpec); else build(selectedSpec);
 });
 
 // ---- Color theme: one toggle cycling light -> system -> dark (persisted) ----
@@ -2579,8 +2640,10 @@ applyTheme();
 loadSpecs();
 document.getElementById("mode-parts").addEventListener("click", () => setViewMode("parts"));
 document.getElementById("mode-assemblies").addEventListener("click", () => setViewMode("assemblies"));
+document.getElementById("mode-motion").addEventListener("click", () => setViewMode("motion"));
 document.getElementById("mode-parts").classList.toggle("active", viewMode === "parts");
 document.getElementById("mode-assemblies").classList.toggle("active", viewMode === "assemblies");
+document.getElementById("mode-motion").classList.toggle("active", viewMode === "motion");
 syncAssemblyControls();
 // Pick the model to show on boot for a mode. Priority: an explicit URL-path request >> the
 // saved last-viewed model (page-refresh restore) >> the first available. Returns null when
@@ -2598,6 +2661,12 @@ if (viewMode === "assemblies") {
     if (!names || !names.length) return;
     const initial = bootModel(names, "assemblies", null);
     if (initial) selectAssembly(initial);
+  });
+} else if (viewMode === "motion") {
+  refreshMotions().then(names => {
+    if (!names || !names.length) return;
+    const initial = bootModel(names, "motion", null);
+    if (initial) selectMotion(initial);
   });
 } else {
   refreshModels().then(models => {
