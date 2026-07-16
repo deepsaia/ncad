@@ -28,8 +28,9 @@ _REDUNDANT_OKAY = 5
 class _Body:
     """py-slvs handles for one instance's connectors after transform."""
 
-    def __init__(self, params: tuple | None, connectors: dict) -> None:
+    def __init__(self, params: tuple | None, pose: tuple, connectors: dict) -> None:
         self.params = params  # (dx,dy,dz,qw,qx,qy,qz) param handles, or None for a ground body
+        self.pose = pose  # the 7 pose param handles (fixed-group when grounded); always present
         self.connectors = connectors  # connector_id -> {"origin","axis_tip","axis_line"} handles
 
 
@@ -89,7 +90,7 @@ class MateSolver:
         handles: dict[str, dict] = {}
         for connector_id, frame in connectors.items():
             handles[connector_id] = self._add_connector(system, frame, pose)
-        return _Body(params, handles)
+        return _Body(params, pose, handles)
 
     def _add_connector(self, system: Any, frame: ConnectorFrame, pose: tuple) -> dict:
         """Local connector geometry (origin + Z axis line + X secondary line) into the solved group.
@@ -114,6 +115,16 @@ class MateSolver:
         secondary_line = system.addLineSegment(origin, sec_tip, group=_SOLVE_GROUP)
         return {"origin": origin, "axis_tip": axis_tip, "axis_line": axis_line,
                 "secondary_line": secondary_line}
+
+    def _add_moving_point(self, system: Any, body: "_Body", rest: tuple) -> Any:
+        """A point at local ``rest`` on ``body``, transformed by its pose params (for a driver pin).
+
+        Works for a grounded body too: its pose params are fixed-group constants, so the transformed
+        point is effectively fixed. Mirrors _add_connector's point-transform (never a LineSegment).
+        """
+        dx, dy, dz, qw, qx, qy, qz = body.pose
+        p0 = system.addPoint3dV(float(rest[0]), float(rest[1]), float(rest[2]), group=_FIX_GROUP)
+        return system.addTransform(p0, dx, dy, dz, qw, qx, qy, qz, group=_SOLVE_GROUP)
 
     def _apply(self, system: Any, primitive: dict, bodies: dict) -> None:
         """Emit one py-slvs constraint for a primitive. Unknown kinds are logged and skipped."""
@@ -157,6 +168,16 @@ class MateSolver:
             system.addPointsDistance(float(primitive["value"]), a_o, b_o, group=_SOLVE_GROUP)
         elif kind == "dirs_angle":
             system.addAngle(float(primitive["value"]), False, a_axis, b_axis, group=_SOLVE_GROUP)
+        elif kind == "drive_to_point":
+            # Motion driver pin: a witness point on the moving body (a_ref) is pinned coincident
+            # with a target point on the reference body (b_ref). Both points are LOCAL; each is
+            # transformed by its body's pose so the drive is relative to the reference link. This
+            # (not a static angle) is what actually rotates a revolute in py-slvs.
+            witness = self._add_moving_point(system, bodies[primitive["a_ref"]["instance"]],
+                                             primitive["witness"])
+            target = self._add_moving_point(system, bodies[primitive["b_ref"]["instance"]],
+                                            primitive["target"])
+            system.addPointsCoincident(witness, target, group=_SOLVE_GROUP)
         elif kind == "lock":
             # A locked body is grounded at solve setup (folded into ground_ids); nothing to add.
             pass
