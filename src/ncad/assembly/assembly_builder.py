@@ -28,9 +28,9 @@ from ncad.assembly.interference_checker import InterferenceChecker
 from ncad.assembly.joint_lowering import JointError, JointLowering
 from ncad.assembly.mate_lowering import MateError, MateLowering
 from ncad.assembly.mate_solver import MateSolver
+from ncad.assembly.mechanism_plane import MechanismPlane
 from ncad.assembly.motion_driver import MotionDriver, MotionParamError
-from ncad.assembly.motion_pins import driver_pins
-from ncad.assembly.motion_solver import MotionSolver
+from ncad.assembly.planar_motion_solver import PlanarMotionSolver
 from ncad.assembly.sub_assembly_composer import SubAssemblyComposer
 from ncad.build.document_builder import DocumentBuilder
 from ncad.build.mass_calculator import MassCalculator
@@ -134,15 +134,14 @@ class AssemblyBuilder:
                               "connectors": world, "lock": bool(instance.get("lock"))})
         # Solve the mate network (if any): overwrites solved instances' placements + world
         # connector frames in the sidecar list, and yields the solve status + mate records.
-        solve_block, mates_out, joints_out, couplings_out, primitives, ground_ids = (
-            self._solve_constraints(
-                document, local_frames, placements_mm, to_metres, instances, issues))
-        # Motion pass (bucket 6.0): if the document declares a `motion` block, re-solve the SAME
-        # position network over the driver's value sweep and write a trajectory sidecar. Runs AFTER
-        # the static solve (the assembled rest pose seeds frame 0). Kinematic only (dynamics ->
-        # Phase 14).
+        solve_block, mates_out, joints_out, couplings_out = self._solve_constraints(
+            document, local_frames, placements_mm, to_metres, instances, issues)
+        # Motion pass (bucket 6.0): if the document declares a `motion` block, solve the driven
+        # PLANAR mechanism over the driver's value sweep in a 2D workplane and write a trajectory
+        # sidecar. Runs AFTER the static solve (its placements are the rest pose). Kinematic only
+        # (dynamics -> Phase 14).
         motion_path = self._run_motion(document, name, out_dir, local_frames, placements_mm,
-                                       to_metres, primitives, ground_ids, issues)
+                                       to_metres, issues)
         # Analysis over the solved assembly (bucket 5.6): interference + BOM + roll-up mass +
         # structured STEP. Guarded so a failure is an id-attributed issue and the sidecar still
         # writes (without the analysis blocks) rather than aborting the whole assemble.
@@ -253,12 +252,8 @@ class AssemblyBuilder:
 
     def _solve_constraints(self, document: dict, local_frames: dict, placements_mm: dict,
                            to_metres: float, instances: list,
-                           issues: list) -> tuple[dict, list, list, list, list, set]:
-        """Solve the mate + joint network; overwrite placements.
-
-        Returns solve/mates/joints/couplings plus the lowered ``primitives`` + ``ground_ids`` so the
-        motion pass can re-solve the SAME network per driver value without re-lowering it.
-        """
+                           issues: list) -> tuple[dict, list, list, list]:
+        """Solve the mate + joint network; overwrite placements; return solve/mates/joints/coupl."""
         constraints = document["assembly"].get("constraints") or []
         joints = document["assembly"].get("joints") or []
         # Couplings are declared-only (no primitives, no pose); build them up-front so they reach
@@ -270,7 +265,7 @@ class AssemblyBuilder:
         if not constraints and not joints:
             return ({"status": "well_constrained", "dof": 0, "explanation": "no constraints",
                      "failing_ids": [], "redundant_ids": [], "under_constrained_hint": None},
-                    [], [], couplings_out, [], set())
+                    [], [], couplings_out)
         primitives: list[dict] = []
         mates_out: list[dict] = []
         for mate in constraints:
@@ -324,16 +319,17 @@ class AssemblyBuilder:
         logger.info("assembly solve: status=%s dof=%d failing=%s redundant=%s joints=%d (%s)",
                     report.status, report.dof, report.failing_ids, report.redundant_ids,
                     len(joints_out), report.explanation)
-        return report.to_dict(), mates_out, joints_out, couplings_out, primitives, ground_ids
+        return report.to_dict(), mates_out, joints_out, couplings_out
 
     def _run_motion(self, document: dict, name: str, out_dir: str, local_frames: dict,
-                    placements_mm: dict, to_metres: float, primitives: list, ground_ids: set,
-                    issues: list) -> str | None:
-        """Solve a driven mechanism over the motion block's values; write <name>.motion.json.
+                    placements_mm: dict, to_metres: float, issues: list) -> str | None:
+        """Solve a driven PLANAR mechanism over the motion block's values; write <name>.motion.json.
 
-        Reuses the STATIC network's lowered ``primitives`` + ``ground_ids`` (re-solving per driver
-        value with that value's driver pin injected), so motion never re-lowers the joints. A bad
-        motion block is an id-attributed issue; the static sidecar still writes, no motion sidecar.
+        A planar mechanism (revolute axes parallel to one plane) is solved in a 2D workplane by
+        PlanarMotionSolver, which closes the loops the 3D static solver cannot. Frames are taken at
+        their WORLD rest pose (static placement applied); each solved in-plane delta composes back
+        onto the rest placement. A bad motion block is an id-attributed issue; the static sidecar
+        still writes, no motion sidecar. Kinematic only (dynamics -> Phase 14).
         """
         motion = document.get("motion")
         if not motion:
@@ -343,39 +339,77 @@ class AssemblyBuilder:
         except MotionParamError as exc:
             issues.append({"message": f"motion: {exc}"})
             return None
-        joint = next((j for j in (document["assembly"].get("joints") or [])
-                      if j.get("id") == joint_id), None)
-        if joint is None:
+        joints = document["assembly"].get("joints") or []
+        driven = next((j for j in joints if j.get("id") == joint_id), None)
+        if driven is None:
             issues.append({"message": f"motion driver references unknown joint {joint_id!r}"})
             return None
-        between = joint.get("between") or []
-        a_ref = between[0] if len(between) >= 1 else None
-        b_ref = between[1] if len(between) >= 2 else None
-        frame_a = self._frame_for(a_ref, local_frames)
-        frame_b = self._frame_for(b_ref, local_frames)
-        if a_ref is None or b_ref is None or frame_a is None or frame_b is None:
+        between = driven.get("between") or []
+        pivot_ref = between[0] if len(between) >= 1 else None
+        moving_ref = between[1] if len(between) >= 2 else None
+        pivot_frame = self._frame_for(pivot_ref, local_frames)
+        if pivot_ref is None or moving_ref is None or pivot_frame is None:
             issues.append({"message": f"motion joint {joint_id!r} has unresolved connectors"})
             return None
-        try:
-            per_value = [_with_ids(driver_pins(joint["type"], v, a_ref, b_ref, frame_a, frame_b),
-                                   joint_id) for v in values]
-        except MotionParamError as exc:
-            issues.append({"message": f"motion: {exc}"})
+        if driven.get("type") != "revolute":
+            issues.append({"message": f"motion driver joint {joint_id!r} must be a revolute"})
             return None
-        outcomes = MotionSolver().solve(local_frames, primitives, ground_ids, placements_mm,
-                                        per_value)
+        # World-rest connector frames (static placement applied) + the mechanism plane (normal = the
+        # driven revolute axis, through its pivot). PlanarMotionSolver returns per-body in-plane
+        # deltas; compose each onto the body's rest placement.
+        world_frames = self._world_frames(local_frames, placements_mm)
+        pivot_world = self._frame_for(pivot_ref, world_frames)
+        if pivot_world is None:
+            issues.append({"message": f"motion joint {joint_id!r} pivot has no world frame"})
+            return None
+        plane = MechanismPlane.from_axis_point(pivot_world.origin, pivot_world.z)
+        planar_joints = _planar_joints(joints)
+        motion_ground = self._motion_ground_ids(document, placements_mm)
+        driver = {"joint": joint_id,
+                  "pivot": {"instance": pivot_ref["instance"], "connector": pivot_ref["connector"]},
+                  "moving": {"instance": moving_ref["instance"],
+                             "connector": moving_ref["connector"]}}
+        deltas = PlanarMotionSolver().solve(world_frames, planar_joints, motion_ground, plane,
+                                            driver, values)
         span = values[-1] - values[0]
-        frames = [{"t": 0.0 if span == 0 else (value - values[0]) / span,
-                   "driver_value": value, "status": outcome.status,
-                   "placements": {iid: _bake_matrix(m, to_metres)
-                                  for iid, m in outcome.placements.items()}}
-                  for value, outcome in zip(values, outcomes)]
+        frames = []
+        for value, delta in zip(values, deltas):
+            placements = {iid: _bake_matrix(_compose(placements_mm[iid], delta.get(iid)),
+                                            to_metres)
+                          for iid in placements_mm}
+            frames.append({"t": 0.0 if span == 0 else (value - values[0]) / span,
+                           "driver_value": value, "status": "solved", "placements": placements})
         path = os.path.join(out_dir, f"{name}.motion.json")
         with open(path, "w", encoding="utf-8") as handle:
             json.dump({"schema_version": 1, "name": name,
                        "driver": motion["driver"], "frames": frames}, handle)
         logger.info("assembly motion: joint=%s frames=%d out=%s", joint_id, len(frames), path)
         return path
+
+    def _world_frames(self, local_frames: dict, placements_mm: dict) -> dict:
+        """Each instance's connector frames transformed into world space by its static placement."""
+        world: dict[str, dict] = {}
+        for iid, conns in local_frames.items():
+            matrix = placements_mm.get(iid)
+            if matrix is None:
+                continue
+            world[iid] = {cid: _world_frame(frame, matrix) for cid, frame in conns.items()}
+        return world
+
+    def _motion_ground_ids(self, document: dict, placements_mm: dict) -> set:
+        """Instances that stay fixed during motion: the first placed instance + any lock:true one.
+
+        Unlike the static ground set (which also grounds lock MATES), motion grounding is by the
+        instance's own placement: a body the mechanism pivots on is a lock:true / first instance.
+        """
+        ground: set = set()
+        placed = [i for i in document["assembly"]["instances"] if i["id"] in placements_mm]
+        if placed:
+            ground.add(placed[0]["id"])
+        for inst in placed:
+            if inst.get("lock"):
+                ground.add(inst["id"])
+        return ground
 
     def _analyze(self, document: dict, asm_dir: str, instances: list, placements_mm: dict,
                  builders: dict, out_dir: str, name: str, issues: list) -> tuple[list, dict, dict]:
@@ -589,11 +623,28 @@ class AssemblyBuilder:
         return glb
 
 
-def _with_ids(prims: list[dict], joint_id: str) -> list[dict]:
-    """Tag each driver pin with the driven joint's id (for failing-id attribution), return them."""
-    for prim in prims:
-        prim.setdefault("id", joint_id)
-    return prims
+def _planar_joints(joints: list[dict]) -> list[dict]:
+    """The joints in PlanarMotionSolver form ({id, type, a/b {instance, connector}}), skipping any
+    that lack two between-refs (a planar joint always couples two connectors)."""
+    out: list[dict] = []
+    for joint in joints:
+        between = joint.get("between") or []
+        if len(between) < 2:
+            continue
+        out.append({"id": joint.get("id"), "type": joint.get("type"),
+                    "a": {"instance": between[0]["instance"],
+                          "connector": between[0]["connector"]},
+                    "b": {"instance": between[1]["instance"],
+                          "connector": between[1]["connector"]}})
+    return out
+
+
+def _compose(rest: list[list[float]],
+             delta: list[list[float]] | None) -> list[list[float]]:
+    """Row-major compose rest THEN world delta: final = rest . delta (None delta -> rest)."""
+    if delta is None:
+        return [row[:] for row in rest]
+    return [[sum(rest[i][k] * delta[k][j] for k in range(4)) for j in range(4)] for i in range(4)]
 
 
 def _role(tag: str | None) -> str | None:
