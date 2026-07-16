@@ -28,6 +28,9 @@ from ncad.assembly.interference_checker import InterferenceChecker
 from ncad.assembly.joint_lowering import JointError, JointLowering
 from ncad.assembly.mate_lowering import MateError, MateLowering
 from ncad.assembly.mate_solver import MateSolver
+from ncad.assembly.motion_driver import MotionDriver, MotionParamError
+from ncad.assembly.motion_pins import driver_pins
+from ncad.assembly.motion_solver import MotionSolver
 from ncad.assembly.sub_assembly_composer import SubAssemblyComposer
 from ncad.build.document_builder import DocumentBuilder
 from ncad.build.mass_calculator import MassCalculator
@@ -131,8 +134,15 @@ class AssemblyBuilder:
                               "connectors": world, "lock": bool(instance.get("lock"))})
         # Solve the mate network (if any): overwrites solved instances' placements + world
         # connector frames in the sidecar list, and yields the solve status + mate records.
-        solve_block, mates_out, joints_out, couplings_out = self._solve_constraints(
-            document, local_frames, placements_mm, to_metres, instances, issues)
+        solve_block, mates_out, joints_out, couplings_out, primitives, ground_ids = (
+            self._solve_constraints(
+                document, local_frames, placements_mm, to_metres, instances, issues))
+        # Motion pass (bucket 6.0): if the document declares a `motion` block, re-solve the SAME
+        # position network over the driver's value sweep and write a trajectory sidecar. Runs AFTER
+        # the static solve (the assembled rest pose seeds frame 0). Kinematic only (dynamics ->
+        # Phase 14).
+        motion_path = self._run_motion(document, name, out_dir, local_frames, placements_mm,
+                                       to_metres, primitives, ground_ids, issues)
         # Analysis over the solved assembly (bucket 5.6): interference + BOM + roll-up mass +
         # structured STEP. Guarded so a failure is an id-attributed issue and the sidecar still
         # writes (without the analysis blocks) rather than aborting the whole assemble.
@@ -147,7 +157,8 @@ class AssemblyBuilder:
                        "instances": instances, "solve": solve_block, "mates": mates_out,
                        "joints": joints_out, "couplings": couplings_out,
                        "interference": interference, "bom": bom, "mass": mass}, handle)
-        return {"sidecar": sidecar, "issues": issues, "instances": [i["id"] for i in instances]}
+        return {"sidecar": sidecar, "issues": issues, "motion": motion_path,
+                "instances": [i["id"] for i in instances]}
 
     def _expand_components(self, raw_instances: list, issues: list) -> list[dict]:
         """Expand component ops (replace, then mirror, then pattern) into a flat instance list.
@@ -242,8 +253,12 @@ class AssemblyBuilder:
 
     def _solve_constraints(self, document: dict, local_frames: dict, placements_mm: dict,
                            to_metres: float, instances: list,
-                           issues: list) -> tuple[dict, list, list, list]:
-        """Solve the mate + joint network; overwrite placements; return solve/mates/joints/coupl."""
+                           issues: list) -> tuple[dict, list, list, list, list, set]:
+        """Solve the mate + joint network; overwrite placements.
+
+        Returns solve/mates/joints/couplings plus the lowered ``primitives`` + ``ground_ids`` so the
+        motion pass can re-solve the SAME network per driver value without re-lowering it.
+        """
         constraints = document["assembly"].get("constraints") or []
         joints = document["assembly"].get("joints") or []
         # Couplings are declared-only (no primitives, no pose); build them up-front so they reach
@@ -255,7 +270,7 @@ class AssemblyBuilder:
         if not constraints and not joints:
             return ({"status": "well_constrained", "dof": 0, "explanation": "no constraints",
                      "failing_ids": [], "redundant_ids": [], "under_constrained_hint": None},
-                    [], [], couplings_out)
+                    [], [], couplings_out, [], set())
         primitives: list[dict] = []
         mates_out: list[dict] = []
         for mate in constraints:
@@ -309,7 +324,58 @@ class AssemblyBuilder:
         logger.info("assembly solve: status=%s dof=%d failing=%s redundant=%s joints=%d (%s)",
                     report.status, report.dof, report.failing_ids, report.redundant_ids,
                     len(joints_out), report.explanation)
-        return report.to_dict(), mates_out, joints_out, couplings_out
+        return report.to_dict(), mates_out, joints_out, couplings_out, primitives, ground_ids
+
+    def _run_motion(self, document: dict, name: str, out_dir: str, local_frames: dict,
+                    placements_mm: dict, to_metres: float, primitives: list, ground_ids: set,
+                    issues: list) -> str | None:
+        """Solve a driven mechanism over the motion block's values; write <name>.motion.json.
+
+        Reuses the STATIC network's lowered ``primitives`` + ``ground_ids`` (re-solving per driver
+        value with that value's driver pin injected), so motion never re-lowers the joints. A bad
+        motion block is an id-attributed issue; the static sidecar still writes, no motion sidecar.
+        """
+        motion = document.get("motion")
+        if not motion:
+            return None
+        try:
+            joint_id, values = MotionDriver().parse(motion)
+        except MotionParamError as exc:
+            issues.append({"message": f"motion: {exc}"})
+            return None
+        joint = next((j for j in (document["assembly"].get("joints") or [])
+                      if j.get("id") == joint_id), None)
+        if joint is None:
+            issues.append({"message": f"motion driver references unknown joint {joint_id!r}"})
+            return None
+        between = joint.get("between") or []
+        a_ref = between[0] if len(between) >= 1 else None
+        b_ref = between[1] if len(between) >= 2 else None
+        frame_a = self._frame_for(a_ref, local_frames)
+        frame_b = self._frame_for(b_ref, local_frames)
+        if a_ref is None or b_ref is None or frame_a is None or frame_b is None:
+            issues.append({"message": f"motion joint {joint_id!r} has unresolved connectors"})
+            return None
+        try:
+            per_value = [_with_ids(driver_pins(joint["type"], v, a_ref, b_ref, frame_a, frame_b),
+                                   joint_id) for v in values]
+        except MotionParamError as exc:
+            issues.append({"message": f"motion: {exc}"})
+            return None
+        outcomes = MotionSolver().solve(local_frames, primitives, ground_ids, placements_mm,
+                                        per_value)
+        span = values[-1] - values[0]
+        frames = [{"t": 0.0 if span == 0 else (value - values[0]) / span,
+                   "driver_value": value, "status": outcome.status,
+                   "placements": {iid: _bake_matrix(m, to_metres)
+                                  for iid, m in outcome.placements.items()}}
+                  for value, outcome in zip(values, outcomes)]
+        path = os.path.join(out_dir, f"{name}.motion.json")
+        with open(path, "w", encoding="utf-8") as handle:
+            json.dump({"schema_version": 1, "name": name,
+                       "driver": motion["driver"], "frames": frames}, handle)
+        logger.info("assembly motion: joint=%s frames=%d out=%s", joint_id, len(frames), path)
+        return path
 
     def _analyze(self, document: dict, asm_dir: str, instances: list, placements_mm: dict,
                  builders: dict, out_dir: str, name: str, issues: list) -> tuple[list, dict, dict]:
@@ -521,6 +587,13 @@ class AssemblyBuilder:
         glb = os.path.basename(artifacts[part_name])
         built_glbs[key] = glb
         return glb
+
+
+def _with_ids(prims: list[dict], joint_id: str) -> list[dict]:
+    """Tag each driver pin with the driven joint's id (for failing-id attribution), return them."""
+    for prim in prims:
+        prim.setdefault("id", joint_id)
+    return prims
 
 
 def _role(tag: str | None) -> str | None:
