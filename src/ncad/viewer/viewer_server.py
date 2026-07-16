@@ -33,6 +33,7 @@ _ELEMENTMAP_ROUTE = "/api/elementmap/"
 _HIERARCHY_ROUTE = "/api/hierarchy/"
 _STATUS_ROUTE = "/api/status/"
 _ASSEMBLY_ROUTE = "/api/assembly/"
+_MOTION_ROUTE = "/api/motion/"
 _CONTENT_TYPES = {
     ".gltf": "model/gltf+json",
     ".glb": "model/gltf-binary",
@@ -80,6 +81,8 @@ class _ViewerRequestHandler(BaseHTTPRequestHandler):
             self._send_model_list()
         elif path == "/api/assemblies":
             self._send_json(200, {"assemblies": self._catalog.assembly_names()})
+        elif path.startswith(_MOTION_ROUTE):
+            self._send_motion(path[len(_MOTION_ROUTE) :])
         elif path.startswith(_ASSEMBLY_ROUTE):
             self._send_assembly(path[len(_ASSEMBLY_ROUTE) :])
         elif path.startswith(_BOM_ROUTE):
@@ -235,6 +238,14 @@ class _ViewerRequestHandler(BaseHTTPRequestHandler):
         resolved = self._catalog.resolve_assembly(unquote(name))
         if resolved is None:
             self.send_error(404, "unknown assembly")
+            return
+        with open(resolved, "rb") as handle:
+            self._send_bytes(200, "application/json", handle.read())
+
+    def _send_motion(self, name: str) -> None:
+        resolved = self._catalog.resolve_motion(unquote(name))
+        if resolved is None:
+            self.send_error(404, "no motion for assembly")
             return
         with open(resolved, "rb") as handle:
             self._send_bytes(200, "application/json", handle.read())

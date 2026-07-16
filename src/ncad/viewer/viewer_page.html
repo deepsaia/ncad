@@ -175,6 +175,20 @@
     padding: 7px 16px; border-radius: 22px; border: 1px solid var(--border);
     backdrop-filter: blur(6px); }
 
+  /* Motion timeline (bucket 6.0): a bottom-center play/pause + scrubber + driver readout. */
+  #motion-bar { position: absolute; bottom: 54px; left: 50%; transform: translateX(-50%);
+    display: flex; align-items: center; gap: 10px; z-index: 55;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 22px;
+    padding: 6px 14px; backdrop-filter: blur(6px); }
+  #motion-bar[hidden] { display: none; }
+  #motion-play { display: flex; align-items: center; justify-content: center;
+    width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--border);
+    background: var(--panel-2); color: var(--text); cursor: pointer; }
+  #motion-play:hover { border-color: var(--accent); color: var(--accent); }
+  #motion-scrub { width: 220px; accent-color: var(--accent); cursor: pointer; }
+  #motion-readout { font-size: 12px; color: var(--muted); min-width: 52px;
+    text-align: right; font-variant-numeric: tabular-nums; }
+
   /* Floating viewport controls (translucent, movable/snapping, icon-first) */
   #viewport-controls { position: absolute; z-index: 40; display: flex;
     flex-direction: column; gap: 4px; padding: 5px; width: max-content;
@@ -604,6 +618,15 @@
     <div id="gizmo"></div>
     <div id="hint">drag to orbit · scroll to zoom · right-drag to pan</div>
     <div id="toast"></div>
+
+    <!-- Motion timeline (bucket 6.0): shown only when the loaded assembly has a motion sidecar. -->
+    <div id="motion-bar" hidden>
+      <button id="motion-play" title="Play / pause motion">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+      </button>
+      <input id="motion-scrub" type="range" min="0" max="0" value="0" step="1" aria-label="Motion frame">
+      <span id="motion-readout">0&deg;</span>
+    </div>
   </main>
 
   <div id="right-resizer" title="Drag to resize" aria-label="Resize data sidebar" role="separator"></div>
@@ -1110,6 +1133,7 @@ function clearModel() {
   jointGizmos = [];  // joint glyphs + coupling links are children of modelRoot, removed with it
   instanceMeshMap = {}; selectedInstances = [];  // drop selection state with the old scene
   assemblyMaterials = {};  // drop per-instance material state with the old scene
+  if (typeof resetMotion === "function") resetMotion();  // drop any motion timeline with the scene
   pickParts = []; elementMap = null;
   const picked = document.getElementById("i-picked");
   if (picked) picked.textContent = "-";
@@ -1993,6 +2017,7 @@ function loadAssembly(name, verbose, timing) {
     modelRoot = root;
     scene.add(root);
     const instanceMeshes = {};   // instanceId -> [meshes], for selection highlight/isolate
+    const instanceNodes = {};    // instanceId -> placement node (Group), for motion playback
     // Plain re-select (mode switch / page refresh) logs NOTHING, mirroring how parts log nothing
     // on select. Only an explicit assemble (verbose) narrates instances + bbox.
     if (verbose) log(`assembly ${name}: ${(sceneDoc.instances || []).length} instances`);
@@ -2012,6 +2037,7 @@ function loadAssembly(name, verbose, timing) {
       updateByMaterialButton();  // show the By-Material control if this assembly has materials
       applyMode();   // assigns base materials, captures them, and re-applies selection visuals
       frameModel();
+      setupMotion(name, instanceNodes);   // load + wire the motion timeline if a sidecar exists
       // Verbose bbox line only on an explicit assemble/first-load, not on every plain re-select
       // (switching Parts<->Assemblies just re-loads the existing scene; do not spam the log).
       if (verbose) {
@@ -2038,6 +2064,7 @@ function loadAssembly(name, verbose, timing) {
         // (Y-up) to Z-up, so: glb Y-up >> inner Rx(+90) >> Z-up >> node placement >> world.
         const node = new THREE.Group();
         node.applyMatrix4(matrixFromRowMajor(inst.placement));
+        instanceNodes[inst.id] = node;
         const inner = new THREE.Group();
         inner.rotation.x = Math.PI / 2;
         inner.add(obj.clone(true));
@@ -2124,6 +2151,93 @@ function matrixFromRowMajor(m) {
         0, 0, 0, 1);
   return M;
 }
+
+// ---- Motion timeline playback (bucket 6.0) ----
+// The motion sidecar <name>.motion.json holds per-frame per-instance placements (same row-major
+// metres 4x4 as the static sidecar). We swap each instance node's matrix to the current frame and
+// advance in the animate() loop. Frame 0 is the rest pose, so a motion-less assembly is unchanged
+// and the bar stays hidden.
+const motionBar = document.getElementById("motion-bar");
+const motionPlayBtn = document.getElementById("motion-play");
+const motionScrub = document.getElementById("motion-scrub");
+const motionReadout = document.getElementById("motion-readout");
+const PLAY_ICON = '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
+const PAUSE_ICON = '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>';
+let motion = null;         // {frames, driver} or null when no motion
+let motionNodes = {};      // instanceId -> node for the active motion
+let motionFrame = 0;       // current frame index
+let motionPlaying = false;
+let motionAccum = 0;       // ms accumulated toward the next frame
+const MOTION_FRAME_MS = 60;  // playback cadence (about 16 fps)
+
+function resetMotion() {
+  motion = null; motionNodes = {}; motionFrame = 0; motionPlaying = false; motionAccum = 0;
+  motionBar.hidden = true;
+  motionPlayBtn.innerHTML = PLAY_ICON;
+}
+
+function setupMotion(name, instanceNodes) {
+  resetMotion();
+  fetch(`/api/motion/${encodeURIComponent(name)}`).then(r => {
+    if (!r.ok) return null;   // 404: this assembly has no motion, leave the bar hidden
+    return r.json();
+  }).then(doc => {
+    if (!doc || !(doc.frames || []).length) return;
+    motion = doc; motionNodes = instanceNodes;
+    motionScrub.max = String(doc.frames.length - 1);
+    motionScrub.value = "0";
+    motionBar.hidden = false;
+    showMotionFrame(0);
+    log(`motion: ${doc.frames.length} frames, driver ${doc.driver ? doc.driver.joint : "?"}`, "info");
+  }).catch(() => { /* motion is optional; a fetch error just means no timeline */ });
+}
+
+function showMotionFrame(i) {
+  if (!motion) return;
+  const frames = motion.frames;
+  motionFrame = ((i % frames.length) + frames.length) % frames.length;
+  const frame = frames[motionFrame];
+  for (const id in frame.placements) {
+    const node = motionNodes[id];
+    if (!node) continue;
+    node.matrix.copy(matrixFromRowMajor(frame.placements[id]));
+    node.matrix.decompose(node.position, node.quaternion, node.scale);
+    node.updateMatrixWorld(true);
+  }
+  motionScrub.value = String(motionFrame);
+  const unit = degreesLikelyDriver() ? "°" : "";
+  motionReadout.textContent = `${(+frame.driver_value).toFixed(1)}${unit}`;
+}
+
+function degreesLikelyDriver() {
+  // A rotation driver reads in degrees; a slider in mm. We do not carry the joint type in the
+  // sidecar, so infer: a range that spans a full turn (>= 360 total) is almost certainly degrees.
+  if (!motion || !motion.frames.length) return true;
+  const span = Math.abs(motion.frames[motion.frames.length - 1].driver_value
+                        - motion.frames[0].driver_value);
+  return span >= 180;
+}
+
+function toggleMotionPlay() {
+  if (!motion) return;
+  motionPlaying = !motionPlaying;
+  motionPlayBtn.innerHTML = motionPlaying ? PAUSE_ICON : PLAY_ICON;
+}
+
+function advanceMotion(dtMs) {
+  if (!motionPlaying || !motion) return;
+  motionAccum += dtMs;
+  while (motionAccum >= MOTION_FRAME_MS) {
+    motionAccum -= MOTION_FRAME_MS;
+    showMotionFrame(motionFrame + 1);   // loops via showMotionFrame's modulo
+  }
+}
+
+motionPlayBtn.addEventListener("click", toggleMotionPlay);
+motionScrub.addEventListener("input", () => {
+  motionPlaying = false; motionPlayBtn.innerHTML = PLAY_ICON;
+  showMotionFrame(parseInt(motionScrub.value, 10) || 0);
+});
 
 // Build the 3D joint-freedom overlay (bucket 5.5): a signature-keyed glyph at each joint's side-A
 // connector world frame, plus a dashed line between each coupling's two joints. Added under `root`
@@ -2546,8 +2660,11 @@ resizerEl.addEventListener("dblclick", () => {
   fitRendererToStage();
 });
 
-(function animate() {
+let _lastFrameMs = null;
+(function animate(now) {
   requestAnimationFrame(animate);
+  if (_lastFrameMs != null && now != null) advanceMotion(now - _lastFrameMs);
+  _lastFrameMs = now;
   controls.update();
   renderer.render(scene, camera);
   renderGizmo();
