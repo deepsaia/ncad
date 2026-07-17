@@ -149,3 +149,16 @@ def test_assembly_delete_returns_200_not_405(service):
     status, body, _ = _post(f"{service.base_url}/api/v1/assembly/widget/delete", None)
     assert status == 200
     assert json.loads(body)["assemblies"] == []
+
+
+def test_cors_header_on_get(service):
+    # A future cross-origin (React) client relies on the permissive CORS header on every response.
+    _status, _body, headers = _get(f"{service.base_url}/api/v1/models")
+    assert headers["Access-Control-Allow-Origin"] == "*"
+
+
+def test_cors_preflight_options_returns_204(service):
+    request = urllib.request.Request(f"{service.base_url}/api/v1/build", method="OPTIONS")
+    with urllib.request.urlopen(request, timeout=5) as response:
+        assert response.status == 204
+        assert response.headers["Access-Control-Allow-Methods"] == "GET, POST, OPTIONS"

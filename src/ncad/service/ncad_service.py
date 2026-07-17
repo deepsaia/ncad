@@ -52,18 +52,8 @@ class NcadService:
         self._port = port
         self._dev = dev
         self._boot_id = uuid.uuid4().hex
-        catalog = ModelCatalog(models_dir)
-        spec_catalog = SpecCatalog(examples_dir or "")
-        if build_service is None:
-            build_service = BuildServiceFactory().create(examples_dir or "", models_dir)
-        self._deps = {
-            "catalog": catalog,
-            "spec_catalog": spec_catalog,
-            "build_service": build_service,
-            "page": ViewerPage(dev=dev),
-            "dev": dev,
-            "boot_id": self._boot_id,
-        }
+        self._deps = make_deps(models_dir, examples_dir, dev, self._boot_id,
+                               build_service=build_service)
         self._app = Application(ApiRouter().rules(self._deps))
         self._server: HTTPServer | None = None
         self._ioloop: IOLoop | None = None
@@ -129,3 +119,22 @@ def _bind_sockets(host: str, port: int):
     from tornado.netutil import bind_sockets
 
     return bind_sockets(port, address=host)
+
+
+def make_deps(models_dir: str, examples_dir: str | None, dev: bool, boot_id: str,
+              *, build_service=None) -> dict:
+    """Build the injected-collaborators dict passed to every handler's ``initialize``.
+
+    Kept a top-level factory so tests can construct the same deps an NcadService uses (and build a
+    bare Tornado Application from ApiRouter) without spinning up the full service lifecycle.
+    """
+    if build_service is None:
+        build_service = BuildServiceFactory().create(examples_dir or "", models_dir)
+    return {
+        "catalog": ModelCatalog(models_dir),
+        "spec_catalog": SpecCatalog(examples_dir or ""),
+        "build_service": build_service,
+        "page": ViewerPage(dev=dev),
+        "dev": dev,
+        "boot_id": boot_id,
+    }

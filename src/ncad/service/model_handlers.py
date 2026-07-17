@@ -47,7 +47,7 @@ class ModelBytesHandler(BaseApiHandler):
             return
         with open(resolved, "rb") as handle:
             self.set_header("Content-Type", content_type_for(resolved))
-            self.finish(handle.read())
+            self.safe_finish(handle.read())
 
 
 class ModelDeleteHandler(BaseApiHandler):

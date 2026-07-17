@@ -18,7 +18,7 @@ def _stream(handler: BaseApiHandler, resolved: str | None, content_type: str,
         return
     with open(resolved, "rb") as file_handle:
         handler.set_header("Content-Type", content_type)
-        handler.finish(file_handle.read())
+        handler.safe_finish(file_handle.read())
 
 
 class BomHandler(BaseApiHandler):

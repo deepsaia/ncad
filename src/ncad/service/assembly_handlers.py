@@ -29,7 +29,7 @@ class AssemblyHandler(BaseApiHandler):
             return
         with open(resolved, "rb") as handle:
             self.set_header("Content-Type", "application/json")
-            self.finish(handle.read())
+            self.safe_finish(handle.read())
 
 
 class AssemblyDeleteHandler(BaseApiHandler):

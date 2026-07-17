@@ -19,6 +19,7 @@ from ncad.service.assembly_handlers import (
     AssemblyHandler,
 )
 from ncad.service.build_handlers import AssembleHandler, BuildHandler, MotionBuildHandler
+from ncad.service.livereload_handler import LiveReloadHandler
 from ncad.service.model_handlers import ModelBytesHandler, ModelDeleteHandler, ModelsHandler
 from ncad.service.motion_handlers import MotionHandler, MotionsHandler
 from ncad.service.sidecar_handlers import (
@@ -71,4 +72,9 @@ class ApiRouter:
             URLSpec(r"/api/v1/assembly/(.+)", AssemblyHandler, deps),
             URLSpec(r"/api/v1/models/(.+)", ModelBytesHandler, deps),
         ]
+        # Browser live-reload is a dev-only affordance; the ws route is absent in production (so a
+        # connect there 404s, and the SPA only opens the socket when window.NCAD_DEV is true).
+        if deps.get("dev"):
+            ws_args = {"boot_id": deps["boot_id"]}
+            rules.append(URLSpec(r"/ws/livereload", LiveReloadHandler, ws_args))
         return rules

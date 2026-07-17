@@ -3,13 +3,17 @@
 Every API handler receives the same injected collaborators (the model/spec catalogs, the build
 service, the viewer page, and the service dev flag + boot id) through Tornado's ``initialize``,
 populated from the route table. The base also centralizes the JSON write helper and the
-``{"error": ...}`` envelope so the 400/404/500 contract matches the stdlib server exactly.
+``{"error": ...}`` envelope so the 400/404/500 contract matches the stdlib server exactly, and it
+finishes responses through a ``StreamClosedError``-safe path (a client that hangs up mid-write must
+not raise), plus a CORS preflight hook for a future cross-origin (React) client. These mirror the
+neuro-san Tornado service idioms (BaseRequestHandler.do_finish / options).
 """
 
 import json
 import logging
 from typing import Any
 
+from tornado.iostream import StreamClosedError
 from tornado.web import RequestHandler
 
 logger = logging.getLogger(__name__)
@@ -32,11 +36,33 @@ class BaseApiHandler(RequestHandler):
         self._dev: bool = kwargs["dev"]
         self._boot_id: str = kwargs["boot_id"]
 
+    def set_default_headers(self) -> None:
+        """Permit cross-origin API use (a future React client on another origin).
+
+        A local dev tool, not an authenticated service, so ``*`` is fine. Applied to every response
+        (Tornado calls this before each request) so both the JSON routes and the preflight agree.
+        """
+        self.set_header("Access-Control-Allow-Origin", "*")
+        self.set_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.set_header("Access-Control-Allow-Headers", "Content-Type")
+
+    def options(self, *args: str, **kwargs: str) -> None:
+        """Answer a CORS preflight with 204 No Content (headers set in set_default_headers)."""
+        self.set_status(204)
+        self.safe_finish()
+
+    def safe_finish(self, chunk: str | bytes | None = None) -> None:
+        """finish() that swallows a client-hung-up mid-write instead of raising to the loop."""
+        try:
+            self.finish(chunk)
+        except StreamClosedError:
+            logger.warning("client closed the connection before the response finished")
+
     def write_json(self, status: int, payload: dict) -> None:
-        """Write ``payload`` as a JSON response with ``status``."""
+        """Write ``payload`` as a JSON response with ``status`` (stream-close safe)."""
         self.set_status(status)
         self.set_header("Content-Type", "application/json")
-        self.finish(json.dumps(payload))
+        self.safe_finish(json.dumps(payload))
 
     def write_error_json(self, status: int, message: str) -> None:
         """Write the shared ``{"error": message}`` envelope with ``status``."""

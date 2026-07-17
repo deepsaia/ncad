@@ -43,7 +43,7 @@ class ViewerHandler(BaseApiHandler):
         here (the SPA reads it from the URL path itself)."""
         html = _inject(self._page.render(), self._dev, self._boot_id)
         self.set_header("Content-Type", "text/html; charset=utf-8")
-        self.finish(html)
+        self.safe_finish(html)
 
 
 class RootRedirectHandler(RequestHandler):
