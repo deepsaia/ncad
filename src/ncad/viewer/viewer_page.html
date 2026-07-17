@@ -1265,10 +1265,14 @@ function frameModel() {
   const size = box.getSize(new THREE.Vector3());
   const center = box.getCenter(new THREE.Vector3());
   modelRoot.position.sub(center);
-  edges.forEach(e => e.position.sub(center));
+  // Only scene-level edges (the single-part path) need the manual re-centering; assembly edges are
+  // parented to their instance mesh (so they move with the part under motion) and ride modelRoot's
+  // shift already - shifting them again would double-offset them.
+  const sceneEdges = edges.filter(e => e.parent === scene);
+  sceneEdges.forEach(e => e.position.sub(center));
   // Z-up scene: drop the model onto the ground plane (z=0 at its base) along +Z.
   const half = size.z / 2;
-  modelRoot.position.z += half; edges.forEach(e => e.position.z += half);
+  modelRoot.position.z += half; sceneEdges.forEach(e => e.position.z += half);
   const radius = Math.max(size.x, size.y, size.z);
   camera.position.set(radius * 1.4, -radius * 1.6, radius * 1.05);
   camera.near = radius / 100; camera.far = radius * 50; camera.updateProjectionMatrix();
@@ -2126,7 +2130,7 @@ function loadAssembly(name, verbose, timing) {
         assemblyMaterials[inst.id] = {material: inst.material || null,
                                       appearance_color: inst.appearance_color || null};
       }
-      buildJointOverlay(sceneDoc, root);
+      buildJointOverlay(sceneDoc, root, instanceNodes);
       updateByMaterialButton();  // show the By-Material control if this assembly has materials
       applyMode();   // assigns base materials, captures them, and re-applies selection visuals
       frameModel();
@@ -2176,8 +2180,12 @@ function loadAssembly(name, verbose, timing) {
         node.add(gizmo);
         root.add(node);
         // Mate connector triads: each `inst.connectors` entry is a world-space frame (metres) in
-        // the same Z-up modeled frame as the placement, so it goes directly under `root` (NOT the
-        // placement node, which would double-apply the placement). Oriented by its x/y/z basis.
+        // the same Z-up modeled frame as the placement. A connector is FIXED to its part, so it must
+        // ride the part under MOTION - parent it to the placement `node` in the node's LOCAL frame
+        // (rest^-1 . worldFrame), NOT to `root` (which would freeze it at the rest pose while the
+        // part animates - the "wire diagram at the origin that doesn't move" bug). At rest the node
+        // matrix IS the placement, so node . (rest^-1 . basis) = basis; under motion it follows.
+        const restInv = matrixFromRowMajor(inst.placement).clone().invert();
         for (const c of (inst.connectors || [])) {
           const triad = new THREE.AxesHelper(axisLen);
           const basis = new THREE.Matrix4().makeBasis(
@@ -2185,10 +2193,10 @@ function loadAssembly(name, verbose, timing) {
             new THREE.Vector3(c.y[0], c.y[1], c.y[2]),
             new THREE.Vector3(c.z[0], c.z[1], c.z[2]));
           basis.setPosition(c.origin[0], c.origin[1], c.origin[2]);
-          triad.applyMatrix4(basis);
+          triad.applyMatrix4(restInv.clone().multiply(basis));
           triad.visible = showConnectors;
           connectorGizmos.push(triad);
-          root.add(triad);
+          node.add(triad);
         }
         node.updateMatrixWorld(true);
         node.traverse(o => {
@@ -2197,15 +2205,16 @@ function loadAssembly(name, verbose, timing) {
             pickParts.push(o);
             (instanceMeshes[inst.id] = instanceMeshes[inst.id] || []).push(o);
             // Per-part edge overlay (same as the single-part path): a line where adjacent facets
-            // meet above 25deg (clears the tessellation facet angle, catches real geometric edges).
-            // Baked to world space and pushed to `edges[]`, so the existing Edge toggle + applyMode
-            // visibility logic drive it in assemblies too.
+            // meet above 25deg. PARENT it to the mesh (o) rather than baking to world + adding to
+            // scene, so under MOTION the edges move WITH the part (a scene-parented, world-baked
+            // line would stay frozen at the rest pose while the mesh animates). The Edge toggle +
+            // applyMode visibility still drive it via `edges[]`.
             const line = new THREE.LineSegments(
               new THREE.EdgesGeometry(o.geometry, 25),
               new THREE.LineBasicMaterial({ color: cssColor("--edge") }));
-            o.updateWorldMatrix(true, false); line.applyMatrix4(o.matrixWorld);
             line.visible = showEdges;
-            edges.push(line); scene.add(line);
+            o.add(line);
+            edges.push(line);
           }
         });
         // Log the pickup point only when verbose (an explicit assemble), not on every re-select.
@@ -2342,13 +2351,17 @@ motionScrub.addEventListener("input", () => {
 });
 
 // Build the 3D joint-freedom overlay (bucket 5.5): a signature-keyed glyph at each joint's side-A
-// connector world frame, plus a dashed line between each coupling's two joints. Added under `root`
-// (so it clears with the scene) and pushed to `jointGizmos` for the Joints toggle.
-function buildJointOverlay(sceneDoc, root) {
+// connector world frame, plus a dashed line between each coupling's two joints. Each glyph is
+// PARENTED to its side-A instance node (in the node's local frame), so under MOTION it rides the
+// moving part instead of freezing at the rest pose. The coupling links stay on `root` (they span
+// two joints). All are pushed to `jointGizmos` for the Joints toggle and clear with the scene.
+function buildJointOverlay(sceneDoc, root, instanceNodes) {
   const frameOf = {};   // instanceId -> { connectorId -> {origin,x,y,z} }
+  const restInvOf = {}; // instanceId -> rest placement inverse (world -> node-local)
   for (const inst of (sceneDoc.instances || [])) {
     frameOf[inst.id] = {};
     for (const c of (inst.connectors || [])) frameOf[inst.id][c.id] = c;
+    restInvOf[inst.id] = matrixFromRowMajor(inst.placement).clone().invert();
   }
   // One glyph size for the whole assembly, from the scene bbox (computed once here).
   const box = new THREE.Box3().setFromObject(root);
@@ -2362,7 +2375,15 @@ function buildJointOverlay(sceneDoc, root) {
     const glyph = buildJointGlyph(j, frame, jointSize);
     glyph.visible = showJoints;
     jointGizmos.push(glyph);
-    root.add(glyph);
+    // Parent to side-A's node in its local frame (rest^-1 . glyph) so it follows the part; fall
+    // back to `root` if the node is missing (an unresolved instance).
+    const node = a && instanceNodes ? instanceNodes[a.instance] : null;
+    if (node && restInvOf[a.instance]) {
+      glyph.applyMatrix4(restInvOf[a.instance]);
+      node.add(glyph);
+    } else {
+      root.add(glyph);
+    }
     jointAnchor[j.id] = new THREE.Vector3(frame.origin[0], frame.origin[1], frame.origin[2]);
   }
   for (const c of (sceneDoc.couplings || [])) {
