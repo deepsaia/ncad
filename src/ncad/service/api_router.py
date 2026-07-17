@@ -22,6 +22,7 @@ from ncad.service.build_handlers import AssembleHandler, BuildHandler, MotionBui
 from ncad.service.livereload_handler import LiveReloadHandler
 from ncad.service.model_handlers import ModelBytesHandler, ModelDeleteHandler, ModelsHandler
 from ncad.service.motion_handlers import MotionHandler, MotionsHandler
+from ncad.service.openapi_handler import OpenApiHandler
 from ncad.service.sidecar_handlers import (
     BomHandler,
     ElementMapHandler,
@@ -30,6 +31,7 @@ from ncad.service.sidecar_handlers import (
     StatusHandler,
 )
 from ncad.service.spec_handlers import SpecsHandler
+from ncad.service.swagger_handler import SwaggerHandler
 from ncad.service.viewer_handler import RootRedirectHandler, ViewerHandler
 
 
@@ -46,6 +48,8 @@ class ApiRouter:
             URLSpec(r"/", RootRedirectHandler),
             URLSpec(r"/viewer", ViewerHandler, deps),
             URLSpec(r"/viewer/(.+)", ViewerHandler, deps),
+            URLSpec(r"/docs", SwaggerHandler, deps),
+            URLSpec(r"/api/v1/openapi.json", OpenApiHandler, deps),
             # Static collection routes.
             URLSpec(r"/api/v1/specs", SpecsHandler, deps),
             URLSpec(r"/api/v1/models", ModelsHandler, deps),
