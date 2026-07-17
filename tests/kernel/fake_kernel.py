@@ -348,9 +348,9 @@ class FakeKernel(Kernel):
         return _FakeCone(center, axis, bottom_diameter, top_diameter, length)
 
     def make_primitive(self, kind: str, dims: dict, plane: str, at: Point2,
-                       plane_offset: float = 0.0) -> Any:
+                       plane_offset: float = 0.0, rotation: float = 0.0) -> Any:
         # Analytic base body: exact volume per kind + a coarse axis-aligned bbox at the origin
-        # (the fake has no rotation/plane model; real placement is real-kernel-only).
+        # (the fake has no rotation/plane model; real placement + rotation are real-kernel-only).
         volume, half = _primitive_volume_and_half(kind, dims)
         bounds = ((-half[0], -half[1], -half[2]), (half[0], half[1], half[2]))
         return _FakeCombined(volume, bounds)

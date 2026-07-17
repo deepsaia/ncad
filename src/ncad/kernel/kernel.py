@@ -48,14 +48,15 @@ class Kernel(ABC):
 
     @abstractmethod
     def make_primitive(self, kind: str, dims: dict, plane: str, at: Point2,
-                       plane_offset: float = 0.0) -> Any:
+                       plane_offset: float = 0.0, rotation: float = 0.0) -> Any:
         """A primitive base solid: ``kind`` in {box, cylinder, sphere, cone, torus, wedge}.
 
         ``dims`` carries resolved numeric dimensions (box: w/d/h; cylinder: radius/h; sphere:
         radius; cone: bottom_radius/top_radius/h; torus: major_radius/minor_radius; wedge:
         dx/dy/dz). ``plane`` is the base plane ("XY"/"XZ"/"YZ"), ``at`` the 2D origin offset on it,
-        and ``plane_offset`` shifts that plane along its normal (elevation). A no-sketch base body
-        (a part may start from a primitive).
+        ``plane_offset`` shifts that plane along its normal (elevation), and ``rotation`` (degrees
+        about the plane normal) spins the body in-plane (a diagonal bar / a tilted part without a
+        sketch). A no-sketch base body (a part may start from a primitive).
         """
 
     @abstractmethod
