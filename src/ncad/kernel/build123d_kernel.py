@@ -1391,6 +1391,9 @@ def _describe_face(face: Any) -> dict:
         "normal": (round(normal.X, 9), round(normal.Y, 9), round(normal.Z, 9)),
         "area": face.area,
         "center": (center.X, center.Y, center.Z),
+        # Position attributes: the face centre's coordinates, so a selector can pick a face by WHERE
+        # it is (`select faces where mid_x = 20`), not only by area. mid_z pre-dates mid_x/mid_y.
+        "mid_x": center.X, "mid_y": center.Y,
         "min_z": box.min.Z, "mid_z": center.Z, "max_z": box.max.Z,
     }
     _add_axis_fields(descriptor, face)
@@ -1431,6 +1434,7 @@ def _describe_edge(edge: Any) -> dict:
         "center": (mid.X, mid.Y, mid.Z),
         "edge_direction": unit,
         "orientation": "vertical" if vertical else "horizontal",
+        "mid_x": mid.X, "mid_y": mid.Y,
         "min_z": box.min.Z, "mid_z": mid.Z, "max_z": box.max.Z,
     }
 

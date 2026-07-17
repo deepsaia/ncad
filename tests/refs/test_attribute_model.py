@@ -9,6 +9,13 @@ def test_known_attributes():
         assert m.is_known(name), name
 
 
+def test_position_attributes_are_known():
+    # v2: mid_x / mid_y let a selector pick an element by WHERE it is (not only by area).
+    m = AttributeModel()
+    assert m.is_known("mid_x")
+    assert m.is_known("mid_y")
+
+
 def test_deferred_attributes_are_unknown():
     m = AttributeModel()
     assert not m.is_known("convexity")
