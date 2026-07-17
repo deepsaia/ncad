@@ -14,7 +14,16 @@ dependencies = [
     "typer>=0.26.8",
     "lark>=1.3.1",
     "py-slvs>=1.0.6",
+    "pyondsel",
 ]
+
+# pyondsel (the OndselSolver multibody bindings, docs/design.md section 8) is not on PyPI. Default
+# to the local editable checkout alongside this repo (live edits while we co-develop both). For a
+# machine without the side-by-side checkout, comment the path line and use the git source instead
+# (private repo: needs GitHub auth + a C++17 compiler + CMake; not editable, so bump to update):
+#   pyondsel = { git = "https://github.com/deepsaia/pyondsel", branch = "main" }
+[tool.uv.sources]
+pyondsel = { path = "../pyondsel", editable = true }
 
 [project.scripts]
 # `ncad` = the project CLI (typer): `ncad view [dir]` launches the browser 3D viewer,
