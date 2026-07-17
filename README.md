@@ -29,13 +29,19 @@ The kernel (build123d / OCCT today) sits behind a swappable interface.
 
 ## Setup
 
-Requires Python 3.13, managed via [`uv`](https://docs.astral.sh/uv/).
+Requires Python 3.13, managed via [`uv`](https://docs.astral.sh/uv/). One dependency
+(`pyondsel`, the OndselSolver multibody bindings used for motion) is a local editable
+checkout: clone it beside this repo before `uv sync` (it needs a C++17 compiler + CMake).
 
 ```bash
-uv sync                 # install deps into .venv
-uv run pytest -m "not slow"   # fast suite (no OCP import)
-uv run pytest -m slow         # kernel + end-to-end (real build123d geometry)
+git clone https://github.com/deepsaia/pyondsel ../pyondsel   # motion solver (side-by-side)
+uv sync                        # install deps into .venv
+uv run pytest -m "not slow"    # fast suite (no OCP import)
+uv run pytest -m slow          # kernel + end-to-end (real build123d geometry)
 ```
+
+If you do not have the side-by-side `pyondsel` checkout, see the comment in
+[`pyproject.toml`](./pyproject.toml) for the git-source fallback.
 
 ## Quickstart
 
@@ -43,24 +49,51 @@ Build a feature-tree document to glTF, then view it in the browser:
 
 ```bash
 ncad build examples/gate-0.2/bracket.hocon   # writes out/bracket.glb
-ncad                                          # serve ./out at http://127.0.0.1:8000
+ncad view                                     # serve ./out at http://127.0.0.1:8000
 ```
 
-`ncad` runs from any subdirectory of the project; the models directory defaults to
-`<project-root>/out`.
+Open http://127.0.0.1:8000 and pick a model. `ncad` runs from any subdirectory of the
+project; the models directory defaults to `<project-root>/out`. Bare `ncad` is the same
+as `ncad view`.
 
-## CLI
+## Running ncad
 
-The `ncad` command (a typer app) is the single entrypoint:
+The `ncad` command (a typer app) is the single entrypoint. The two everyday commands:
 
-- `ncad` or `ncad view [dir]`: launch the browser 3D viewer over a models directory.
-- `ncad build <document> [--out DIR]`: build every part in a document to `<part>.glb`.
+| Command | What it does |
+| --- | --- |
+| `ncad build <document> [--out DIR]` | Build every part in a feature-tree document to `<part>.glb` (plus its BOM / plan / element-map sidecars). |
+| `ncad view [DIR]` (or bare `ncad`) | Launch the browser 3D viewer + local model-manager over a models directory (default `out/`). |
 
-The viewer is also a local model-manager: pick an example spec from the searchable
-tree, click Build to run it, and the model appears in the models list; each model has
-hover actions to regenerate (rebuild from its recorded source) or delete it. The
-sidebar is resizable (width persists). `ncad view` runs with hot-reload by default
+Common flags for `ncad view`: `--host` (default `127.0.0.1`), `--port` (default `8000`,
+`0` picks a free port), `--dev` / `--no-dev` (hot-reload the viewer HTML per request;
+on by default).
+
+Author documents are the input; you never hand-edit geometry. Build one document:
+
+```bash
+ncad build examples/gate-6.0/crank_slider.hocon --out out
+```
+
+or drive the whole model-manager from the viewer (below).
+
+### The viewer
+
+`ncad view` serves a browser app that is also a local model-manager: pick an example
+spec from the searchable tree, click Build to run it, and the model appears in the
+models list; each model has hover actions to regenerate (rebuild from its recorded
+source) or delete it. It has three modes:
+
+- **Parts** - build and inspect a single feature-tree document.
+- **Assemblies** - compose an `.asm.hocon` (instances + mates/joints) into a scene.
+- **Motion** - drive a `.motion.hocon` study and scrub the resulting trajectory on a timeline.
+
+The sidebar is resizable (width persists). `ncad view` runs with hot-reload by default
 (`--no-dev` to serve the cached page).
+
+> The versioned HTTP service (`ncad serve`: a Tornado JSON API under `/api/v1`, the
+> viewer under `/viewer`, Swagger UI at `/docs`, and websocket live-reload) is being
+> added; this section will document it once the command is wired.
 
 Viewer settings (display mode, material, lighting, scene toggles, reset, and the
 BOM/Plan panels) live in a translucent floating controls panel over the viewport. It

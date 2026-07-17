@@ -67,6 +67,35 @@ class ViewerCli:
             print("\nstopping...")
             server.stop()
 
+    def launch_service(
+        self, models_dir: str | None, host: str, port: int, dev: bool = False
+    ) -> None:
+        """Run the Tornado HTTP service (versioned JSON API + viewer SPA + Swagger UI).
+
+        Same directory resolution as ``launch_viewer``; the service mounts the viewer at
+        ``/viewer`` (``/`` redirects there), the JSON API under ``/api/v1``, and Swagger UI at
+        ``/docs``. ``dev`` turns on server-side autoreload + browser live-reload.
+        """
+        from ncad.service.ncad_service import NcadService
+
+        logging.basicConfig(level=logging.INFO, format="%(message)s")
+        resolved = self.resolve_models_dir(models_dir)
+        examples = self.resolve_examples_dir()
+        service = NcadService(
+            models_dir=str(resolved),
+            host=host,
+            port=port,
+            examples_dir=str(examples) if examples else None,
+            dev=dev,
+        )
+        print(f"ncad service >> {service.base_url}/viewer  (API {service.base_url}/api/v1, "
+              f"docs {service.base_url}/docs; serving '{resolved}', Ctrl+C to stop)")
+        try:
+            service.serve_forever()
+        except KeyboardInterrupt:
+            print("\nstopping...")
+            service.stop()
+
     def build_document(self, document: str, out: str | None,
                        formats: tuple[str, ...] = ("glb",)) -> dict[str, str]:
         """Build a feature-tree document; return the built artifacts by part.
@@ -163,6 +192,17 @@ def view(
 ) -> None:
     """Launch the browser 3D viewer over a directory of models."""
     cli.launch_viewer(models_dir, host, port, dev)
+
+
+@app.command()
+def serve(
+    models_dir: str = typer.Argument(None, help="directory of glTF/GLB models (default: out/)"),
+    host: str = typer.Option("127.0.0.1", help="bind address"),
+    port: int = typer.Option(8000, help="bind port (0 = ephemeral)"),
+    dev: bool = typer.Option(True, help="hot-reload (server autoreload + browser live-reload)"),
+) -> None:
+    """Run the Tornado HTTP service: JSON API under /api/v1, viewer at /viewer, docs at /docs."""
+    cli.launch_service(models_dir, host, port, dev)
 
 
 @app.command()
