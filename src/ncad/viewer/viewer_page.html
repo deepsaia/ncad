@@ -1989,10 +1989,35 @@ function renderMotionList(names) {
     const label = document.createElement("div");
     label.className = "name"; label.textContent = name; label.title = name;
     row.appendChild(label);
+    // Row actions mirror the Assemblies tab: regenerate (re-run the motion study from its recorded
+    // .motion.hocon source) + delete (removes the assembly scene AND its .motion.json trajectory).
+    const actions = document.createElement("div");
+    actions.className = "row-actions";
+    const regen = iconButton("Regenerate", REGEN_SVG, "act-regen");
+    regen.addEventListener("click", ev => { ev.stopPropagation(); regenerateMotion(name); });
+    const del = iconButton("Delete", DELETE_SVG, "act-delete");
+    del.addEventListener("click", ev => { ev.stopPropagation(); removeMotion(name); });
+    actions.appendChild(regen); actions.appendChild(del);
+    row.appendChild(actions);
     row.addEventListener("click", () => selectMotion(name));
     list.appendChild(row);
   }
   scrollActiveIntoView(list);
+}
+
+function regenerateMotion(name) {
+  const source = motionSources[name];
+  if (!source) { toast("no motion source recorded for " + name + "; pick it in the Spec box", true); return; }
+  motionBuildSpec(source);
+}
+
+function removeMotion(name) {
+  // Delete removes the assembly scene sidecar + its .motion.json trajectory (delete_assembly on the
+  // server removes both). No confirmation: re-running the motion study from the spec is cheap.
+  fetch("/api/assembly/" + encodeURIComponent(name) + "/delete", { method: "POST" })
+    .then(r => r.json())
+    .then(() => { if (activeModel === name) { activeModel = null; clearActive("motion"); clearModel(); } refreshMotions(); toast("deleted " + name); })
+    .catch(() => toast("could not delete " + name, true));
 }
 
 function selectMotion(name) {
