@@ -77,8 +77,13 @@ class ViewerCli:
         ``/docs``. ``dev`` turns on server-side autoreload + browser live-reload.
         """
         from ncad.service.ncad_service import NcadService
+        from ncad.service.service_logging import ServiceLogging
 
-        logging.basicConfig(level=logging.INFO, format="%(message)s")
+        # The service is long-running, so give the terminal colored, aligned log lines stamped with
+        # the date + time to a tenth of a second (rich RichHandler; ships with typer). This also
+        # colors Tornado's per-request access log (routed through the "tornado.access" logger),
+        # unlike the one-shot build/view commands that just log bare messages.
+        ServiceLogging().install()
         resolved = self.resolve_models_dir(models_dir)
         examples = self.resolve_examples_dir()
         service = NcadService(

@@ -17,6 +17,7 @@ from tornado.httpserver import HTTPServer
 from tornado.ioloop import IOLoop
 from tornado.web import Application
 
+from ncad.service.access_logger import AccessLogger
 from ncad.service.api_router import ApiRouter
 from ncad.service.reload_watcher import ReloadWatcher
 from ncad.viewer.model_catalog import ModelCatalog
@@ -54,7 +55,10 @@ class NcadService:
         self._boot_id = uuid.uuid4().hex
         self._deps = make_deps(models_dir, examples_dir, dev, self._boot_id,
                                build_service=build_service)
-        self._app = Application(ApiRouter().rules(self._deps))
+        # A custom access log_function colors the status by class (see AccessLogger); it emits
+        # through the "tornado.access" logger, which ServiceLogging configures for the CLI.
+        self._app = Application(ApiRouter().rules(self._deps),
+                                log_function=AccessLogger().log)
         self._server: HTTPServer | None = None
         self._ioloop: IOLoop | None = None
         self._thread: threading.Thread | None = None
@@ -78,7 +82,8 @@ class NcadService:
         self._thread.start()
         if not self._ready.wait(timeout=10):
             raise RuntimeError("ncad service did not bind within 10s")
-        logger.info("ncad service running at %s", self.base_url)
+        # _run logs "ncad service running at ..." once the socket is bound (before _ready is set),
+        # so no second line here.
 
     def serve_forever(self) -> None:
         """Run the IOLoop in the foreground until interrupted (for CLI use)."""
