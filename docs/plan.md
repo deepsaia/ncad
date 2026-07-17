@@ -1103,8 +1103,12 @@ as genuinely undoable on the current stack.
 
 **Candidate mechanism gate examples** *(real-world, progressively complex; each
 exercises a distinct joint mix and drives from ONE driver, so it doubles as a proof
-that the general py-slvs-stepped-over-time solver replaces a per-mechanism formula.
-Prefer these over an abstract four-bar, per the real-world-example discipline)*:
+that the general OndselSolver-stepped-over-time solver replaces a per-mechanism
+formula. Prefer these over an abstract four-bar, per the real-world-example
+discipline. A rich catalog of further mechanisms to draw from:
+[507 Mechanical Movements](https://507movements.com/toc.html) - animated classic
+linkages, cams, gears, ratchets, and intermittent motions, a strong well of
+recognizable gate candidates as the phase grows)*:
 - [ ] **Crank-slider (vertical engine cross-section)** - a piston sliding in a
       cylinder, linked by a connecting rod to a crank pin on a spinning flywheel.
       Joints: 3x **revolute** (crank-ground, crank-pin-rod, rod-piston) + 1x
