@@ -1,0 +1,14 @@
+schema_version = 1
+# A motion study (a first-class document kind, like part / assembly; design section 8): it drives a
+# referenced assembly and produces a trajectory. Here the crank-slider's flywheel turns a full
+# revolution; the OndselSolver multibody engine (via pyondsel) reproduces the closed-form piston
+# stroke yP = R sin(theta) + sqrt(L^2 - (R cos theta)^2) from the declared joints + one driver, with
+# NO per-mechanism formula. One assembly can back several motion studies (different driver / range).
+metadata {
+  description = "Crank-slider motion study: drive the flywheel one revolution"
+  tags = [ crank_slider, motion ]
+}
+motion {
+  assembly = "crank_slider.asm.hocon"
+  driver = { joint = mainPin, from = 0, to = 360, steps = 72 }
+}

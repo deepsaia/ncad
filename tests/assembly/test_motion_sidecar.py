@@ -25,8 +25,13 @@ assembly {
   joints = [
     { id = spin, type = revolute, between = [
       { instance = base, connector = axis }, { instance = wheel, connector = axis } ] } ]
-}
-motion { driver = { joint = spin, from = 0, to = 360, steps = 8 } }'''
+}'''
+
+_MOTION = '''schema_version = 1
+motion {
+  assembly = "a.asm.hocon"
+  driver = { joint = spin, from = 0, to = 360, steps = 8 }
+}'''
 
 
 def _write(tmp, name, text):
@@ -37,12 +42,14 @@ def _write(tmp, name, text):
 
 
 def test_motion_sidecar_has_a_frame_per_step(tmp_path):
-    from ncad.assembly.assembly_builder import AssemblyBuilder
+    # A motion DOCUMENT (its own kind) drives the referenced assembly + writes the trajectory.
+    from ncad.assembly.motion_builder import MotionBuilder
     from ncad.kernel.build123d_kernel import Build123dKernel
 
     _write(str(tmp_path), "p.hocon", _PART)
-    asm = _write(str(tmp_path), "a.asm.hocon", _ASM)
-    result = AssemblyBuilder(Build123dKernel()).assemble(asm, str(tmp_path))
+    _write(str(tmp_path), "a.asm.hocon", _ASM)
+    motion_doc = _write(str(tmp_path), "a.motion.hocon", _MOTION)
+    result = MotionBuilder(Build123dKernel()).build(motion_doc, str(tmp_path))
     assert not result["issues"], result["issues"]
     assert result.get("motion") is not None
     motion = json.loads((tmp_path / "a.motion.json").read_text())
@@ -51,3 +58,16 @@ def test_motion_sidecar_has_a_frame_per_step(tmp_path):
     frame = motion["frames"][2]
     assert "t" in frame and "driver_value" in frame and "status" in frame
     assert "wheel" in frame["placements"] and "base" in frame["placements"]
+
+
+def test_assembly_without_motion_writes_no_trajectory(tmp_path):
+    # An assembly doc alone (no motion study) builds the scene but no trajectory sidecar.
+    from ncad.assembly.assembly_builder import AssemblyBuilder
+    from ncad.kernel.build123d_kernel import Build123dKernel
+
+    _write(str(tmp_path), "p.hocon", _PART)
+    asm = _write(str(tmp_path), "a.asm.hocon", _ASM)
+    result = AssemblyBuilder(Build123dKernel()).assemble(asm, str(tmp_path))
+    assert not result["issues"], result["issues"]
+    assert result.get("motion") is None
+    assert not (tmp_path / "a.motion.json").exists()

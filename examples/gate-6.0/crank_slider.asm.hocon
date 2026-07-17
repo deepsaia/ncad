@@ -28,4 +28,3 @@ assembly {
       { instance = block, connector = bore }, { instance = piston, connector = crown } ] }
   ]
 }
-motion { driver = { joint = mainPin, from = 0, to = 360, steps = 72 } }

@@ -69,11 +69,13 @@ class AssemblyBuilder:
         self._mass = MassCalculator(kernel)
 
     def assemble(self, asm_path: str, out_dir: str,
-                 _visited: frozenset = frozenset()) -> dict:
+                 _visited: frozenset = frozenset(), motion_spec: dict | None = None) -> dict:
         """Compose the assembly at ``asm_path`` into ``out_dir``; return sidecar path + issues.
 
         ``_visited`` carries the ancestor .asm.hocon paths for sub-assembly cycle detection
-        (bucket 5.7); callers use the default empty set.
+        (bucket 5.7); callers use the default empty set. ``motion_spec`` is an optional motion study
+        (a ``{driver: {...}}`` block, from a .motion.hocon document); when present, the motion pass
+        runs after the static solve and writes the trajectory sidecar (see MotionBuilder).
         """
         abs_path = os.path.abspath(asm_path)
         if abs_path in _visited:
@@ -136,11 +138,11 @@ class AssemblyBuilder:
         # connector frames in the sidecar list, and yields the solve status + mate records.
         solve_block, mates_out, joints_out, couplings_out = self._solve_constraints(
             document, local_frames, placements_mm, to_metres, instances, issues)
-        # Motion pass (bucket 6.0): if the document declares a `motion` block, solve the driven
-        # mechanism over the driver's value sweep with the OndselSolver multibody engine (via the
-        # pyondsel bindings) and write a trajectory sidecar. Runs AFTER the static solve (its
-        # placements are the rest pose). Kinematic only (force dynamics -> Phase 14).
-        motion_path = self._run_motion(document, name, out_dir, asm_dir, local_frames,
+        # Motion pass (bucket 6.0): when a motion study is supplied (from a .motion.hocon doc, via
+        # MotionBuilder), solve the driven mechanism over the driver's value sweep with the
+        # OndselSolver multibody engine (via pyondsel) and write a trajectory sidecar. Runs after
+        # the static solve (rest pose). Kinematic only (force dynamics -> Phase 14).
+        motion_path = self._run_motion(motion_spec, document, name, out_dir, asm_dir, local_frames,
                                        placements_mm, builders, to_metres, issues)
         # Analysis over the solved assembly (bucket 5.6): interference + BOM + roll-up mass +
         # structured STEP. Guarded so a failure is an id-attributed issue and the sidecar still
@@ -321,18 +323,18 @@ class AssemblyBuilder:
                     len(joints_out), report.explanation)
         return report.to_dict(), mates_out, joints_out, couplings_out
 
-    def _run_motion(self, document: dict, name: str, out_dir: str, asm_dir: str, local_frames: dict,
-                    placements_mm: dict, builders: dict, to_metres: float,
-                    issues: list) -> str | None:
-        """Solve a driven mechanism over the motion block's values; write <name>.motion.json.
+    def _run_motion(self, motion_spec: dict | None, document: dict, name: str, out_dir: str,
+                    asm_dir: str, local_frames: dict, placements_mm: dict, builders: dict,
+                    to_metres: float, issues: list) -> str | None:
+        """Solve a driven mechanism over the motion study's values; write <name>.motion.json.
 
         Exports the assembly (parts with REAL mass/inertia, connector markers, joints, the driver)
         to a pyondsel/OndselSolver ASMT model, solves the multibody kinematics, and maps the results
-        back to per-frame instance placements. Runs AFTER the static solve. A bad motion block or an
+        back to per-frame instance placements. Runs AFTER the static solve. A bad motion study or an
         absent pyondsel dependency is an id-attributed issue; the static sidecar still writes, no
         motion sidecar. Kinematic only (force dynamics -> Phase 14).
         """
-        motion = document.get("motion")
+        motion = motion_spec
         if not motion:
             return None
         try:

@@ -115,6 +115,8 @@ class _ViewerRequestHandler(BaseHTTPRequestHandler):
             self._handle_build()
         elif path == "/api/assemble":
             self._handle_assemble()
+        elif path == "/api/motion-build":
+            self._handle_motion_build()
         elif path.startswith(_API_MODELS_ROUTE) and path.endswith("/delete"):
             name = path[len(_API_MODELS_ROUTE) : -len("/delete")]
             self._handle_delete(unquote(name))
@@ -163,6 +165,26 @@ class _ViewerRequestHandler(BaseHTTPRequestHandler):
             self._send_json(500, {"error": "internal assemble error"})
             return
         self._send_json(200, {"assemblies": self._catalog.assembly_names(), **result})
+
+    def _handle_motion_build(self) -> None:
+        length = int(self.headers.get("Content-Length", 0))
+        try:
+            body = json.loads(self.rfile.read(length) or b"{}")
+            spec = body["spec"]
+        except (ValueError, KeyError):
+            self._send_json(400, {"error": "request must be JSON with a 'spec' field"})
+            return
+        try:
+            result = self._build_service.build_motion(spec)
+        except BuildError as exc:
+            logger.warning("motion-build rejected for %s: %s", spec, exc)
+            self._send_json(400, {"error": str(exc)})
+            return
+        except Exception:  # noqa: BLE001 - never raise to the socket; log and 500
+            logger.exception("unexpected motion-build failure for %s", spec)
+            self._send_json(500, {"error": "internal motion-build error"})
+            return
+        self._send_json(200, {"motions": self._catalog.motion_names(), **result})
 
     def _handle_delete(self, name: str) -> None:
         removed = self._catalog.delete_model(name)

@@ -6,7 +6,9 @@ import pytest
 
 pytestmark = pytest.mark.slow
 
-_ASM = Path(__file__).resolve().parents[2] / "examples" / "gate-6.0" / "crank_slider.asm.hocon"
+_GATE = Path(__file__).resolve().parents[2] / "examples" / "gate-6.0"
+_ASM = _GATE / "crank_slider.asm.hocon"
+_MOTION = _GATE / "crank_slider.motion.hocon"
 _R = 20.0   # crank radius (matches crank_slider.hocon: crank-pin bore at x = 20)
 _L = 70.0   # rod length: sqrt(20^2 + 67^2) = 70, so the wrist rests at y = sqrt(L^2 - R^2) = 67
 # The piston's wrist bore, in the piston's local frame (metres). The part is authored in the
@@ -24,10 +26,12 @@ def _wrist_y(placement):
 
 
 def _assemble(tmp_path):
-    from ncad.assembly.assembly_builder import AssemblyBuilder
+    # Build via the MOTION document (a first-class kind): it drives the referenced assembly and
+    # writes both the scene sidecar and the trajectory.
+    from ncad.assembly.motion_builder import MotionBuilder
     from ncad.kernel.build123d_kernel import Build123dKernel
 
-    result = AssemblyBuilder(Build123dKernel()).assemble(str(_ASM), str(tmp_path))
+    result = MotionBuilder(Build123dKernel()).build(str(_MOTION), str(tmp_path))
     assert not result["issues"], result["issues"]
     return result
 

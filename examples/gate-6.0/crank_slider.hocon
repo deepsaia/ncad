@@ -1,50 +1,41 @@
 schema_version = 2
 units = mm
-# A real single-cylinder crank-slider (see docs/images/crank-slider-reference.jpg): a flywheel
-# crank at the bottom, a connecting rod, a piston sliding in a cylinder block up top. Laid out in
-# 3D so the parts NEST on their shared pin axes rather than overlapping. Canonical layout at the
-# rest pose (crank angle 0, crank pin on +X): crank radius R = 20, rod length L = 70, so the wrist
-# pin and piston sit at y = sqrt(L^2 - R^2) ~ 67.08 above the crank axis.
+# A real single-cylinder crank-slider (see docs/images/crank-slider-reference.jpg): a flywheel at
+# the bottom carries a crank pin; a connecting rod links it to a piston sliding in a cylinder shell
+# up top. NO base plate, just the linkage (as in the reference).
 #
-# Axes + z-layering (the pins run along Z; the piston slides along Y; nothing clashes):
-#   flywheel : a disc (d100) in z = 0..10 with a central hub bore (axis Z) + four lightening holes +
-#              a crank-pin bore (axis Z) at (R, 0). Rotates about Z.
-#   rod      : a slim connecting rod in z = 12..20 (clear of the flywheel face); big-end bore
-#              (axis Z) over the crank pin, small-end bore (axis Z) at (0, L).
-#   piston   : a short cylinder (axis Y, the slide direction) at the rest height; a wrist bore
-#              (axis Z) in z = 12..20 joins the rod's small end.
-#   block    : the cylinder block/ground up top; a U-channel bore (axis Y, d31) the piston slides
-#              in, on a post. Grounded. (The flywheel pivots on its own hub; the block holds only
-#              the piston, matching the reference.)
+# Connectors use the DIRECT-COORDINATE form (`at_point` + `axis`): every mate point is named by its
+# local coordinate, so it does not depend on hunting a face by area (which breaks whenever a boolean
+# reshapes a face). Depth (z) layout so parts nest instead of colliding: the rod, piston, wrist pin
+# and crank pin are coplanar on z = 0; the flywheel disc sits BEHIND at z < 0 (its crank-pin boss
+# bridges forward to z = 0), and the cylinder + main bearing stand clear. Pins run along Z; the
+# piston slides along +Y. Rest pose (crank angle 0, pin on +X): R = 20 throw, L = 70 rod, wrist y=67.
 metadata {
-  description = "Single-cylinder crank-slider: flywheel crank, connecting rod, piston, cylinder block"
+  description = "Single-cylinder crank-slider: flywheel, crank pin, connecting rod, piston, cylinder"
   tags = [ crank_slider, mechanism, engine ]
 }
 parts {
   flywheel { profile = solid, material = steel_4140,
     connectors = [
-      { id = hub, at = "select faces where type = 'cylinder' and area > 200 and area < 240" }
-      { id = pin, at = "select faces where type = 'cylinder' and area > 78 and area < 92" }
+      { id = hub, at_point = [ 0, 0, 0 ], axis = [ 0, 0, 1 ] }
+      { id = pin, at_point = [ 20, 0, 0 ], axis = [ 0, 0, 1 ] }
     ],
     features = [
-      { id = disc_sk, op = sketch, plane = XY,
+      { id = disc_sk, op = sketch, plane = XY, plane_offset = -14,
         elements = [ { id = c, type = circle, d = 100 } ] }
       { id = disc, op = extrude, profile = disc_sk, distance = 10 }
-      { id = hubbore, op = hole, plane = XY, positions = [ [ 0, 0 ] ], diameter = 7,
-        through = true }
-      { id = lighten, op = hole, plane = XY,
-        positions = [ [ 30, 0 ], [ -30, 0 ], [ 0, 30 ], [ 0, -30 ] ], diameter = 20,
-        through = true }
-      { id = pinbore, op = hole, plane = XY, positions = [ [ 20, 0 ] ], diameter = 5,
+      { id = pinboss_sk, op = sketch, plane = XY, plane_offset = -14,
+        elements = [ { id = c, type = circle, d = 10, at = [ 20, 0 ] } ] }
+      { id = pinboss, op = extrude, profile = pinboss_sk, distance = 16 }
+      { id = withpin, op = boolean, operation = union, target = disc, tool = pinboss }
+      { id = lighten, op = hole, plane = XY, plane_offset = -14,
+        positions = [ [ 32, 0 ], [ -32, 0 ], [ 0, 32 ], [ 0, -32 ] ], diameter = 22,
         through = true }
     ] }
   rod { profile = solid, material = steel_4140,
-    # Authored IN THE ASSEMBLED POSITION so its connectors coincide with their mates at rest: the
-    # big-end bore sits over the crank pin (20, 0), the small-end bore at the wrist (0, 67); both
-    # bores run along Z through the shared z = 0 plane, so every pin connector meets in that plane.
     connectors = [
-      { id = big, at = "select faces where type = 'cylinder' and area > 88 and area < 100" }
-      { id = small, at = "select faces where type = 'cylinder' and area > 70 and area < 82" }
+      { id = big, at_point = [ 20, 0, 0 ], axis = [ 0, 0, 1 ] }
+      { id = small, at_point = [ 0, 67, 0 ], axis = [ 0, 0, 1 ] }
     ],
     features = [
       { id = bigeye_sk, op = sketch, plane = XY,
@@ -58,17 +49,19 @@ parts {
         elements = [ { id = r, type = rectangle, w = 8, h = 62, at = [ 10, 33.5 ] } ] }
       { id = shaft, op = extrude, profile = shaft_sk, distance = 6 }
       { id = rod_solid, op = boolean, operation = union, target = eyes, tool = shaft }
-      { id = bigbore, op = hole, plane = XY, positions = [ [ 20, 0 ] ],
-        diameter = 5, through = true }
-      { id = smallbore, op = hole, plane = XY, positions = [ [ 0, 67 ] ],
-        diameter = 4, through = true }
+      { id = bigbore_sk, op = sketch, plane = XY,
+        elements = [ { id = c, type = circle, d = 5, at = [ 20, 0 ] } ] }
+      { id = bigbore_tool, op = extrude, profile = bigbore_sk, end = symmetric, distance = 20 }
+      { id = withbig, op = boolean, operation = cut, target = rod_solid, tool = bigbore_tool }
+      { id = smallbore_sk, op = sketch, plane = XY,
+        elements = [ { id = c, type = circle, d = 4, at = [ 0, 67 ] } ] }
+      { id = smallbore_tool, op = extrude, profile = smallbore_sk, end = symmetric, distance = 20 }
+      { id = bored, op = boolean, operation = cut, target = withbig, tool = smallbore_tool }
     ] }
   piston { profile = solid, material = aluminium_6061,
-    # A cylinder whose axis is +Y (the slide direction), centred at the wrist height y = 67, with a
-    # wrist bore (axis Z) through (0, 67, 0) so it meets the rod's small end in the z = 0 plane.
     connectors = [
-      { id = crown, at = "select faces where type = 'cylinder' and area > 1400" }
-      { id = wrist, at = "select faces where type = 'cylinder' and area > 360 and area < 390" }
+      { id = crown, at_point = [ 0, 67, 0 ], axis = [ 0, 1, 0 ] }
+      { id = wrist, at_point = [ 0, 67, 0 ], axis = [ 0, 0, 1 ] }
     ],
     features = [
       { id = slug_sk, op = sketch, plane = XZ, plane_offset = -79,
@@ -81,28 +74,20 @@ parts {
     ] }
   block { profile = solid, material = steel_1018,
     connectors = [
-      { id = bore, at = "select faces where type = 'cylinder' and area > 3000" }
-      { id = main, at = "select faces where type = 'cylinder' and area > 140 and area < 155" }
+      { id = bore, at_point = [ 0, 67, 0 ], axis = [ 0, 1, 0 ] }
+      { id = main, at_point = [ 0, 0, 0 ], axis = [ 0, 0, 1 ] }
     ],
     features = [
-      { id = plate_sk, op = sketch, plane = XY, plane_offset = -6,
-        elements = [ { id = r, type = rectangle, w = 44, h = 180, at = [ 0, 55 ] } ] }
-      { id = plate, op = extrude, profile = plate_sk, distance = 6 }
-      { id = boss_sk, op = sketch, plane = XY, plane_offset = -16,
-        elements = [ { id = c, type = circle, d = 16, at = [ 0, 0 ] } ] }
-      { id = boss, op = extrude, profile = boss_sk, distance = 10 }
-      { id = withboss, op = boolean, operation = union, target = plate, tool = boss }
-      { id = body_sk, op = sketch, plane = XZ, plane_offset = -55,
-        elements = [ { id = r, type = rectangle, w = 44, h = 44, at = [ 0, 0 ] } ] }
-      { id = body, op = extrude, profile = body_sk, distance = 80 }
-      { id = withbody, op = boolean, operation = union, target = withboss, tool = body }
-      { id = cyl_sk, op = sketch, plane = XZ, plane_offset = -55,
-        elements = [ { id = c, type = circle, d = 31, at = [ 0, 0 ] } ] }
-      { id = cyl, op = extrude, profile = cyl_sk, distance = 80 }
-      { id = withbore, op = boolean, operation = cut, target = withbody, tool = cyl }
-      { id = main_sk, op = sketch, plane = XY, plane_offset = -11,
-        elements = [ { id = c, type = circle, d = 7, at = [ 0, 0 ] } ] }
-      { id = main_tool, op = extrude, profile = main_sk, end = symmetric, distance = 30 }
-      { id = bored, op = boolean, operation = cut, target = withbore, tool = main_tool }
+      { id = tube_sk, op = sketch, plane = XZ, plane_offset = -55,
+        elements = [ { id = c, type = circle, d = 44 } ] }
+      { id = tube, op = extrude, profile = tube_sk, distance = 80 }
+      { id = bore_sk, op = sketch, plane = XZ, plane_offset = -55,
+        elements = [ { id = c, type = circle, d = 31 } ] }
+      { id = bore_tool, op = extrude, profile = bore_sk, distance = 80 }
+      { id = shell, op = boolean, operation = cut, target = tube, tool = bore_tool }
+      { id = arm_sk, op = sketch, plane = XY, plane_offset = -19,
+        elements = [ { id = r, type = rectangle, w = 16, h = 70, at = [ 0, 5 ] } ] }
+      { id = arm, op = extrude, profile = arm_sk, distance = 8 }
+      { id = witharm, op = boolean, operation = union, target = shell, tool = arm }
     ] }
 }
