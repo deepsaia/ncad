@@ -1255,6 +1255,7 @@ dependencies = [
     { name = "py-slvs" },
     { name = "pyondsel" },
     { name = "pyrender" },
+    { name = "tornado" },
     { name = "trimesh" },
     { name = "typer" },
 ]
@@ -1288,6 +1289,7 @@ requires-dist = [
     { name = "py-slvs", specifier = ">=1.0.6" },
     { name = "pyondsel", editable = "../pyondsel" },
     { name = "pyrender" },
+    { name = "tornado", specifier = ">=6.5.6" },
     { name = "trimesh" },
     { name = "typer", specifier = ">=0.26.8" },
 ]
