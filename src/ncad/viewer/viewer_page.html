@@ -2237,10 +2237,16 @@ function loadPartGlb(glbName, cb, onErr) {
 // bakes the document-unit-to-metres conversion, so the viewer is unit-agnostic (like single-part
 // glbs). three.js Matrix4.set takes row-major args with the translation in the last column.
 function matrixFromRowMajor(m) {
+  // ncad placements are ROW-VECTOR convention (p_world = p_local . M): the 3x3 rotation block holds
+  // the images of the basis vectors as ROWS (i.e. it is R-transpose). three.js applies transforms
+  // column-vector (M . p), so the rotation must be TRANSPOSED here (rows->columns); the translation
+  // stays m[3] -> the 4th column. Without the transpose, rotations render inverted (parts spin the
+  // wrong way / flip), which is invisible while every static placement is identity but shows up the
+  // moment a motion frame carries real rotation.
   const M = new THREE.Matrix4();
-  M.set(m[0][0], m[0][1], m[0][2], m[3][0],
-        m[1][0], m[1][1], m[1][2], m[3][1],
-        m[2][0], m[2][1], m[2][2], m[3][2],
+  M.set(m[0][0], m[1][0], m[2][0], m[3][0],
+        m[0][1], m[1][1], m[2][1], m[3][1],
+        m[0][2], m[1][2], m[2][2], m[3][2],
         0, 0, 0, 1);
   return M;
 }
