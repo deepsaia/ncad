@@ -1,93 +1,112 @@
 schema_version = 2
 units = mm
-# A real single-cylinder crank-slider (see docs/images/crank-slider-reference.jpg): a flywheel at
-# the bottom carries a crank pin; a connecting rod links it to a piston sliding in a cylinder shell
-# up top. NO base plate, just the linkage (as in the reference).
+# A crank-slider mechanism authored as a coarse PRIMITIVE BLOCKOUT (the motion authoring lane): each
+# part is a few primitives, and its mate points are named by COORDINATE (at_point/axis), not by
+# hunting faces. For motion, only the connector coordinates are load-bearing (pivots, link lengths,
+# joint axes); the display bodies are recognizable coarse envelopes, not dimensionally-exact solids.
+# This is far faster + more robust than a B-rep feature tree, and reads like the reference
+# (docs/images/crank-slider-reference.jpg): a flywheel at the bottom, a rod, a piston in a cylinder.
 #
-# Connectors use the DIRECT-COORDINATE form (`at_point` + `axis`): every mate point is named by its
-# local coordinate, so it does not depend on hunting a face by area (which breaks whenever a boolean
-# reshapes a face). Depth (z) layout so parts nest instead of colliding: the rod, piston, wrist pin
-# and crank pin are coplanar on z = 0; the flywheel disc sits BEHIND at z < 0 (its crank-pin boss
-# bridges forward to z = 0), and the cylinder + main bearing stand clear. Pins run along Z; the
-# piston slides along +Y. Rest pose (crank angle 0, pin on +X): R = 20 throw, L = 70 rod, wrist y=67.
+# Layout (pins along Z, piston slides along +Y; z-layered so parts nest, not clash):
+#   flywheel : disc (axis Z) at z -28..-18, behind the rod; a crank-pin boss bridges forward to z=0.
+#   rod      : a thin bar on z -3..3 spanning the crank pin (20,0) to the wrist (0,67), length 70.
+#   piston   : a cylinder (axis +Y, the slide direction) centred at the wrist y=67, on z=0.
+#   block    : the cylinder shell (axis +Y) the piston rides + a bearing arm reaching to the crank
+#              axis, set in front at z +6..+14 so it clears the disc and rod. Grounded.
+# Rest pose (crank angle 0, pin on +X): R = 20 throw, L = 70 rod -> wrist at y = sqrt(L^2-R^2) ~ 67.
 metadata {
-  description = "Single-cylinder crank-slider: flywheel, crank pin, connecting rod, piston, cylinder"
-  tags = [ crank_slider, mechanism, engine ]
+  description = "Crank-slider blockout: flywheel, connecting rod, piston, cylinder block (primitives)"
+  tags = [ crank_slider, mechanism, blockout ]
 }
 parts {
+  # Flywheel + crank: a disc (axis Z) at z -33..-23; a hub axle extends BACK to z -48 to seat in the
+  # frame's bearing bore (a real rotating shaft, not a floating pin); a crank-pin boss bridges FORWARD
+  # to z=0 at radius 20 (the crank throw R). Spins about the hub axis; clears the frame for a full rev.
   flywheel { profile = solid, material = steel_4140,
     connectors = [
       { id = hub, at_point = [ 0, 0, 0 ], axis = [ 0, 0, 1 ] }
       { id = pin, at_point = [ 20, 0, 0 ], axis = [ 0, 0, 1 ] }
     ],
     features = [
-      { id = disc_sk, op = sketch, plane = XY, plane_offset = -14,
-        elements = [ { id = c, type = circle, d = 100 } ] }
-      { id = disc, op = extrude, profile = disc_sk, distance = 10 }
-      { id = pinboss_sk, op = sketch, plane = XY, plane_offset = -14,
-        elements = [ { id = c, type = circle, d = 10, at = [ 20, 0 ] } ] }
-      { id = pinboss, op = extrude, profile = pinboss_sk, distance = 16 }
-      { id = withpin, op = boolean, operation = union, target = disc, tool = pinboss }
-      { id = lighten, op = hole, plane = XY, plane_offset = -14,
-        positions = [ [ 32, 0 ], [ -32, 0 ], [ 0, 32 ], [ 0, -32 ] ], diameter = 22,
-        through = true }
+      { id = disc, op = primitive, kind = cylinder, d = 72, h = 10, plane = XY, plane_offset = -33 }
+      { id = pinboss, op = primitive, kind = cylinder, d = 9, h = 33, plane = XY,
+        plane_offset = -33, at = [ 20, 0 ] }
+      { id = hubaxle, op = primitive, kind = cylinder, d = 12, h = 25, plane = XY,
+        plane_offset = -48, at = [ 0, 0 ] }
+      { id = w1, op = boolean, operation = union, target = disc, tool = pinboss }
+      { id = whole, op = boolean, operation = union, target = w1, tool = hubaxle }
     ] }
+  # Connecting rod: a diagonal bar from the crank pin (20,0) to the wrist (0,67), with a ring eye at
+  # each end. The eyes are BORED (a through hole a touch larger than each pin) so the rod wraps its
+  # pins with running clearance instead of overlapping them - the joints touch, they do not clash.
   rod { profile = solid, material = steel_4140,
     connectors = [
       { id = big, at_point = [ 20, 0, 0 ], axis = [ 0, 0, 1 ] }
       { id = small, at_point = [ 0, 67, 0 ], axis = [ 0, 0, 1 ] }
     ],
     features = [
-      { id = bigeye_sk, op = sketch, plane = XY,
-        elements = [ { id = c, type = circle, d = 14, at = [ 20, 0 ] } ] }
-      { id = bigeye, op = extrude, profile = bigeye_sk, distance = 6 }
-      { id = smalleye_sk, op = sketch, plane = XY,
-        elements = [ { id = c, type = circle, d = 12, at = [ 0, 67 ] } ] }
-      { id = smalleye, op = extrude, profile = smalleye_sk, distance = 6 }
-      { id = eyes, op = boolean, operation = union, target = bigeye, tool = smalleye }
-      { id = shaft_sk, op = sketch, plane = XY,
-        elements = [ { id = r, type = rectangle, w = 8, h = 62, at = [ 10, 33.5 ] } ] }
-      { id = shaft, op = extrude, profile = shaft_sk, distance = 6 }
-      { id = rod_solid, op = boolean, operation = union, target = eyes, tool = shaft }
-      { id = bigbore_sk, op = sketch, plane = XY,
-        elements = [ { id = c, type = circle, d = 5, at = [ 20, 0 ] } ] }
-      { id = bigbore_tool, op = extrude, profile = bigbore_sk, end = symmetric, distance = 20 }
-      { id = withbig, op = boolean, operation = cut, target = rod_solid, tool = bigbore_tool }
-      { id = smallbore_sk, op = sketch, plane = XY,
-        elements = [ { id = c, type = circle, d = 4, at = [ 0, 67 ] } ] }
-      { id = smallbore_tool, op = extrude, profile = smallbore_sk, end = symmetric, distance = 20 }
-      { id = bored, op = boolean, operation = cut, target = withbig, tool = smallbore_tool }
+      { id = bar, op = primitive, kind = box, w = 8, d = 70, h = 6, plane = XY, plane_offset = -3,
+        at = [ 16.2, -1.1 ], rotation = 16.6 }
+      { id = bigeye, op = primitive, kind = cylinder, d = 13, h = 6, plane = XY, plane_offset = -3,
+        at = [ 20, 0 ] }
+      { id = smalleye, op = primitive, kind = cylinder, d = 11, h = 6, plane = XY, plane_offset = -3,
+        at = [ 0, 67 ] }
+      { id = r1, op = boolean, operation = union, target = bar, tool = bigeye }
+      { id = solidrod, op = boolean, operation = union, target = r1, tool = smalleye }
+      { id = bigbore, op = primitive, kind = cylinder, d = 9.4, h = 8, plane = XY,
+        plane_offset = -4, at = [ 20, 0 ] }
+      { id = r2, op = boolean, operation = cut, target = solidrod, tool = bigbore }
+      { id = smallbore, op = primitive, kind = cylinder, d = 7.4, h = 8, plane = XY,
+        plane_offset = -4, at = [ 0, 67 ] }
+      { id = whole, op = boolean, operation = cut, target = r2, tool = smallbore }
     ] }
+  # Piston: a slug (axis +Y, the slide direction) with a FORK slot cut through it so the rod's small
+  # end slides in, spanned by the WRIST PIN (gudgeon / piston pin, axis Z) that the rod pivots on.
+  # The pin bridges the fork bosses (embeds in the solid piston above and below the slot) and stays
+  # inside the bore (z +/-11 < the 15 mm bore radius). The rod ring floats on the pin in the slot, so
+  # the wrist joint reads as a real pinned connection without the two solids overlapping.
   piston { profile = solid, material = aluminium_6061,
     connectors = [
       { id = crown, at_point = [ 0, 67, 0 ], axis = [ 0, 1, 0 ] }
       { id = wrist, at_point = [ 0, 67, 0 ], axis = [ 0, 0, 1 ] }
     ],
     features = [
-      { id = slug_sk, op = sketch, plane = XZ, plane_offset = -79,
-        elements = [ { id = c, type = circle, d = 30 } ] }
-      { id = slug, op = extrude, profile = slug_sk, distance = 24 }
-      { id = wrist_sk, op = sketch, plane = XY,
-        elements = [ { id = c, type = circle, d = 4, at = [ 0, 67 ] } ] }
-      { id = wrist_tool, op = extrude, profile = wrist_sk, end = symmetric, distance = 40 }
-      { id = bored, op = boolean, operation = cut, target = slug, tool = wrist_tool }
+      { id = slug, op = primitive, kind = cylinder, d = 28, h = 22, plane = XZ, plane_offset = -78 }
+      { id = fork, op = primitive, kind = box, w = 16, d = 32, h = 10, plane = XY,
+        plane_offset = -5, at = [ -8, 50 ] }
+      { id = slotted, op = boolean, operation = cut, target = slug, tool = fork }
+      { id = wristpin, op = primitive, kind = cylinder, d = 6.8, h = 22, plane = XY,
+        plane_offset = -11, at = [ 0, 67 ] }
+      { id = whole, op = boolean, operation = union, target = slotted, tool = wristpin }
     ] }
+  # Block: the grounded machine FRAME (one rigid casting) that ties the whole mechanism together, per
+  # the reference photo: a base plate on the floor, a back wall (the crankcase) carrying a bored
+  # BEARING BOSS the flywheel shaft turns in (`main`, axis Z), and a gusset that holds the CYLINDER
+  # TUBE (`bore`, axis +Y) the piston slides in. So the flywheel is journalled in a real bearing and
+  # the cylinder is fixed to the same frame - not two disconnected bodies. Bores are cut so the shaft
+  # and piston have running clearance. TUNE: base footprint, wall/boss/gusset sizes, bore diameters.
   block { profile = solid, material = steel_1018,
     connectors = [
       { id = bore, at_point = [ 0, 67, 0 ], axis = [ 0, 1, 0 ] }
       { id = main, at_point = [ 0, 0, 0 ], axis = [ 0, 0, 1 ] }
     ],
     features = [
-      { id = tube_sk, op = sketch, plane = XZ, plane_offset = -55,
-        elements = [ { id = c, type = circle, d = 44 } ] }
-      { id = tube, op = extrude, profile = tube_sk, distance = 80 }
-      { id = bore_sk, op = sketch, plane = XZ, plane_offset = -55,
-        elements = [ { id = c, type = circle, d = 31 } ] }
-      { id = bore_tool, op = extrude, profile = bore_sk, distance = 80 }
-      { id = shell, op = boolean, operation = cut, target = tube, tool = bore_tool }
-      { id = arm_sk, op = sketch, plane = XY, plane_offset = -19,
-        elements = [ { id = r, type = rectangle, w = 16, h = 70, at = [ 0, 5 ] } ] }
-      { id = arm, op = extrude, profile = arm_sk, distance = 8 }
-      { id = witharm, op = boolean, operation = union, target = shell, tool = arm }
-    ] }
-}
+      { id = base, op = primitive, kind = box, w = 92, d = 80, h = 12, plane = XZ,
+        plane_offset = 54, at = [ -46, -40 ] }
+      { id = wall, op = primitive, kind = box, w = 92, d = 170, h = 8, plane = XY,
+        plane_offset = -46, at = [ -46, -60 ] }
+      { id = boss, op = primitive, kind = cylinder, d = 22, h = 12, plane = XY, plane_offset = -46 }
+      { id = gusset, op = primitive, kind = box, w = 24, d = 40, h = 22, plane = XY,
+        plane_offset = -38, at = [ -12, 66 ] }
+      { id = tube, op = primitive, kind = cylinder, d = 40, h = 72, plane = XZ, plane_offset = -106 }
+      { id = f1, op = boolean, operation = union, target = base, tool = wall }
+      { id = f2, op = boolean, operation = union, target = f1, tool = boss }
+      { id = f3, op = boolean, operation = union, target = f2, tool = gusset }
+      { id = frame, op = boolean, operation = union, target = f3, tool = tube }
+      { id = bbore, op = primitive, kind = cylinder, d = 13, h = 22, plane = XY,
+        plane_offset = -48 }
+      { id = drilled, op = boolean, operation = cut, target = frame, tool = bbore }
+      { id = cbore, op = primitive, kind = cylinder, d = 30, h = 76, plane = XZ,
+        plane_offset = -108 }
+      { id = whole, op = boolean, operation = cut, target = drilled, tool = cbore }
+    ] } }
