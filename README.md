@@ -63,11 +63,11 @@ The `ncad` command (a typer app) is the single entrypoint. The two everyday comm
 | Command | What it does |
 | --- | --- |
 | `ncad build <document> [--out DIR]` | Build every part in a feature-tree document to `<part>.glb` (plus its BOM / plan / element-map sidecars). |
-| `ncad view [DIR]` (or bare `ncad`) | Launch the browser 3D viewer + local model-manager over a models directory (default `out/`). |
+| `ncad view [DIR]` (or bare `ncad`) | Launch the lightweight stdlib browser 3D viewer + local model-manager over a models directory (default `out/`). |
+| `ncad serve [DIR]` | Run the full HTTP service (Tornado): versioned JSON API under `/api/v1`, the viewer SPA at `/viewer`, Swagger UI at `/docs`, and dev hot-reload. |
 
-Common flags for `ncad view`: `--host` (default `127.0.0.1`), `--port` (default `8000`,
-`0` picks a free port), `--dev` / `--no-dev` (hot-reload the viewer HTML per request;
-on by default).
+Common flags for `ncad view` / `ncad serve`: `--host` (default `127.0.0.1`), `--port`
+(default `8000`, `0` picks a free port), `--dev` / `--no-dev` (hot-reload; on by default).
 
 Author documents are the input; you never hand-edit geometry. Build one document:
 
@@ -91,9 +91,25 @@ source) or delete it. It has three modes:
 The sidebar is resizable (width persists). `ncad view` runs with hot-reload by default
 (`--no-dev` to serve the cached page).
 
-> The versioned HTTP service (`ncad serve`: a Tornado JSON API under `/api/v1`, the
-> viewer under `/viewer`, Swagger UI at `/docs`, and websocket live-reload) is being
-> added; this section will document it once the command is wired.
+### The HTTP service (`ncad serve`)
+
+`ncad serve` runs the same viewer on a Tornado HTTP service that also exposes a versioned
+JSON API, so a future frontend (e.g. React) can be built against a stable contract:
+
+| Route | Serves |
+| --- | --- |
+| `/` | 302 redirect to `/viewer` |
+| `/viewer` (and `/viewer/<model>.glb`) | the viewer SPA (deep link preselects a model) |
+| `/api/v1/...` | the JSON API (specs, models, assemblies, motions, build/assemble/motion-build, sidecars) |
+| `/api/v1/models/<name>` | model bytes (glb/gltf/bin/png) |
+| `/api/v1/openapi.json` | the OpenAPI 3.1 document |
+| `/docs` | interactive Swagger UI |
+
+In dev mode (default), it hot-reloads two ways: editing any `src/ncad` source restarts the
+server automatically (tornado.autoreload), and the open viewer tab reloads itself over a
+websocket (`/ws/livereload`) after the restart. Run `ncad serve --no-dev` for a stable,
+non-reloading server. The lighter `ncad view` (stdlib, no extra routes) remains for a quick
+look without the API surface.
 
 Viewer settings (display mode, material, lighting, scene toggles, reset, and the
 BOM/Plan panels) live in a translucent floating controls panel over the viewport. It

@@ -1085,21 +1085,29 @@ as genuinely undoable on the current stack.
 ## Phase 6: Motion & kinematics
 
 **Goal:** drive and solve the mechanism (design §8). **Depends on** Phase 5.
+**Bucket 6.0 (motion spine) is DONE:** the driver + time-stepping solve runs on the OndselSolver
+multibody engine via the `pyondsel` binding (`uv pip install -e ../pyondsel`), motion is its own
+document kind (`.motion.hocon`), and the crank-slider gate reproduces the closed-form piston stroke
+from declared joints + one driver (no per-mechanism formula). A root-cause fix in the pyondsel
+trajectory parser (a leading `Input` reference column was shifting every part one frame ahead of
+its time sample) aligned the solved frames 1:1 with the driver values.
 
 - [ ] **DoF analysis:** free degrees of freedom from the joint graph; over/under/
       exactly-constrained status (solver Jacobian rank)
-- [ ] **Drivers / forward kinematics:** per-joint driver: constant, linear ramp,
-      function-of-time, function-of-another-DoF (couplers/gears/cams); sweep >>
-      configuration per step
-- [ ] **Inverse kinematics:** drive an output frame, solve joint values
-- [ ] **Mechanism solver:** step time, fix driven DoF, solve constraint network
-      (`py-slvs` / Ondsel)
+- [x] **Drivers / forward kinematics:** per-joint driver (revolute angle / slider
+      distance) ramped linearly over a value sweep; sweep >> configuration per step
+      (constant/keyframe/coupler-driven drivers remain for later buckets)
+- [ ] **Inverse kinematics:** drive an output frame, solve joint values (bucket 6.4)
+- [x] **Mechanism solver:** step the driver, solve the constraint network per frame
+      on OndselSolver (via `pyondsel`); closed loops (crank-slider) converge
 - [ ] **Interference during motion:** per-step collision/clearance; collision
-      events on the timeline
+      events on the timeline (bucket 6.3)
 - [ ] **Outputs:** **trace curves** (point path), **motion envelopes** (swept
-      volume), **measures over time** (distance/angle/velocity/accel)
-- [ ] **Viewer playback:** stream per-frame instance transforms; scrub timeline
-- [ ] Motion study definitions persisted in the `motion` block
+      volume), **measures over time** (distance/angle/velocity/accel) (bucket 6.1)
+- [x] **Viewer playback:** per-frame instance transforms on a Motion-tab timeline
+      (play/scrub, driver-value readout); overlays ride the moving parts
+- [x] Motion study definitions persisted as a first-class `.motion.hocon` document
+      (drives a referenced assembly; writes a `<name>.motion.json` trajectory)
 
 **Candidate mechanism gate examples** *(real-world, progressively complex; each
 exercises a distinct joint mix and drives from ONE driver, so it doubles as a proof
@@ -1675,8 +1683,15 @@ Run alongside the phases, not after them:
       kernel shipped (bucket 0.4, design §4a); incremental rebuild live. Large-assembly
       budget (Phase 12) ahead.
 - [~] **Viewer capabilities**: pick/select shipped (0.3), plus the right data sidebar
-      (Hierarchy/BOM/Plan), orientation gizmo, free-look. Next: measure >> motion
-      playback (6) >> PMI/saved views (8) >> sectioning (12) >> CAM preview (15).
+      (Hierarchy/BOM/Plan), orientation gizmo, free-look, and motion-tab timeline
+      playback (6.0). Next: measure >> PMI/saved views (8) >> sectioning (12) >> CAM
+      preview (15).
+- [~] **HTTP service (`ncad serve`)**: a Tornado service shipped (`src/ncad/service/`) -
+      versioned JSON API under `/api/v1`, the viewer SPA at `/viewer`, OpenAPI 3.1 at
+      `/api/v1/openapi.json` + Swagger UI at `/docs`, dev hot-reload (server autoreload +
+      `/ws/livereload`). API/viewer split so a React frontend can replace the SPA against
+      the same contract. Grows toward the design §12 session/dict-patch mutation model
+      (today it is the build-and-read surface); stdlib `ncad view` remains for a quick look.
 - [~] **Testing & golden**: the §4a **equality harness** (topology signature +
       toleranced measures, *not* BREP bytes) shipped (bucket 0.4); golden equality
       tuples + fast/slow gate examples per bucket. Ahead: per-feature failure goldens,

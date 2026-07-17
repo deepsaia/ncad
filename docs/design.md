@@ -894,6 +894,17 @@ result + breakage* is a single round-trip. (The natural-language agent
 orchestration that drives these endpoints is out of scope here, a wrapper over
 the API, not part of the engine.)
 
+**Today's implementation (`ncad serve`):** a Tornado HTTP service (`src/ncad/service/`) is
+the first concrete server. It exposes a versioned JSON API under `/api/v1` (list/fetch specs,
+models, assemblies, motions and their sidecars; `build` / `assemble` / `motion-build` POSTs),
+serves the three.js viewer SPA at `/viewer`, publishes a hand-authored OpenAPI 3.1 document at
+`/api/v1/openapi.json` with Swagger UI at `/docs`, and offers dev hot-reload (server autoreload
++ a `/ws/livereload` websocket). The API and the viewer are cleanly split (one `ApiRouter` route
+table, thin `RequestHandler`s over the existing build/catalog services) so a React frontend can
+replace the SPA against the same contract. This is the build-and-read surface; the
+session/dict-patch mutation model above is the target it grows toward. The lighter stdlib
+`ncad view` server remains for a quick look without the API.
+
 ---
 
 ## 13. Visualization: a viewer, not an editor
