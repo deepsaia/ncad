@@ -13,6 +13,21 @@ from typing import Any
 
 from tornado.web import URLSpec
 
+from ncad.service.assembly_handlers import (
+    AssembliesHandler,
+    AssemblyDeleteHandler,
+    AssemblyHandler,
+)
+from ncad.service.build_handlers import AssembleHandler, BuildHandler, MotionBuildHandler
+from ncad.service.model_handlers import ModelBytesHandler, ModelDeleteHandler, ModelsHandler
+from ncad.service.motion_handlers import MotionHandler, MotionsHandler
+from ncad.service.sidecar_handlers import (
+    BomHandler,
+    ElementMapHandler,
+    HierarchyHandler,
+    PlanHandler,
+    StatusHandler,
+)
 from ncad.service.spec_handlers import SpecsHandler
 from ncad.service.viewer_handler import RootRedirectHandler, ViewerHandler
 
@@ -30,6 +45,30 @@ class ApiRouter:
             URLSpec(r"/", RootRedirectHandler),
             URLSpec(r"/viewer", ViewerHandler, deps),
             URLSpec(r"/viewer/(.+)", ViewerHandler, deps),
+            # Static collection routes.
             URLSpec(r"/api/v1/specs", SpecsHandler, deps),
+            URLSpec(r"/api/v1/models", ModelsHandler, deps),
+            URLSpec(r"/api/v1/assemblies", AssembliesHandler, deps),
+            URLSpec(r"/api/v1/motions", MotionsHandler, deps),
+            # Detail routes by name.
+            URLSpec(r"/api/v1/motion/(.+)", MotionHandler, deps),
+            URLSpec(r"/api/v1/bom/(.+)", BomHandler, deps),
+            URLSpec(r"/api/v1/plan/(.+)", PlanHandler, deps),
+            URLSpec(r"/api/v1/elementmap/(.+)", ElementMapHandler, deps),
+            URLSpec(r"/api/v1/hierarchy/(.+)", HierarchyHandler, deps),
+            URLSpec(r"/api/v1/status/(.+)", StatusHandler, deps),
+            # Build POSTs.
+            URLSpec(r"/api/v1/build", BuildHandler, deps),
+            URLSpec(r"/api/v1/assemble", AssembleHandler, deps),
+            URLSpec(r"/api/v1/motion-build", MotionBuildHandler, deps),
+            # CRITICAL ORDER: Tornado matches by URL pattern only (method-agnostic, `$`-anchored,
+            # `.+` matches `/`). The delete POSTs MUST precede the GET catch-alls below, or e.g.
+            # POST /api/v1/models/foo/delete would match `/api/v1/models/(.+)` and route to the
+            # GET-only ModelBytesHandler (405). A GET /api/v1/models/foo does not match `/delete`,
+            # so it still falls through to the catch-all correctly.
+            URLSpec(r"/api/v1/models/(.+)/delete", ModelDeleteHandler, deps),
+            URLSpec(r"/api/v1/assembly/(.+)/delete", AssemblyDeleteHandler, deps),
+            URLSpec(r"/api/v1/assembly/(.+)", AssemblyHandler, deps),
+            URLSpec(r"/api/v1/models/(.+)", ModelBytesHandler, deps),
         ]
         return rules
