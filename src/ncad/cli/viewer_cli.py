@@ -67,6 +67,40 @@ class ViewerCli:
             print("\nstopping...")
             server.stop()
 
+    def launch_service(
+        self, models_dir: str | None, host: str, port: int, dev: bool = False
+    ) -> None:
+        """Run the Tornado HTTP service (versioned JSON API + viewer SPA + Swagger UI).
+
+        Same directory resolution as ``launch_viewer``; the service mounts the viewer at
+        ``/viewer`` (``/`` redirects there), the JSON API under ``/api/v1``, and Swagger UI at
+        ``/docs``. ``dev`` turns on server-side autoreload + browser live-reload.
+        """
+        from ncad.service.ncad_service import NcadService
+        from ncad.service.service_logging import ServiceLogging
+
+        # The service is long-running, so give the terminal colored, aligned log lines stamped with
+        # the date + time to a tenth of a second (rich RichHandler; ships with typer). This also
+        # colors Tornado's per-request access log (routed through the "tornado.access" logger),
+        # unlike the one-shot build/view commands that just log bare messages.
+        ServiceLogging().install()
+        resolved = self.resolve_models_dir(models_dir)
+        examples = self.resolve_examples_dir()
+        service = NcadService(
+            models_dir=str(resolved),
+            host=host,
+            port=port,
+            examples_dir=str(examples) if examples else None,
+            dev=dev,
+        )
+        print(f"ncad service >> {service.base_url}/viewer  (API {service.base_url}/api/v1, "
+              f"docs {service.base_url}/docs; serving '{resolved}', Ctrl+C to stop)")
+        try:
+            service.serve_forever()
+        except KeyboardInterrupt:
+            print("\nstopping...")
+            service.stop()
+
     def build_document(self, document: str, out: str | None,
                        formats: tuple[str, ...] = ("glb",)) -> dict[str, str]:
         """Build a feature-tree document; return the built artifacts by part.
@@ -123,6 +157,16 @@ class ViewerCli:
         out_dir = self.resolve_models_dir(out)
         return AssemblyBuilder(Build123dKernel()).assemble(file, str(out_dir))
 
+    def motion_document(self, file: str, out: str | None) -> dict:
+        """Build a motion study document (drive its assembly + write a trajectory)."""
+        from ncad.assembly.motion_builder import MotionBuilder
+        from ncad.kernel.build123d_kernel import Build123dKernel
+
+        logging.basicConfig(level=logging.INFO, format="%(message)s")
+        logging.getLogger("build123d").setLevel(logging.WARNING)
+        out_dir = self.resolve_models_dir(out)
+        return MotionBuilder(Build123dKernel()).build(file, str(out_dir))
+
 
 app = typer.Typer(
     help="ncad: build and view parametric CAD models.",
@@ -153,6 +197,17 @@ def view(
 ) -> None:
     """Launch the browser 3D viewer over a directory of models."""
     cli.launch_viewer(models_dir, host, port, dev)
+
+
+@app.command()
+def serve(
+    models_dir: str = typer.Argument(None, help="directory of glTF/GLB models (default: out/)"),
+    host: str = typer.Option("127.0.0.1", help="bind address"),
+    port: int = typer.Option(8000, help="bind port (0 = ephemeral)"),
+    dev: bool = typer.Option(True, help="hot-reload (server autoreload + browser live-reload)"),
+) -> None:
+    """Run the Tornado HTTP service: JSON API under /api/v1, viewer at /viewer, docs at /docs."""
+    cli.launch_service(models_dir, host, port, dev)
 
 
 @app.command()
@@ -209,6 +264,22 @@ def assemble(
         print(f"  instance {instance_id}")
     for issue in result["issues"]:
         print(f"  ISSUE [{issue['instance_id']}] {issue['message']}")
+    out_dir = result["sidecar"].rsplit("/", 1)[0]
+    print(f"\nview with:  ncad view {out_dir}\n")
+
+
+@app.command()
+def motion(
+    document: str = typer.Argument(..., help="path to a .motion.hocon motion-study document"),
+    out: str = typer.Option(None, help="output directory (default: out/)"),
+) -> None:
+    """Drive a mechanism: run a motion study (an assembly + a driver) into a trajectory."""
+    result = cli.motion_document(document, out)
+    print(f"\nncad motion: {document}")
+    for issue in result["issues"]:
+        print(f"  ISSUE {issue.get('instance_id', '')} {issue['message']}")
+    if result.get("motion"):
+        print(f"  trajectory: {result['motion']}")
     out_dir = result["sidecar"].rsplit("/", 1)[0]
     print(f"\nview with:  ncad view {out_dir}\n")
 

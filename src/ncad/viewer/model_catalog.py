@@ -80,16 +80,40 @@ class ModelCatalog:
             return None
         return candidate if os.path.isfile(candidate) else None
 
+    def motion_names(self) -> list[str]:
+        """Assembly names that have a motion trajectory (files ending in .motion.json)."""
+        if not os.path.isdir(self._directory):
+            return []
+        suffix = ".motion.json"
+        return sorted(entry[: -len(suffix)] for entry in os.listdir(self._directory)
+                      if entry.lower().endswith(suffix)
+                      and os.path.isfile(os.path.join(self._directory, entry)))
+
+    def resolve_motion(self, name: str) -> str | None:
+        """Safe absolute path to ``<name>.motion.json`` (the trajectory), or None if absent.
+
+        Rejects path traversal and any name not directly inside the directory (mirrors
+        resolve_assembly). The viewer fetches this by the assembly stem to play back motion.
+        """
+        candidate = os.path.abspath(os.path.join(self._directory, name + ".motion.json"))
+        if os.path.dirname(candidate) != self._directory:
+            return None
+        return candidate if os.path.isfile(candidate) else None
+
     def delete_assembly(self, name: str) -> str | None:
         """Delete ``<name>.assembly.json`` (the composed scene). Returns the name, or None.
 
         The shared part glbs are ordinary build output and are left in place (other assemblies
-        or the part view may use them); only the assembly scene sidecar is removed.
+        or the part view may use them); only the assembly scene sidecar (and its motion
+        trajectory, if any) is removed.
         """
         resolved = self.resolve_assembly(name)
         if resolved is None:
             return None
         os.remove(resolved)
+        motion = self.resolve_motion(name)
+        if motion is not None:
+            os.remove(motion)
         return name
 
     def resolve_bom(self, model_name: str) -> str | None:

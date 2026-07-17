@@ -188,6 +188,28 @@ def test_status_endpoint_404_when_no_sidecar(tmp_path) -> None:
         srv.stop()
 
 
+def test_motions_list_and_fetch(tmp_path) -> None:
+    (tmp_path / "crank_slider.motion.json").write_text(
+        json.dumps({"name": "crank_slider", "driver": {"joint": "spin"},
+                    "frames": [{"t": 0.0, "driver_value": 0.0, "status": "solved",
+                                "placements": {}}]}))
+    srv = ViewerServer(models_dir=str(tmp_path), host="127.0.0.1", port=0)
+    srv.start()
+    try:
+        status, body, _ = _get(f"{srv.base_url}/api/motions")
+        assert status == 200
+        assert json.loads(body)["motions"] == ["crank_slider"]
+        status, body, headers = _get(f"{srv.base_url}/api/motion/crank_slider")
+        assert status == 200
+        assert "application/json" in headers["Content-Type"]
+        assert json.loads(body)["driver"]["joint"] == "spin"
+        with pytest.raises(urllib.error.HTTPError) as exc:
+            _get(f"{srv.base_url}/api/motion/missing")
+        assert exc.value.code == 404
+    finally:
+        srv.stop()
+
+
 def test_plan_endpoint_returns_svg(server) -> None:
     status, body, headers = _get(f"{server.base_url}/api/plan/box.gltf")
 

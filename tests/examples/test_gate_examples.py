@@ -13,10 +13,11 @@ from ncad.build.document_builder import DocumentBuilder
 from tests.kernel.fake_kernel import FakeKernel
 
 _EXAMPLES_DIR = Path(__file__).resolve().parents[2] / "examples"
-# Part documents only: an assembly document (.asm.hocon) is a different schema/build path
-# (ncad assemble), covered by test_gate_5_0_assembly.py, not this part-build sweep.
+# Part documents only: an assembly document (.asm.hocon) and a motion study (.motion.hocon) are
+# different schema/build paths (ncad assemble / ncad motion), covered by their own gate tests, not
+# this part-build sweep.
 _EXAMPLE_DOCS = sorted(p for p in _EXAMPLES_DIR.glob("gate-*/*.hocon")
-                       if not p.name.endswith(".asm.hocon"))
+                       if not (p.name.endswith(".asm.hocon") or p.name.endswith(".motion.hocon")))
 # Examples that do not build a single closed face on the dependency-free FakeKernel are
 # excluded from this sweep and covered by their own targeted tests: `project` examples
 # (analytic edges have no circle/curve type) and multi-loop SKETCH `pattern` transforms

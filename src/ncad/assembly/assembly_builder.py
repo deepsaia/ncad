@@ -14,6 +14,8 @@ import logging
 import os
 from typing import Any
 
+from ncad.assembly.asmt_exporter import AsmtExporter
+from ncad.assembly.asmt_trajectory_mapper import AsmtTrajectoryMapper
 from ncad.assembly.assembly_bom import AssemblyBom
 from ncad.assembly.assembly_placement import AssemblyPlacement
 from ncad.assembly.component_mirror import ComponentMirror
@@ -28,6 +30,7 @@ from ncad.assembly.interference_checker import InterferenceChecker
 from ncad.assembly.joint_lowering import JointError, JointLowering
 from ncad.assembly.mate_lowering import MateError, MateLowering
 from ncad.assembly.mate_solver import MateSolver
+from ncad.assembly.motion_driver import MotionDriver, MotionParamError
 from ncad.assembly.sub_assembly_composer import SubAssemblyComposer
 from ncad.build.document_builder import DocumentBuilder
 from ncad.build.mass_calculator import MassCalculator
@@ -66,11 +69,13 @@ class AssemblyBuilder:
         self._mass = MassCalculator(kernel)
 
     def assemble(self, asm_path: str, out_dir: str,
-                 _visited: frozenset = frozenset()) -> dict:
+                 _visited: frozenset = frozenset(), motion_spec: dict | None = None) -> dict:
         """Compose the assembly at ``asm_path`` into ``out_dir``; return sidecar path + issues.
 
         ``_visited`` carries the ancestor .asm.hocon paths for sub-assembly cycle detection
-        (bucket 5.7); callers use the default empty set.
+        (bucket 5.7); callers use the default empty set. ``motion_spec`` is an optional motion study
+        (a ``{driver: {...}}`` block, from a .motion.hocon document); when present, the motion pass
+        runs after the static solve and writes the trajectory sidecar (see MotionBuilder).
         """
         abs_path = os.path.abspath(asm_path)
         if abs_path in _visited:
@@ -133,6 +138,12 @@ class AssemblyBuilder:
         # connector frames in the sidecar list, and yields the solve status + mate records.
         solve_block, mates_out, joints_out, couplings_out = self._solve_constraints(
             document, local_frames, placements_mm, to_metres, instances, issues)
+        # Motion pass (bucket 6.0): when a motion study is supplied (from a .motion.hocon doc, via
+        # MotionBuilder), solve the driven mechanism over the driver's value sweep with the
+        # OndselSolver multibody engine (via pyondsel) and write a trajectory sidecar. Runs after
+        # the static solve (rest pose). Kinematic only (force dynamics -> Phase 14).
+        motion_path = self._run_motion(motion_spec, document, name, out_dir, asm_dir, local_frames,
+                                       placements_mm, builders, to_metres, issues)
         # Analysis over the solved assembly (bucket 5.6): interference + BOM + roll-up mass +
         # structured STEP. Guarded so a failure is an id-attributed issue and the sidecar still
         # writes (without the analysis blocks) rather than aborting the whole assemble.
@@ -147,7 +158,8 @@ class AssemblyBuilder:
                        "instances": instances, "solve": solve_block, "mates": mates_out,
                        "joints": joints_out, "couplings": couplings_out,
                        "interference": interference, "bom": bom, "mass": mass}, handle)
-        return {"sidecar": sidecar, "issues": issues, "instances": [i["id"] for i in instances]}
+        return {"sidecar": sidecar, "issues": issues, "motion": motion_path,
+                "instances": [i["id"] for i in instances]}
 
     def _expand_components(self, raw_instances: list, issues: list) -> list[dict]:
         """Expand component ops (replace, then mirror, then pattern) into a flat instance list.
@@ -310,6 +322,106 @@ class AssemblyBuilder:
                     report.status, report.dof, report.failing_ids, report.redundant_ids,
                     len(joints_out), report.explanation)
         return report.to_dict(), mates_out, joints_out, couplings_out
+
+    def _run_motion(self, motion_spec: dict | None, document: dict, name: str, out_dir: str,
+                    asm_dir: str, local_frames: dict, placements_mm: dict, builders: dict,
+                    to_metres: float, issues: list) -> str | None:
+        """Solve a driven mechanism over the motion study's values; write <name>.motion.json.
+
+        Exports the assembly (parts with REAL mass/inertia, connector markers, joints, the driver)
+        to a pyondsel/OndselSolver ASMT model, solves the multibody kinematics, and maps the results
+        back to per-frame instance placements. Runs AFTER the static solve. A bad motion study or an
+        absent pyondsel dependency is an id-attributed issue; the static sidecar still writes, no
+        motion sidecar. Kinematic only (force dynamics -> Phase 14).
+        """
+        motion = motion_spec
+        if not motion:
+            return None
+        try:
+            joint_id, values = MotionDriver().parse(motion)
+        except MotionParamError as exc:
+            issues.append({"message": f"motion: {exc}"})
+            return None
+        joints = document["assembly"].get("joints") or []
+        driven = next((j for j in joints if j.get("id") == joint_id), None)
+        if driven is None:
+            issues.append({"message": f"motion driver references unknown joint {joint_id!r}"})
+            return None
+        between = driven.get("between") or []
+        if len(between) < 2 or driven.get("type") not in ("revolute", "slider"):
+            issues.append({"message": f"motion driver joint {joint_id!r} must be a revolute or "
+                                      "slider with two connectors"})
+            return None
+        instances = document["assembly"]["instances"]
+        ground_ids = self._motion_ground_ids(document, placements_mm)
+        mass_props = self._motion_mass_props(document, asm_dir, placements_mm, builders)
+        driver = {"joint_id": joint_id, "joint_type": driven["type"],
+                  "pivot": between[0], "moving": between[1], "values": values}
+        try:
+            model = AsmtExporter().build_model(
+                name, instances, local_frames, placements_mm, mass_props, joints, ground_ids,
+                driver, to_metres)
+            trajectory = model.solve()
+        except ImportError as exc:
+            issues.append({"message": f"motion needs the pyondsel dependency: {exc}"})
+            return None
+        except Exception as exc:  # noqa: BLE001 - a solver/export failure is an issue, not a crash
+            logger.warning("assembly motion solve failed for %s: %s", name, exc)
+            issues.append({"message": f"motion solve failed: {exc}"})
+            return None
+        frames = AsmtTrajectoryMapper().to_frames(trajectory, name, instances, placements_mm,
+                                                  values, to_metres)
+        path = os.path.join(out_dir, f"{name}.motion.json")
+        with open(path, "w", encoding="utf-8") as handle:
+            json.dump({"schema_version": 1, "name": name,
+                       "driver": motion["driver"], "frames": frames}, handle)
+        logger.info("assembly motion: joint=%s frames=%d out=%s", joint_id, len(frames), path)
+        return path
+
+    def _motion_ground_ids(self, document: dict, placements_mm: dict) -> set:
+        """Instances that stay fixed during motion: the first placed instance + any lock:true one.
+
+        Unlike the static ground set (which also grounds lock MATES), motion grounding is by the
+        instance's own placement: a body the mechanism pivots on is a lock:true / first instance.
+        """
+        ground: set = set()
+        placed = [i for i in document["assembly"]["instances"] if i["id"] in placements_mm]
+        if placed:
+            ground.add(placed[0]["id"])
+        for inst in placed:
+            if inst.get("lock"):
+                ground.add(inst["id"])
+        return ground
+
+    def _motion_mass_props(self, document: dict, asm_dir: str, placements_mm: dict,
+                           builders: dict) -> dict:
+        """Per-instance mass properties (mass, cog, principal inertia) for the multibody export.
+
+        Reuses the per-file part build + MassCalculator (the same path as the analysis pass). A part
+        with no density is omitted; the exporter falls back to a unit mass so the solve stays
+        well-posed (kinematics is geometry-driven, so the fallback does not change the trajectory).
+        """
+        props: dict[str, dict] = {}
+        file_builds: dict[str, dict] = {}
+        for inst in document["assembly"]["instances"]:
+            iid = inst["id"]
+            if iid not in placements_mm or "file" not in inst:
+                continue
+            file_key = os.path.abspath(os.path.join(asm_dir, inst["file"]))
+            builds = file_builds.get(file_key)
+            if builds is None:
+                builder = builders.setdefault(file_key, DocumentBuilder(self._kernel))
+                builds = builder.resolve_part_builds(os.path.join(asm_dir, inst["file"]))
+                file_builds[file_key] = builds
+            shape, resolver = builds.get(inst["part"], (None, None))
+            if shape is None:
+                continue
+            try:
+                mp = self._mass.mass_properties(shape, resolver)
+                props[iid] = mp["bodies"][0] if mp.get("bodies") else {}
+            except MaterialError:
+                continue  # no density -> exporter uses a unit-mass fallback
+        return props
 
     def _analyze(self, document: dict, asm_dir: str, instances: list, placements_mm: dict,
                  builders: dict, out_dir: str, name: str, issues: list) -> tuple[list, dict, dict]:

@@ -12,21 +12,28 @@ import os
 logger = logging.getLogger(__name__)
 
 _SPEC_EXTENSIONS = (".hocon", ".conf", ".json")
-# Assembly documents (.asm.hocon) build via a different path (ncad assemble) than part specs
-# (ncad build). Both appear in the spec tree tagged with a `kind` ("part" | "assembly") so the
-# viewer filters the combobox by its Parts/Assemblies mode; the build path is chosen by kind, so
-# an assembly is never fed to the part builder.
+# Document kind is detected by filename suffix, and the build path is chosen by kind: a part spec
+# builds via `ncad build`, an assembly (.asm.hocon) via `ncad assemble`, and a motion study
+# (.motion.hocon) via the motion path (it references an assembly + a driver, and solves a
+# trajectory). Each appears in the spec tree tagged with `kind` so the viewer filters the combobox
+# by its Parts / Assemblies / Motion mode.
 _ASSEMBLY_EXTENSION = ".asm.hocon"
+_MOTION_EXTENSION = ".motion.hocon"
 
 
 def _is_spec(name: str) -> bool:
-    """True if ``name`` is a spec document (part or assembly)."""
+    """True if ``name`` is a spec document (part, assembly, or motion)."""
     return name.lower().endswith(_SPEC_EXTENSIONS)
 
 
 def _spec_kind(name: str) -> str:
-    """"assembly" for a .asm.hocon document, else "part"."""
-    return "assembly" if name.lower().endswith(_ASSEMBLY_EXTENSION) else "part"
+    """"motion" for a .motion.hocon, "assembly" for a .asm.hocon, else "part"."""
+    lowered = name.lower()
+    if lowered.endswith(_MOTION_EXTENSION):
+        return "motion"
+    if lowered.endswith(_ASSEMBLY_EXTENSION):
+        return "assembly"
+    return "part"
 
 
 class SpecCatalog:

@@ -197,4 +197,12 @@ def _attrs_from(descriptor: dict, feature_id: str, tag: str | None) -> dict:
     normal = descriptor.get("normal")
     if normal is not None:
         attrs["normal_x"], attrs["normal_y"], attrs["normal_z"] = normal
+    # Position attributes: the element centre's coordinates, so a selector can query WHERE an
+    # element is (`select faces where mid_x = 20`). The kernel sets mid_x/mid_y on faces/edges;
+    # derive them from `center` for any descriptor that carries only a centre (datum/vertex).
+    center = descriptor.get("center")
+    if center is not None:
+        attrs.setdefault("mid_x", center[0])
+        attrs.setdefault("mid_y", center[1])
+        attrs.setdefault("mid_z", center[2])
     return attrs

@@ -116,6 +116,34 @@ class BuildService:
                 return spec
         return None
 
+    def build_motion(self, spec: str) -> dict:
+        """Build a motion study ``spec`` (drives its referenced assembly + writes a trajectory).
+
+        :return: ``{"assembled": <assembly_name>, "issues": [...]}`` (the trajectory sidecar sits
+            beside the assembly scene as <assembly_name>.motion.json).
+        :raises BuildError: If the spec is not allowed or the motion build fails.
+        """
+        from ncad.assembly.motion_builder import MotionBuilder
+        from ncad.kernel.build123d_kernel import Build123dKernel
+
+        resolved = self._allowed_motion_path(spec)
+        if resolved is None:
+            raise BuildError(f"motion spec not allowed: {spec}")
+        started = time.perf_counter()
+        try:
+            result = MotionBuilder(Build123dKernel()).build(resolved, self._models_dir)
+        except (ValueError, OSError, RuntimeError) as exc:
+            raise BuildError(str(exc)) from exc
+        build_ms = (time.perf_counter() - started) * 1000.0
+        name = os.path.basename(result["sidecar"])[: -len(".assembly.json")]
+        logger.info("motion-built %s from %s (%d issues) in %.1f ms",
+                    name, spec, len(result["issues"]), build_ms)
+        return {"assembled": name, "issues": result["issues"], "build_ms": round(build_ms, 1)}
+
+    def _allowed_motion_path(self, spec: str) -> str | None:
+        """Resolve a motion ``spec`` if it is under the examples directory, else None."""
+        return self._spec_catalog.resolve(spec)
+
     def _allowed_assembly_path(self, spec: str) -> str | None:
         """Resolve an assembly ``spec`` if under examples or a recorded scene source, else None.
 

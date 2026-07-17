@@ -33,6 +33,7 @@ _ELEMENTMAP_ROUTE = "/api/elementmap/"
 _HIERARCHY_ROUTE = "/api/hierarchy/"
 _STATUS_ROUTE = "/api/status/"
 _ASSEMBLY_ROUTE = "/api/assembly/"
+_MOTION_ROUTE = "/api/motion/"
 _CONTENT_TYPES = {
     ".gltf": "model/gltf+json",
     ".glb": "model/gltf-binary",
@@ -80,6 +81,10 @@ class _ViewerRequestHandler(BaseHTTPRequestHandler):
             self._send_model_list()
         elif path == "/api/assemblies":
             self._send_json(200, {"assemblies": self._catalog.assembly_names()})
+        elif path == "/api/motions":
+            self._send_json(200, {"motions": self._catalog.motion_names()})
+        elif path.startswith(_MOTION_ROUTE):
+            self._send_motion(path[len(_MOTION_ROUTE) :])
         elif path.startswith(_ASSEMBLY_ROUTE):
             self._send_assembly(path[len(_ASSEMBLY_ROUTE) :])
         elif path.startswith(_BOM_ROUTE):
@@ -110,6 +115,8 @@ class _ViewerRequestHandler(BaseHTTPRequestHandler):
             self._handle_build()
         elif path == "/api/assemble":
             self._handle_assemble()
+        elif path == "/api/motion-build":
+            self._handle_motion_build()
         elif path.startswith(_API_MODELS_ROUTE) and path.endswith("/delete"):
             name = path[len(_API_MODELS_ROUTE) : -len("/delete")]
             self._handle_delete(unquote(name))
@@ -158,6 +165,26 @@ class _ViewerRequestHandler(BaseHTTPRequestHandler):
             self._send_json(500, {"error": "internal assemble error"})
             return
         self._send_json(200, {"assemblies": self._catalog.assembly_names(), **result})
+
+    def _handle_motion_build(self) -> None:
+        length = int(self.headers.get("Content-Length", 0))
+        try:
+            body = json.loads(self.rfile.read(length) or b"{}")
+            spec = body["spec"]
+        except (ValueError, KeyError):
+            self._send_json(400, {"error": "request must be JSON with a 'spec' field"})
+            return
+        try:
+            result = self._build_service.build_motion(spec)
+        except BuildError as exc:
+            logger.warning("motion-build rejected for %s: %s", spec, exc)
+            self._send_json(400, {"error": str(exc)})
+            return
+        except Exception:  # noqa: BLE001 - never raise to the socket; log and 500
+            logger.exception("unexpected motion-build failure for %s", spec)
+            self._send_json(500, {"error": "internal motion-build error"})
+            return
+        self._send_json(200, {"motions": self._catalog.motion_names(), **result})
 
     def _handle_delete(self, name: str) -> None:
         removed = self._catalog.delete_model(name)
@@ -235,6 +262,14 @@ class _ViewerRequestHandler(BaseHTTPRequestHandler):
         resolved = self._catalog.resolve_assembly(unquote(name))
         if resolved is None:
             self.send_error(404, "unknown assembly")
+            return
+        with open(resolved, "rb") as handle:
+            self._send_bytes(200, "application/json", handle.read())
+
+    def _send_motion(self, name: str) -> None:
+        resolved = self._catalog.resolve_motion(unquote(name))
+        if resolved is None:
+            self.send_error(404, "no motion for assembly")
             return
         with open(resolved, "rb") as handle:
             self._send_bytes(200, "application/json", handle.read())

@@ -175,6 +175,20 @@
     padding: 7px 16px; border-radius: 22px; border: 1px solid var(--border);
     backdrop-filter: blur(6px); }
 
+  /* Motion timeline (bucket 6.0): a bottom-center play/pause + scrubber + driver readout. */
+  #motion-bar { position: absolute; bottom: 54px; left: 50%; transform: translateX(-50%);
+    display: flex; align-items: center; gap: 10px; z-index: 55;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 22px;
+    padding: 6px 14px; backdrop-filter: blur(6px); }
+  #motion-bar[hidden] { display: none; }
+  #motion-play { display: flex; align-items: center; justify-content: center;
+    width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--border);
+    background: var(--panel-2); color: var(--text); cursor: pointer; }
+  #motion-play:hover { border-color: var(--accent); color: var(--accent); }
+  #motion-scrub { width: 220px; accent-color: var(--accent); cursor: pointer; }
+  #motion-readout { font-size: 12px; color: var(--muted); min-width: 52px;
+    text-align: right; font-variant-numeric: tabular-nums; }
+
   /* Floating viewport controls (translucent, movable/snapping, icon-first) */
   #viewport-controls { position: absolute; z-index: 40; display: flex;
     flex-direction: column; gap: 4px; padding: 5px; width: max-content;
@@ -435,6 +449,7 @@
     <div id="view-mode-switch" class="view-mode-switch">
       <button id="mode-parts" class="mode-btn active" data-mode="parts">Parts</button>
       <button id="mode-assemblies" class="mode-btn" data-mode="assemblies">Assemblies</button>
+      <button id="mode-motion" class="mode-btn" data-mode="motion">Motion</button>
     </div>
     <div>
       <div class="label">Spec</div>
@@ -604,6 +619,15 @@
     <div id="gizmo"></div>
     <div id="hint">drag to orbit · scroll to zoom · right-drag to pan</div>
     <div id="toast"></div>
+
+    <!-- Motion timeline (bucket 6.0): shown only when the loaded assembly has a motion sidecar. -->
+    <div id="motion-bar" hidden>
+      <button id="motion-play" title="Play / pause motion">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+      </button>
+      <input id="motion-scrub" type="range" min="0" max="0" value="0" step="1" aria-label="Motion frame">
+      <span id="motion-readout">0&deg;</span>
+    </div>
   </main>
 
   <div id="right-resizer" title="Drag to resize" aria-label="Resize data sidebar" role="separator"></div>
@@ -660,6 +684,45 @@ import { ViewHelper } from "three/addons/helpers/ViewHelper.js";
 
 const stage = document.getElementById("stage");
 const spinner = document.getElementById("spinner");
+
+// API base + model-bytes base, so ONE SPA serves both servers. The Tornado service (ncad serve)
+// injects window.NCAD_API_BASE = "/api/v1"; the stdlib viewer (ncad view) injects nothing and uses
+// its historical prefixes (JSON under /api, model bytes at /models). Call apiUrl/modelUrl with the
+// path AFTER the prefix (e.g. apiUrl("/specs"), modelUrl(name)):
+//   ncad serve:  /api/v1/specs, /api/v1/models/<name>
+//   ncad view:   /api/specs,    /models/<name>
+const API = (typeof window !== "undefined" && window.NCAD_API_BASE) || "/api";
+const MODEL_BASE = (typeof window !== "undefined" && window.NCAD_API_BASE)
+  ? window.NCAD_API_BASE + "/models" : "/models";
+function apiUrl(path) { return API + path; }              // path AFTER /api, e.g. "/specs"
+function modelUrl(name) { return MODEL_BASE + "/" + name; }  // model bytes
+
+// Browser live-reload (dev only, ncad serve): open /ws/livereload and reload when the server's
+// boot id changes. Reconnect-and-compare, not server push: we record the first boot id we see;
+// when autoreload re-execs the server the socket drops, we reconnect with backoff, and the fresh
+// process reports a different boot id, which triggers a reload. Guarded by window.NCAD_DEV so the
+// stdlib viewer (no ws route) never attempts it and production stays quiet.
+function startLiveReload() {
+  if (typeof window === "undefined" || !window.NCAD_DEV) return;
+  const url = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws/livereload";
+  let firstBootId = null, backoff = 250;
+  const connect = () => {
+    let ws;
+    try { ws = new WebSocket(url); } catch (e) { setTimeout(connect, backoff); return; }
+    ws.onmessage = ev => {
+      let msg; try { msg = JSON.parse(ev.data); } catch (e) { return; }
+      if (msg.type !== "hello") return;
+      if (firstBootId === null) { firstBootId = msg.boot_id; backoff = 250; }
+      else if (msg.boot_id !== firstBootId) { location.reload(); }
+    };
+    // On drop (server re-exec), reconnect with capped exponential backoff; the successful
+    // reconnect to the fresh process delivers the new boot id and reloads.
+    ws.onclose = () => { setTimeout(connect, backoff); backoff = Math.min(backoff * 2, 2000); };
+    ws.onerror = () => { try { ws.close(); } catch (e) { /* onclose handles retry */ } };
+  };
+  connect();
+}
+startLiveReload();
 
 // Read a resolved CSS variable (so the 3D scene shares the same palette as the DOM).
 function cssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
@@ -754,7 +817,7 @@ renderer.domElement.addEventListener("click", ev => {
   const hits = raycaster.intersectObjects(pickParts, false);
   // Assemblies: a click selects the hit mesh's instance (highlight + tree sync); empty space
   // clears. This runs regardless of elementMap (an assembly has none; it is a part concept).
-  if (viewMode === "assemblies") {
+  if (isAssemblyScene()) {
     selectInstance(hits.length ? hits[0].object.userData.instanceId : null);
     return;
   }
@@ -1052,6 +1115,10 @@ let assemblyMaterials = {};
 // (which reaches distinctMaterials -> reads viewMode); a later `let` would be a temporal dead
 // zone and throw during init, blanking the whole viewer.
 let viewMode = localStorage.getItem("ncad.viewMode") || "parts";
+// Both Assemblies and Motion render a composed assembly scene (instances placed by matrices), so
+// scene behavior (pick-by-instance, per-instance material, connector/joint overlays, the timeline)
+// keys off this, while the model-list source + spec kind stay per-mode.
+function isAssemblyScene() { return viewMode === "assemblies" || viewMode === "motion"; }
 // Assembly selection / highlight / isolate (bucket 5.5). instanceMeshMap: instanceId -> [meshes],
 // published by loadAssembly once all glbs load. Declared before bindVcToggle (isolate) runs.
 let instanceMeshMap = {};
@@ -1110,6 +1177,7 @@ function clearModel() {
   jointGizmos = [];  // joint glyphs + coupling links are children of modelRoot, removed with it
   instanceMeshMap = {}; selectedInstances = [];  // drop selection state with the old scene
   assemblyMaterials = {};  // drop per-instance material state with the old scene
+  if (typeof resetMotion === "function") resetMotion();  // drop any motion timeline with the scene
   pickParts = []; elementMap = null;
   const picked = document.getElementById("i-picked");
   if (picked) picked.textContent = "-";
@@ -1118,7 +1186,7 @@ function clearModel() {
 function applyMode() {
   if (!modelRoot) return;
   if (mode === "bymaterial") {
-    if (viewMode === "assemblies") {
+    if (isAssemblyScene()) {
       // Assemblies: color each instance's meshes by that INSTANCE's part material (from the
       // sidecar), since an assembly has no per-part element map. Each instance is one part.
       for (const id in instanceMeshMap) {
@@ -1155,7 +1223,7 @@ function applyMode() {
 }
 
 function hasMaterials() {
-  if (viewMode === "assemblies") {
+  if (isAssemblyScene()) {
     return Object.values(assemblyMaterials).some(m => m.material);
   }
   const els = (elementMap && elementMap.elements) || [];
@@ -1168,7 +1236,7 @@ function hasMaterials() {
 function distinctMaterials() {
   const seen = new Map();
   let hasNone = false;
-  const entries = viewMode === "assemblies"
+  const entries = isAssemblyScene()
     ? Object.values(assemblyMaterials).map(m => ({material: m.material,
                                                   appearance_color: m.appearance_color}))
     : ((elementMap && elementMap.elements) || []);
@@ -1236,10 +1304,14 @@ function frameModel() {
   const size = box.getSize(new THREE.Vector3());
   const center = box.getCenter(new THREE.Vector3());
   modelRoot.position.sub(center);
-  edges.forEach(e => e.position.sub(center));
+  // Only scene-level edges (the single-part path) need the manual re-centering; assembly edges are
+  // parented to their instance mesh (so they move with the part under motion) and ride modelRoot's
+  // shift already - shifting them again would double-offset them.
+  const sceneEdges = edges.filter(e => e.parent === scene);
+  sceneEdges.forEach(e => e.position.sub(center));
   // Z-up scene: drop the model onto the ground plane (z=0 at its base) along +Z.
   const half = size.z / 2;
-  modelRoot.position.z += half; edges.forEach(e => e.position.z += half);
+  modelRoot.position.z += half; sceneEdges.forEach(e => e.position.z += half);
   const radius = Math.max(size.x, size.y, size.z);
   camera.position.set(radius * 1.4, -radius * 1.6, radius * 1.05);
   camera.near = radius / 100; camera.far = radius * 50; camera.updateProjectionMatrix();
@@ -1256,7 +1328,7 @@ function frameModel() {
 
 function loadModel(name) {
   spinner.style.display = "flex";
-  loader.load(`/models/${name}`, gltf => {
+  loader.load(modelUrl(name), gltf => {
     clearModel();
     // glTF lands the authored Z-up model Y-up; rotate +90deg about X so scene space equals
     // part space (a face authored +Z reads +Z in the viewport). Everything downstream
@@ -1289,7 +1361,7 @@ function loadModel(name) {
     applyMode(); frameModel();
     spinner.style.display = "none";
   }, undefined, err => { spinner.textContent = "failed to load model"; console.error(err); });
-  fetch(`/api/elementmap/${name}`)
+  fetch(apiUrl(`/elementmap/${name}`))
     .then(r => r.ok ? r.json() : null)
     .then(j => { elementMap = j; onElementMapReady(); })
     .catch(() => { elementMap = null; onElementMapReady(); });
@@ -1310,7 +1382,7 @@ const BOM_FIELDS = [
 
 function loadBom(name) {
   const body = document.getElementById("bom-body");
-  fetch(`/api/bom/${name}`).then(r => r.ok ? r.json() : Promise.reject()).then(bom => {
+  fetch(apiUrl(`/bom/${name}`)).then(r => r.ok ? r.json() : Promise.reject()).then(bom => {
     body.innerHTML = "";
     BOM_FIELDS.forEach(f => {
       if (!(f.key in bom)) return;
@@ -1326,7 +1398,7 @@ function loadBom(name) {
 function loadPlan(name) {
   const body = document.getElementById("plan-body");
   const tab = document.getElementById("tab-plan");
-  fetch(`/api/plan/${name}`).then(r => r.ok ? r.text() : Promise.reject()).then(svg => {
+  fetch(apiUrl(`/plan/${name}`)).then(r => r.ok ? r.text() : Promise.reject()).then(svg => {
     body.innerHTML = svg;
     tab.classList.add("has-plan");
   }).catch(() => {
@@ -1371,7 +1443,7 @@ function iconKey(node) {
 
 function loadHierarchy(name) {
   const body = document.getElementById("hierarchy-body");
-  fetch(`/api/hierarchy/${name}`).then(r => r.ok ? r.json() : Promise.reject()).then(tree => {
+  fetch(apiUrl(`/hierarchy/${name}`)).then(r => r.ok ? r.json() : Promise.reject()).then(tree => {
     body.innerHTML = "";
     body.appendChild(treeNode(tree));
   }).catch(() => { body.innerHTML = '<div class="panel-empty">no hierarchy for this model</div>'; });
@@ -1592,9 +1664,10 @@ bindVcToggle("isolate", "ncad.isolate", v => { isolateOn = v; refreshInstanceVis
 bindVcToggle("joints", "ncad.joints", v => { showJoints = v; jointGizmos.forEach(g => { g.visible = v; }); });
 document.getElementById("vc-reset").addEventListener("click", () => { if (modelRoot) frameModel(); });
 
-// The assembly-only floating controls show only in Assemblies mode.
+// The assembly floating controls show in Assemblies AND Motion mode (both render a scene of placed
+// instances with origins/connectors/joint overlays).
 function syncAssemblyControls() {
-  const on = viewMode === "assemblies";
+  const on = isAssemblyScene();
   document.getElementById("vc-assembly").hidden = !on;
   document.getElementById("vc-asm-sep").hidden = !on;
 }
@@ -1807,9 +1880,10 @@ function renderSpecTree(filter) {
   const box = document.getElementById("spec-tree");
   const all = flattenSpecs(specTree, []);
   const q = (filter || "").toLowerCase();
-  // The combobox shows only specs of the current mode's kind: Assemblies mode lists .asm.hocon
-  // documents, Parts mode lists part documents.
-  const wantKind = viewMode === "assemblies" ? "assembly" : "part";
+  // The combobox shows only specs of the current mode's kind: Parts lists part docs, Assemblies
+  // lists .asm.hocon docs, Motion lists .motion.hocon docs (each a motion study driving an assembly).
+  const wantKind = viewMode === "motion" ? "motion"
+                 : viewMode === "assemblies" ? "assembly" : "part";
   const matches = all.filter(s => s.kind === wantKind && s.path.toLowerCase().includes(q));
   box.innerHTML = "";
   let currentDir = null;
@@ -1835,7 +1909,7 @@ function renderSpecTree(filter) {
 }
 
 function loadSpecs() {
-  fetch("/api/specs").then(r => r.json()).then(data => { specTree = data.tree || []; });
+  fetch(apiUrl("/specs")).then(r => r.json()).then(data => { specTree = data.tree || []; });
 }
 
 function iconButton(tip, svg, extraClass) {
@@ -1877,7 +1951,7 @@ function scrollActiveIntoView(list) {
 }
 
 function refreshModels() {
-  return fetch("/api/models").then(r => r.json()).then(data => { renderModelList(data.models); return data.models; });
+  return fetch(apiUrl("/models")).then(r => r.json()).then(data => { renderModelList(data.models); return data.models; });
 }
 
 function selectModel(name) {
@@ -1897,9 +1971,10 @@ function selectModel(name) {
 // during the initial setMode without a temporal-dead-zone error.)
 const partGlbCache = {};  // part_glb filename -> loaded THREE.Object3D (loaded once, instanced)
 const assemblySources = {};  // assembly name -> source .asm.hocon path (for regenerate)
+const motionSources = {};    // assembly name -> source .motion.hocon path (for motion regenerate)
 
 function refreshAssemblies() {
-  return fetch("/api/assemblies").then(r => r.json()).then(data => {
+  return fetch(apiUrl("/assemblies")).then(r => r.json()).then(data => {
     renderAssemblyList(data.assemblies || []); return data.assemblies || []; });
 }
 
@@ -1935,22 +2010,107 @@ function selectAssembly(name, verbose, timing) {
   refreshAssemblies();
 }
 
+// ---- Motion mode ----
+// A driven assembly (one with a <name>.motion.json trajectory) shown with a playback timeline.
+// It loads the SAME scene as Assemblies mode (loadAssembly), then setupMotion (called inside
+// loadAssembly) reveals the timeline because it is Motion mode.
+function refreshMotions() {
+  return fetch(apiUrl("/motions")).then(r => r.json()).then(data => {
+    renderMotionList(data.motions || []); return data.motions || []; });
+}
+
+function renderMotionList(names) {
+  const list = document.getElementById("model-list");
+  list.innerHTML = "";
+  if (!names.length) {
+    list.innerHTML = '<div class="panel-empty">no driven assemblies in out/ (add a motion block)</div>';
+    return;
+  }
+  for (const name of names) {
+    const row = document.createElement("div");
+    row.className = "model-row" + (activeModel === name ? " active" : "");
+    const label = document.createElement("div");
+    label.className = "name"; label.textContent = name; label.title = name;
+    row.appendChild(label);
+    // Row actions mirror the Assemblies tab: regenerate (re-run the motion study from its recorded
+    // .motion.hocon source) + delete (removes the assembly scene AND its .motion.json trajectory).
+    const actions = document.createElement("div");
+    actions.className = "row-actions";
+    const regen = iconButton("Regenerate", REGEN_SVG, "act-regen");
+    regen.addEventListener("click", ev => { ev.stopPropagation(); regenerateMotion(name); });
+    const del = iconButton("Delete", DELETE_SVG, "act-delete");
+    del.addEventListener("click", ev => { ev.stopPropagation(); removeMotion(name); });
+    actions.appendChild(regen); actions.appendChild(del);
+    row.appendChild(actions);
+    row.addEventListener("click", () => selectMotion(name));
+    list.appendChild(row);
+  }
+  scrollActiveIntoView(list);
+}
+
+function regenerateMotion(name) {
+  const source = motionSources[name];
+  if (!source) { toast("no motion source recorded for " + name + "; pick it in the Spec box", true); return; }
+  motionBuildSpec(source);
+}
+
+function removeMotion(name) {
+  // Delete removes the assembly scene sidecar + its .motion.json trajectory (delete_assembly on the
+  // server removes both). No confirmation: re-running the motion study from the spec is cheap.
+  fetch(apiUrl("/assembly/" + encodeURIComponent(name) + "/delete"), { method: "POST" })
+    .then(r => r.json())
+    .then(() => { if (activeModel === name) { activeModel = null; clearActive("motion"); clearModel(); } refreshMotions(); toast("deleted " + name); })
+    .catch(() => toast("could not delete " + name, true));
+}
+
+function selectMotion(name) {
+  activeModel = name;
+  localStorage.setItem("ncad.active.motion", name);
+  loadAssembly(name, false);
+  refreshMotions();
+}
+
 function assembleSpec(spec) {
   if (!spec) { toast("select an assembly spec first", true); return; }
   spinner.style.display = "block";
   const t0 = performance.now();   // client wall-clock start (button click), for the render split
-  fetch("/api/assemble", { method: "POST", headers: { "Content-Type": "application/json" },
+  fetch(apiUrl("/assemble"), { method: "POST", headers: { "Content-Type": "application/json" },
                            body: JSON.stringify({ spec }) })
     .then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.error || "assemble failed"); return d; })
     .then(d => {
-      renderAssemblyList(d.assemblies || []);
       assemblySources[d.assembled] = spec;  // remember the source for regenerate
       // Timing (build vs render, a profiling starting point): the server build_ms + a render-done
       // callback that fires when loadAssembly finishes placing the scene. total = now - t0.
       const timing = { t0, buildMs: d.build_ms };
-      if (d.assembled) selectAssembly(d.assembled, true, timing);  // verbose: a genuine (re)compose
+      // Motion mode: refresh the motion list + select via motion (reveals the timeline); otherwise
+      // the assembly list + selectAssembly.
+      if (viewMode === "motion") {
+        refreshMotions();
+        if (d.assembled) selectMotion(d.assembled);
+      } else {
+        renderAssemblyList(d.assemblies || []);
+        if (d.assembled) selectAssembly(d.assembled, true, timing);  // verbose: a real (re)compose
+      }
       const issues = (d.issues || []).length;
       toast("assembled " + d.assembled + (issues ? ` (${issues} issue(s))` : ""));
+    })
+    .catch(e => toast(e.message, true))
+    .finally(() => { spinner.style.display = "none"; });
+}
+
+function motionBuildSpec(spec) {
+  if (!spec) { toast("select a motion spec first", true); return; }
+  spinner.style.display = "block";
+  const t0 = performance.now();
+  fetch(apiUrl("/motion-build"), { method: "POST", headers: { "Content-Type": "application/json" },
+                               body: JSON.stringify({ spec }) })
+    .then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.error || "motion build failed"); return d; })
+    .then(d => {
+      motionSources[d.assembled] = spec;  // remember the motion doc for regenerate
+      refreshMotions();
+      if (d.assembled) selectMotion(d.assembled);
+      const issues = (d.issues || []).length;
+      toast("motion built " + d.assembled + (issues ? ` (${issues} issue(s))` : ""));
     })
     .catch(e => toast(e.message, true))
     .finally(() => { spinner.style.display = "none"; });
@@ -1965,7 +2125,7 @@ function regenerateAssembly(name) {
 function removeAssembly(name) {
   // Delete the assembly scene sidecar (the composed part glbs are shared build output, left in
   // place). No confirmation: recomposing from the spec is cheap, and the toast reports it.
-  fetch("/api/assembly/" + encodeURIComponent(name) + "/delete", { method: "POST" })
+  fetch(apiUrl("/assembly/" + encodeURIComponent(name) + "/delete"), { method: "POST" })
     .then(r => r.json())
     .then(d => { if (activeModel === name) { activeModel = null; clearActive("assemblies"); clearModel(); } renderAssemblyList(d.assemblies || []); toast("deleted " + name); })
     .catch(() => toast("could not delete " + name, true));
@@ -1980,7 +2140,7 @@ function loadAssembly(name, verbose, timing) {
   spinner.style.display = "flex";
   // NB: name the payload `sceneDoc`, NOT `scene` - `scene` is the global THREE.Scene, and
   // shadowing it here would make `scene.add(...)` add to the JSON instead of the 3D scene.
-  fetch(`/api/assembly/${name}`).then(r => r.json()).then(sceneDoc => {
+  fetch(apiUrl(`/assembly/${name}`)).then(r => r.json()).then(sceneDoc => {
     clearModel();
     // The scene sidecar records its source .asm.hocon, so Regenerate works after a reload
     // (the in-memory map alone would be empty on a fresh page).
@@ -1993,6 +2153,7 @@ function loadAssembly(name, verbose, timing) {
     modelRoot = root;
     scene.add(root);
     const instanceMeshes = {};   // instanceId -> [meshes], for selection highlight/isolate
+    const instanceNodes = {};    // instanceId -> placement node (Group), for motion playback
     // Plain re-select (mode switch / page refresh) logs NOTHING, mirroring how parts log nothing
     // on select. Only an explicit assemble (verbose) narrates instances + bbox.
     if (verbose) log(`assembly ${name}: ${(sceneDoc.instances || []).length} instances`);
@@ -2008,10 +2169,11 @@ function loadAssembly(name, verbose, timing) {
         assemblyMaterials[inst.id] = {material: inst.material || null,
                                       appearance_color: inst.appearance_color || null};
       }
-      buildJointOverlay(sceneDoc, root);
+      buildJointOverlay(sceneDoc, root, instanceNodes);
       updateByMaterialButton();  // show the By-Material control if this assembly has materials
       applyMode();   // assigns base materials, captures them, and re-applies selection visuals
       frameModel();
+      setupMotion(name, instanceNodes);   // load + wire the motion timeline if a sidecar exists
       // Verbose bbox line only on an explicit assemble/first-load, not on every plain re-select
       // (switching Parts<->Assemblies just re-loads the existing scene; do not spam the log).
       if (verbose) {
@@ -2038,6 +2200,7 @@ function loadAssembly(name, verbose, timing) {
         // (Y-up) to Z-up, so: glb Y-up >> inner Rx(+90) >> Z-up >> node placement >> world.
         const node = new THREE.Group();
         node.applyMatrix4(matrixFromRowMajor(inst.placement));
+        instanceNodes[inst.id] = node;
         const inner = new THREE.Group();
         inner.rotation.x = Math.PI / 2;
         inner.add(obj.clone(true));
@@ -2056,8 +2219,12 @@ function loadAssembly(name, verbose, timing) {
         node.add(gizmo);
         root.add(node);
         // Mate connector triads: each `inst.connectors` entry is a world-space frame (metres) in
-        // the same Z-up modeled frame as the placement, so it goes directly under `root` (NOT the
-        // placement node, which would double-apply the placement). Oriented by its x/y/z basis.
+        // the same Z-up modeled frame as the placement. A connector is FIXED to its part, so it must
+        // ride the part under MOTION - parent it to the placement `node` in the node's LOCAL frame
+        // (rest^-1 . worldFrame), NOT to `root` (which would freeze it at the rest pose while the
+        // part animates - the "wire diagram at the origin that doesn't move" bug). At rest the node
+        // matrix IS the placement, so node . (rest^-1 . basis) = basis; under motion it follows.
+        const restInv = matrixFromRowMajor(inst.placement).clone().invert();
         for (const c of (inst.connectors || [])) {
           const triad = new THREE.AxesHelper(axisLen);
           const basis = new THREE.Matrix4().makeBasis(
@@ -2065,10 +2232,10 @@ function loadAssembly(name, verbose, timing) {
             new THREE.Vector3(c.y[0], c.y[1], c.y[2]),
             new THREE.Vector3(c.z[0], c.z[1], c.z[2]));
           basis.setPosition(c.origin[0], c.origin[1], c.origin[2]);
-          triad.applyMatrix4(basis);
+          triad.applyMatrix4(restInv.clone().multiply(basis));
           triad.visible = showConnectors;
           connectorGizmos.push(triad);
-          root.add(triad);
+          node.add(triad);
         }
         node.updateMatrixWorld(true);
         node.traverse(o => {
@@ -2077,15 +2244,16 @@ function loadAssembly(name, verbose, timing) {
             pickParts.push(o);
             (instanceMeshes[inst.id] = instanceMeshes[inst.id] || []).push(o);
             // Per-part edge overlay (same as the single-part path): a line where adjacent facets
-            // meet above 25deg (clears the tessellation facet angle, catches real geometric edges).
-            // Baked to world space and pushed to `edges[]`, so the existing Edge toggle + applyMode
-            // visibility logic drive it in assemblies too.
+            // meet above 25deg. PARENT it to the mesh (o) rather than baking to world + adding to
+            // scene, so under MOTION the edges move WITH the part (a scene-parented, world-baked
+            // line would stay frozen at the rest pose while the mesh animates). The Edge toggle +
+            // applyMode visibility still drive it via `edges[]`.
             const line = new THREE.LineSegments(
               new THREE.EdgesGeometry(o.geometry, 25),
               new THREE.LineBasicMaterial({ color: cssColor("--edge") }));
-            o.updateWorldMatrix(true, false); line.applyMatrix4(o.matrixWorld);
             line.visible = showEdges;
-            edges.push(line); scene.add(line);
+            o.add(line);
+            edges.push(line);
           }
         });
         // Log the pickup point only when verbose (an explicit assemble), not on every re-select.
@@ -2109,7 +2277,7 @@ function loadAssembly(name, verbose, timing) {
 
 function loadPartGlb(glbName, cb, onErr) {
   if (partGlbCache[glbName]) { cb(partGlbCache[glbName]); return; }
-  loader.load(`/models/${glbName}`, gltf => { partGlbCache[glbName] = gltf.scene; cb(gltf.scene); },
+  loader.load(modelUrl(glbName), gltf => { partGlbCache[glbName] = gltf.scene; cb(gltf.scene); },
     undefined, err => { console.error("part glb failed", glbName, err); if (onErr) onErr(err); });
 }
 
@@ -2117,22 +2285,122 @@ function loadPartGlb(glbName, cb, onErr) {
 // bakes the document-unit-to-metres conversion, so the viewer is unit-agnostic (like single-part
 // glbs). three.js Matrix4.set takes row-major args with the translation in the last column.
 function matrixFromRowMajor(m) {
+  // ncad placements are ROW-VECTOR convention (p_world = p_local . M): the 3x3 rotation block holds
+  // the images of the basis vectors as ROWS (i.e. it is R-transpose). three.js applies transforms
+  // column-vector (M . p), so the rotation must be TRANSPOSED here (rows->columns); the translation
+  // stays m[3] -> the 4th column. Without the transpose, rotations render inverted (parts spin the
+  // wrong way / flip), which is invisible while every static placement is identity but shows up the
+  // moment a motion frame carries real rotation.
   const M = new THREE.Matrix4();
-  M.set(m[0][0], m[0][1], m[0][2], m[3][0],
-        m[1][0], m[1][1], m[1][2], m[3][1],
-        m[2][0], m[2][1], m[2][2], m[3][2],
+  M.set(m[0][0], m[1][0], m[2][0], m[3][0],
+        m[0][1], m[1][1], m[2][1], m[3][1],
+        m[0][2], m[1][2], m[2][2], m[3][2],
         0, 0, 0, 1);
   return M;
 }
 
+// ---- Motion timeline playback (bucket 6.0) ----
+// The motion sidecar <name>.motion.json holds per-frame per-instance placements (same row-major
+// metres 4x4 as the static sidecar). We swap each instance node's matrix to the current frame and
+// advance in the animate() loop. Frame 0 is the rest pose, so a motion-less assembly is unchanged
+// and the bar stays hidden.
+const motionBar = document.getElementById("motion-bar");
+const motionPlayBtn = document.getElementById("motion-play");
+const motionScrub = document.getElementById("motion-scrub");
+const motionReadout = document.getElementById("motion-readout");
+const PLAY_ICON = '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
+const PAUSE_ICON = '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>';
+let motion = null;         // {frames, driver} or null when no motion
+let motionNodes = {};      // instanceId -> node for the active motion
+let motionFrame = 0;       // current frame index
+let motionPlaying = false;
+let motionAccum = 0;       // ms accumulated toward the next frame
+const MOTION_FRAME_MS = 60;  // playback cadence (about 16 fps)
+
+function resetMotion() {
+  motion = null; motionNodes = {}; motionFrame = 0; motionPlaying = false; motionAccum = 0;
+  motionBar.hidden = true;
+  motionPlayBtn.innerHTML = PLAY_ICON;
+}
+
+function setupMotion(name, instanceNodes) {
+  resetMotion();
+  // The timeline is a Motion-mode feature; in Assemblies mode a driven assembly still loads, just
+  // without playback (that is what the Motion tab is for).
+  if (viewMode !== "motion") return;
+  fetch(apiUrl(`/motion/${encodeURIComponent(name)}`)).then(r => {
+    if (!r.ok) return null;   // 404: this assembly has no motion, leave the bar hidden
+    return r.json();
+  }).then(doc => {
+    if (!doc || !(doc.frames || []).length) return;
+    motion = doc; motionNodes = instanceNodes;
+    motionScrub.max = String(doc.frames.length - 1);
+    motionScrub.value = "0";
+    motionBar.hidden = false;
+    showMotionFrame(0);
+    log(`motion: ${doc.frames.length} frames, driver ${doc.driver ? doc.driver.joint : "?"}`, "info");
+  }).catch(() => { /* motion is optional; a fetch error just means no timeline */ });
+}
+
+function showMotionFrame(i) {
+  if (!motion) return;
+  const frames = motion.frames;
+  motionFrame = ((i % frames.length) + frames.length) % frames.length;
+  const frame = frames[motionFrame];
+  for (const id in frame.placements) {
+    const node = motionNodes[id];
+    if (!node) continue;
+    node.matrix.copy(matrixFromRowMajor(frame.placements[id]));
+    node.matrix.decompose(node.position, node.quaternion, node.scale);
+    node.updateMatrixWorld(true);
+  }
+  motionScrub.value = String(motionFrame);
+  const unit = degreesLikelyDriver() ? "°" : "";
+  motionReadout.textContent = `${(+frame.driver_value).toFixed(1)}${unit}`;
+}
+
+function degreesLikelyDriver() {
+  // A rotation driver reads in degrees; a slider in mm. We do not carry the joint type in the
+  // sidecar, so infer: a range that spans a full turn (>= 360 total) is almost certainly degrees.
+  if (!motion || !motion.frames.length) return true;
+  const span = Math.abs(motion.frames[motion.frames.length - 1].driver_value
+                        - motion.frames[0].driver_value);
+  return span >= 180;
+}
+
+function toggleMotionPlay() {
+  if (!motion) return;
+  motionPlaying = !motionPlaying;
+  motionPlayBtn.innerHTML = motionPlaying ? PAUSE_ICON : PLAY_ICON;
+}
+
+function advanceMotion(dtMs) {
+  if (!motionPlaying || !motion) return;
+  motionAccum += dtMs;
+  while (motionAccum >= MOTION_FRAME_MS) {
+    motionAccum -= MOTION_FRAME_MS;
+    showMotionFrame(motionFrame + 1);   // loops via showMotionFrame's modulo
+  }
+}
+
+motionPlayBtn.addEventListener("click", toggleMotionPlay);
+motionScrub.addEventListener("input", () => {
+  motionPlaying = false; motionPlayBtn.innerHTML = PLAY_ICON;
+  showMotionFrame(parseInt(motionScrub.value, 10) || 0);
+});
+
 // Build the 3D joint-freedom overlay (bucket 5.5): a signature-keyed glyph at each joint's side-A
-// connector world frame, plus a dashed line between each coupling's two joints. Added under `root`
-// (so it clears with the scene) and pushed to `jointGizmos` for the Joints toggle.
-function buildJointOverlay(sceneDoc, root) {
+// connector world frame, plus a dashed line between each coupling's two joints. Each glyph is
+// PARENTED to its side-A instance node (in the node's local frame), so under MOTION it rides the
+// moving part instead of freezing at the rest pose. The coupling links stay on `root` (they span
+// two joints). All are pushed to `jointGizmos` for the Joints toggle and clear with the scene.
+function buildJointOverlay(sceneDoc, root, instanceNodes) {
   const frameOf = {};   // instanceId -> { connectorId -> {origin,x,y,z} }
+  const restInvOf = {}; // instanceId -> rest placement inverse (world -> node-local)
   for (const inst of (sceneDoc.instances || [])) {
     frameOf[inst.id] = {};
     for (const c of (inst.connectors || [])) frameOf[inst.id][c.id] = c;
+    restInvOf[inst.id] = matrixFromRowMajor(inst.placement).clone().invert();
   }
   // One glyph size for the whole assembly, from the scene bbox (computed once here).
   const box = new THREE.Box3().setFromObject(root);
@@ -2146,7 +2414,15 @@ function buildJointOverlay(sceneDoc, root) {
     const glyph = buildJointGlyph(j, frame, jointSize);
     glyph.visible = showJoints;
     jointGizmos.push(glyph);
-    root.add(glyph);
+    // Parent to side-A's node in its local frame (rest^-1 . glyph) so it follows the part; fall
+    // back to `root` if the node is missing (an unresolved instance).
+    const node = a && instanceNodes ? instanceNodes[a.instance] : null;
+    if (node && restInvOf[a.instance]) {
+      glyph.applyMatrix4(restInvOf[a.instance]);
+      node.add(glyph);
+    } else {
+      root.add(glyph);
+    }
     jointAnchor[j.id] = new THREE.Vector3(frame.origin[0], frame.origin[1], frame.origin[2]);
   }
   for (const c of (sceneDoc.couplings || [])) {
@@ -2346,6 +2622,7 @@ function setViewMode(next) {
   localStorage.setItem("ncad.viewMode", next);
   document.getElementById("mode-parts").classList.toggle("active", next === "parts");
   document.getElementById("mode-assemblies").classList.toggle("active", next === "assemblies");
+  document.getElementById("mode-motion").classList.toggle("active", next === "motion");
   syncAssemblyControls();
   // Switching mode must NOT open the spec dropdown (renderSpecTree un-hides it); clear the
   // search and keep the tree hidden. It re-renders (mode-filtered) on the input's focus/input.
@@ -2361,6 +2638,13 @@ function setViewMode(next) {
       if (!names || !names.length) return;
       selectAssembly(bootModel(names, "assemblies", null) || names[0]);
     });
+  } else if (next === "motion") {
+    // Motion mode lists only assemblies that have a motion trajectory sidecar; selecting one loads
+    // that assembly (its parts) and reveals the timeline (the timeline shows only in Motion mode).
+    refreshMotions().then(names => {
+      if (!names || !names.length) return;
+      selectMotion(bootModel(names, "motion", null) || names[0]);
+    });
   } else {
     refreshModels().then(models => {
       if (!models || !models.length) return;
@@ -2374,7 +2658,7 @@ function build(spec) {
   if (!spec) { toast("select a spec first", true); return; }
   spinner.style.display = "block";
   const t0 = performance.now();
-  fetch("/api/build", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ spec }) })
+  fetch(apiUrl("/build"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ spec }) })
     .then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.error || "build failed"); return d; })
     .then(d => {
       renderModelList(d.models); const first = (d.built || [])[0]; if (first) selectModel(first);
@@ -2402,7 +2686,7 @@ function removeModel(name) {
   // No confirmation prompt: delete is cheap and reversible (rebuild from the spec), and the
   // toast reports what happened. The delete action only appears on row hover, so it is hard
   // to trigger by accident.
-  fetch("/api/models/" + encodeURIComponent(name) + "/delete", { method: "POST" })
+  fetch(apiUrl("/models/" + encodeURIComponent(name) + "/delete"), { method: "POST" })
     .then(r => r.json())
     .then(d => { if (activeModel === name) { activeModel = null; clearActive("parts"); clearModel(); } renderModelList(d.models); toast("deleted " + name); })
     .catch(() => toast("could not delete " + name, true));
@@ -2428,8 +2712,11 @@ specClearEl.addEventListener("mousedown", ev => {
   specSearchEl.focus();
 });
 document.getElementById("spec-build").addEventListener("click", () => {
-  // Dispatch by mode: Parts builds a part spec; Assemblies composes an assembly document.
-  if (viewMode === "assemblies") assembleSpec(selectedSpec); else build(selectedSpec);
+  // Dispatch by mode: Parts builds a part spec; Assemblies composes an .asm.hocon; Motion builds a
+  // .motion.hocon study (drives its referenced assembly + writes the trajectory).
+  if (viewMode === "motion") motionBuildSpec(selectedSpec);
+  else if (viewMode === "assemblies") assembleSpec(selectedSpec);
+  else build(selectedSpec);
 });
 
 // ---- Color theme: one toggle cycling light -> system -> dark (persisted) ----
@@ -2465,8 +2752,10 @@ applyTheme();
 loadSpecs();
 document.getElementById("mode-parts").addEventListener("click", () => setViewMode("parts"));
 document.getElementById("mode-assemblies").addEventListener("click", () => setViewMode("assemblies"));
+document.getElementById("mode-motion").addEventListener("click", () => setViewMode("motion"));
 document.getElementById("mode-parts").classList.toggle("active", viewMode === "parts");
 document.getElementById("mode-assemblies").classList.toggle("active", viewMode === "assemblies");
+document.getElementById("mode-motion").classList.toggle("active", viewMode === "motion");
 syncAssemblyControls();
 // Pick the model to show on boot for a mode. Priority: an explicit URL-path request >> the
 // saved last-viewed model (page-refresh restore) >> the first available. Returns null when
@@ -2485,10 +2774,18 @@ if (viewMode === "assemblies") {
     const initial = bootModel(names, "assemblies", null);
     if (initial) selectAssembly(initial);
   });
+} else if (viewMode === "motion") {
+  refreshMotions().then(names => {
+    if (!names || !names.length) return;
+    const initial = bootModel(names, "motion", null);
+    if (initial) selectMotion(initial);
+  });
 } else {
   refreshModels().then(models => {
     if (!models || !models.length) return;
-    const requested = decodeURIComponent(location.pathname.replace(/^\//, ""));
+    // Deep link: /<model>.glb (stdlib ncad view) or /viewer/<model>.glb (ncad serve). Strip either
+    // leading prefix so the requested name resolves the same way under both servers.
+    const requested = decodeURIComponent(location.pathname.replace(/^\/viewer\//, "").replace(/^\//, ""));
     const names = models.map(m => m.name);
     const initial = bootModel(names, "parts", requested);
     if (initial) selectModel(initial);
@@ -2546,8 +2843,11 @@ resizerEl.addEventListener("dblclick", () => {
   fitRendererToStage();
 });
 
-(function animate() {
+let _lastFrameMs = null;
+(function animate(now) {
   requestAnimationFrame(animate);
+  if (_lastFrameMs != null && now != null) advanceMotion(now - _lastFrameMs);
+  _lastFrameMs = now;
   controls.update();
   renderer.render(scene, camera);
   renderGizmo();

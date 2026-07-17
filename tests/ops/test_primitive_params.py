@@ -28,6 +28,12 @@ def test_plane_and_at_pass_through():
     assert kw["plane"] == "XZ" and kw["at"] == (5.0, 6.0)
 
 
+def test_rotation_defaults_zero_and_passes_through():
+    assert primitive_kwargs({"kind": "box", "w": 1, "d": 1, "h": 1})["rotation"] == 0.0
+    kw = primitive_kwargs({"kind": "box", "w": 40, "d": 8, "h": 6, "rotation": 45})
+    assert kw["rotation"] == 45.0
+
+
 def test_unknown_kind_raises():
     with pytest.raises(PrimitiveParamError):
         primitive_kwargs({"kind": "prism", "w": 1, "d": 1, "h": 1})

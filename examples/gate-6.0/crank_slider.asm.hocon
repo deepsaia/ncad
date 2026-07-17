@@ -1,0 +1,30 @@
+schema_version = 1
+units = mm
+# Bucket 6.0 gate: the canonical crank-slider (see docs/images/crank-slider-reference.jpg), driven
+# by the flywheel angle. Four bodies, 3 revolute + 1 slider, one closed kinematic chain
+# (block -> flywheel -> rod -> piston -> block cylinder). The motion block turns the flywheel a full
+# revolution; the OndselSolver multibody engine (via pyondsel) reproduces the closed-form piston
+# stroke yP = R sin(theta) + sqrt(L^2 - (R cos theta)^2) from the declared joints + one driver, with
+# NO per-mechanism formula. The block is grounded; the flywheel pivots on the block's main bearing.
+metadata {
+  description = "Driven crank-slider: flywheel + rod + piston, 3 revolute + 1 slider, one driver"
+  tags = [ crank_slider, assembly, mechanism ]
+}
+assembly {
+  instances = [
+    { id = block, file = "crank_slider.hocon", part = block, lock = true }
+    { id = flywheel, file = "crank_slider.hocon", part = flywheel }
+    { id = rod, file = "crank_slider.hocon", part = rod }
+    { id = piston, file = "crank_slider.hocon", part = piston }
+  ]
+  joints = [
+    { id = mainPin, type = revolute, between = [
+      { instance = block, connector = main }, { instance = flywheel, connector = hub } ] }
+    { id = crankPin, type = revolute, between = [
+      { instance = flywheel, connector = pin }, { instance = rod, connector = big } ] }
+    { id = wristPin, type = revolute, between = [
+      { instance = rod, connector = small }, { instance = piston, connector = wrist } ] }
+    { id = slide, type = slider, between = [
+      { instance = block, connector = bore }, { instance = piston, connector = crown } ] }
+  ]
+}

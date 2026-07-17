@@ -1253,7 +1253,9 @@ dependencies = [
     { name = "leaf-common" },
     { name = "numpy" },
     { name = "py-slvs" },
+    { name = "pyondsel" },
     { name = "pyrender" },
+    { name = "tornado" },
     { name = "trimesh" },
     { name = "typer" },
 ]
@@ -1285,7 +1287,9 @@ requires-dist = [
     { name = "neuro-san", marker = "extra == 'agents'" },
     { name = "numpy" },
     { name = "py-slvs", specifier = ">=1.0.6" },
+    { name = "pyondsel", editable = "../pyondsel" },
     { name = "pyrender" },
+    { name = "tornado", specifier = ">=6.5.6" },
     { name = "trimesh" },
     { name = "typer", specifier = ">=0.26.8" },
 ]
@@ -1882,6 +1886,15 @@ wheels = [
 crypto = [
     { name = "cryptography" },
 ]
+
+[[package]]
+name = "pyondsel"
+version = "0.1.0"
+source = { editable = "../pyondsel" }
+
+[package.metadata]
+requires-dist = [{ name = "pytest", marker = "extra == 'test'", specifier = ">=7" }]
+provides-extras = ["test"]
 
 [[package]]
 name = "pyopengl"

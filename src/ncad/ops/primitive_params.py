@@ -24,8 +24,12 @@ def primitive_kwargs(params: dict) -> dict:
     plane = params.get("plane", "XY")
     at = params.get("at", [0.0, 0.0])
     plane_offset = float(params.get("plane_offset", 0.0))
+    # rotation (degrees about the base-plane normal) spins the body in-plane, so a box can be a
+    # diagonal bar or a part can be tilted without authoring a sketch. Default 0 (axis-aligned).
+    rotation = float(params.get("rotation", 0.0))
     return {"kind": kind, "dims": dims, "plane": plane,
-            "at": (float(at[0]), float(at[1])), "plane_offset": plane_offset}
+            "at": (float(at[0]), float(at[1])), "plane_offset": plane_offset,
+            "rotation": rotation}
 
 
 def _radius(params: dict, kind: str, d_key: str, r_key: str) -> float:

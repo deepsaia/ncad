@@ -38,9 +38,23 @@ class ConnectorResolver:
 
     def _one(self, spec: dict, resolver: ReferenceResolver, elements: list,
              issues: list, cid: str) -> ConnectorFrame | None:
+        # A DIRECT-COORDINATE connector: `at_point = [x,y,z]` (+ optional `axis`, `secondary`,
+        # `radius`) builds the frame from explicit local coordinates, bypassing face selection. The
+        # terse, robust way to place a mechanism connector (name a point, like a datum), avoiding
+        # fragile face/area selectors that break when a boolean reshapes a face. Z = axis.
+        if spec.get("at_point") is not None:
+            point = spec["at_point"]
+            axis = spec.get("axis") or (0.0, 0.0, 1.0)
+            radius = spec.get("radius")
+            return ConnectorFrame.from_axis(
+                (float(point[0]), float(point[1]), float(point[2])),
+                (float(axis[0]), float(axis[1]), float(axis[2])),
+                spec.get("secondary"), spec.get("offset"),
+                radius=float(radius) if radius is not None else None)
         at = spec.get("at")
         if not at:
-            issues.append({"connector_id": cid, "message": "connector needs an 'at' reference"})
+            issues.append({"connector_id": cid,
+                           "message": "connector needs an 'at' reference or an 'at_point'"})
             return None
         resolution = resolver.resolve(Reference.parse(at), {}, elements)
         if resolution.error or not resolution.elements:

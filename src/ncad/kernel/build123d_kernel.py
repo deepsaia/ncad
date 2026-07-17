@@ -526,12 +526,17 @@ class Build123dKernel(Kernel):
         return Solid.make_cone(bottom_diameter / 2.0, top_diameter / 2.0, length, base)
 
     def make_primitive(self, kind: str, dims: dict, plane: str, at: Point2,
-                       plane_offset: float = 0.0) -> Any:
+                       plane_offset: float = 0.0, rotation: float = 0.0) -> Any:
         # A primitive base body on the sketch plane (shifted by plane_offset along its normal) at
-        # the `at` origin (build123d Solid.make_*).
+        # the `at` origin (build123d Solid.make_*). `rotation` (degrees about the plane normal)
+        # spins the body in-plane (a diagonal bar / a tilted part, no sketch needed).
         base = _basis(plane, plane_offset)
         origin = base.from_local_coords(Vector(float(at[0]), float(at[1]), 0.0))
-        located = Plane(origin=origin, x_dir=base.x_dir,  # pyrefly: ignore[no-matching-overload]
+        x_dir = base.x_dir
+        if rotation:
+            angle = math.radians(rotation)
+            x_dir = base.x_dir * math.cos(angle) + base.y_dir * math.sin(angle)
+        located = Plane(origin=origin, x_dir=x_dir,  # pyrefly: ignore[no-matching-overload]
                         z_dir=base.z_dir)
         if kind == "box":
             return Solid.make_box(dims["w"], dims["d"], dims["h"], located)
@@ -1131,9 +1136,19 @@ class Build123dKernel(Kernel):
         return ((pa.X(), pa.Y(), pa.Z()), (pb.X(), pb.Y(), pb.Z()))
 
     def common_volume(self, shape_a: Any, shape_b: Any) -> float:
-        """Volume of the boolean intersection (mm^3); 0.0 when disjoint or merely touching."""
+        """Volume of the boolean intersection (mm^3); 0.0 when disjoint or merely touching.
+
+        The intersection can be a single solid, a multi-solid ShapeList (disjoint overlap regions),
+        or None; sum the volume across whatever it returns so a multi-region overlap is measured,
+        not crashed on (a ShapeList has no ``.volume``).
+        """
         inter = _b3d(shape_a) & _b3d(shape_b)
-        return float(inter.volume) if inter is not None else 0.0
+        if inter is None:
+            return 0.0
+        solids = getattr(inter, "solids", None)
+        if callable(solids):
+            return float(sum(s.volume for s in inter.solids()))
+        return float(getattr(inter, "volume", 0.0))
 
     def _export_solids(self, shape: Any) -> list:
         """(body_id, solid) per exported solid, in export order (body -> solid).
@@ -1391,6 +1406,9 @@ def _describe_face(face: Any) -> dict:
         "normal": (round(normal.X, 9), round(normal.Y, 9), round(normal.Z, 9)),
         "area": face.area,
         "center": (center.X, center.Y, center.Z),
+        # Position attributes: the face centre's coordinates, so a selector can pick a face by WHERE
+        # it is (`select faces where mid_x = 20`), not only by area. mid_z pre-dates mid_x/mid_y.
+        "mid_x": center.X, "mid_y": center.Y,
         "min_z": box.min.Z, "mid_z": center.Z, "max_z": box.max.Z,
     }
     _add_axis_fields(descriptor, face)
@@ -1431,6 +1449,7 @@ def _describe_edge(edge: Any) -> dict:
         "center": (mid.X, mid.Y, mid.Z),
         "edge_direction": unit,
         "orientation": "vertical" if vertical else "horizontal",
+        "mid_x": mid.X, "mid_y": mid.Y,
         "min_z": box.min.Z, "mid_z": mid.Z, "max_z": box.max.Z,
     }
 
