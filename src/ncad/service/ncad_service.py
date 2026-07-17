@@ -18,6 +18,7 @@ from tornado.ioloop import IOLoop
 from tornado.web import Application
 
 from ncad.service.api_router import ApiRouter
+from ncad.service.reload_watcher import ReloadWatcher
 from ncad.viewer.model_catalog import ModelCatalog
 from ncad.viewer.spec_catalog import SpecCatalog
 from ncad.viewer.viewer_page import ViewerPage
@@ -101,6 +102,9 @@ class NcadService:
         sockets = _bind_sockets(self._host, self._port)
         self._bound_port = sockets[0].getsockname()[1]
         self._server.add_sockets(sockets)
+        # Server-side hot-reload (dev only): start autoreload on this IOLoop so a source edit
+        # re-execs the process. A no-op when dev is False (see ReloadWatcher for why it is guarded).
+        ReloadWatcher(self._dev).enable()
         logger.info("ncad service running at %s", self.base_url)
         self._ready.set()
         self._ioloop.start()
