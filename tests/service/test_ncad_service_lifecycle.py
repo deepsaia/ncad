@@ -69,3 +69,23 @@ def test_specs_route_serves_json(service):
     assert status == 200
     assert "application/json" in headers["Content-Type"]
     assert b'"tree"' in body
+
+
+def test_viewer_serves_html_with_dev_bootstrap(service):
+    # /viewer returns the SPA HTML with the injected bootstrap: NCAD_API_BASE points the SPA's
+    # fetches at /api/v1, NCAD_BOOT_ID carries the live boot id, and NCAD_DEV reflects the flag.
+    status, body, headers = _get(f"{service.base_url}/viewer")
+    assert status == 200
+    assert "text/html" in headers["Content-Type"]
+    text = body.decode("utf-8")
+    assert '<!DOCTYPE html>' in text or '<!doctype html>' in text
+    assert 'window.NCAD_API_BASE="/api/v1"' in text
+    assert f'window.NCAD_BOOT_ID="{service.boot_id}"' in text
+    assert "window.NCAD_DEV=false" in text  # the fixture builds the service without dev
+
+
+def test_viewer_deep_link_serves_html(service):
+    # /viewer/<model>.glb serves the same SPA (the JS preselects the model from the path).
+    status, body, headers = _get(f"{service.base_url}/viewer/box.gltf")
+    assert status == 200
+    assert "text/html" in headers["Content-Type"]

@@ -685,6 +685,18 @@ import { ViewHelper } from "three/addons/helpers/ViewHelper.js";
 const stage = document.getElementById("stage");
 const spinner = document.getElementById("spinner");
 
+// API base + model-bytes base, so ONE SPA serves both servers. The Tornado service (ncad serve)
+// injects window.NCAD_API_BASE = "/api/v1"; the stdlib viewer (ncad view) injects nothing and uses
+// its historical prefixes (JSON under /api, model bytes at /models). Call apiUrl/modelUrl with the
+// path AFTER the prefix (e.g. apiUrl("/specs"), modelUrl(name)):
+//   ncad serve:  /api/v1/specs, /api/v1/models/<name>
+//   ncad view:   /api/specs,    /models/<name>
+const API = (typeof window !== "undefined" && window.NCAD_API_BASE) || "/api";
+const MODEL_BASE = (typeof window !== "undefined" && window.NCAD_API_BASE)
+  ? window.NCAD_API_BASE + "/models" : "/models";
+function apiUrl(path) { return API + path; }              // path AFTER /api, e.g. "/specs"
+function modelUrl(name) { return MODEL_BASE + "/" + name; }  // model bytes
+
 // Read a resolved CSS variable (so the 3D scene shares the same palette as the DOM).
 function cssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
 function cssColor(name) { return new THREE.Color(cssVar(name)); }
@@ -1289,7 +1301,7 @@ function frameModel() {
 
 function loadModel(name) {
   spinner.style.display = "flex";
-  loader.load(`/models/${name}`, gltf => {
+  loader.load(modelUrl(name), gltf => {
     clearModel();
     // glTF lands the authored Z-up model Y-up; rotate +90deg about X so scene space equals
     // part space (a face authored +Z reads +Z in the viewport). Everything downstream
@@ -1322,7 +1334,7 @@ function loadModel(name) {
     applyMode(); frameModel();
     spinner.style.display = "none";
   }, undefined, err => { spinner.textContent = "failed to load model"; console.error(err); });
-  fetch(`/api/elementmap/${name}`)
+  fetch(apiUrl(`/elementmap/${name}`))
     .then(r => r.ok ? r.json() : null)
     .then(j => { elementMap = j; onElementMapReady(); })
     .catch(() => { elementMap = null; onElementMapReady(); });
@@ -1343,7 +1355,7 @@ const BOM_FIELDS = [
 
 function loadBom(name) {
   const body = document.getElementById("bom-body");
-  fetch(`/api/bom/${name}`).then(r => r.ok ? r.json() : Promise.reject()).then(bom => {
+  fetch(apiUrl(`/bom/${name}`)).then(r => r.ok ? r.json() : Promise.reject()).then(bom => {
     body.innerHTML = "";
     BOM_FIELDS.forEach(f => {
       if (!(f.key in bom)) return;
@@ -1359,7 +1371,7 @@ function loadBom(name) {
 function loadPlan(name) {
   const body = document.getElementById("plan-body");
   const tab = document.getElementById("tab-plan");
-  fetch(`/api/plan/${name}`).then(r => r.ok ? r.text() : Promise.reject()).then(svg => {
+  fetch(apiUrl(`/plan/${name}`)).then(r => r.ok ? r.text() : Promise.reject()).then(svg => {
     body.innerHTML = svg;
     tab.classList.add("has-plan");
   }).catch(() => {
@@ -1404,7 +1416,7 @@ function iconKey(node) {
 
 function loadHierarchy(name) {
   const body = document.getElementById("hierarchy-body");
-  fetch(`/api/hierarchy/${name}`).then(r => r.ok ? r.json() : Promise.reject()).then(tree => {
+  fetch(apiUrl(`/hierarchy/${name}`)).then(r => r.ok ? r.json() : Promise.reject()).then(tree => {
     body.innerHTML = "";
     body.appendChild(treeNode(tree));
   }).catch(() => { body.innerHTML = '<div class="panel-empty">no hierarchy for this model</div>'; });
@@ -1870,7 +1882,7 @@ function renderSpecTree(filter) {
 }
 
 function loadSpecs() {
-  fetch("/api/specs").then(r => r.json()).then(data => { specTree = data.tree || []; });
+  fetch(apiUrl("/specs")).then(r => r.json()).then(data => { specTree = data.tree || []; });
 }
 
 function iconButton(tip, svg, extraClass) {
@@ -1912,7 +1924,7 @@ function scrollActiveIntoView(list) {
 }
 
 function refreshModels() {
-  return fetch("/api/models").then(r => r.json()).then(data => { renderModelList(data.models); return data.models; });
+  return fetch(apiUrl("/models")).then(r => r.json()).then(data => { renderModelList(data.models); return data.models; });
 }
 
 function selectModel(name) {
@@ -1935,7 +1947,7 @@ const assemblySources = {};  // assembly name -> source .asm.hocon path (for reg
 const motionSources = {};    // assembly name -> source .motion.hocon path (for motion regenerate)
 
 function refreshAssemblies() {
-  return fetch("/api/assemblies").then(r => r.json()).then(data => {
+  return fetch(apiUrl("/assemblies")).then(r => r.json()).then(data => {
     renderAssemblyList(data.assemblies || []); return data.assemblies || []; });
 }
 
@@ -1976,7 +1988,7 @@ function selectAssembly(name, verbose, timing) {
 // It loads the SAME scene as Assemblies mode (loadAssembly), then setupMotion (called inside
 // loadAssembly) reveals the timeline because it is Motion mode.
 function refreshMotions() {
-  return fetch("/api/motions").then(r => r.json()).then(data => {
+  return fetch(apiUrl("/motions")).then(r => r.json()).then(data => {
     renderMotionList(data.motions || []); return data.motions || []; });
 }
 
@@ -2018,7 +2030,7 @@ function regenerateMotion(name) {
 function removeMotion(name) {
   // Delete removes the assembly scene sidecar + its .motion.json trajectory (delete_assembly on the
   // server removes both). No confirmation: re-running the motion study from the spec is cheap.
-  fetch("/api/assembly/" + encodeURIComponent(name) + "/delete", { method: "POST" })
+  fetch(apiUrl("/assembly/" + encodeURIComponent(name) + "/delete"), { method: "POST" })
     .then(r => r.json())
     .then(() => { if (activeModel === name) { activeModel = null; clearActive("motion"); clearModel(); } refreshMotions(); toast("deleted " + name); })
     .catch(() => toast("could not delete " + name, true));
@@ -2035,7 +2047,7 @@ function assembleSpec(spec) {
   if (!spec) { toast("select an assembly spec first", true); return; }
   spinner.style.display = "block";
   const t0 = performance.now();   // client wall-clock start (button click), for the render split
-  fetch("/api/assemble", { method: "POST", headers: { "Content-Type": "application/json" },
+  fetch(apiUrl("/assemble"), { method: "POST", headers: { "Content-Type": "application/json" },
                            body: JSON.stringify({ spec }) })
     .then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.error || "assemble failed"); return d; })
     .then(d => {
@@ -2063,7 +2075,7 @@ function motionBuildSpec(spec) {
   if (!spec) { toast("select a motion spec first", true); return; }
   spinner.style.display = "block";
   const t0 = performance.now();
-  fetch("/api/motion-build", { method: "POST", headers: { "Content-Type": "application/json" },
+  fetch(apiUrl("/motion-build"), { method: "POST", headers: { "Content-Type": "application/json" },
                                body: JSON.stringify({ spec }) })
     .then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.error || "motion build failed"); return d; })
     .then(d => {
@@ -2086,7 +2098,7 @@ function regenerateAssembly(name) {
 function removeAssembly(name) {
   // Delete the assembly scene sidecar (the composed part glbs are shared build output, left in
   // place). No confirmation: recomposing from the spec is cheap, and the toast reports it.
-  fetch("/api/assembly/" + encodeURIComponent(name) + "/delete", { method: "POST" })
+  fetch(apiUrl("/assembly/" + encodeURIComponent(name) + "/delete"), { method: "POST" })
     .then(r => r.json())
     .then(d => { if (activeModel === name) { activeModel = null; clearActive("assemblies"); clearModel(); } renderAssemblyList(d.assemblies || []); toast("deleted " + name); })
     .catch(() => toast("could not delete " + name, true));
@@ -2101,7 +2113,7 @@ function loadAssembly(name, verbose, timing) {
   spinner.style.display = "flex";
   // NB: name the payload `sceneDoc`, NOT `scene` - `scene` is the global THREE.Scene, and
   // shadowing it here would make `scene.add(...)` add to the JSON instead of the 3D scene.
-  fetch(`/api/assembly/${name}`).then(r => r.json()).then(sceneDoc => {
+  fetch(apiUrl(`/assembly/${name}`)).then(r => r.json()).then(sceneDoc => {
     clearModel();
     // The scene sidecar records its source .asm.hocon, so Regenerate works after a reload
     // (the in-memory map alone would be empty on a fresh page).
@@ -2238,7 +2250,7 @@ function loadAssembly(name, verbose, timing) {
 
 function loadPartGlb(glbName, cb, onErr) {
   if (partGlbCache[glbName]) { cb(partGlbCache[glbName]); return; }
-  loader.load(`/models/${glbName}`, gltf => { partGlbCache[glbName] = gltf.scene; cb(gltf.scene); },
+  loader.load(modelUrl(glbName), gltf => { partGlbCache[glbName] = gltf.scene; cb(gltf.scene); },
     undefined, err => { console.error("part glb failed", glbName, err); if (onErr) onErr(err); });
 }
 
@@ -2289,7 +2301,7 @@ function setupMotion(name, instanceNodes) {
   // The timeline is a Motion-mode feature; in Assemblies mode a driven assembly still loads, just
   // without playback (that is what the Motion tab is for).
   if (viewMode !== "motion") return;
-  fetch(`/api/motion/${encodeURIComponent(name)}`).then(r => {
+  fetch(apiUrl(`/motion/${encodeURIComponent(name)}`)).then(r => {
     if (!r.ok) return null;   // 404: this assembly has no motion, leave the bar hidden
     return r.json();
   }).then(doc => {
@@ -2619,7 +2631,7 @@ function build(spec) {
   if (!spec) { toast("select a spec first", true); return; }
   spinner.style.display = "block";
   const t0 = performance.now();
-  fetch("/api/build", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ spec }) })
+  fetch(apiUrl("/build"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ spec }) })
     .then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.error || "build failed"); return d; })
     .then(d => {
       renderModelList(d.models); const first = (d.built || [])[0]; if (first) selectModel(first);
@@ -2647,7 +2659,7 @@ function removeModel(name) {
   // No confirmation prompt: delete is cheap and reversible (rebuild from the spec), and the
   // toast reports what happened. The delete action only appears on row hover, so it is hard
   // to trigger by accident.
-  fetch("/api/models/" + encodeURIComponent(name) + "/delete", { method: "POST" })
+  fetch(apiUrl("/models/" + encodeURIComponent(name) + "/delete"), { method: "POST" })
     .then(r => r.json())
     .then(d => { if (activeModel === name) { activeModel = null; clearActive("parts"); clearModel(); } renderModelList(d.models); toast("deleted " + name); })
     .catch(() => toast("could not delete " + name, true));
@@ -2744,7 +2756,9 @@ if (viewMode === "assemblies") {
 } else {
   refreshModels().then(models => {
     if (!models || !models.length) return;
-    const requested = decodeURIComponent(location.pathname.replace(/^\//, ""));
+    // Deep link: /<model>.glb (stdlib ncad view) or /viewer/<model>.glb (ncad serve). Strip either
+    // leading prefix so the requested name resolves the same way under both servers.
+    const requested = decodeURIComponent(location.pathname.replace(/^\/viewer\//, "").replace(/^\//, ""));
     const names = models.map(m => m.name);
     const initial = bootModel(names, "parts", requested);
     if (initial) selectModel(initial);
