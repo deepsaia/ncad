@@ -180,13 +180,19 @@ definitions {
     }
   }
 
-  # A named mate connector: a coordinate frame derived from a geometry reference.
+  # A named mate connector: a coordinate frame from a geometry reference (`at`, a selector /
+  # persistent name) OR from explicit local coordinates (`at_point` + optional `axis`, the terse
+  # datum-like form that avoids face selection). One of `at` / `at_point` is required (enforced by
+  # the resolver).
   connector {
     type = object
-    required = ["id", "at"]
+    required = ["id"]
     properties {
       id { type = string }
       at { type = string }
+      at_point = ${definitions.vec3}
+      axis = ${definitions.vec3}
+      radius { type = number }
       offset = ${definitions.vec3}
       primary { type = string }
       secondary = ${definitions.vec3}
