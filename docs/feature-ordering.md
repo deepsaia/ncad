@@ -368,6 +368,24 @@ compose time), then its solved instances are re-parented under the parent placem
   sub-assembly reference"), not infinitely recursed; a child that fails to solve surfaces its issue
   namespaced `parentId/childId` and the parent still writes.
 
+### 15. A motion driver sweeps from a NON-NEGATIVE start; a coupling co-solves as a secondary (6.2)
+
+A `.motion.hocon` driver ramps its joint from `from` to `to`. Start the sweep at a non-negative
+value (`from = 0`): pre-rotating the whole mechanism to a negative rest angle before the first solve
+step can leave OndselSolver unable to converge, and the entire trajectory comes back FROZEN (every
+frame equals the rest pose) rather than erroring. To centre a mechanism's travel, do it in the
+GEOMETRY (a longer rack, the rest position of the driven part), not by starting the driver negative.
+
+A `coupling` (gear/belt/rack_pinion/cam) is enforced as a SECONDARY prescribed motion on the coupled
+joint, co-solved alongside the primary driver. The coupling's `between[0]` MUST be the joint the
+driver drives (the primary); `between[1]` is the derived joint. A coupling whose primary is not the
+driven joint is skipped with an id-attributed issue, and the primary motion still solves.
+
+- **Failure mode:** a negative-start driver yields a frozen trajectory (constant placements, no
+  error); the fix is `from = 0` + geometric centring. A cam/rack profile placed at the exact
+  tangent with no backlash/phase interpenetrates at rest (interference volume > 0); clock the teeth
+  (`phase`) + add `backlash`, and seat a follower on the base circle, not proud of it.
+
 ---
 
 ## How to work when order bites you
