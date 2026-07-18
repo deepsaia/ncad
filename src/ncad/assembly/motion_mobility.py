@@ -30,16 +30,20 @@ _DEFAULT_CONSTRAINT = 2
 class MotionMobility:
     """Computes the planar Gruebler mobility and pairs it with the solver's free DoF."""
 
-    def report(self, joints: list[dict], instance_count: int, solver_dof: int) -> dict:
+    def report(self, joints: list[dict], instance_count: int, solver_dof: int,
+               coupling_count: int = 0) -> dict:
         """Return {gruebler, solver, status} for a planar mechanism.
 
         :param joints: the assembly joints (each a dict with a ``type``).
         :param instance_count: number of links INCLUDING ground.
         :param solver_dof: the static assembly solve's rest-pose free DoF (0 for a well-constrained
             rest; reported for context, NOT the mobility).
+        :param coupling_count: number of couplings (gear/belt/rack_pinion/cam). Each is a HIGHER
+            pair / one scalar constraint relating two joints' DoF, so it removes 1 planar DoF (a cam
+            contact, a gear ratio). Without this a coupled 2-joint chain reads as 2-DoF, not 1.
         """
         removed = sum(_PLANAR_CONSTRAINTS.get(j.get("type") or "", _DEFAULT_CONSTRAINT)
                       for j in joints)
-        gruebler = 3 * max(instance_count - 1, 0) - removed
+        gruebler = 3 * max(instance_count - 1, 0) - removed - coupling_count
         status = "mobile" if gruebler >= 1 else "locked"
         return {"gruebler": gruebler, "solver": solver_dof, "status": status}
