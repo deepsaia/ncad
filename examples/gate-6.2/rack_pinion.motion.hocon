@@ -1,10 +1,11 @@
 schema_version = 1
-# A motion study driving the rack-and-pinion. The pinion angle is the driver; the `rack_pinion`
-# coupling turns it into the rack's prescribed SLIDE (travel = pitch_r * angle), so a half pinion
-# revolution advances the rack by pi*27 ~= 84.8 mm. A 6.1 `coordinate` measure reports the rack's
-# world-X travel, which should track pitch_r * pinion_angle.
+# A motion study driving the rack-and-pinion. The pinion turns a half revolution (0 -> 180 deg); the
+# `rack_pinion` coupling turns that into the rack's prescribed SLIDE (travel = pitch_r * angle), so
+# the rack advances pi*27 ~= 84.8 mm. The rack is long (26 teeth ~= 245 mm) and its rest position is
+# set (guide x) so the pinion stays meshed across the whole 84.8 mm slide rather than running off an
+# end. A 6.1 `coordinate` measure reports the rack's world-X travel (tracks pitch_r * pinion_angle).
 metadata {
-  description = "Rack-and-pinion motion study: drive the pinion, rack advances by pitch_r * angle"
+  description = "Rack-and-pinion motion study: pinion turns 180 deg, rack advances ~84.8 mm meshed"
   tags = [ rack_pinion, motion ]
 }
 motion {

@@ -47,7 +47,7 @@ parts {
     features = [
       { id = sk, op = sketch, plane = XY, plane_offset = -4,
         entities = [
-          { id = teeth, type = involute_gear, module = 3, teeth = 10, pressure_angle = 20,
+          { id = teeth, type = involute_gear, module = 3, teeth = 26, pressure_angle = 20,
             gear_type = rack, backlash = 0.4 }
         ] }
       { id = strip, op = extrude, profile = sk, distance = 8 }
@@ -58,15 +58,15 @@ parts {
   stand { profile = solid, material = steel_1018,
     connectors = [
       { id = pinionBearing, at_point = [ 0, 0, 0 ], axis = [ 0, 0, 1 ] }
-      { id = guide, at_point = [ -5, -27, 0 ], axis = [ 1, 0, 0 ] }
+      { id = guide, at_point = [ -127.5, -27, 0 ], axis = [ 1, 0, 0 ] }
     ],
     features = [
-      { id = base, op = primitive, kind = box, w = 220, d = 30, h = 8, plane = XY,
-        plane_offset = -16, at = [ -80, -66 ] }
+      { id = base, op = primitive, kind = box, w = 360, d = 30, h = 8, plane = XY,
+        plane_offset = -16, at = [ -185, -66 ] }
       { id = post, op = primitive, kind = cylinder, d = 24, h = 12, plane = XY,
         plane_offset = -16, at = [ 0, 0 ] }
-      { id = rail, op = primitive, kind = box, w = 220, d = 8, h = 8, plane = XY,
-        plane_offset = -16, at = [ -80, -42 ] }
+      { id = rail, op = primitive, kind = box, w = 360, d = 8, h = 8, plane = XY,
+        plane_offset = -16, at = [ -185, -42 ] }
       { id = s1, op = boolean, operation = union, target = base, tool = post }
       { id = frame, op = boolean, operation = union, target = s1, tool = rail }
       { id = bore, op = primitive, kind = cylinder, d = 14.6, h = 16, plane = XY,

@@ -644,6 +644,8 @@
         <button id="motion-faster" class="motion-step" title="Faster ( ] )" aria-label="Faster">
           <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z"/></svg>
         </button>
+        <button id="motion-loop" class="motion-step" title="Loop mode: loop / bounce ( L )"
+          aria-label="Loop mode"></button>
       </div>
       <span id="motion-speed-readout" title="Playback speed (replay only; does not re-solve)">1x</span>
       <input id="motion-scrub" type="range" min="0" max="0" value="0" step="1" aria-label="Motion frame">
@@ -2494,6 +2496,11 @@ let motionNodes = {};      // instanceId -> node for the active motion
 let motionFrame = 0;       // current frame index
 let motionPlaying = false;
 let motionAccum = 0;       // ms accumulated toward the next frame
+// Loop mode: "loop" restarts at frame 0 each cycle (the default); "bounce" ping-pongs forward then
+// reverse, so a one-way stroke (a rack sliding, a follower rising) reads as a seamless there-and-
+// back loop in the recorded video. `motionDir` is the current step direction under bounce.
+let motionLoopMode = localStorage.getItem("ncad.motionLoop") || "loop";
+let motionDir = 1;
 // PLAYBACK RATE only (how fast you watch the same trajectory); it never re-solves. Solve resolution
 // is the motion document's driver `steps` (or `fps`+`duration`). 1x = 30 fps (a 1/30 s frame
 // interval); the ladder multiplies that rate. Beyond ~2x the ~60 fps render loop advances several
@@ -2526,6 +2533,25 @@ function setMotionSpeedIdx(i) {
 motionSlowerBtn.addEventListener("click", () => setMotionSpeedIdx(motionSpeedIdx - 1));
 motionFasterBtn.addEventListener("click", () => setMotionSpeedIdx(motionSpeedIdx + 1));
 renderMotionSpeed();
+
+// Loop-mode toggle (loop <-> bounce). Bounce plays forward then reverse for a seamless video loop.
+const motionLoopBtn = document.getElementById("motion-loop");
+const LOOP_ICON = '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46A7.93 7.93 0 0 0 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74A7.93 7.93 0 0 0 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>';
+const BOUNCE_ICON = '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M8 7l-5 5 5 5v-3h8v3l5-5-5-5v3H8z"/></svg>';
+function renderLoopMode() {
+  motionLoopBtn.innerHTML = motionLoopMode === "bounce" ? BOUNCE_ICON : LOOP_ICON;
+  motionLoopBtn.classList.toggle("active", motionLoopMode === "bounce");
+  motionLoopBtn.title = motionLoopMode === "bounce"
+    ? "Bounce: forward then reverse ( L )" : "Loop: restart each cycle ( L )";
+}
+function toggleLoopMode() {
+  motionLoopMode = motionLoopMode === "bounce" ? "loop" : "bounce";
+  motionDir = 1;   // restart the direction so a fresh bounce goes forward first
+  localStorage.setItem("ncad.motionLoop", motionLoopMode);
+  renderLoopMode();
+}
+motionLoopBtn.addEventListener("click", toggleLoopMode);
+renderLoopMode();
 // "[" slower, "]" faster - only when a motion is loaded and the user is not typing in a field.
 document.addEventListener("keydown", ev => {
   if (motionBar.hidden) return;
@@ -2537,6 +2563,8 @@ document.addEventListener("keydown", ev => {
   else if (ev.key === "p" || ev.key === "P" || ev.key === " ") {
     toggleMotionPlay(); ev.preventDefault();
   }
+  // L toggles the loop mode (loop <-> bounce).
+  else if (ev.key === "l" || ev.key === "L") { toggleLoopMode(); ev.preventDefault(); }
 });
 
 function resetMotion() {
@@ -2685,8 +2713,20 @@ function advanceMotion(dtMs) {
   const frameMs = motionFrameMs();
   while (motionAccum >= frameMs) {
     motionAccum -= frameMs;
-    showMotionFrame(motionFrame + 1);   // loops via showMotionFrame's modulo
+    stepMotion();
   }
+}
+
+function stepMotion() {
+  // Loop mode wraps forward (modulo). Bounce mode ping-pongs: step by motionDir and flip direction
+  // at either end so the trajectory plays forward then reverse (a there-and-back loop for video).
+  const last = motion.frames.length - 1;
+  if (motionLoopMode !== "bounce") { showMotionFrame(motionFrame + 1); return; }
+  let next = motionFrame + motionDir;
+  if (next > last) { motionDir = -1; next = last - 1; }
+  else if (next < 0) { motionDir = 1; next = 1; }
+  if (next < 0) next = 0;   // a single-frame trajectory stays put
+  showMotionFrame(next);
 }
 
 motionPlayBtn.addEventListener("click", toggleMotionPlay);
