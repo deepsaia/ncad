@@ -426,10 +426,10 @@
     color: var(--muted); background: transparent; border: 1px dashed var(--muted);
     display: inline-block; }
 
-  /* --- Orientation gizmo (top-right of the viewport). 128px matches the ViewHelper's
-     fixed draw size; non-interactive (orientation readout only). --- */
+  /* --- Orientation ViewCube (top-right of the viewport), 128px. Interactive: click a face/edge/
+     corner to snap the camera to that view, so it must receive pointer events. --- */
   #gizmo { position: absolute; top: 10px; right: 10px; width: 128px; height: 128px;
-    pointer-events: none; z-index: 5; }
+    pointer-events: auto; z-index: 5; }
 
   /* --- Info readout (sidebar footer) --- */
   #info { font-size: 12px; color: var(--muted); line-height: 1.8;
@@ -680,7 +680,6 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { TrackballControls } from "three/addons/controls/TrackballControls.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import { ViewHelper } from "three/addons/helpers/ViewHelper.js";
 
 const stage = document.getElementById("stage");
 const spinner = document.getElementById("spinner");
@@ -782,25 +781,142 @@ function setOrientationMode(mode) {
 
 setOrientationMode("axis");
 
-// --- Orientation gizmo (Blender-style ViewHelper), labeled in CAD Z-up ---
-// The scene is now Z-up (the loaded model is rotated into part space), so the ViewHelper's
-// world-axis labels X/Y/Z read as the part's authored axes directly, no proxy-camera
-// compensation. The gizmo camera simply mirrors the main camera.
+// --- Orientation ViewCube (Creo/NX/Fusion/Blender style), labeled in CAD Z-up ---
+// An interactive cube in its own overlay canvas: 26 pickable cells (6 faces + 12 edges + 8
+// corners) laid out as a 3x3x3 grid minus the center. Each cell carries a world-space direction;
+// clicking it tweens the main camera to look FROM that direction (a face -> orthographic view,
+// an edge -> edge-on, a corner -> isometric). Faces are labeled in the Z-up CAD convention:
+// +Z TOP, -Z BOTTOM, +X RIGHT, -X LEFT, -Y FRONT, +Y BACK. The cube is axis-aligned and static;
+// the gizmo camera mirrors the main view so the cube tumbles exactly with the model.
 const gizmoDiv = document.getElementById("gizmo");
 const gizmoRenderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
 gizmoRenderer.setPixelRatio(window.devicePixelRatio);
 gizmoRenderer.setSize(128, 128);
 gizmoRenderer.setClearColor(0x000000, 0);
 gizmoDiv.appendChild(gizmoRenderer.domElement);
-const gizmoCamera = new THREE.PerspectiveCamera(45, 1, 0.1, 10);
-const viewHelper = new ViewHelper(gizmoCamera, gizmoRenderer.domElement);
+const cubeScene = new THREE.Scene();
+const cubeCam = new THREE.OrthographicCamera(-1.7, 1.7, 1.7, -1.7, 0.1, 20);
+cubeScene.add(new THREE.HemisphereLight(0xffffff, 0x888c94, 1.1));
+const cubeKey = new THREE.DirectionalLight(0xffffff, 0.55); cubeKey.position.set(3, 5, 8);
+cubeScene.add(cubeKey);
+
+// Face labels by outward direction, and the BoxGeometry material-group index of that outward face
+// (group order is +X, -X, +Y, -Y, +Z, -Z).
+const CUBE_FACES = [
+  { dir: [1, 0, 0], label: "RIGHT", group: 0 },
+  { dir: [-1, 0, 0], label: "LEFT", group: 1 },
+  { dir: [0, 1, 0], label: "BACK", group: 2 },
+  { dir: [0, -1, 0], label: "FRONT", group: 3 },
+  { dir: [0, 0, 1], label: "TOP", group: 4 },
+  { dir: [0, 0, -1], label: "BOTTOM", group: 5 },
+];
+
+function cubeLabelTexture(text) {
+  const c = document.createElement("canvas"); c.width = c.height = 128;
+  const ctx = c.getContext("2d");
+  ctx.fillStyle = "#e9eef4"; ctx.fillRect(0, 0, 128, 128);
+  ctx.strokeStyle = "#9aa6b4"; ctx.lineWidth = 5; ctx.strokeRect(4, 4, 120, 120);
+  ctx.fillStyle = "#33414f"; ctx.font = "bold 22px sans-serif";
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.fillText(text, 64, 66);
+  const tex = new THREE.CanvasTexture(c); tex.anisotropy = 4;
+  return tex;
+}
+
+const _cubePlain = () => new THREE.MeshStandardMaterial({ color: 0xcfd6de, metalness: 0.0,
+  roughness: 0.9 });
+const cubeCells = [];   // pickable meshes, each userData.dir (world direction) + .baseMats
+const CUBE_STEP = 0.68, CUBE_CELL = 0.6;
+for (let i = -1; i <= 1; i++) {
+  for (let j = -1; j <= 1; j++) {
+    for (let k = -1; k <= 1; k++) {
+      if (i === 0 && j === 0 && k === 0) continue;   // no center cell
+      const mats = [0, 1, 2, 3, 4, 5].map(_cubePlain);
+      // Label a FACE cell (exactly one axis nonzero) on its outward group.
+      const nonzero = [i, j, k].filter(v => v !== 0).length;
+      if (nonzero === 1) {
+        const face = CUBE_FACES.find(f => f.dir[0] === i && f.dir[1] === j && f.dir[2] === k);
+        mats[face.group] = new THREE.MeshStandardMaterial({ map: cubeLabelTexture(face.label),
+          metalness: 0.0, roughness: 0.85 });
+      }
+      const cell = new THREE.Mesh(new THREE.BoxGeometry(CUBE_CELL, CUBE_CELL, CUBE_CELL), mats);
+      cell.position.set(i * CUBE_STEP, j * CUBE_STEP, k * CUBE_STEP);
+      cell.userData.dir = new THREE.Vector3(i, j, k).normalize();
+      cell.userData.baseMats = mats;
+      cubeScene.add(cell);
+      cubeCells.push(cell);
+    }
+  }
+}
 
 function renderGizmo() {
-  // Mirror the main camera's direction/orientation so the gizmo tumbles with the view.
-  gizmoCamera.position.copy(camera.position).sub(controls.target).setLength(3);
-  gizmoCamera.quaternion.copy(camera.quaternion);
-  gizmoCamera.up.copy(camera.up);
-  viewHelper.render(gizmoRenderer);
+  // Mirror the main camera: look at the cube's origin from the same direction + up as the main
+  // view, so the cube's orientation always matches the model on screen.
+  const dir = camera.position.clone().sub(controls.target);
+  if (dir.lengthSq() < 1e-9) dir.set(0, -1, 0);
+  cubeCam.position.copy(dir).setLength(8);
+  cubeCam.up.copy(camera.up);
+  cubeCam.lookAt(0, 0, 0);
+  gizmoRenderer.render(cubeScene, cubeCam);
+}
+
+// Hover highlight + click-to-orient on the cube canvas.
+const cubeRay = new THREE.Raycaster();
+let cubeHovered = null;
+function cubeCellAt(ev) {
+  const rect = gizmoRenderer.domElement.getBoundingClientRect();
+  const p = new THREE.Vector2(((ev.clientX - rect.left) / rect.width) * 2 - 1,
+                              -((ev.clientY - rect.top) / rect.height) * 2 + 1);
+  cubeRay.setFromCamera(p, cubeCam);
+  const hits = cubeRay.intersectObjects(cubeCells, false);
+  return hits.length ? hits[0].object : null;
+}
+function setCubeHover(cell) {
+  if (cubeHovered === cell) return;
+  if (cubeHovered) cubeHovered.material = cubeHovered.userData.baseMats;
+  cubeHovered = cell;
+  gizmoRenderer.domElement.style.cursor = cell ? "pointer" : "default";
+  if (cell) {
+    // A translucent blue overlay material on all 6 sides signals the hovered cell.
+    cell.material = cell.userData.baseMats.map(() => new THREE.MeshStandardMaterial({
+      color: 0x5aa0ff, metalness: 0.0, roughness: 0.6, emissive: 0x1b3c66 }));
+  }
+}
+gizmoRenderer.domElement.addEventListener("pointermove", ev => setCubeHover(cubeCellAt(ev)));
+gizmoRenderer.domElement.addEventListener("pointerleave", () => setCubeHover(null));
+gizmoRenderer.domElement.addEventListener("click", ev => {
+  const cell = cubeCellAt(ev);
+  if (cell) orientCameraTo(cell.userData.dir);
+});
+
+// Tween the main camera to look FROM `dir` (world), keeping the current orbit distance + target.
+// Spherical interpolation around the target so the camera arcs smoothly. Up is Z, except a
+// top/bottom view (dir ~ +/-Z) uses Y so the view is not gimbal-degenerate.
+let _orientToken = 0;
+function orientCameraTo(dir) {
+  const target = controls.target.clone();
+  const dist = camera.position.distanceTo(target);
+  const endDir = dir.clone().normalize();
+  const startDir = camera.position.clone().sub(target).normalize();
+  const up = Math.abs(endDir.z) > 0.9 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(0, 0, 1);
+  // Axis mode locks world-up; free mode (Trackball) tumbles camera.up, so snapping should restore
+  // a sane up too. Set it up front so OrbitControls' math is consistent through the tween.
+  camera.up.copy(up);
+  const q = new THREE.Quaternion().setFromUnitVectors(startDir, endDir);
+  const ident = new THREE.Quaternion();
+  const token = ++_orientToken;
+  const start = performance.now(), DUR = 320;
+  (function step(now) {
+    if (token !== _orientToken) return;   // superseded by a newer click
+    const t = Math.min((now - start) / DUR, 1);
+    const e = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;  // easeInOutCubic
+    const partial = new THREE.Quaternion().slerpQuaternions(ident, q, e);
+    const d = startDir.clone().applyQuaternion(partial).multiplyScalar(dist);
+    camera.position.copy(target).add(d);
+    camera.up.copy(up);
+    controls.update();
+    if (t < 1) requestAnimationFrame(step);
+  })(start);
 }
 
 // Face picking: raycast against the model's mesh parts. build123d exports one glTF
@@ -838,14 +954,21 @@ renderer.domElement.addEventListener("click", ev => {
   }
 });
 
-// Ambient base, always on; the rig below provides the directional/spot character.
+// Ambient base, always on; the rig below provides the directional/spot character. The world is
+// Z-UP (ground in XY), so a HemisphereLight's sky/ground axis must point up +Z (its default is
+// +Y); position (0,0,1) reorients its gradient so "sky" is overhead, not sideways.
 const ambient = new THREE.HemisphereLight(0xffffff, 0x2a3340, 0.45);
+ambient.position.set(0, 0, 1);
 scene.add(ambient);
 
 // A swappable light rig. Each preset clears and rebuilds `lightRig`.
 const lightRig = new THREE.Group();
 scene.add(lightRig);
 
+// IMPORTANT: this scene is Z-UP (the ground plane lies in XY). Every light's HEIGHT is therefore
+// on +Z, not +Y. Authoring positions with +Y as "up" (the old Y-up rig) put the key light in the
+// ground plane, which raked light sideways (leaving tall vertical faces near-black) and cast the
+// directional shadow sideways across the floor as long streaks. Keep lights high on +Z.
 function makeShadowCaster(light) {
   light.castShadow = true;
   light.shadow.mapSize.set(2048, 2048);
@@ -857,44 +980,45 @@ function makeShadowCaster(light) {
 
 const LIGHT_PRESETS = {
   sun() {
-    ambient.intensity = 0.45;
-    const key = makeShadowCaster(new THREE.DirectionalLight(0xfff4e6, 2.2));
-    key.position.set(12, 20, 8);
-    const fill = new THREE.DirectionalLight(0x9fc7ff, 0.45); fill.position.set(-10, 6, -8);
+    ambient.intensity = 0.55;
+    const key = makeShadowCaster(new THREE.DirectionalLight(0xfff4e6, 2.0));
+    key.position.set(14, -10, 24);   // high on +Z, from the camera's front-right
+    // A fill from the opposite, still-elevated side so no large vertical face goes black.
+    const fill = new THREE.DirectionalLight(0x9fc7ff, 0.7); fill.position.set(-14, 12, 10);
     return [key, fill];
   },
   natural() {
-    // Even, all-around illumination with no harsh single source. Directionals ring the
-    // model from four sides AND from below, plus a bright hemisphere and strong ambient,
-    // so the underside is lit too (a top-only rig leaves the bottom dark).
+    // Even, all-around illumination with no harsh single source. Directionals ring the model from
+    // four sides AND from below (-Z), plus a bright hemisphere and strong ambient, so the underside
+    // is lit too (a top-only rig leaves the bottom dark). All heights are on +Z.
     ambient.intensity = 0.85;
     const hemi = new THREE.HemisphereLight(0xeaf4ff, 0xb8c2d0, 1.0);
-    hemi.position.set(0, 20, 0);
+    hemi.position.set(0, 0, 1);
     const top = makeShadowCaster(new THREE.DirectionalLight(0xffffff, 0.7));
-    top.position.set(8, 20, 10);
-    const left = new THREE.DirectionalLight(0xffffff, 0.4); left.position.set(-16, 6, 0);
-    const right = new THREE.DirectionalLight(0xffffff, 0.4); right.position.set(16, 6, 0);
-    const back = new THREE.DirectionalLight(0xffffff, 0.4); back.position.set(0, 6, -16);
-    const under = new THREE.DirectionalLight(0xffffff, 0.35); under.position.set(0, -14, 4);
+    top.position.set(8, -10, 24);
+    const left = new THREE.DirectionalLight(0xffffff, 0.4); left.position.set(-16, 0, 8);
+    const right = new THREE.DirectionalLight(0xffffff, 0.4); right.position.set(16, 0, 8);
+    const back = new THREE.DirectionalLight(0xffffff, 0.4); back.position.set(0, 16, 8);
+    const under = new THREE.DirectionalLight(0xffffff, 0.35); under.position.set(0, 4, -14);
     return [hemi, top, left, right, back, under];
   },
   studio() {
     ambient.intensity = 0.5;
-    const key = makeShadowCaster(new THREE.DirectionalLight(0xffffff, 1.5)); key.position.set(10, 14, 12);
-    const fill = new THREE.DirectionalLight(0xcfe0ff, 0.9); fill.position.set(-12, 8, 6);
-    const rim = new THREE.DirectionalLight(0xffffff, 1.1); rim.position.set(0, 10, -14);
+    const key = makeShadowCaster(new THREE.DirectionalLight(0xffffff, 1.5)); key.position.set(12, -10, 20);
+    const fill = new THREE.DirectionalLight(0xcfe0ff, 0.9); fill.position.set(-12, 6, 12);
+    const rim = new THREE.DirectionalLight(0xffffff, 1.1); rim.position.set(0, 14, 16);
     return [key, fill, rim];
   },
   spotlight() {
-    ambient.intensity = 0.2;
+    ambient.intensity = 0.25;
     const spot = makeShadowCaster(new THREE.SpotLight(0xffffff, 900, 0, Math.PI / 6, 0.4, 1.4));
-    spot.position.set(6, 26, 10);
+    spot.position.set(6, -4, 30);
     return [spot];
   },
   overcast() {
     ambient.intensity = 1.0;
     const soft = makeShadowCaster(new THREE.DirectionalLight(0xeaf0f6, 0.6));
-    soft.position.set(4, 24, 6);
+    soft.position.set(4, -6, 26);
     return [soft];
   },
 };
@@ -904,6 +1028,24 @@ function setLighting(name) {
   const preset = LIGHT_PRESETS[name] || LIGHT_PRESETS.sun;
   preset().forEach(l => { lightRig.add(l); if (l.target) lightRig.add(l.target); });
   localStorage.setItem("ncad.light", name);
+  if (modelRoot) fitShadowCameras();
+}
+
+// Size every shadow-casting light's ortho frustum to the current model so the fixed 2048 shadow
+// map spends its texels on the model (a frustum many times the model size gives coarse, streaky
+// shadows). Called from frameModel + setLighting. Uses the framed model radius; the model sits
+// centered at the origin lifted by half its height on +Z.
+let shadowRadius = 40;
+function fitShadowCameras() {
+  const extent = Math.max(shadowRadius, 1e-3);
+  lightRig.traverse(o => {
+    if (o.isLight && o.castShadow && o.shadow && o.shadow.camera.isOrthographicCamera) {
+      const c = o.shadow.camera;
+      c.left = -extent; c.right = extent; c.top = extent; c.bottom = -extent;
+      c.near = extent / 100; c.far = extent * 8;
+      c.updateProjectionMatrix();
+    }
+  });
 }
 
 const ground = new THREE.Mesh(
@@ -1316,6 +1458,11 @@ function frameModel() {
   camera.position.set(radius * 1.4, -radius * 1.6, radius * 1.05);
   camera.near = radius / 100; camera.far = radius * 50; camera.updateProjectionMatrix();
   controls.target.set(0, 0, half); controls.update();
+  // Fit the shadow frustum to the model so the shadow map is not spread thin over a huge area
+  // (which reads as coarse, streaky floor shadows). A little margin so a moving part's shadow
+  // (under motion the parts sweep a bit beyond the rest bbox) stays inside the frustum.
+  shadowRadius = radius * 1.6;
+  fitShadowCameras();
   // Size the world-origin marker to a fraction of the model extent so it reads as a small
   // reference at any scale. modelRoot is re-centered above, so the marker (at the scene origin)
   // sits under the model's center, marking where world (0,0,0) is for the current view.

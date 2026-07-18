@@ -21,7 +21,10 @@ metadata {
 parts {
   # Flywheel + crank: a disc (axis Z) at z -33..-23; a hub axle extends BACK to z -48 to seat in the
   # frame's bearing bore (a real rotating shaft, not a floating pin); a crank-pin boss bridges FORWARD
-  # to z=0 at radius 20 (the crank throw R). Spins about the hub axis; clears the frame for a full rev.
+  # to z=+7 at radius 20 (the crank throw R), long enough to pass fully through the rod's big eye
+  # (rod front at z=+3) so the rod reads as captured on the pin, not just touching it. Six lightening
+  # holes ring the disc at r=26 so the rotation is visible when it spins. Clears the frame for a full
+  # rev.
   flywheel { profile = solid, material = steel_4140,
     connectors = [
       { id = hub, at_point = [ 0, 0, 0 ], axis = [ 0, 0, 1 ] }
@@ -29,17 +32,35 @@ parts {
     ],
     features = [
       { id = disc, op = primitive, kind = cylinder, d = 72, h = 10, plane = XY, plane_offset = -33 }
-      { id = pinboss, op = primitive, kind = cylinder, d = 9, h = 33, plane = XY,
+      { id = pinboss, op = primitive, kind = cylinder, d = 9, h = 40, plane = XY,
         plane_offset = -33, at = [ 20, 0 ] }
       { id = hubaxle, op = primitive, kind = cylinder, d = 12, h = 25, plane = XY,
         plane_offset = -48, at = [ 0, 0 ] }
       { id = w1, op = boolean, operation = union, target = disc, tool = pinboss }
-      { id = whole, op = boolean, operation = union, target = w1, tool = hubaxle }
+      { id = spoked, op = boolean, operation = union, target = w1, tool = hubaxle }
+      { id = h1, op = primitive, kind = cylinder, d = 7, h = 12, plane = XY, plane_offset = -34,
+        at = [ 22.52, 13.0 ] }
+      { id = c1, op = boolean, operation = cut, target = spoked, tool = h1 }
+      { id = h2, op = primitive, kind = cylinder, d = 7, h = 12, plane = XY, plane_offset = -34,
+        at = [ 0, 26 ] }
+      { id = c2, op = boolean, operation = cut, target = c1, tool = h2 }
+      { id = h3, op = primitive, kind = cylinder, d = 7, h = 12, plane = XY, plane_offset = -34,
+        at = [ -22.52, 13.0 ] }
+      { id = c3, op = boolean, operation = cut, target = c2, tool = h3 }
+      { id = h4, op = primitive, kind = cylinder, d = 7, h = 12, plane = XY, plane_offset = -34,
+        at = [ -22.52, -13.0 ] }
+      { id = c4, op = boolean, operation = cut, target = c3, tool = h4 }
+      { id = h5, op = primitive, kind = cylinder, d = 7, h = 12, plane = XY, plane_offset = -34,
+        at = [ 0, -26 ] }
+      { id = c5, op = boolean, operation = cut, target = c4, tool = h5 }
+      { id = h6, op = primitive, kind = cylinder, d = 7, h = 12, plane = XY, plane_offset = -34,
+        at = [ 22.52, -13.0 ] }
+      { id = whole, op = boolean, operation = cut, target = c5, tool = h6 }
     ] }
   # Connecting rod: a diagonal bar from the crank pin (20,0) to the wrist (0,67), with a ring eye at
   # each end. The eyes are BORED (a through hole a touch larger than each pin) so the rod wraps its
   # pins with running clearance instead of overlapping them - the joints touch, they do not clash.
-  rod { profile = solid, material = steel_4140,
+  rod { profile = solid, material = bronze,
     connectors = [
       { id = big, at_point = [ 20, 0, 0 ], axis = [ 0, 0, 1 ] }
       { id = small, at_point = [ 0, 67, 0 ], axis = [ 0, 0, 1 ] }

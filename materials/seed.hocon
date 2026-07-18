@@ -17,6 +17,14 @@ steel_4140 {
   structural { youngs_modulus = 205e9, poisson = 0.29, yield = 655e6 }
   thermal { conductivity = 42.6, specific_heat = 473, melting_point = 1416 }
 }
+# Phosphor bronze, the classic connecting-rod / bushing bearing alloy. Carries a warm bronze
+# appearance color (r,g,b in 0..1) so it reads distinctly in the viewer + glTF/STEP export.
+bronze {
+  physical { density = 8800 }
+  structural { youngs_modulus = 110e9, poisson = 0.34, yield = 310e6 }
+  thermal { conductivity = 62, specific_heat = 380, melting_point = 950 }
+  appearance { color = [ 0.72, 0.45, 0.20 ] }
+}
 # American-spelling alias for aluminium_6061 (HOCON substitution: same object, both names
 # resolve). No duplication; edits to aluminium_6061 flow through.
 aluminum_6061 = ${aluminium_6061}
