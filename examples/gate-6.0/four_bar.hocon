@@ -1,0 +1,115 @@
+schema_version = 2
+units = mm
+# A four-bar linkage authored as a coarse PRIMITIVE BLOCKOUT (the motion authoring lane): each link
+# is a bar + two ring eyes, its mate points named by COORDINATE (at_point/axis), not by hunting
+# faces. The classic planar closed loop: ground pivots A=(0,0) and D=(90,0); a short input CRANK
+# (A->B, 30), a COUPLER (B->C, 80), and an output ROCKER (D->C, 60). Grashof crank-rocker
+# (shortest 30 + longest 90 = 120 <= 80 + 60 = 140), so the crank turns a FULL revolution while the
+# rocker sweeps a bounded ~60 deg arc. Rest pose (crank angle 0, B on +X): B=(30,0), C=(83.33,59.63).
+#
+# Layout (pins along Z; links z-layered so they nest, not clash):
+#   ground : base plate (z -16..-8) + two pins at A and D (d9) the crank/rocker eyes ride. Grounded.
+#   crank  : bar A->B on z 0..6.
+#   coupler: bar B->C on z 8..14 (a point on it traces the classic coupler curve).
+#   rocker : bar D->C on z 16..22.
+# Eyes are BORED (d9.4 > the d9 pins) so the joints touch with running clearance, never overlap.
+metadata {
+  description = "Four-bar linkage blockout: ground + crank + coupler + rocker (primitives)"
+  tags = [ four_bar, mechanism, blockout ]
+}
+parts {
+  # Ground frame: a base plate + a pin at each fixed pivot (A at origin, D at x=90). The A pin is
+  # short (through the crank eye at z 0..6); the D pin is tall (through the rocker eye at z 16..22).
+  ground { profile = solid, material = steel_1018,
+    connectors = [
+      { id = pivotA, at_point = [ 0, 0, 0 ], axis = [ 0, 0, 1 ] }
+      { id = pivotD, at_point = [ 90, 0, 0 ], axis = [ 0, 0, 1 ] }
+    ],
+    features = [
+      { id = base, op = primitive, kind = box, w = 120, d = 90, h = 8, plane = XY,
+        plane_offset = -16, at = [ -15, -25 ] }
+      { id = pinA, op = primitive, kind = cylinder, d = 9, h = 22, plane = XY, plane_offset = -16,
+        at = [ 0, 0 ] }
+      { id = pinD, op = primitive, kind = cylinder, d = 9, h = 40, plane = XY, plane_offset = -16,
+        at = [ 90, 0 ] }
+      { id = g1, op = boolean, operation = union, target = base, tool = pinA }
+      { id = whole, op = boolean, operation = union, target = g1, tool = pinD }
+    ] }
+  # Input crank: a short bar A(0,0) -> B(30,0) on z 0..6, with a bored eye at each end. Driven.
+  crank { profile = solid, material = steel_4140,
+    connectors = [
+      { id = groundPin, at_point = [ 0, 0, 0 ], axis = [ 0, 0, 1 ] }
+      { id = couplerPin, at_point = [ 30, 0, 0 ], axis = [ 0, 0, 1 ] }
+    ],
+    features = [
+      { id = bar, op = primitive, kind = box, w = 8, d = 30, h = 6, plane = XY, plane_offset = 0,
+        at = [ 0, 4 ], rotation = -90 }
+      { id = eyeA, op = primitive, kind = cylinder, d = 13, h = 6, plane = XY, plane_offset = 0,
+        at = [ 0, 0 ] }
+      { id = eyeB, op = primitive, kind = cylinder, d = 13, h = 6, plane = XY, plane_offset = 0,
+        at = [ 30, 0 ] }
+      { id = c1, op = boolean, operation = union, target = bar, tool = eyeA }
+      { id = solidcrank, op = boolean, operation = union, target = c1, tool = eyeB }
+      { id = boreA, op = primitive, kind = cylinder, d = 9.4, h = 8, plane = XY, plane_offset = -1,
+        at = [ 0, 0 ] }
+      { id = c2, op = boolean, operation = cut, target = solidcrank, tool = boreA }
+      { id = boreB, op = primitive, kind = cylinder, d = 9.4, h = 8, plane = XY, plane_offset = -1,
+        at = [ 30, 0 ] }
+      { id = bored, op = boolean, operation = cut, target = c2, tool = boreB }
+      # A pin at B rises through the coupler's eye (z 8..14) so the crank-coupler joint reads as a
+      # real pinned connection, not two eyes floating with a Z gap. d9 < the coupler bore d9.4.
+      { id = pinB, op = primitive, kind = cylinder, d = 9, h = 16, plane = XY, plane_offset = 0,
+        at = [ 30, 0 ] }
+      { id = whole, op = boolean, operation = union, target = bored, tool = pinB }
+    ] }
+  # Coupler: the floating link B(30,0) -> C(83.33,59.63) on z 8..14; a point on it traces the
+  # classic coupler curve. Diagonal bar (length 80, rotation -41.81) + bored eyes at both ends.
+  coupler { profile = solid, material = bronze,
+    connectors = [
+      { id = crankPin, at_point = [ 30, 0, 0 ], axis = [ 0, 0, 1 ] }
+      { id = rockerPin, at_point = [ 83.333, 59.628, 0 ], axis = [ 0, 0, 1 ] }
+    ],
+    features = [
+      { id = bar, op = primitive, kind = box, w = 8, d = 80, h = 6, plane = XY, plane_offset = 8,
+        at = [ 27.019, 2.667 ], rotation = -41.81 }
+      { id = eyeB, op = primitive, kind = cylinder, d = 13, h = 6, plane = XY, plane_offset = 8,
+        at = [ 30, 0 ] }
+      { id = eyeC, op = primitive, kind = cylinder, d = 13, h = 6, plane = XY, plane_offset = 8,
+        at = [ 83.333, 59.628 ] }
+      { id = k1, op = boolean, operation = union, target = bar, tool = eyeB }
+      { id = solidcoupler, op = boolean, operation = union, target = k1, tool = eyeC }
+      { id = boreB, op = primitive, kind = cylinder, d = 9.4, h = 8, plane = XY, plane_offset = 7,
+        at = [ 30, 0 ] }
+      { id = k2, op = boolean, operation = cut, target = solidcoupler, tool = boreB }
+      { id = boreC, op = primitive, kind = cylinder, d = 9.4, h = 8, plane = XY, plane_offset = 7,
+        at = [ 83.333, 59.628 ] }
+      { id = bored, op = boolean, operation = cut, target = k2, tool = boreC }
+      # A pin at C rises through the rocker's eye (z 16..22) so the coupler-rocker joint reads as a
+      # real pinned connection. d9 < the rocker bore d9.4; spans z 8..24 (up past the rocker).
+      { id = pinC, op = primitive, kind = cylinder, d = 9, h = 16, plane = XY, plane_offset = 8,
+        at = [ 83.333, 59.628 ] }
+      { id = whole, op = boolean, operation = union, target = bored, tool = pinC }
+    ] }
+  # Output rocker: D(90,0) -> C(83.33,59.63) on z 16..22; swings a bounded arc as the crank turns.
+  # Diagonal bar (length 60, rotation 6.38) + bored eyes at both ends.
+  rocker { profile = solid, material = steel_4140,
+    connectors = [
+      { id = groundPin, at_point = [ 90, 0, 0 ], axis = [ 0, 0, 1 ] }
+      { id = couplerPin, at_point = [ 83.333, 59.628, 0 ], axis = [ 0, 0, 1 ] }
+    ],
+    features = [
+      { id = bar, op = primitive, kind = box, w = 8, d = 60, h = 6, plane = XY, plane_offset = 16,
+        at = [ 86.025, -0.444 ], rotation = 6.38 }
+      { id = eyeD, op = primitive, kind = cylinder, d = 13, h = 6, plane = XY, plane_offset = 16,
+        at = [ 90, 0 ] }
+      { id = eyeC, op = primitive, kind = cylinder, d = 13, h = 6, plane = XY, plane_offset = 16,
+        at = [ 83.333, 59.628 ] }
+      { id = r1, op = boolean, operation = union, target = bar, tool = eyeD }
+      { id = solidrocker, op = boolean, operation = union, target = r1, tool = eyeC }
+      { id = boreD, op = primitive, kind = cylinder, d = 9.4, h = 8, plane = XY, plane_offset = 15,
+        at = [ 90, 0 ] }
+      { id = r2, op = boolean, operation = cut, target = solidrocker, tool = boreD }
+      { id = boreC, op = primitive, kind = cylinder, d = 9.4, h = 8, plane = XY, plane_offset = 15,
+        at = [ 83.333, 59.628 ] }
+      { id = whole, op = boolean, operation = cut, target = r2, tool = boreC }
+    ] } }
