@@ -30,8 +30,12 @@ from ncad.assembly.interference_checker import InterferenceChecker
 from ncad.assembly.joint_lowering import JointError, JointLowering
 from ncad.assembly.mate_lowering import MateError, MateLowering
 from ncad.assembly.mate_solver import MateSolver
+from ncad.assembly.measure_evaluator import MeasureEvaluator
 from ncad.assembly.motion_driver import MotionDriver, MotionParamError
+from ncad.assembly.motion_mobility import MotionMobility
+from ncad.assembly.motion_outputs_spec import MotionOutputsError, MotionOutputsSpec
 from ncad.assembly.sub_assembly_composer import SubAssemblyComposer
+from ncad.assembly.trace_extractor import TraceExtractor
 from ncad.build.document_builder import DocumentBuilder
 from ncad.build.mass_calculator import MassCalculator
 from ncad.build.material_error import MaterialError
@@ -143,7 +147,7 @@ class AssemblyBuilder:
         # OndselSolver multibody engine (via pyondsel) and write a trajectory sidecar. Runs after
         # the static solve (rest pose). Kinematic only (force dynamics -> Phase 14).
         motion_path = self._run_motion(motion_spec, document, name, out_dir, asm_dir, local_frames,
-                                       placements_mm, builders, to_metres, issues)
+                                       placements_mm, builders, to_metres, solve_block, issues)
         # Analysis over the solved assembly (bucket 5.6): interference + BOM + roll-up mass +
         # structured STEP. Guarded so a failure is an id-attributed issue and the sidecar still
         # writes (without the analysis blocks) rather than aborting the whole assemble.
@@ -325,7 +329,7 @@ class AssemblyBuilder:
 
     def _run_motion(self, motion_spec: dict | None, document: dict, name: str, out_dir: str,
                     asm_dir: str, local_frames: dict, placements_mm: dict, builders: dict,
-                    to_metres: float, issues: list) -> str | None:
+                    to_metres: float, solve_block: dict, issues: list) -> str | None:
         """Solve a driven mechanism over the motion study's values; write <name>.motion.json.
 
         Exports the assembly (parts with REAL mass/inertia, connector markers, joints, the driver)
@@ -371,12 +375,40 @@ class AssemblyBuilder:
             return None
         frames = AsmtTrajectoryMapper().to_frames(trajectory, name, instances, placements_mm,
                                                   values, to_metres)
+        # Motion outputs (bucket 6.1): traces (a point's world path), measures over time, and the
+        # mobility (DoF) report. Pure post-processing over the trajectory (no re-solve). Optional +
+        # additive: an absent/malformed `outputs` block yields no traces/measures (the trajectory
+        # still writes), so a motion doc without outputs is unchanged. The DoF report is always
+        # emitted (a cheap legibility line off the joint graph + the static solve's free DoF).
+        traces, measures = self._motion_outputs(motion, local_frames, frames, to_metres, issues)
+        dof = MotionMobility().report(joints, len(instances), int(solve_block.get("dof", 0)))
         path = os.path.join(out_dir, f"{name}.motion.json")
         with open(path, "w", encoding="utf-8") as handle:
-            json.dump({"schema_version": 1, "name": name,
-                       "driver": motion["driver"], "frames": frames}, handle)
-        logger.info("assembly motion: joint=%s frames=%d out=%s", joint_id, len(frames), path)
+            json.dump({"schema_version": 2, "name": name, "driver": motion["driver"],
+                       "frames": frames, "traces": traces, "measures": measures, "dof": dof},
+                      handle)
+        logger.info("assembly motion: joint=%s frames=%d traces=%d measures=%d out=%s",
+                    joint_id, len(frames), len(traces), len(measures), path)
         return path
+
+    def _motion_outputs(self, motion: dict, local_frames: dict, frames: list, to_metres: float,
+                        issues: list) -> tuple[list, list]:
+        """Parse the motion study's `outputs` block and extract traces + measures (or empty).
+
+        A malformed outputs block is an id-attributed issue; the trajectory still writes with no
+        traces/measures. Returns ([], []) when there is no outputs block.
+        """
+        outputs = motion.get("outputs")
+        if not isinstance(outputs, dict):
+            return [], []
+        try:
+            trace_specs, measure_specs = MotionOutputsSpec().parse(outputs)
+        except MotionOutputsError as exc:
+            issues.append({"message": f"motion outputs: {exc}"})
+            return [], []
+        traces = TraceExtractor().extract(trace_specs, frames, local_frames, to_metres)
+        measures = MeasureEvaluator().evaluate(measure_specs, frames, local_frames, to_metres)
+        return traces, measures
 
     def _motion_ground_ids(self, document: dict, placements_mm: dict) -> set:
         """Instances that stay fixed during motion: the first placed instance + any lock:true one.
