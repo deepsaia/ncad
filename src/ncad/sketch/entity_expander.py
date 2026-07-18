@@ -117,7 +117,8 @@ class EntityExpander:
             gear_type=entity.get("gear_type", "external"),
             profile_shift=float(entity.get("profile_shift", 0.0)),
             backlash=float(entity.get("backlash", 0.0)),
-            length=float(entity.get("length", 0.0)))
+            length=float(entity.get("length", 0.0)),
+            phase=float(entity.get("phase", 0.0)))
         cx, cy = _seed_of(by_id, entity["center"]) if entity.get("center") else (0.0, 0.0)
         outline = profile.outline()
         n = len(outline)

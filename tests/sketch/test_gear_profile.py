@@ -139,6 +139,22 @@ def test_rack_travel_per_radian_is_pitch_radius():
 
 
 # --- backlash (tooth thinning) -------------------------------------------------------------------
+def test_phase_clocks_the_teeth():
+    # Tooth phase (clocking) rotates the whole outline by `phase` degrees, so meshing gears in a
+    # train can be timed (a tooth of one sitting in the space of its mate). A half-pitch phase on a
+    # z=24 gear is 360/24/2 = 7.5 deg: every point rotates by that angle about the centre.
+    base = GearProfile(module=2.0, teeth=24, pressure_angle=20.0)
+    clocked = GearProfile(module=2.0, teeth=24, pressure_angle=20.0, phase=7.5)
+    a = base.outline()
+    b = clocked.outline()
+    assert len(a) == len(b)
+    rot = math.radians(7.5)
+    for (ax, ay), (bx, by) in zip(a, b):
+        want_x = ax * math.cos(rot) - ay * math.sin(rot)
+        want_y = ax * math.sin(rot) + ay * math.cos(rot)
+        assert math.isclose(bx, want_x, abs_tol=1e-9) and math.isclose(by, want_y, abs_tol=1e-9)
+
+
 def test_backlash_thins_the_tooth():
     # Backlash thins each tooth by reducing the tooth thickness; the tip arc of a backlashed gear
     # spans a smaller angle than the nominal gear (measured as fewer points reaching the tip, or a

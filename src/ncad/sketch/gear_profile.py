@@ -44,7 +44,7 @@ class GearProfile:
 
     def __init__(self, module: float, teeth: int, pressure_angle: float = 20.0,
                  gear_type: str = "external", profile_shift: float = 0.0,
-                 backlash: float = 0.0, length: float = 0.0) -> None:
+                 backlash: float = 0.0, length: float = 0.0, phase: float = 0.0) -> None:
         if not isinstance(module, (int, float)) or module <= 0:
             raise GearProfileError("gear module must be a positive number")
         if gear_type not in _GEAR_TYPES:
@@ -59,12 +59,15 @@ class GearProfile:
             raise GearProfileError("gear profile_shift must be a number")
         if not isinstance(backlash, (int, float)) or backlash < 0:
             raise GearProfileError("gear backlash must be a non-negative number")
+        if not isinstance(phase, (int, float)):
+            raise GearProfileError("gear phase must be a number (degrees)")
         self._m = float(module)
         self._z = int(teeth)
         self._alpha = math.radians(float(pressure_angle))
         self._type = gear_type
         self._x = float(profile_shift)
         self._backlash = float(backlash)
+        self._phase = math.radians(float(phase))
         self._length = float(length) if length else self._z * math.pi * self._m
 
     @property
@@ -166,7 +169,7 @@ class GearProfile:
         flank_offset = half_tooth + inv_alpha
         points: list[list[float]] = []
         for k in range(self._z):
-            centre = k * pitch_angle
+            centre = k * pitch_angle + self._phase   # phase clocks the whole gear (tooth timing)
             rising = self._flank(centre, -1.0, flank_offset)
             falling = list(reversed(self._flank(centre, +1.0, flank_offset)))
             points.extend(rising)
