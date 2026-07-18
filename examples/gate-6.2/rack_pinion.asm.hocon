@@ -1,0 +1,31 @@
+schema_version = 1
+units = mm
+# Bucket 6.2 gate: a rack-and-pinion, driven by the pinion. Three bodies, a revolute (pinion on its
+# post) + a slider (rack in its guide) + a RACK_PINION coupling that converts pinion rotation into
+# rack translation. The coupling's `gears` block carries the pinion + rack GearProfiles, so the SAME
+# generator that draws the teeth defines the travel (mm per radian = the pinion pitch radius) - one
+# source of truth. OndselSolver has no gear constraint, so ncad enforces the coupling as a secondary
+# prescribed SLIDE on the rack, co-solved with the pinion driver (design section 8).
+metadata {
+  description = "Driven rack-and-pinion: pinion drives a rack, revolute + slider + rack_pinion"
+  tags = [ rack_pinion, assembly, mechanism, gear ]
+}
+assembly {
+  instances = [
+    { id = stand, file = "rack_pinion.hocon", part = stand, lock = true }
+    { id = pinion, file = "rack_pinion.hocon", part = pinion }
+    { id = rack, file = "rack_pinion.hocon", part = rack, connect = {
+      my = travel, to = { instance = stand, connector = guide } } }
+  ]
+  joints = [
+    { id = pinionPin, type = revolute, between = [
+      { instance = stand, connector = pinionBearing }, { instance = pinion, connector = axis } ] }
+    { id = rackSlide, type = slider, between = [
+      { instance = stand, connector = guide }, { instance = rack, connector = travel } ] }
+  ]
+  couplings = [
+    { id = mesh, type = rack_pinion, between = [ pinionPin, rackSlide ],
+      gears = { driver = { module = 3, teeth = 18 },
+                driven = { module = 3, teeth = 10, gear_type = rack } } }
+  ]
+}

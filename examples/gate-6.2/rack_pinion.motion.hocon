@@ -1,0 +1,20 @@
+schema_version = 1
+# A motion study driving the rack-and-pinion. The pinion angle is the driver; the `rack_pinion`
+# coupling turns it into the rack's prescribed SLIDE (travel = pitch_r * angle), so a half pinion
+# revolution advances the rack by pi*27 ~= 84.8 mm. A 6.1 `coordinate` measure reports the rack's
+# world-X travel, which should track pitch_r * pinion_angle.
+metadata {
+  description = "Rack-and-pinion motion study: drive the pinion, rack advances by pitch_r * angle"
+  tags = [ rack_pinion, motion ]
+}
+motion {
+  assembly = "rack_pinion.asm.hocon"
+  driver = { joint = pinionPin, from = 0, to = 180, steps = 72 }
+  outputs {
+    measures = [
+      # The rack's linear travel: the world-X of a point on the rack (its travel connector origin).
+      # It should track pitch_r * pinion_angle (27 mm/rad), i.e. ~84.8 mm over the half revolution.
+      { id = travel, kind = coordinate, instance = rack, point = [ 0, 0, 0 ], axis = x }
+    ]
+  }
+}

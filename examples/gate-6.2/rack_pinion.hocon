@@ -1,0 +1,75 @@
+schema_version = 2
+units = mm
+# A rack-and-pinion authored as a PRIMITIVE + PROFILE blockout (the motion authoring lane): a
+# rotating PINION (z=18, m=3) meshes a straight RACK, converting rotation into linear travel. The
+# pinion turns on a post at the origin; the rack slides horizontally (+X) in a guide channel, its
+# toothed top meshing the pinion at the bottom of the pinion's pitch circle. One pinion revolution
+# advances the rack by 2*pi*pitch_r = 2*pi*27 ~= 169.6 mm (travel per radian = the pitch radius).
+# Both the pinion teeth and the rack teeth are true involute profiles from the same GearProfile that
+# defines the rack_pinion coupling (one source of truth).
+#
+# Layout (pinion spins about Z at origin; rack slides along +X below it; z-layered to nest):
+#   stand : base plate + a bearing post (pinion turns in it) + a guide channel the rack rides. Ground.
+#   pinion: z=18 involute gear on a hub at the origin, tip r=30. Driven.
+#   rack  : a straight-toothed strip, teeth up (+Y), meshing the pinion at world y=-27. Slides +X.
+metadata {
+  description = "Rack-and-pinion blockout: pinion (z18) drives a straight rack, rotation -> travel"
+  tags = [ rack_pinion, mechanism, blockout, gear ]
+}
+parts {
+  # Pinion: a z=18 involute gear (m=3, pitch r=27, tip r=30) extruded 8mm in the z=0 plane, on a hub
+  # shaft that seats back in the stand's post. Meshes the rack at the bottom of its pitch circle.
+  pinion { profile = solid, material = steel_4140,
+    connectors = [
+      { id = axis, at_point = [ 0, 0, 0 ], axis = [ 0, 0, 1 ] }
+    ],
+    features = [
+      { id = sk, op = sketch, plane = XY, plane_offset = -4,
+        entities = [
+          { id = c, type = point, at = [ 0, 0 ] }
+          { id = teeth, type = involute_gear, module = 3, teeth = 18, pressure_angle = 20,
+            backlash = 0.4, center = c }
+        ]
+        constraints = [ { type = fix, of = c } ] }
+      { id = disc, op = extrude, profile = sk, distance = 8 }
+      { id = hub, op = primitive, kind = cylinder, d = 14, h = 12, plane = XY, plane_offset = -16,
+        at = [ 0, 0 ] }
+      { id = whole, op = boolean, operation = union, target = disc, tool = hub }
+    ] }
+  # Rack: a straight-toothed strip (10 teeth, m=3) drawn teeth-up. The `cam2d`-style profile is a
+  # `involute_gear` of gear_type=rack; its pitch line is y=0, crest at +3, so the strip is authored
+  # with its pitch line at the origin, then the ASSEMBLY places it so the pitch line sits at y=-27
+  # (tangent to the pinion pitch circle). The `travel` connector is the slide axis (+X).
+  rack { profile = solid, material = bronze,
+    connectors = [
+      { id = travel, at_point = [ 0, 0, 0 ], axis = [ 1, 0, 0 ] }
+    ],
+    features = [
+      { id = sk, op = sketch, plane = XY, plane_offset = -4,
+        entities = [
+          { id = teeth, type = involute_gear, module = 3, teeth = 10, pressure_angle = 20,
+            gear_type = rack, backlash = 0.4 }
+        ] }
+      { id = strip, op = extrude, profile = sk, distance = 8 }
+    ] }
+  # Stand: the grounded frame, ONE connected solid: a base plate (z -16..-8), a bearing post at the
+  # pinion axis (bored for the hub), and a guide rail along the rack's underside so the rack rides in
+  # a channel. The rack meshes the pinion at world y=-27 (the pinion pitch-circle bottom).
+  stand { profile = solid, material = steel_1018,
+    connectors = [
+      { id = pinionBearing, at_point = [ 0, 0, 0 ], axis = [ 0, 0, 1 ] }
+      { id = guide, at_point = [ -5, -27, 0 ], axis = [ 1, 0, 0 ] }
+    ],
+    features = [
+      { id = base, op = primitive, kind = box, w = 220, d = 30, h = 8, plane = XY,
+        plane_offset = -16, at = [ -80, -66 ] }
+      { id = post, op = primitive, kind = cylinder, d = 24, h = 12, plane = XY,
+        plane_offset = -16, at = [ 0, 0 ] }
+      { id = rail, op = primitive, kind = box, w = 220, d = 8, h = 8, plane = XY,
+        plane_offset = -16, at = [ -80, -42 ] }
+      { id = s1, op = boolean, operation = union, target = base, tool = post }
+      { id = frame, op = boolean, operation = union, target = s1, tool = rail }
+      { id = bore, op = primitive, kind = cylinder, d = 14.6, h = 16, plane = XY,
+        plane_offset = -18, at = [ 0, 0 ] }
+      { id = whole, op = boolean, operation = cut, target = frame, tool = bore }
+    ] } }
