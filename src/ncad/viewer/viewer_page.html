@@ -2565,6 +2565,12 @@ document.addEventListener("keydown", ev => {
   }
   // L toggles the loop mode (loop <-> bounce).
   else if (ev.key === "l" || ev.key === "L") { toggleLoopMode(); ev.preventDefault(); }
+  // 0 rewinds to the start frame and pauses (a clean reset before recording a fresh loop).
+  else if (ev.key === "0") {
+    motionPlaying = false; motionPlayBtn.innerHTML = PLAY_ICON;
+    motionDir = 1; motionAccum = 0; showMotionFrame(0);
+    ev.preventDefault();
+  }
 });
 
 function resetMotion() {
