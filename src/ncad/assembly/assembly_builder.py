@@ -18,12 +18,14 @@ from ncad.assembly.asmt_exporter import AsmtExporter
 from ncad.assembly.asmt_trajectory_mapper import AsmtTrajectoryMapper
 from ncad.assembly.assembly_bom import AssemblyBom
 from ncad.assembly.assembly_placement import AssemblyPlacement
+from ncad.assembly.cam_law import CamLaw, CamLawError
 from ncad.assembly.component_mirror import ComponentMirror
 from ncad.assembly.component_pattern import ComponentPattern, ComponentPatternError
 from ncad.assembly.component_replace import ComponentReplace
 from ncad.assembly.connector_frame import ConnectorFrame
 from ncad.assembly.connector_resolver import ConnectorResolver
 from ncad.assembly.coupling import Coupling
+from ncad.assembly.coupling_driver import CouplingDriver, CouplingDriverError
 from ncad.assembly.dof_diagnostics import PRIMITIVE_DOF, DofDiagnostics
 from ncad.assembly.frame_snap import FrameSnap
 from ncad.assembly.interference_checker import InterferenceChecker
@@ -360,11 +362,16 @@ class AssemblyBuilder:
         ground_ids = self._motion_ground_ids(document, placements_mm)
         mass_props = self._motion_mass_props(document, asm_dir, placements_mm, builders)
         driver = {"joint_id": joint_id, "joint_type": driven["type"],
-                  "pivot": between[0], "moving": between[1], "values": values}
+                  "pivot": between[0], "moving": between[1], "values": values,
+                  "start": values[0], "end": values[-1]}
+        # Coupled / cam joints (bucket 6.2): each enforced coupling becomes a secondary prescribed
+        # motion driven alongside the primary. An unenforceable coupling is an id-attributed issue;
+        # the rest of the motion still solves.
+        secondaries = self._motion_secondaries(document, joint_id, driver, issues)
         try:
             model = AsmtExporter().build_model(
                 name, instances, local_frames, placements_mm, mass_props, joints, ground_ids,
-                driver, to_metres)
+                driver, to_metres, secondaries=secondaries)
             trajectory = model.solve()
         except ImportError as exc:
             issues.append({"message": f"motion needs the pyondsel dependency: {exc}"})
@@ -390,6 +397,35 @@ class AssemblyBuilder:
         logger.info("assembly motion: joint=%s frames=%d traces=%d measures=%d out=%s",
                     joint_id, len(frames), len(traces), len(measures), path)
         return path
+
+    def _motion_secondaries(self, document: dict, driven_joint: str, driver: dict,
+                            issues: list) -> list[dict]:
+        """Build a secondary prescribed-motion spec per coupling the driver enforces (bucket 6.2).
+
+        A coupling is enforced when its first ``between`` joint is the driven joint. gear/belt/
+        rack_pinion go through CouplingDriver (ratio); a cam goes through CamLaw (its profile). An
+        unenforceable coupling (bad ratio/profile, wrong primary) is an id-attributed issue and is
+        skipped; other couplings + the primary motion still solve. Returns [] when none apply.
+        """
+        secondaries: list[dict] = []
+        for c in (document["assembly"].get("couplings") or []):
+            between = c.get("between") or []
+            if len(between) < 2 or between[0] != driven_joint:
+                continue
+            try:
+                if c.get("type") == "cam":
+                    law = CamLaw.from_profile(c.get("profile") or {})
+                    span = driver["end"] - driver["start"]
+                    secondaries.append({
+                        "joint_id": between[1], "joint_type": "slider",
+                        "expression": law.expression(driver["start"], span),
+                    })
+                else:
+                    secondaries.append(CouplingDriver().secondary(c, driver))
+            except (CouplingDriverError, CamLawError) as exc:
+                issues.append({"coupling_id": c.get("id"),
+                               "message": f"coupling not enforced: {exc}"})
+        return secondaries
 
     def _motion_outputs(self, motion: dict, local_frames: dict, frames: list, to_metres: float,
                         issues: list) -> tuple[list, list]:
