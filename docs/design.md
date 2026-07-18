@@ -767,7 +767,13 @@ them.
   events and clearances along the motion.
 - **Outputs:** **trace curves** (the path of a point), **motion envelopes** (the
   swept volume of a moving body), and **measures over time** (distance, angle,
-  velocity, acceleration), all derived and exportable.
+  velocity, acceleration), all derived and exportable. *Implemented (bucket 6.1):*
+  traces + measures (coordinate / distance / angle / swept-volume) as a pure
+  post-process over the trajectory, declared in an optional `.motion.hocon`
+  `outputs` block and emitted into the motion sidecar; shown in the viewer (scene
+  trace polyline, a measures panel, a mobility line). Deferred: motion envelopes (a
+  whole-body swept solid, needs a mesh sweep) and velocity/acceleration (need real
+  time; the driver sweep is a normalized parameter today).
 - **Multibody dynamics (later):** force-driven motion: mass/inertia (from
   `BRepGProp`) + gravity, forces/torques, springs/dampers, and contacts >> reaction
   forces and accelerations. This is true MBD and the high end of the subsystem;
