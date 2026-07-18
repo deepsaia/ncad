@@ -11,6 +11,7 @@ refines them under any constraints.
 import logging
 import math
 
+from ncad.assembly.cam_profile import CamProfile
 from ncad.sketch.gear_profile import GearProfile
 from ncad.sketch.id_padding import PaddedNaming
 
@@ -43,6 +44,8 @@ class EntityExpander:
                 out.extend(self._expand_arc_polar(entity, by_id))
             elif kind == "involute_gear":
                 out.extend(self._expand_involute_gear(entity, by_id))
+            elif kind == "cam_profile":
+                out.extend(self._expand_cam_profile(entity, by_id))
             else:
                 logger.debug("passing through unknown entity type %r", kind)
                 out.append(entity)
@@ -121,6 +124,31 @@ class EntityExpander:
         for i in range(n):
             result.append({"id": line_ids[i], "type": "line",
                            "p1": point_ids[i], "p2": point_ids[(i + 1) % n]})
+        return result
+
+    def _expand_cam_profile(self, entity: dict, by_id: dict) -> list[dict]:
+        """A cam plate outline -> a closed loop of lines from CamProfile.
+
+        Draws the cam body from the SAME cam profile that drives the follower
+        (CamProfile.profile_points), so the drawn base circle + nose lift the follower in sync. The
+        entity carries the coupling's ``profile`` keys directly (either the legacy
+        ``law``/``lift``/``lobes`` form or the segmented ``segments`` form); ``id``/``type``/
+        ``center`` are stripped. Derived points are ``fixed`` (locked at the computed profile
+        coordinates), well-constrained by construction.
+        """
+        cid = entity["id"]
+        profile = {k: v for k, v in entity.items() if k not in ("id", "type", "center")}
+        cam = CamProfile.from_profile(profile)
+        cx, cy = _seed_of(by_id, entity["center"]) if entity.get("center") else (0.0, 0.0)
+        outline = cam.profile_points()
+        n = len(outline)
+        point_ids = self._naming.child_ids(f"{cid}/p", n)
+        line_ids = self._naming.child_ids(f"{cid}/l", n)
+        result: list[dict] = [
+            {"id": point_ids[i], "type": "point", "at": [cx + x, cy + y], "fixed": True}
+            for i, (x, y) in enumerate(outline)]
+        result += [{"id": line_ids[i], "type": "line",
+                    "p1": point_ids[i], "p2": point_ids[(i + 1) % n]} for i in range(n)]
         return result
 
     def _expand_slot(self, entity: dict, by_id: dict) -> list[dict]:

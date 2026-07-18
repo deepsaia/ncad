@@ -144,7 +144,7 @@ class AsmtExporter:
 
         Each secondary is {joint_id, joint_type, expression}; the expression is already in the ASMT
         motion's units (radians for a revolute rotation, metres for a slider translation) as a
-        function of ``time``, so this is a thin emitter (CouplingDriver / CamLaw own the math).
+        function of ``time``, so this is a thin emitter (CouplingDriver / CamProfile own the math).
         """
         for sec in secondaries:
             motion_kind = _MOTION_KIND.get(sec["joint_type"])

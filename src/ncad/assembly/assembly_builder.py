@@ -18,7 +18,7 @@ from ncad.assembly.asmt_exporter import AsmtExporter
 from ncad.assembly.asmt_trajectory_mapper import AsmtTrajectoryMapper
 from ncad.assembly.assembly_bom import AssemblyBom
 from ncad.assembly.assembly_placement import AssemblyPlacement
-from ncad.assembly.cam_law import CamLaw, CamLawError
+from ncad.assembly.cam_profile import CamProfile, CamProfileError
 from ncad.assembly.component_mirror import ComponentMirror
 from ncad.assembly.component_pattern import ComponentPattern, ComponentPatternError
 from ncad.assembly.component_replace import ComponentReplace
@@ -388,7 +388,9 @@ class AssemblyBuilder:
         # still writes), so a motion doc without outputs is unchanged. The DoF report is always
         # emitted (a cheap legibility line off the joint graph + the static solve's free DoF).
         traces, measures = self._motion_outputs(motion, local_frames, frames, to_metres, issues)
-        dof = MotionMobility().report(joints, len(instances), int(solve_block.get("dof", 0)))
+        coupling_count = len(document["assembly"].get("couplings") or [])
+        dof = MotionMobility().report(joints, len(instances), int(solve_block.get("dof", 0)),
+                                      coupling_count=coupling_count)
         path = os.path.join(out_dir, f"{name}.motion.json")
         with open(path, "w", encoding="utf-8") as handle:
             json.dump({"schema_version": 2, "name": name, "driver": motion["driver"],
@@ -403,9 +405,9 @@ class AssemblyBuilder:
         """Build a secondary prescribed-motion spec per coupling the driver enforces (bucket 6.2).
 
         A coupling is enforced when its first ``between`` joint is the driven joint. gear/belt/
-        rack_pinion go through CouplingDriver (ratio); a cam goes through CamLaw (its profile). An
-        unenforceable coupling (bad ratio/profile, wrong primary) is an id-attributed issue and is
-        skipped; other couplings + the primary motion still solve. Returns [] when none apply.
+        rack_pinion go through CouplingDriver (ratio); a cam goes through CamProfile (its profile).
+        An unenforceable coupling (bad ratio/profile, wrong primary) is an id-attributed issue and
+        is skipped; other couplings + the primary motion still solve. Returns [] when none apply.
         """
         secondaries: list[dict] = []
         for c in (document["assembly"].get("couplings") or []):
@@ -414,15 +416,15 @@ class AssemblyBuilder:
                 continue
             try:
                 if c.get("type") == "cam":
-                    law = CamLaw.from_profile(c.get("profile") or {})
+                    cam = CamProfile.from_profile(c.get("profile") or {})
                     span = driver["end"] - driver["start"]
                     secondaries.append({
                         "joint_id": between[1], "joint_type": "slider",
-                        "expression": law.expression(driver["start"], span),
+                        "expression": cam.expression(driver["start"], span),
                     })
                 else:
                     secondaries.append(CouplingDriver().secondary(c, driver))
-            except (CouplingDriverError, CamLawError) as exc:
+            except (CouplingDriverError, CamProfileError) as exc:
                 issues.append({"coupling_id": c.get("id"),
                                "message": f"coupling not enforced: {exc}"})
         return secondaries
