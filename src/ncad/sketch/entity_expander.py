@@ -11,6 +11,7 @@ refines them under any constraints.
 import logging
 import math
 
+from ncad.sketch.gear_profile import GearProfile
 from ncad.sketch.id_padding import PaddedNaming
 
 logger = logging.getLogger(__name__)
@@ -40,6 +41,8 @@ class EntityExpander:
                 out.extend(self._expand_slot(entity, by_id))
             elif kind == "arc_polar":
                 out.extend(self._expand_arc_polar(entity, by_id))
+            elif kind == "involute_gear":
+                out.extend(self._expand_involute_gear(entity, by_id))
             else:
                 logger.debug("passing through unknown entity type %r", kind)
                 out.append(entity)
@@ -93,6 +96,32 @@ class EntityExpander:
             {"id": aid, "type": "arc", "center": entity["center"],
              "start": f"{aid}/start", "end": f"{aid}/end"},
         ]
+
+    def _expand_involute_gear(self, entity: dict, by_id: dict) -> list[dict]:
+        """A true involute spur gear (module/teeth/pressure_angle) -> a closed loop of lines.
+
+        GearProfile.outline() gives the tooth outline as [x, y] points about the origin; offset by
+        the (optional) center point's seed and join consecutively with a closing line, so the whole
+        gear is a well-defined closed profile the wire builder + extrude consume. The derived points
+        are ``fixed`` (locked at the computed involute coordinates), so the gear is well-constrained
+        by construction (the author does not pin each of the many flank points).
+        """
+        gid = entity["id"]
+        profile = GearProfile(module=float(entity["module"]), teeth=int(entity["teeth"]),
+                              pressure_angle=float(entity.get("pressure_angle", 20.0)))
+        cx, cy = _seed_of(by_id, entity["center"]) if entity.get("center") else (0.0, 0.0)
+        outline = profile.outline()
+        n = len(outline)
+        point_ids = self._naming.child_ids(f"{gid}/p", n)
+        line_ids = self._naming.child_ids(f"{gid}/l", n)
+        result: list[dict] = []
+        for i, (x, y) in enumerate(outline):
+            result.append({"id": point_ids[i], "type": "point",
+                           "at": [cx + x, cy + y], "fixed": True})
+        for i in range(n):
+            result.append({"id": line_ids[i], "type": "line",
+                           "p1": point_ids[i], "p2": point_ids[(i + 1) % n]})
+        return result
 
     def _expand_slot(self, entity: dict, by_id: dict) -> list[dict]:
         """A straight slot: two side lines plus two semicircular end caps.
