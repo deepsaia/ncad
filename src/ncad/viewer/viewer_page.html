@@ -177,16 +177,23 @@
 
   /* Motion timeline (bucket 6.0): a bottom-center play/pause + scrubber + driver readout. */
   #motion-bar { position: absolute; bottom: 54px; left: 50%; transform: translateX(-50%);
-    display: flex; align-items: center; gap: 10px; z-index: 55;
-    background: var(--panel); border: 1px solid var(--border); border-radius: 22px;
-    padding: 6px 14px; backdrop-filter: blur(6px); }
+    display: flex; align-items: center; gap: 8px; z-index: 55;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 20px;
+    padding: 5px 10px; backdrop-filter: blur(6px); }
   #motion-bar[hidden] { display: none; }
-  #motion-play { display: flex; align-items: center; justify-content: center;
-    width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--border);
-    background: var(--panel-2); color: var(--text); cursor: pointer; }
-  #motion-play:hover { border-color: var(--accent); color: var(--accent); }
-  #motion-scrub { width: 220px; accent-color: var(--accent); cursor: pointer; }
-  #motion-readout { font-size: 12px; color: var(--muted); min-width: 52px;
+  /* Transport: -, play/pause, + as one compact segmented pill. */
+  #motion-transport { display: flex; align-items: center; border: 1px solid var(--border);
+    border-radius: 14px; overflow: hidden; background: var(--panel-2); }
+  #motion-transport > button { display: flex; align-items: center; justify-content: center;
+    height: 26px; border: 0; background: transparent; color: var(--text); cursor: pointer; }
+  #motion-transport > button:hover:not(:disabled) { background: var(--accent); color: #fff; }
+  #motion-transport > button:disabled { opacity: 0.35; cursor: default; }
+  #motion-play { width: 30px; border-left: 1px solid var(--border); border-right: 1px solid var(--border); }
+  .motion-step { width: 26px; color: var(--muted); }
+  #motion-speed-readout { font-size: 12px; color: var(--text); font-weight: 600; min-width: 38px;
+    text-align: center; font-variant-numeric: tabular-nums; cursor: default; }
+  #motion-scrub { width: 200px; accent-color: var(--accent); cursor: pointer; }
+  #motion-readout { font-size: 12px; color: var(--muted); min-width: 50px;
     text-align: right; font-variant-numeric: tabular-nums; }
 
   /* Floating viewport controls (translucent, movable/snapping, icon-first) */
@@ -622,9 +629,18 @@
 
     <!-- Motion timeline (bucket 6.0): shown only when the loaded assembly has a motion sidecar. -->
     <div id="motion-bar" hidden>
-      <button id="motion-play" title="Play / pause motion">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-      </button>
+      <div id="motion-transport">
+        <button id="motion-slower" class="motion-step" title="Slower ( [ )" aria-label="Slower">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M5 11h14v2H5z"/></svg>
+        </button>
+        <button id="motion-play" title="Play / pause motion">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        </button>
+        <button id="motion-faster" class="motion-step" title="Faster ( ] )" aria-label="Faster">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z"/></svg>
+        </button>
+      </div>
+      <span id="motion-speed-readout" title="Playback speed (replay only; does not re-solve)">1x</span>
       <input id="motion-scrub" type="range" min="0" max="0" value="0" step="1" aria-label="Motion frame">
       <span id="motion-readout">0&deg;</span>
     </div>
@@ -2462,7 +2478,46 @@ let motionNodes = {};      // instanceId -> node for the active motion
 let motionFrame = 0;       // current frame index
 let motionPlaying = false;
 let motionAccum = 0;       // ms accumulated toward the next frame
-const MOTION_FRAME_MS = 60;  // playback cadence (about 16 fps)
+// PLAYBACK RATE only (how fast you watch the same trajectory); it never re-solves. Solve resolution
+// is the motion document's driver `steps` (or `fps`+`duration`). 1x = 30 fps (a 1/30 s frame
+// interval); the ladder multiplies that rate. Beyond ~2x the ~60 fps render loop advances several
+// frames per tick (advanceMotion's while-loop handles it), so the high multipliers act as fast
+// preview/scrub. The [-]/[+] buttons + the "[" / "]" keys step along the ladder; choice persists.
+const MOTION_BASE_FRAME_MS = 1000 / 30;   // 1x = 30 fps
+const MOTION_SPEEDS = [0.1, 0.25, 0.5, 1, 2, 4, 8, 16, 32, 64, 128];
+const motionSlowerBtn = document.getElementById("motion-slower");
+const motionFasterBtn = document.getElementById("motion-faster");
+const motionSpeedReadout = document.getElementById("motion-speed-readout");
+let motionSpeedIdx = (() => {
+  const saved = parseFloat(localStorage.getItem("ncad.motionSpeed"));
+  const i = MOTION_SPEEDS.indexOf(saved);
+  return i >= 0 ? i : MOTION_SPEEDS.indexOf(1);   // default 1x
+})();
+function motionSpeed() { return MOTION_SPEEDS[motionSpeedIdx]; }
+function motionFrameMs() { return MOTION_BASE_FRAME_MS / motionSpeed(); }
+function fmtSpeed(s) { return (s < 1 ? s : String(s)) + "x"; }
+function renderMotionSpeed() {
+  // Only the middle readout shows the number (<n>x); the -/+ buttons stay iconic.
+  motionSpeedReadout.textContent = fmtSpeed(motionSpeed());
+  motionSlowerBtn.disabled = motionSpeedIdx === 0;
+  motionFasterBtn.disabled = motionSpeedIdx === MOTION_SPEEDS.length - 1;
+}
+function setMotionSpeedIdx(i) {
+  motionSpeedIdx = Math.max(0, Math.min(MOTION_SPEEDS.length - 1, i));
+  localStorage.setItem("ncad.motionSpeed", String(motionSpeed()));
+  renderMotionSpeed();
+}
+motionSlowerBtn.addEventListener("click", () => setMotionSpeedIdx(motionSpeedIdx - 1));
+motionFasterBtn.addEventListener("click", () => setMotionSpeedIdx(motionSpeedIdx + 1));
+renderMotionSpeed();
+// "[" slower, "]" faster - only when a motion is loaded and the user is not typing in a field.
+document.addEventListener("keydown", ev => {
+  if (motionBar.hidden) return;
+  const t = ev.target;
+  if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT")) return;
+  if (ev.key === "[") { setMotionSpeedIdx(motionSpeedIdx - 1); ev.preventDefault(); }
+  else if (ev.key === "]") { setMotionSpeedIdx(motionSpeedIdx + 1); ev.preventDefault(); }
+});
 
 function resetMotion() {
   motion = null; motionNodes = {}; motionFrame = 0; motionPlaying = false; motionAccum = 0;
@@ -2524,8 +2579,9 @@ function toggleMotionPlay() {
 function advanceMotion(dtMs) {
   if (!motionPlaying || !motion) return;
   motionAccum += dtMs;
-  while (motionAccum >= MOTION_FRAME_MS) {
-    motionAccum -= MOTION_FRAME_MS;
+  const frameMs = motionFrameMs();
+  while (motionAccum >= frameMs) {
+    motionAccum -= frameMs;
     showMotionFrame(motionFrame + 1);   // loops via showMotionFrame's modulo
   }
 }
