@@ -1,0 +1,32 @@
+schema_version = 1
+units = mm
+# Bucket 6.2 gate: a cam-follower, driven by the cam. The cam turns on the stand bearing (revolute);
+# the follower slides in the stand guide (slider). A `cam` coupling links the two: the motion study
+# turns the cam angle into the follower's prescribed lift via a smooth cam law (harmonic), so the
+# follower rises and falls each revolution. The stand is grounded; there is no cam-contact solve -
+# the cam law is the enforced relation (design section 8, a higher-pair driver).
+metadata {
+  description = "Driven cam-follower: rotating cam + translating follower, cam-law coupled"
+  tags = [ cam_follower, assembly, mechanism, cam ]
+}
+assembly {
+  instances = [
+    { id = stand, file = "cam_follower.hocon", part = stand, lock = true }
+    { id = cam, file = "cam_follower.hocon", part = cam }
+    { id = follower, file = "cam_follower.hocon", part = follower }
+  ]
+  joints = [
+    { id = camPin, type = revolute, between = [
+      { instance = stand, connector = camBearing }, { instance = cam, connector = axis } ] }
+    { id = slide, type = slider, between = [
+      { instance = stand, connector = guide }, { instance = follower, connector = tip } ] }
+  ]
+  couplings = [
+    { id = camLaw, type = cam, between = [ camPin, slide ],
+      profile = { base_r = 20, segments = [
+        { kind = dwell, angle = 180 }
+        { kind = rise, law = cycloidal, angle = 90, lift = 12 }
+        { kind = return, law = cycloidal, angle = 90 }
+      ] } }
+  ]
+}

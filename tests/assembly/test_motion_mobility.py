@@ -23,6 +23,21 @@ def test_four_bar_planar_gruebler_is_one():
     assert report["gruebler"] == 1 and report["status"] == "mobile"
 
 
+def test_cam_follower_higher_pair_gives_one_dof():
+    # 3 links (stand, cam, follower), a revolute + a slider (2 lower pairs) + a cam coupling (1
+    # higher pair): M = 3(3-1) - 2 - 2 - 1 = 1. Without counting the coupling it would read 2.
+    joints = [_joint("revolute"), _joint("slider")]
+    report = MotionMobility().report(joints, instance_count=3, solver_dof=0, coupling_count=1)
+    assert report["gruebler"] == 1 and report["status"] == "mobile"
+
+
+def test_gear_pair_coupling_gives_one_dof():
+    # 3 links (base, pinion, gear), 2 revolute + a gear coupling: M = 3(2) - 2 - 2 - 1 = 1.
+    joints = [_joint("revolute"), _joint("revolute")]
+    report = MotionMobility().report(joints, instance_count=3, solver_dof=0, coupling_count=1)
+    assert report["gruebler"] == 1
+
+
 def test_locked_when_gruebler_not_positive():
     joints = [_joint("revolute")] * 5   # over-constrained planar loop -> Gruebler 3(3)-2*5 = -1
     report = MotionMobility().report(joints, instance_count=4, solver_dof=0)

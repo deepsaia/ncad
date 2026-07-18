@@ -38,12 +38,15 @@ class AsmtExporter:
 
     def build_model(self, name: str, instances: list[dict], local_frames: dict,
                     placements_mm: dict, mass_props: dict, joints: list[dict],
-                    ground_ids: set, driver: dict, to_metres: float) -> Any:
+                    ground_ids: set, driver: dict, to_metres: float,
+                    secondaries: list[dict] | None = None) -> Any:
         """Return a pyondsel.AsmtModel for the assembly (metres); raise if pyondsel is unavailable.
 
         ``mass_props`` maps instance id -> mass/cog(mm)/inertia; ``driver`` is
-        {"joint_id", "joint_type", "pivot", "moving", "values"}. Lengths convert to metres via
-        ``to_metres`` (the solver is unit-agnostic but we keep it consistent with the sidecar).
+        {"joint_id", "joint_type", "pivot", "moving", "values"}. ``secondaries`` (bucket 6.2) are
+        extra prescribed motions {joint_id, joint_type, expression} from enforced couplings / cam
+        laws, driven ALONGSIDE the primary (the solver co-solves multiple prescribed motions).
+        Lengths convert to metres via ``to_metres``.
         """
         import pyondsel as po
 
@@ -57,6 +60,7 @@ class AsmtExporter:
         self._add_grounds(po, model, ground_ids, instances, placements_mm, to_metres)
         self._add_joints(po, model, joints)
         self._add_driver(po, model, driver)
+        self._add_secondaries(po, model, secondaries or [])
         model.simulation = po.Simulation(t_start=0.0, t_end=1.0,
                                          frames=max(len(driver["values"]) - 1, 1))
         return model
@@ -134,6 +138,22 @@ class AsmtExporter:
             expr = f"{start * 0.001} + {span}*time"
         model.add_motion(po.Motion(name=f"drive_{driver['joint_id']}", joint=driver["joint_id"],
                                    expression=expr, kind=motion_kind))
+
+    def _add_secondaries(self, po: Any, model: Any, secondaries: list[dict]) -> None:
+        """Add a prescribed motion per secondary (coupled / cam) joint (bucket 6.2).
+
+        Each secondary is {joint_id, joint_type, expression}; the expression is already in the ASMT
+        motion's units (radians for a revolute rotation, metres for a slider translation) as a
+        function of ``time``, so this is a thin emitter (CouplingDriver / CamProfile own the math).
+        """
+        for sec in secondaries:
+            motion_kind = _MOTION_KIND.get(sec["joint_type"])
+            if motion_kind is None:
+                logger.debug("asmt export: skipping secondary on non-drivable joint %r (type %r)",
+                             sec.get("joint_id"), sec.get("joint_type"))
+                continue
+            model.add_motion(po.Motion(name=f"couple_{sec['joint_id']}", joint=sec["joint_id"],
+                                       expression=sec["expression"], kind=motion_kind))
 
 
 def _mass_terms(mass: dict | None, to_metres: float) -> tuple:

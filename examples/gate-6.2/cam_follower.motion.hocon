@@ -1,0 +1,18 @@
+schema_version = 1
+# A motion study driving the cam-follower one cam revolution. The cam angle is the driver; the `cam`
+# coupling (in the assembly) turns it into the follower's prescribed lift via a segmented cam profile
+# (a base-circle dwell + a cycloidal rise-return). A 6.1 `coordinate` measure reports the follower
+# lift: flat through the dwell, then rising to the nose and back.
+metadata {
+  description = "Cam-follower motion study: drive the cam one revolution + a lift measure"
+  tags = [ cam_follower, motion ]
+}
+motion {
+  assembly = "cam_follower.asm.hocon"
+  driver = { joint = camPin, from = 0, to = 360, steps = 72 }
+  outputs {
+    measures = [
+      { id = lift, kind = coordinate, instance = follower, point = [ 0, 20, 0 ], axis = y }
+    ]
+  }
+}

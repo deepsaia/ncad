@@ -1,0 +1,85 @@
+schema_version = 2
+units = mm
+# A cam-follower authored as a coarse PRIMITIVE BLOCKOUT: a rotating cam lifts a translating follower
+# rod in a guide. The follower's lift is a smooth cam LAW (bucket 6.2): the motion study's `cam`
+# coupling turns the cam angle into the follower's prescribed slide (0 -> lift -> 0 per revolution),
+# so the follower rises and falls as the cam turns - no cam-contact solve, the cam law drives it.
+#
+# Layout (cam spins about Z at the origin; follower slides along +Y above it; z-layered to nest):
+#   stand   : base plate + a bored bearing boss (`camBearing`, axis Z) the cam turns in + a guide
+#             block up top with a bore (`guide`, axis +Y) the follower rides. Grounded.
+#   cam     : an engine-style plate (base-circle dwell + a cycloidal nose) on a hub shaft into the
+#             boss; drawn from the same cam profile that drives the follower.
+#   follower: a rod sliding vertically in the guide; its tip rests on the base circle, rides the nose.
+metadata {
+  description = "Cam-follower blockout: rotating cam + translating follower (primitives)"
+  tags = [ cam_follower, mechanism, blockout, cam ]
+}
+parts {
+  # Cam: a real engine-style plate drawn from the SAME cam profile that drives the follower (a
+  # `cam_profile` sketch entity -> polar outline r(phi) = base_r + displacement(90 - phi)). The
+  # profile is a segmented dwell-rise-return schedule (a big base-circle DWELL + a distinct cycloidal
+  # NOSE), so it unmistakably reads as a cam and the nose lifts the follower in sync. In the z=0
+  # mechanism plane (extruded -4..4), on a hub shaft that seats BACK in the stand's bearing bore.
+  # Same base_r + segments as the assembly cam coupling (single source of truth).
+  cam { profile = solid, material = steel_4140,
+    connectors = [
+      { id = axis, at_point = [ 0, 0, 0 ], axis = [ 0, 0, 1 ] }
+    ],
+    features = [
+      { id = sk, op = sketch, plane = XY, plane_offset = -4,
+        entities = [
+          { id = c, type = point, at = [ 0, 0 ] }
+          { id = cam2d, type = cam_profile, base_r = 20, center = c,
+            segments = [
+              { kind = dwell, angle = 180 }
+              { kind = rise, law = cycloidal, angle = 90, lift = 12 }
+              { kind = return, law = cycloidal, angle = 90 }
+            ] }
+        ]
+        constraints = [ { type = fix, of = c } ] }
+      { id = plate, op = extrude, profile = sk, distance = 8 }
+      { id = hub, op = primitive, kind = cylinder, d = 12, h = 12, plane = XY, plane_offset = -16,
+        at = [ 0, 0 ] }
+      { id = whole, op = boolean, operation = union, target = plate, tool = hub }
+    ] }
+  # Follower: a vertical rod (in the z=0 plane) sliding in the stand's guide bore; its tip (bottom,
+  # y=20) rests ON the cam base circle (r=20) and rides the nose. The `tip` connector is the slide
+  # axis (+Y); its world-Y over the motion is the follower lift.
+  follower { profile = solid, material = aluminium_6061,
+    connectors = [
+      { id = tip, at_point = [ 0, 20, 0 ], axis = [ 0, 1, 0 ] }
+    ],
+    features = [
+      { id = rod, op = primitive, kind = cylinder, d = 8, h = 40, plane = XZ, plane_offset = -60 }
+    ] }
+  # Stand: the grounded frame, ONE connected solid: a base plate, a back WALL rising from it (behind
+  # the mechanism, z -16..-8), a bored bearing boss on the wall (`camBearing`, axis Z), and a bracket
+  # + guide block reaching forward to hold the follower (`guide`, axis +Y). Bores are cut for running
+  # clearance.
+  stand { profile = solid, material = steel_1018,
+    connectors = [
+      { id = camBearing, at_point = [ 0, 0, 0 ], axis = [ 0, 0, 1 ] }
+      { id = guide, at_point = [ 0, 20, 0 ], axis = [ 0, 1, 0 ] }
+    ],
+    features = [
+      { id = base, op = primitive, kind = box, w = 120, d = 60, h = 10, plane = XZ,
+        plane_offset = 35, at = [ -60, -30 ] }
+      { id = wall, op = primitive, kind = box, w = 120, d = 110, h = 8, plane = XY,
+        plane_offset = -16, at = [ -60, -45 ] }
+      { id = boss, op = primitive, kind = cylinder, d = 18, h = 12, plane = XY, plane_offset = -16 }
+      { id = bracket, op = primitive, kind = box, w = 16, d = 10, h = 20, plane = XY,
+        plane_offset = -16, at = [ -8, 46 ] }
+      { id = gblock, op = primitive, kind = box, w = 16, d = 16, h = 10, plane = XY,
+        plane_offset = -5, at = [ -8, 40 ] }
+      { id = f1, op = boolean, operation = union, target = base, tool = wall }
+      { id = f2, op = boolean, operation = union, target = f1, tool = boss }
+      { id = f3, op = boolean, operation = union, target = f2, tool = bracket }
+      { id = frame, op = boolean, operation = union, target = f3, tool = gblock }
+      { id = bbore, op = primitive, kind = cylinder, d = 13, h = 16, plane = XY,
+        plane_offset = -18 }
+      { id = drilled, op = boolean, operation = cut, target = frame, tool = bbore }
+      { id = gbore, op = primitive, kind = cylinder, d = 9.2, h = 60, plane = XZ,
+        plane_offset = -80 }
+      { id = whole, op = boolean, operation = cut, target = drilled, tool = gbore }
+    ] } }

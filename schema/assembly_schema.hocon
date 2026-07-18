@@ -106,9 +106,13 @@ definitions {
         items { type = string }
       }
       ratio { type = number }
-      # A cam coupling's follower rides this profile curve (a selector/persistent-name ref on the
-      # cam part); curved-contact enforcement is Phase 6. Bucket 5.7.
-      profile { type = string }
+      # A cam coupling's profile: a structured cam object that CamProfile turns into the follower's
+      # prescribed lift. Two forms: the legacy single law ({law = harmonic|sine, base_r, lift,
+      # lobes}), or the general segmented schedule ({base_r, segments = [{kind = dwell|rise|return,
+      # law, angle, lift}]}) for a real engine-style dwell-rise-return cam. A string (a selector /
+      # persistent-name curve ref on the cam part, for a future curved-contact solve) is also
+      # accepted; the object form is what the motion pass enforces today.
+      profile { oneOf = [ { type = string }, { type = object } ] }
     }
   }
 
