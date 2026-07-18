@@ -77,4 +77,4 @@ class MotionBuildHandler(BaseApiHandler):
             logger.exception("unexpected motion-build failure for %s", spec)
             self.write_error_json(500, "internal motion-build error")
             return
-        self.write_json(200, {"motions": self._catalog.motion_names(), **result})
+        self.write_json(200, {"motions": self._catalog.motions_with_labels(), **result})

@@ -27,6 +27,26 @@ def test_catalog_lists_motion_names(tmp_path: Path) -> None:
     assert catalog.motion_names() == ["crank_slider", "four_bar"]  # sorted, only motion sidecars
 
 
+def test_motions_with_labels_reports_declared_value(tmp_path: Path) -> None:
+    # steps declared -> "<n> steps"; fps declared -> "<n>fps"; neither -> frame count "<n>f".
+    (tmp_path / "cam.motion.json").write_text(
+        json.dumps({"name": "cam", "driver": {"steps": 72}, "frames": [1] * 73}))
+    (tmp_path / "belt.motion.json").write_text(
+        json.dumps({"name": "belt", "driver": {"fps": 30, "duration": 2}, "frames": [1] * 61}))
+    (tmp_path / "bare.motion.json").write_text(
+        json.dumps({"name": "bare", "driver": {}, "frames": [1] * 12}))
+    catalog = ModelCatalog(str(tmp_path))
+    labels = {m["name"]: m["label"] for m in catalog.motions_with_labels()}
+    assert labels == {"cam": "72 steps", "belt": "30fps", "bare": "12f"}
+
+
+def test_motions_with_labels_survives_unreadable_trajectory(tmp_path: Path) -> None:
+    (tmp_path / "broken.motion.json").write_text("{ not valid json")
+    catalog = ModelCatalog(str(tmp_path))
+    entries = catalog.motions_with_labels()
+    assert entries == [{"name": "broken", "label": None}]   # listed, just no label
+
+
 def test_catalog_resolves_motion_sidecar(tmp_path: Path) -> None:
     (tmp_path / "crank_slider.motion.json").write_text(
         json.dumps({"name": "crank_slider", "frames": []}))

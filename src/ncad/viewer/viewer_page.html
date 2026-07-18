@@ -128,6 +128,9 @@
   .model-row:hover { border-color: var(--border); }
   .model-row.active { border-color: var(--accent); }
   .model-row .name { flex: 1; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* The declared fps/steps suffix on a Motion row: small + muted, just right of the name. */
+  .model-row .name .row-meta { margin-left: 8px; font-size: 11px; color: var(--muted);
+    font-variant-numeric: tabular-nums; }
   /* Actions stay in layout at a fixed row height and only fade in on hover, so the row
      never resizes; toggling display caused a jittery height jump on hover. */
   .model-row .row-actions { display: flex; gap: 4px; opacity: 0; transition: opacity .15s;
@@ -2178,22 +2181,35 @@ function selectAssembly(name, verbose, timing) {
 // It loads the SAME scene as Assemblies mode (loadAssembly), then setupMotion (called inside
 // loadAssembly) reveals the timeline because it is Motion mode.
 function refreshMotions() {
+  // The /motions payload is [{name, label}] (label = the declared fps/steps). renderMotionList
+  // consumes the objects; the boot callers only need the names, so return those.
   return fetch(apiUrl("/motions")).then(r => r.json()).then(data => {
-    renderMotionList(data.motions || []); return data.motions || []; });
+    const motions = data.motions || [];
+    renderMotionList(motions);
+    return motions.map(m => m.name);
+  });
 }
 
-function renderMotionList(names) {
+function renderMotionList(motions) {
   const list = document.getElementById("model-list");
   list.innerHTML = "";
-  if (!names.length) {
+  if (!motions.length) {
     list.innerHTML = '<div class="panel-empty">no driven assemblies in out/ (add a motion block)</div>';
     return;
   }
-  for (const name of names) {
+  for (const motion of motions) {
+    const name = motion.name;
     const row = document.createElement("div");
     row.className = "model-row" + (activeModel === name ? " active" : "");
     const label = document.createElement("div");
     label.className = "name"; label.textContent = name; label.title = name;
+    // The declared fps/steps sits to the right of the name as a small muted suffix (never a value
+    // the doc did not declare; absent when the trajectory could not be read).
+    if (motion.label) {
+      const meta = document.createElement("span");
+      meta.className = "row-meta"; meta.textContent = motion.label;
+      label.appendChild(meta);
+    }
     row.appendChild(label);
     // Row actions mirror the Assemblies tab: regenerate (re-run the motion study from its recorded
     // .motion.hocon source) + delete (removes the assembly scene AND its .motion.json trajectory).
