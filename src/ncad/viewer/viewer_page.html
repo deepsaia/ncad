@@ -3147,6 +3147,42 @@ resizerEl.addEventListener("dblclick", () => {
   fitRendererToStage();
 });
 
+// Dev-only debug handle so automated tests (Playwright) can drive the view deterministically. Gated
+// on window.NCAD_DEV, so it is never attached in production (zero cost, no surface). setView orients
+// the main camera FROM a named direction in the Z-up world (reusing the ViewCube's orientCameraTo);
+// seekFrame scrubs the motion to a frame or a fraction 0..1; state() reports what is loaded.
+if (typeof window !== "undefined" && window.NCAD_DEV) {
+  const VIEW_DIRS = {
+    front: [0, -1, 0], back: [0, 1, 0], right: [1, 0, 0], left: [-1, 0, 0],
+    top: [0, 0, 1], bottom: [0, 0, -1], iso: [1, -1, 1],
+  };
+  window.NCAD_VIEWER = {
+    camera, controls, scene,
+    setView(name) {
+      const d = VIEW_DIRS[name];
+      if (!d) throw new Error(`unknown view '${name}'; expected one of ${Object.keys(VIEW_DIRS)}`);
+      orientCameraTo(new THREE.Vector3(d[0], d[1], d[2]));
+      return name;
+    },
+    fit() { if (modelRoot) frameModel(); },
+    seekFrame(indexOrFraction) {
+      if (!motion || !motion.frames.length) return null;
+      const n = motion.frames.length;
+      const i = Number.isInteger(indexOrFraction) && indexOrFraction >= 1
+        ? indexOrFraction : Math.round(indexOrFraction * (n - 1));
+      motionPlaying = false; motionPlayBtn.innerHTML = PLAY_ICON;
+      showMotionFrame(i);
+      return { frame: motionFrame, driver_value: motion.frames[motionFrame].driver_value };
+    },
+    state() {
+      return {
+        viewMode, hasModel: !!modelRoot,
+        frames: motion ? motion.frames.length : 0, frame: motionFrame,
+      };
+    },
+  };
+}
+
 let _lastFrameMs = null;
 (function animate(now) {
   requestAnimationFrame(animate);
