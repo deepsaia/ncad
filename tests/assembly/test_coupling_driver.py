@@ -66,6 +66,49 @@ def test_unknown_type_raises():
             _primary(joint_id="a"))
 
 
+def test_gear_ratio_derived_from_gears_block():
+    # With a `gears` block the ratio comes from GearProfile.mesh_ratio (one source of truth): a 16-
+    # tooth pinion driving a 24-tooth gear -> external mesh, ratio = -16/24, reversing sense.
+    coupling = {"id": "mesh", "type": "gear", "between": ["pinionPin", "gearPin"],
+                "gears": {"driver": {"module": 2.0, "teeth": 16},
+                          "driven": {"module": 2.0, "teeth": 24}}}
+    sec = CouplingDriver().secondary(coupling, _primary())
+    got = _eval(sec["expression"], 1.0)
+    want = (-16.0 / 24.0) * math.radians(360.0)
+    assert math.isclose(got, want, rel_tol=1e-9)
+
+
+def test_internal_gear_ratio_keeps_sense_from_gears_block():
+    # An internal (ring) mesh keeps sense: a pinion driving a ring gear -> positive ratio.
+    coupling = {"id": "planet", "type": "gear", "between": ["pinionPin", "ringPin"],
+                "gears": {"driver": {"module": 2.0, "teeth": 16},
+                          "driven": {"module": 2.0, "teeth": 40, "gear_type": "internal"}}}
+    sec = CouplingDriver().secondary(coupling, _primary())
+    got = _eval(sec["expression"], 1.0)
+    want = (16.0 / 40.0) * math.radians(360.0)   # positive: same sense
+    assert math.isclose(got, want, rel_tol=1e-9)
+
+
+def test_rack_pinion_travel_derived_from_gears_block():
+    # rack_pinion with a `gears` block: the rack travel per radian is the pinion pitch radius
+    # (module 2, teeth 20 -> pitch r = 20 mm/rad). Slide (metres) = pitch_r * angle / 1000.
+    coupling = {"id": "rp", "type": "rack_pinion", "between": ["pinionPin", "rackSlide"],
+                "gears": {"driver": {"module": 2.0, "teeth": 20},
+                          "driven": {"module": 2.0, "teeth": 6, "gear_type": "rack"}}}
+    sec = CouplingDriver().secondary(coupling, _primary())
+    assert sec["joint_type"] == "slider"
+    got = _eval(sec["expression"], 1.0)
+    want = 20.0 * math.radians(360.0) / 1000.0
+    assert math.isclose(got, want, rel_tol=1e-9)
+
+
+def test_malformed_gears_block_raises():
+    coupling = {"id": "mesh", "type": "gear", "between": ["pinionPin", "gearPin"],
+                "gears": {"driver": {"module": 2.0}, "driven": {"module": 2.0, "teeth": 24}}}
+    with pytest.raises(CouplingDriverError, match="gears"):
+        CouplingDriver().secondary(coupling, _primary())
+
+
 _OPS = {ast.Add: operator.add, ast.Sub: operator.sub, ast.Mult: operator.mul,
         ast.Div: operator.truediv, ast.USub: operator.neg, ast.UAdd: operator.pos}
 
