@@ -41,10 +41,11 @@ class MotionBuilder:
         assembly_path = os.path.join(motion_dir, assembly_ref)
         if not os.path.isfile(assembly_path):
             raise ValueError(f"motion references a missing assembly: {assembly_ref!r}")
-        # The motion spec passed to the assembler is the driver block (the assembly reference has
-        # done its job of locating the mechanism). The trajectory sidecar is named after the
-        # ASSEMBLY (so the viewer finds <assembly>.motion.json beside <assembly>.assembly.json).
-        motion_spec = {"driver": motion.get("driver")}
+        # The motion spec passed to the assembler is the driver block plus the optional `outputs`
+        # block (traces + measures, bucket 6.1); the assembly reference has done its job of locating
+        # the mechanism. The trajectory sidecar is named after the ASSEMBLY (so the viewer finds
+        # <assembly>.motion.json beside <assembly>.assembly.json).
+        motion_spec = {"driver": motion.get("driver"), "outputs": motion.get("outputs")}
         result = self._assembler.assemble(assembly_path, out_dir, motion_spec=motion_spec)
         logger.info("motion build: %s drives %s (motion=%s)", os.path.basename(motion_path),
                     assembly_ref, result.get("motion"))

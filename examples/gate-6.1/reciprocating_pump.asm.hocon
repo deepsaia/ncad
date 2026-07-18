@@ -1,0 +1,30 @@
+schema_version = 1
+units = mm
+# Bucket 6.1 gate: a reciprocating (plunger) pump, driven by the flywheel. Kinematically a
+# crank-slider (3 revolute + 1 slider, one closed chain: pump_body -> flywheel -> rod -> plunger ->
+# pump_body cylinder); as a PUMP the motion study adds OUTPUTS (the crown trace, the stroke measure,
+# and the swept/displaced volume). The pump body is grounded; the flywheel pivots on its main
+# bearing. The OndselSolver multibody engine (via pyondsel) reproduces the plunger motion from the
+# declared joints + one driver, no per-mechanism formula.
+metadata {
+  description = "Driven reciprocating pump: flywheel + rod + plunger, 3 revolute + 1 slider"
+  tags = [ reciprocating_pump, assembly, mechanism, pump ]
+}
+assembly {
+  instances = [
+    { id = pump_body, file = "reciprocating_pump.hocon", part = pump_body, lock = true }
+    { id = flywheel, file = "reciprocating_pump.hocon", part = flywheel }
+    { id = rod, file = "reciprocating_pump.hocon", part = rod }
+    { id = plunger, file = "reciprocating_pump.hocon", part = plunger }
+  ]
+  joints = [
+    { id = mainPin, type = revolute, between = [
+      { instance = pump_body, connector = main }, { instance = flywheel, connector = hub } ] }
+    { id = crankPin, type = revolute, between = [
+      { instance = flywheel, connector = pin }, { instance = rod, connector = big } ] }
+    { id = wristPin, type = revolute, between = [
+      { instance = rod, connector = small }, { instance = plunger, connector = wrist } ] }
+    { id = slide, type = slider, between = [
+      { instance = pump_body, connector = bore }, { instance = plunger, connector = crown } ] }
+  ]
+}

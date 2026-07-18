@@ -413,6 +413,12 @@
   .mate-status.mate-status-ok { color: var(--log-success); }
   .mate-status.mate-status-warn { color: var(--log-warn); }
   .mate-status.mate-status-bad { color: var(--log-error); }
+  /* Measures panel (motion outputs, bucket 6.1) + mobility line. */
+  .measure-row { display: flex; align-items: baseline; gap: 8px; padding: 4px 6px;
+    border-bottom: 1px solid var(--border); font-size: 12px; }
+  .measure-id { font-weight: 600; color: var(--text); min-width: 70px; }
+  .measure-val { color: var(--accent); font-variant-numeric: tabular-nums; min-width: 70px; }
+  .measure-range { color: var(--muted); font-size: 11px; }
   .tree-badge { margin-left: 6px; padding: 0 6px; border-radius: 8px; font-size: 10px;
     color: var(--muted); background: var(--panel-2); border: 1px solid var(--border);
     white-space: nowrap; }
@@ -611,6 +617,10 @@
           <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12a7 7 0 0 1 14 0"/><path d="M12 5v4"/><circle cx="12" cy="12" r="1.5"/></svg>
           <span class="vc-label">Joints</span>
         </button>
+        <button class="vc-btn vc-toggle active" data-toggle="traces" title="Motion trace curves">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18c4-1 5-12 8-12s4 11 8 12"/></svg>
+          <span class="vc-label">Traces</span>
+        </button>
       </div>
 
       <div class="vc-sep"></div>
@@ -653,6 +663,7 @@
       <button class="tab active" data-tab="hierarchy" role="tab">Hierarchy</button>
       <button class="tab" data-tab="bom" role="tab">BOM</button>
       <button class="tab" data-tab="plan" role="tab">Plan</button>
+      <button class="tab" id="tab-measures-btn" data-tab="measures" role="tab" hidden>Measures</button>
       <button class="tab" data-tab="logs" role="tab">Logs</button>
     </div>
     <div class="tab-head">
@@ -669,6 +680,9 @@
     </div>
     <div class="tab-panel" id="tab-plan" role="tabpanel">
       <div id="plan-body"><div class="panel-empty">select a model</div></div>
+    </div>
+    <div class="tab-panel" id="tab-measures" role="tabpanel">
+      <div id="measures-body"><div class="panel-empty">no measures</div></div>
     </div>
     <div class="tab-panel" id="tab-logs" role="tabpanel">
       <div id="logs-body"><div class="panel-empty">no log entries yet</div></div>
@@ -1266,6 +1280,12 @@ let showConnectors = localStorage.getItem("ncad.connectors") === "1";
 // by the Joints control. Declared before bindVcToggle runs to avoid a temporal-dead-zone error.
 let jointGizmos = [];
 let showJoints = localStorage.getItem("ncad.joints") === "1";
+// Motion trace curves (bucket 6.1): a THREE.Line per declared trace, added to modelRoot (world
+// path), toggled by the Traces control. Default on (localStorage null -> on).
+let traceLines = [];
+let showTraces = localStorage.getItem("ncad.traces") !== "0";
+// A stable palette for trace curves (distinct from the material palette).
+const TRACE_COLORS = [0xff5aa0, 0x5aff9a, 0xffd166, 0x9a7cff, 0x5ad1ff, 0xff8c42];
 // Per-instance material {instanceId: {material, appearance_color}} from the sidecar, for the
 // assembly By-Material view (bucket 5.6). Empty in Parts mode (that path uses the element map).
 let assemblyMaterials = {};
@@ -1825,6 +1845,7 @@ bindVcToggle("origins", "ncad.origins", v => {
 });
 bindVcToggle("isolate", "ncad.isolate", v => { isolateOn = v; refreshInstanceVisuals(); });
 bindVcToggle("joints", "ncad.joints", v => { showJoints = v; jointGizmos.forEach(g => { g.visible = v; }); });
+bindVcToggle("traces", "ncad.traces", v => { showTraces = v; traceLines.forEach(l => { l.visible = v; }); });
 document.getElementById("vc-reset").addEventListener("click", () => { if (modelRoot) frameModel(); });
 
 // The assembly floating controls show in Assemblies AND Motion mode (both render a scene of placed
@@ -2523,6 +2544,9 @@ function resetMotion() {
   motion = null; motionNodes = {}; motionFrame = 0; motionPlaying = false; motionAccum = 0;
   motionBar.hidden = true;
   motionPlayBtn.innerHTML = PLAY_ICON;
+  // Trace lines are children of modelRoot (cleared with the scene in clearModel); just drop refs.
+  traceLines = [];
+  renderMeasures(null);
 }
 
 function setupMotion(name, instanceNodes) {
@@ -2539,6 +2563,9 @@ function setupMotion(name, instanceNodes) {
     motionScrub.max = String(doc.frames.length - 1);
     motionScrub.value = "0";
     motionBar.hidden = false;
+    buildTraceLines(doc.traces || []);   // motion outputs (bucket 6.1); no-op if none declared
+    renderMeasures(doc.measures || []);
+    renderMobility(doc.dof || null);
     showMotionFrame(0);
     log(`motion: ${doc.frames.length} frames, driver ${doc.driver ? doc.driver.joint : "?"}`, "info");
   }).catch(() => { /* motion is optional; a fetch error just means no timeline */ });
@@ -2559,6 +2586,80 @@ function showMotionFrame(i) {
   motionScrub.value = String(motionFrame);
   const unit = degreesLikelyDriver() ? "°" : "";
   motionReadout.textContent = `${(+frame.driver_value).toFixed(1)}${unit}`;
+  updateMeasureValues(motionFrame);
+}
+
+// Build a THREE.Line for each declared trace polyline (world metres), added to modelRoot so it
+// clears with the scene and rides the model's framing shift. Colored from the trace palette,
+// visibility follows the Traces toggle. No-op when no traces are declared.
+function buildTraceLines(traces) {
+  traceLines = [];
+  traces.forEach((t, i) => {
+    const pts = (t.polyline || []).map(p => new THREE.Vector3(p[0], p[1], p[2]));
+    if (pts.length < 2) return;
+    const line = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(pts),
+      new THREE.LineBasicMaterial({ color: TRACE_COLORS[i % TRACE_COLORS.length] }));
+    line.userData.isGizmo = true;   // excluded from picking/bbox like the other overlays
+    line.visible = showTraces;
+    if (modelRoot) modelRoot.add(line);
+    traceLines.push(line);
+  });
+}
+
+// Render the measures panel (a compact numeric readout, one row per measure). Called on load
+// (measures list) and reset (null clears it). The per-frame live value is filled by
+// updateMeasureValues.
+function renderMeasures(measures) {
+  const panel = document.getElementById("measures-body");
+  if (!panel) return;
+  if (!measures || !measures.length) {
+    panel.innerHTML = '<div class="panel-empty">no measures</div>';
+    document.getElementById("tab-measures-btn").hidden = !measures;
+    return;
+  }
+  document.getElementById("tab-measures-btn").hidden = false;
+  panel.innerHTML = "";
+  for (const m of measures) {
+    const row = document.createElement("div");
+    row.className = "measure-row";
+    const extra = m.value != null ? ` &middot; total ${(+m.value).toFixed(2)} ${m.unit}` : "";
+    row.innerHTML =
+      `<span class="measure-id">${m.id}</span>` +
+      `<span class="measure-val" data-measure="${m.id}">-</span>` +
+      `<span class="measure-range">[${(+m.min).toFixed(1)} .. ${(+m.max).toFixed(1)}] ${m.unit}${extra}</span>`;
+    panel.appendChild(row);
+  }
+}
+
+// Add a mobility (DoF) line to the hierarchy panel, next to the static solve-status line: the
+// planar Gruebler mobility + the rest-pose solver DoF. Green when mobile, amber when locked.
+// Prepended to the hierarchy body (which renderInstanceTree filled from the assembly scene).
+function renderMobility(dof) {
+  const existing = document.getElementById("mobility-line");
+  if (existing) existing.remove();
+  if (!dof) return;
+  const body = document.getElementById("hierarchy-body");
+  if (!body) return;
+  const line = document.createElement("div");
+  line.id = "mobility-line";
+  line.className = "mate-status " + (dof.status === "mobile" ? "mate-status-ok" : "mate-status-warn");
+  line.textContent = `mobility: ${dof.gruebler} DoF (planar Gruebler ${dof.gruebler}, ` +
+    `rest solve ${dof.solver})`;
+  line.title = "Mechanism mobility from the joint graph (Gruebler) next to the static rest-pose " +
+    "free DoF (0 for a well-constrained rest).";
+  body.insertBefore(line, body.firstChild);
+}
+
+// Fill each measure row's live value from the current frame's series entry.
+function updateMeasureValues(frameIdx) {
+  if (!motion || !motion.measures) return;
+  for (const m of motion.measures) {
+    const el = document.querySelector(`.measure-val[data-measure="${m.id}"]`);
+    if (!el) continue;
+    const v = (m.series || [])[frameIdx];
+    el.textContent = v == null ? "-" : `${(+v).toFixed(2)} ${m.unit}`;
+  }
 }
 
 function degreesLikelyDriver() {

@@ -1090,24 +1090,32 @@ multibody engine via the `pyondsel` binding (`uv pip install -e ../pyondsel`), m
 document kind (`.motion.hocon`), and the crank-slider gate reproduces the closed-form piston stroke
 from declared joints + one driver (no per-mechanism formula). A root-cause fix in the pyondsel
 trajectory parser (a leading `Input` reference column was shifting every part one frame ahead of
-its time sample) aligned the solved frames 1:1 with the driver values.
+its time sample) aligned the solved frames 1:1 with the driver values. **Bucket 6.0 also shipped**
+the four-bar gate (first closed-loop) and a viewer playback-speed control. **Bucket 6.1 (motion
+outputs) is DONE:** traces, measures-over-time, and a mobility (DoF) report, emitted into the motion
+sidecar (schema 2) and shown in the viewer (scene trace polyline + Traces toggle, a Measures panel,
+a mobility line). Outputs are OPTIONAL + additive (declared in a `.motion.hocon` `outputs` block; a
+motion doc without it just plays the trajectory) - the reciprocating-pump gate is the single
+demonstrator, and the other gates stay outputs-free.
 
-- [ ] **DoF analysis:** free degrees of freedom from the joint graph; over/under/
-      exactly-constrained status (solver Jacobian rank)
+- [x] **DoF analysis:** planar Gruebler/Kutzbach mobility from the joint graph next to the static
+      solve's rest-pose free DoF (MotionMobility, bucket 6.1); the sketch-DoF 3D analogue
 - [x] **Drivers / forward kinematics:** per-joint driver (revolute angle / slider
       distance) ramped linearly over a value sweep; sweep >> configuration per step
       (constant/keyframe/coupler-driven drivers remain for later buckets)
 - [ ] **Inverse kinematics:** drive an output frame, solve joint values (bucket 6.4)
 - [x] **Mechanism solver:** step the driver, solve the constraint network per frame
-      on OndselSolver (via `pyondsel`); closed loops (crank-slider) converge
+      on OndselSolver (via `pyondsel`); closed loops (crank-slider, four-bar) converge
 - [ ] **Interference during motion:** per-step collision/clearance; collision
       events on the timeline (bucket 6.3)
-- [ ] **Outputs:** **trace curves** (point path), **motion envelopes** (swept
-      volume), **measures over time** (distance/angle/velocity/accel) (bucket 6.1)
+- [x] **Outputs (bucket 6.1):** **trace curves** (a point's world path) + **measures over time**
+      (coordinate / distance / angle / **swept volume**), a pure post-process over the trajectory.
+      DEFERRED: **motion envelopes** (a whole body's swept solid, needs a mesh sweep) and
+      **velocity/acceleration** (the driver sweep is normalized t 0..1, not real seconds).
 - [x] **Viewer playback:** per-frame instance transforms on a Motion-tab timeline
-      (play/scrub, driver-value readout); overlays ride the moving parts
+      (play/scrub, driver-value readout, 0.1x-128x speed); overlays + traces ride the moving parts
 - [x] Motion study definitions persisted as a first-class `.motion.hocon` document
-      (drives a referenced assembly; writes a `<name>.motion.json` trajectory)
+      (drives a referenced assembly; writes a `<name>.motion.json` trajectory + optional outputs)
 
 **Candidate mechanism gate examples** *(real-world, progressively complex; each
 exercises a distinct joint mix and drives from ONE driver, so it doubles as a proof
@@ -1117,7 +1125,7 @@ discipline. A rich catalog of further mechanisms to draw from:
 [507 Mechanical Movements](https://507movements.com/toc.html) - animated classic
 linkages, cams, gears, ratchets, and intermittent motions, a strong well of
 recognizable gate candidates as the phase grows)*:
-- [ ] **Crank-slider (vertical engine cross-section)** - a piston sliding in a
+- [x] **Crank-slider (vertical engine cross-section)** - a piston sliding in a
       cylinder, linked by a connecting rod to a crank pin on a spinning flywheel.
       Joints: 3x **revolute** (crank-ground, crank-pin-rod, rod-piston) + 1x
       **slider** (piston-cylinder); 1 DoF, driven by the crank angle. The canonical
@@ -1126,12 +1134,13 @@ recognizable gate candidates as the phase grows)*:
       (`mechanisms/crank_slider`); ncad's job is to reproduce that motion **from
       declared joints + one driver**, no per-mechanism formula. Reference image:
       `docs/images/crank-slider-reference.jpg`.
-- [ ] **Four-bar linkage** - the classic planar closed loop, 4x revolute, 1 DoF; the
+- [x] **Four-bar linkage** - the classic planar closed loop, 4x revolute, 1 DoF; the
       simplest closed-chain solve and the coupler-curve trace demo (a point on the
       coupler traces a useful path). Good first *closed-loop* convergence test.
-- [ ] **Slider-crank pump / reciprocating pump** - crank-slider driving a plunger;
+- [x] **Slider-crank pump / reciprocating pump** - crank-slider driving a plunger;
       adds a **measure-over-time** (plunger displacement -> swept volume vs. crank
-      angle), proving the measures-over-time output on a familiar machine.
+      angle), proving the measures-over-time output on a familiar machine. (Gate 6.1;
+      the single motion-outputs demonstrator: crown trace + stroke + swept volume.)
 - [ ] **Geneva mechanism (intermittent indexer)** - a driving pin + slotted wheel
       giving intermittent rotation; exercises a **point-on-line / slot** joint and a
       non-uniform output, a strong test of the stepped solve through engagement /
