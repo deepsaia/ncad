@@ -10,6 +10,14 @@ def test_seed_resolves_steel_density():
     assert lib.has("aluminium_6061") and lib.has("abs")
 
 
+def test_seed_bronze_has_appearance_color():
+    # Bronze carries a warm appearance color so it reads distinctly in the viewer + glTF/STEP.
+    lib = MaterialLibrary({})
+    bronze = lib.resolve("bronze")
+    assert bronze["physical"]["density"] == 8800
+    assert bronze["appearance"]["color"] == [0.72, 0.45, 0.20]
+
+
 def test_unknown_material_raises():
     lib = MaterialLibrary({})
     with pytest.raises(MaterialError, match="titanium"):

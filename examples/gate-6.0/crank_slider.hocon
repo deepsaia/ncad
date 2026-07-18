@@ -60,7 +60,7 @@ parts {
   # Connecting rod: a diagonal bar from the crank pin (20,0) to the wrist (0,67), with a ring eye at
   # each end. The eyes are BORED (a through hole a touch larger than each pin) so the rod wraps its
   # pins with running clearance instead of overlapping them - the joints touch, they do not clash.
-  rod { profile = solid, material = steel_4140,
+  rod { profile = solid, material = bronze,
     connectors = [
       { id = big, at_point = [ 20, 0, 0 ], axis = [ 0, 0, 1 ] }
       { id = small, at_point = [ 0, 67, 0 ], axis = [ 0, 0, 1 ] }
