@@ -103,3 +103,22 @@ def test_build_wraps_builder_failure_as_builderror(tmp_path) -> None:
 
     with pytest.raises(BuildError):
         service.build("g/block.hocon")
+
+
+def test_motion_regenerate_allows_recorded_trajectory_source(tmp_path) -> None:
+    # After a page reload the viewer's Regenerate passes the source recorded in <name>.motion.json
+    # (an absolute path, not under examples). It must be allowed when a built trajectory records it.
+    service, _, out = _service(tmp_path)
+    external = tmp_path / "study.motion.hocon"
+    external.write_text("x")
+    (out / "mech.motion.json").write_text(json.dumps({"name": "mech", "source": str(external)}))
+
+    assert service._allowed_motion_path(str(external)) == str(external)
+
+
+def test_motion_regenerate_rejects_unrecorded_external_source(tmp_path) -> None:
+    service, _, out = _service(tmp_path)
+    external = tmp_path / "study.motion.hocon"
+    external.write_text("x")
+    # No trajectory records this source, and it is outside examples: not allowed.
+    assert service._allowed_motion_path(str(external)) is None

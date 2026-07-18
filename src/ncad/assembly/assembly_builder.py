@@ -392,10 +392,14 @@ class AssemblyBuilder:
         dof = MotionMobility().report(joints, len(instances), int(solve_block.get("dof", 0)),
                                       coupling_count=coupling_count)
         path = os.path.join(out_dir, f"{name}.motion.json")
+        # `source` (the .motion.hocon path) lets the viewer's Regenerate re-run the study after a
+        # page reload, mirroring the assembly sidecar's source. Omitted when driven directly.
+        payload = {"schema_version": 2, "name": name, "driver": motion["driver"],
+                   "frames": frames, "traces": traces, "measures": measures, "dof": dof}
+        if motion.get("source"):
+            payload["source"] = motion["source"]
         with open(path, "w", encoding="utf-8") as handle:
-            json.dump({"schema_version": 2, "name": name, "driver": motion["driver"],
-                       "frames": frames, "traces": traces, "measures": measures, "dof": dof},
-                      handle)
+            json.dump(payload, handle)
         logger.info("assembly motion: joint=%s frames=%d traces=%d measures=%d out=%s",
                     joint_id, len(frames), len(traces), len(measures), path)
         return path

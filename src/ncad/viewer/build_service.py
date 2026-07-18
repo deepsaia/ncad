@@ -141,8 +141,24 @@ class BuildService:
         return {"assembled": name, "issues": result["issues"], "build_ms": round(build_ms, 1)}
 
     def _allowed_motion_path(self, spec: str) -> str | None:
-        """Resolve a motion ``spec`` if it is under the examples directory, else None."""
-        return self._spec_catalog.resolve(spec)
+        """Resolve a motion ``spec`` if under examples or a recorded trajectory source, else None.
+
+        Regenerate passes the source recorded in an existing trajectory sidecar (an absolute path),
+        which is not under examples; accept it when a built trajectory records it (mirrors the
+        assembly rule, so a reload can regenerate a motion study).
+        """
+        under_examples = self._spec_catalog.resolve(spec)
+        if under_examples is not None:
+            return under_examples
+        for name in self._model_catalog.motion_names():
+            path = self._model_catalog.resolve_motion(name)
+            if path is None:
+                continue
+            with open(path, encoding="utf-8") as handle:
+                source = json.load(handle).get("source")
+            if source == spec and os.path.isfile(spec):
+                return spec
+        return None
 
     def _allowed_assembly_path(self, spec: str) -> str | None:
         """Resolve an assembly ``spec`` if under examples or a recorded scene source, else None.

@@ -2559,6 +2559,9 @@ function setupMotion(name, instanceNodes) {
     return r.json();
   }).then(doc => {
     if (!doc || !(doc.frames || []).length) return;
+    // The trajectory records its source .motion.hocon, so Regenerate works after a page reload (the
+    // in-memory motionSources map alone would be empty on a fresh page).
+    if (doc.source) motionSources[name] = doc.source;
     motion = doc; motionNodes = instanceNodes;
     motionScrub.max = String(doc.frames.length - 1);
     motionScrub.value = "0";

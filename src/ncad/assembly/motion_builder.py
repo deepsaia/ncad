@@ -45,7 +45,11 @@ class MotionBuilder:
         # block (traces + measures, bucket 6.1); the assembly reference has done its job of locating
         # the mechanism. The trajectory sidecar is named after the ASSEMBLY (so the viewer finds
         # <assembly>.motion.json beside <assembly>.assembly.json).
-        motion_spec = {"driver": motion.get("driver"), "outputs": motion.get("outputs")}
+        # The motion doc's own path is recorded (as `source`) so the viewer's Regenerate works after
+        # a page reload: the trajectory sidecar carries it, exactly as the assembly sidecar records
+        # its .asm.hocon source.
+        motion_spec = {"driver": motion.get("driver"), "outputs": motion.get("outputs"),
+                       "source": os.path.abspath(motion_path)}
         result = self._assembler.assemble(assembly_path, out_dir, motion_spec=motion_spec)
         logger.info("motion build: %s drives %s (motion=%s)", os.path.basename(motion_path),
                     assembly_ref, result.get("motion"))
