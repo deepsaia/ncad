@@ -42,6 +42,20 @@ a typed-in equation; here it emerges from the joint graph.
 
 ## four_bar
 
-Planned next (bucket 6.0 four-bar gate, task 94): a planar four-bar (crank-rocker) - ground + input
-crank + coupler + output rocker, 4 revolute joints closing the loop, driven by the input crank. The
-first CLOSED-LOOP gate: every frame must converge the loop. (The coupler-curve trace is bucket 6.1.)
+A planar four-bar (crank-rocker): ground + input `crank` + `coupler` + output `rocker`, joined by 4
+revolute joints in ONE CLOSED LOOP (ground >> crank >> coupler >> rocker >> ground). Like the
+crank-slider it is a primitive blockout (each link is a bar + two bored ring eyes; the ground and
+the joints carry pins the eyes ride, z-layered so nothing clashes). The `four_bar.motion.hocon`
+drives the input crank (`pinA`) a full turn.
+
+Geometry: A=(0,0), D=(90,0); crank 30, coupler 80, rocker 60. A Grashof crank-rocker (shortest 30 +
+longest 90 = 120 <= 80 + 60 = 140), so the crank turns a FULL revolution while the rocker sweeps a
+bounded ~60 deg arc. This is the first CLOSED-LOOP gate: the OndselSolver multibody engine (via
+pyondsel) must CONVERGE the loop at every frame, not just walk a serial chain, all from the declared
+joints + one driver.
+
+The gate test asserts the mechanism assembles clash-free at rest, the closed loop stays closed
+(the coupler's C pin and the rocker's C pin coincide to < 0.5 mm at all 73 frames), the rocker
+oscillates over a bounded arc (a crank-rocker, not a full turn), and the solve is deterministic
+across two runs. (A point on the coupler traces the classic coupler curve; that trace output is
+bucket 6.1.)

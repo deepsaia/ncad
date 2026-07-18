@@ -1,0 +1,30 @@
+schema_version = 1
+units = mm
+# Bucket 6.0 gate: the classic four-bar linkage, driven by the input crank. Four bodies, 4 revolute
+# joints in ONE CLOSED kinematic loop (ground -> crank -> coupler -> rocker -> ground). This is the
+# first CLOSED-LOOP gate: every frame must converge the loop, not just a serial chain. The ground is
+# grounded; the OndselSolver multibody engine (via pyondsel) reproduces the crank-rocker motion from
+# the declared joints + one driver, with NO per-mechanism formula. A Grashof crank-rocker, so the
+# crank turns fully while the rocker sweeps a bounded arc.
+metadata {
+  description = "Driven four-bar: ground + crank + coupler + rocker, 4 revolute, one closed loop"
+  tags = [ four_bar, assembly, mechanism ]
+}
+assembly {
+  instances = [
+    { id = ground, file = "four_bar.hocon", part = ground, lock = true }
+    { id = crank, file = "four_bar.hocon", part = crank }
+    { id = coupler, file = "four_bar.hocon", part = coupler }
+    { id = rocker, file = "four_bar.hocon", part = rocker }
+  ]
+  joints = [
+    { id = pinA, type = revolute, between = [
+      { instance = ground, connector = pivotA }, { instance = crank, connector = groundPin } ] }
+    { id = pinB, type = revolute, between = [
+      { instance = crank, connector = couplerPin }, { instance = coupler, connector = crankPin } ] }
+    { id = pinC, type = revolute, between = [
+      { instance = coupler, connector = rockerPin }, { instance = rocker, connector = couplerPin } ] }
+    { id = pinD, type = revolute, between = [
+      { instance = rocker, connector = groundPin }, { instance = ground, connector = pivotD } ] }
+  ]
+}
