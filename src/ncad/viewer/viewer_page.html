@@ -2538,6 +2538,10 @@ document.addEventListener("keydown", ev => {
   if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT")) return;
   if (ev.key === "[") { setMotionSpeedIdx(motionSpeedIdx - 1); ev.preventDefault(); }
   else if (ev.key === "]") { setMotionSpeedIdx(motionSpeedIdx + 1); ev.preventDefault(); }
+  // P (and the space bar, the media convention) toggles play/pause, matching the widget's button.
+  else if (ev.key === "p" || ev.key === "P" || ev.key === " ") {
+    toggleMotionPlay(); ev.preventDefault();
+  }
 });
 
 function resetMotion() {
