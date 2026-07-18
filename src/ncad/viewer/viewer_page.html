@@ -291,8 +291,7 @@
   #viewport-controls.vc-animate { transition: left .28s ease, right .28s ease,
     top .28s ease, bottom .28s ease; }
 
-  /* --- Floating content panels (BOM, Plan): top-right, collapsible --- */
-  /* --- Right sidebar (BOM / Plan / Hierarchy), collapsible with a drag separator ---
+  /* --- Right sidebar (BOM / Hierarchy), collapsible with a drag separator ---
      Width is a CSS variable so collapse can animate it to zero smoothly (display:none
      cannot transition). The rail animates its own width in the opposite direction. */
   :root { --rs-width: 320px; }
@@ -332,10 +331,6 @@
   .log-line.log-success { color: var(--log-success); }
   .log-line.log-warn { color: var(--log-warn); }
   .log-line.log-error { color: var(--log-error); }
-  #tab-plan.tab-panel { padding: 0; }
-  /* The plan SVG is drawn dark-on-white, so its container is white only when it holds
-     a plan; the empty/placeholder state uses the normal panel padding + theme colors. */
-  #tab-plan.tab-panel:not(.has-plan) { padding: 12px 14px; }
   .bom-row { display: flex; justify-content: space-between; align-items: baseline;
     font-size: 13px; padding: 7px 0; border-top: 1px solid var(--border); }
   .bom-row:first-child { border-top: none; }
@@ -349,9 +344,6 @@
   .status-dot.well { background: #2ecc71; }
   .status-dot.under { background: #f2c14e; }
   .status-dot.over, .status-dot.inconsistent { background: #e74c3c; }
-  /* White backing only when a real plan SVG is present (see .has-plan on the tab). */
-  #tab-plan.has-plan #plan-body { padding: 12px; background: #ffffff; }
-  #plan-body svg { width: 100%; height: auto; display: block; }
 
   /* Collapsed rail: a narrow bar with a reopen icon at the top. Its width animates
      from 0 so open/close slides smoothly alongside the sidebar. */
@@ -626,7 +618,7 @@
       <div class="vc-sep"></div>
 
       <div class="vc-group" id="vc-panels">
-        <button class="vc-btn vc-toggle" id="vc-sidebar-toggle" title="Data sidebar (BOM / Plan / Hierarchy)">
+        <button class="vc-btn vc-toggle" id="vc-sidebar-toggle" title="Data sidebar (BOM / Hierarchy)">
           <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg>
           <span class="vc-label">Sidebar</span>
         </button>
@@ -662,7 +654,6 @@
     <div class="tabs" role="tablist">
       <button class="tab active" data-tab="hierarchy" role="tab">Hierarchy</button>
       <button class="tab" data-tab="bom" role="tab">BOM</button>
-      <button class="tab" data-tab="plan" role="tab">Plan</button>
       <button class="tab" id="tab-measures-btn" data-tab="measures" role="tab" hidden>Measures</button>
       <button class="tab" data-tab="logs" role="tab">Logs</button>
     </div>
@@ -677,9 +668,6 @@
     </div>
     <div class="tab-panel" id="tab-bom" role="tabpanel">
       <div id="bom-body"><div class="panel-empty">select a model</div></div>
-    </div>
-    <div class="tab-panel" id="tab-plan" role="tabpanel">
-      <div id="plan-body"><div class="panel-empty">select a model</div></div>
     </div>
     <div class="tab-panel" id="tab-measures" role="tabpanel">
       <div id="measures-body"><div class="panel-empty">no measures</div></div>
@@ -1549,7 +1537,6 @@ function loadModel(name) {
     .then(j => { elementMap = j; onElementMapReady(); })
     .catch(() => { elementMap = null; onElementMapReady(); });
   loadBom(name);
-  loadPlan(name);
   loadHierarchy(name);
 }
 
@@ -1576,18 +1563,6 @@ function loadBom(name) {
       body.appendChild(row);
     });
   }).catch(() => { body.innerHTML = '<div class="panel-empty">no BOM for this model</div>'; });
-}
-
-function loadPlan(name) {
-  const body = document.getElementById("plan-body");
-  const tab = document.getElementById("tab-plan");
-  fetch(apiUrl(`/plan/${name}`)).then(r => r.ok ? r.text() : Promise.reject()).then(svg => {
-    body.innerHTML = svg;
-    tab.classList.add("has-plan");
-  }).catch(() => {
-    body.innerHTML = '<div class="panel-empty">no plan for this model</div>';
-    tab.classList.remove("has-plan");
-  });
 }
 
 // ---- Hierarchy tab (Blender-style tree, non-interactive) ----
@@ -1706,7 +1681,11 @@ function setTab(name) {
   localStorage.setItem("ncad.rs.tab", name);
 }
 rightTabs.forEach(t => t.addEventListener("click", () => setTab(t.dataset.tab)));
-setTab(localStorage.getItem("ncad.rs.tab") || "hierarchy");
+// Restore the saved tab, but only if it still exists (a removed tab like the old "plan" falls back
+// to hierarchy so the sidebar is never left blank).
+const savedTab = localStorage.getItem("ncad.rs.tab");
+const savedTabExists = [...rightTabs].some(t => t.dataset.tab === savedTab);
+setTab(savedTabExists ? savedTab : "hierarchy");
 
 // Label toggle for the hierarchy (icons-only when off), persisted.
 function setTreeText(on) {
