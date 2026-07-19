@@ -101,17 +101,24 @@ class EntityExpander:
         ]
 
     def _expand_involute_gear(self, entity: dict, by_id: dict) -> list[dict]:
-        """A true involute spur gear (module/teeth/pressure_angle) -> a closed loop of lines.
+        """An involute gear (external/internal/rack) -> a closed loop of lines from GearProfile.
 
-        GearProfile.outline() gives the tooth outline as [x, y] points about the origin; offset by
-        the (optional) center point's seed and join consecutively with a closing line, so the whole
-        gear is a well-defined closed profile the wire builder + extrude consume. The derived points
-        are ``fixed`` (locked at the computed involute coordinates), so the gear is well-constrained
-        by construction (the author does not pin each of the many flank points).
+        GearProfile.outline() gives the tooth outline as [x, y] points (about the origin for a
+        radial gear, along +x for a rack); offset by the (optional) center point's seed and joined
+        consecutively with a closing line, so the whole gear is a closed profile the wire builder +
+        extrude consume. Passes through the full gear vocabulary (gear_type, profile_shift,
+        backlash, length) so the same generator that drives the mesh coupling draws the body. The
+        points are ``fixed`` (locked at the computed coordinates), well-constrained by construction.
         """
         gid = entity["id"]
-        profile = GearProfile(module=float(entity["module"]), teeth=int(entity["teeth"]),
-                              pressure_angle=float(entity.get("pressure_angle", 20.0)))
+        profile = GearProfile(
+            module=float(entity["module"]), teeth=int(entity["teeth"]),
+            pressure_angle=float(entity.get("pressure_angle", 20.0)),
+            gear_type=entity.get("gear_type", "external"),
+            profile_shift=float(entity.get("profile_shift", 0.0)),
+            backlash=float(entity.get("backlash", 0.0)),
+            length=float(entity.get("length", 0.0)),
+            phase=float(entity.get("phase", 0.0)))
         cx, cy = _seed_of(by_id, entity["center"]) if entity.get("center") else (0.0, 0.0)
         outline = profile.outline()
         n = len(outline)

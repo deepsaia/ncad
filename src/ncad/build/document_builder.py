@@ -97,13 +97,20 @@ class DocumentBuilder:
         return self.build(self._loader.load(path))
 
     def build_file(self, path: str, out_dir: str,
-                   formats: tuple[str, ...] = ("glb",)) -> dict[str, str]:
-        """Load, build, and export each part to ``<out_dir>/<part>.<ext>`` per format.
+                   formats: tuple[str, ...] = ("glb",),
+                   name_prefix: str = "") -> dict[str, str]:
+        """Load, build, and export each part to ``<out_dir>/<prefix><part>.<ext>`` per format.
 
         Also writes each part's element-map / hierarchy / status sidecars beside the
         artifacts. ``formats`` selects the export format(s) (``glb`` and/or ``step``); the
         default keeps the viewer's glb-only path unchanged. glb is the display mesh; step
         is the exact B-rep for CAD interchange (design §14).
+
+        ``name_prefix`` namespaces the written artifact + sidecar basenames (default ""
+        keeps the bare ``<part>`` names). Assembly composition passes the source document's
+        stem so two mechanisms that both define a part named ``stand`` write distinct
+        ``<doc>__stand.glb`` files into the shared output dir instead of clobbering one
+        ``stand.glb``. The returned map is still keyed by the bare part name.
 
         :return: Map from part name to its primary artifact (the first requested format).
         """
@@ -116,6 +123,7 @@ class DocumentBuilder:
         material_library = MaterialLibrary(document, base_dir=os.path.dirname(path))
         artifacts: dict[str, str] = {}
         for name, part in resolved["parts"].items():
+            stem = f"{name_prefix}{name}"
             result, element_map, statuses = self._builder.build_part_mapped(part)
             if result.shape is None:
                 reasons = "; ".join(f"[{i.node_id}] {i.message}" for i in result.issues
@@ -131,12 +139,12 @@ class DocumentBuilder:
                            if b.get("appearance_color") is not None}
             written: list[str] = []
             for fmt in resolved_formats:
-                artifact_path = os.path.join(out_dir, f"{name}.{_FORMAT_EXTENSIONS[fmt]}")
+                artifact_path = os.path.join(out_dir, f"{stem}.{_FORMAT_EXTENSIONS[fmt]}")
                 self._kernel.export(result.shape, artifact_path, body_colors=body_colors)
                 written.append(artifact_path)
-            self._write_element_map(element_map, out_dir, name, bodies, result.shape)
-            self._write_hierarchy(part, out_dir, name, statuses, bodies)
-            SketchStatusSidecar(out_dir).write(name, statuses)
+            self._write_element_map(element_map, out_dir, stem, bodies, result.shape)
+            self._write_hierarchy(part, out_dir, stem, statuses, bodies)
+            SketchStatusSidecar(out_dir).write(stem, statuses)
             for status in statuses:
                 logger.info("sketch %s: %s-constrained (dof %d)%s", status.feature_id,
                             status.status, status.dof,

@@ -1,0 +1,21 @@
+schema_version = 1
+# A motion study driving the rack-and-pinion. The pinion turns a half revolution (0 -> 180 deg); the
+# `rack_pinion` coupling turns that into the rack's prescribed SLIDE (travel = pitch_r * angle), so
+# the rack advances pi*27 ~= 84.8 mm. The rack is long (26 teeth ~= 245 mm) and its rest position is
+# set (guide x) so the pinion stays meshed across the whole 84.8 mm slide rather than running off an
+# end. A 6.1 `coordinate` measure reports the rack's world-X travel (tracks pitch_r * pinion_angle).
+metadata {
+  description = "Rack-and-pinion motion study: pinion turns 180 deg, rack advances ~84.8 mm meshed"
+  tags = [ rack_pinion, motion ]
+}
+motion {
+  assembly = "rack_pinion.asm.hocon"
+  driver = { joint = pinionPin, from = 0, to = 180, steps = 72 }
+  outputs {
+    measures = [
+      # The rack's linear travel: the world-X of a point on the rack (its travel connector origin).
+      # It should track pitch_r * pinion_angle (27 mm/rad), i.e. ~84.8 mm over the half revolution.
+      { id = travel, kind = coordinate, instance = rack, point = [ 0, 0, 0 ], axis = x }
+    ]
+  }
+}

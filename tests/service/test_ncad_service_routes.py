@@ -91,7 +91,9 @@ def test_assemblies_list_and_scene(service):
 
 def test_motions_list_and_trajectory(service):
     status, body, _ = _get(f"{service.base_url}/api/v1/motions")
-    assert json.loads(body)["motions"] == ["widget"]
+    # Labeled shape: [{name, label}]; this fixture's driver declares neither fps nor steps and has
+    # no frames, so the label is None (the row still lists).
+    assert json.loads(body)["motions"] == [{"name": "widget", "label": None}]
     status, body, _ = _get(f"{service.base_url}/api/v1/motion/widget")
     assert status == 200 and "frames" in json.loads(body)
 

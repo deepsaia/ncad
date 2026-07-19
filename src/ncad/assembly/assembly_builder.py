@@ -695,8 +695,13 @@ class AssemblyBuilder:
                            "message": f"part file not found: {instance['file']!r}"})
             return None
         builder = builders.setdefault(key[0], DocumentBuilder(self._kernel))
+        # Namespace the glb by the source document stem so two mechanisms that both define a part
+        # named `stand` write distinct <doc>__stand.glb files into the shared out dir (not one
+        # clobbered stand.glb). The stem is the part file's basename without extensions.
+        doc_stem = os.path.basename(part_file).split(".", 1)[0]
         try:
-            artifacts = builder.build_file(part_file, out_dir, formats=("glb",))
+            artifacts = builder.build_file(part_file, out_dir, formats=("glb",),
+                                           name_prefix=f"{doc_stem}__")
         except Exception as exc:  # noqa: BLE001 - a bad part becomes an id-attributed issue
             issues.append({"instance_id": instance_id, "message": f"part build failed: {exc}"})
             return None

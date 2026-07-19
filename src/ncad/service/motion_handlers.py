@@ -10,11 +10,11 @@ from ncad.service.base_handler import BaseApiHandler
 
 
 class MotionsHandler(BaseApiHandler):
-    """GET /api/v1/motions -> the list of assembly names that carry a motion trajectory."""
+    """GET /api/v1/motions -> assembly names that carry a motion trajectory, each with a label."""
 
     def get(self, *args: str, **kwargs: str) -> None:
-        """Return ``{"motions": [name, ...]}``."""
-        self.write_json(200, {"motions": self._catalog.motion_names()})
+        """Return ``{"motions": [{"name", "label"}, ...]}`` (label = declared fps/steps)."""
+        self.write_json(200, {"motions": self._catalog.motions_with_labels()})
 
 
 class MotionHandler(BaseApiHandler):

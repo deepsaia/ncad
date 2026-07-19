@@ -136,9 +136,19 @@ class BuildService:
             raise BuildError(str(exc)) from exc
         build_ms = (time.perf_counter() - started) * 1000.0
         name = os.path.basename(result["sidecar"])[: -len(".assembly.json")]
-        logger.info("motion-built %s from %s (%d issues) in %.1f ms",
-                    name, spec, len(result["issues"]), build_ms)
-        return {"assembled": name, "issues": result["issues"], "build_ms": round(build_ms, 1)}
+        issues = result["issues"]
+        # The trajectory sidecar is None when the motion solve failed (a bad material, an unresolved
+        # connector, a solver error): the assembly scene still built, but there is NO motion. Say so
+        # honestly - "built" is only truthful when a trajectory was actually produced.
+        if result.get("motion"):
+            logger.info("motion-built %s from %s (%d issue(s)) in %.1f ms",
+                        name, spec, len(issues), build_ms)
+        else:
+            logger.warning("motion solve produced NO trajectory for %s from %s (%d issue(s)) in "
+                           "%.1f ms; the assembly scene built but the motion did not", name, spec,
+                           len(issues), build_ms)
+        return {"assembled": name, "issues": issues, "motion": bool(result.get("motion")),
+                "build_ms": round(build_ms, 1)}
 
     def _allowed_motion_path(self, spec: str) -> str | None:
         """Resolve a motion ``spec`` if under examples or a recorded trajectory source, else None.

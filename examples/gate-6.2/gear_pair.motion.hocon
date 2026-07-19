@@ -1,0 +1,25 @@
+schema_version = 1
+# A motion study driving the gear pair one pinion revolution. The pinion angle is the driver; the
+# `gear` coupling (in the assembly) turns it into the gear's prescribed rotation by the mesh ratio
+# (16/24, reversed sense), so the gear turns 2/3 of a revolution in the opposite direction. A 6.1
+# `angle` measure reports the gear's turned angle, which should track -16/24 of the pinion angle.
+metadata {
+  description = "Gear-pair motion study: drive the pinion one revolution, gear follows by ratio"
+  tags = [ gear_pair, motion ]
+}
+motion {
+  assembly = "gear_pair.asm.hocon"
+  driver = { joint = pinionPin, from = 0, to = 360, steps = 72 }
+  outputs {
+    measures = [
+      # The gear's turned angle: vertex at the gear axis (60,0), one ray to a FIXED world reference
+      # (a point on the grounded stand at the rim), one ray to a rim marker that RIDES the gear. As
+      # the gear turns the angle grows (folded at 180 deg), tracking 16/24 of the pinion sweep, so a
+      # full pinion revolution turns the gear 240 deg (the measure reads it out over the stroke).
+      { id = gearAngle, kind = angle,
+        vertex = { instance = gear, point = [ 60, 0, 0 ] }
+        a = { instance = stand, point = [ 96, 0, 0 ] }
+        b = { instance = gear, point = [ 96, 0, 0 ] } }
+    ]
+  }
+}

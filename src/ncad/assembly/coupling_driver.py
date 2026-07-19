@@ -7,15 +7,24 @@ whose expression is ratio x the primary's linear ramp:
 
 - gear:        coupled ANGLE = -ratio x primary_angle  (external mesh reverses sense).
 - belt:        coupled ANGLE = +ratio x primary_angle  (same sense).
-- rack_pinion: coupled SLIDE = ratio(mm/rad) x primary_angle(rad)  (rotation -> translation).
+- rack_pinion: coupled SLIDE = travel(mm/rad) x primary_angle(rad)  (rotation -> translation).
 
-``ratio`` = z_primary / z_coupled for gear/belt; the pinion pitch radius (mm/rad) for rack_pinion.
+The ratio comes from ONE of two sources, in this order:
+1. a ``gears`` block ``{driver: {module, teeth, ...}, driven: {module, teeth, ...}}`` - the ratio
+   is derived from GearProfile (mesh_ratio, signed for external/internal; the pinion pitch radius
+   for rack_pinion), so the SAME generator that draws the teeth defines the motion (one source of
+   truth, like the cam profile); OR
+2. an explicit ``ratio`` (z_primary/z_coupled for gear/belt; pinion pitch radius mm/rad for
+   rack_pinion) when no ``gears`` block is given.
+
 The primary must drive the coupling's FIRST ``between`` joint; the SECOND is the derived one. The
 expression is built in the ASMT motion's own units (radians for rotational, metres for
 translational), as a function of ``time`` matching the primary's ramp. Pure; one class.
 """
 
 import math
+
+from ncad.sketch.gear_profile import GearProfile, GearProfileError
 
 _RATIO_TYPES = frozenset({"gear", "belt", "rack_pinion"})
 
@@ -30,9 +39,9 @@ class CouplingDriver:
     def secondary(self, coupling: dict, primary: dict) -> dict:
         """Return {joint_id, joint_type, expression} for the coupling's derived joint.
 
-        :param coupling: {id, type, between:[primary_joint, derived_joint], ratio}.
+        :param coupling: {id, type, between:[primary_joint, derived_joint], ratio | gears}.
         :param primary: the driver {joint_id, joint_type, start, end} (degrees for a revolute).
-        :raises CouplingDriverError: on an unknown type, non-positive ratio, or a primary that does
+        :raises CouplingDriverError: on an unknown type, bad ratio/gears, or a primary that does
             not drive the coupling's first joint.
         """
         ctype = coupling.get("type")
@@ -47,20 +56,60 @@ class CouplingDriver:
             raise CouplingDriverError(
                 f"coupling {coupling.get('id')!r} primary joint {between[0]!r} is not the one the "
                 f"driver drives ({primary.get('joint_id')!r})")
-        ratio = coupling.get("ratio")
-        if not isinstance(ratio, (int, float)) or ratio <= 0:
-            raise CouplingDriverError(f"coupling {coupling.get('id')!r} needs a positive 'ratio'")
         derived_joint = between[1]
         # The primary ramp in radians: a0 + span*time (the driver sweeps degrees over t 0..1).
         a0 = math.radians(float(primary["start"]))
         span = math.radians(float(primary["end"]) - float(primary["start"]))
         ramp = f"({a0} + {span}*time)"
         if ctype == "rack_pinion":
-            # coupled slide (metres) = ratio(mm/rad) * primary_angle(rad) / 1000.
-            coef = float(ratio) / 1000.0
+            # coupled slide (metres) = travel(mm/rad) * primary_angle(rad) / 1000.
+            coef = self._rack_travel_mm_per_rad(coupling) / 1000.0
             return {"joint_id": derived_joint, "joint_type": "slider",
                     "expression": f"{coef} * {ramp}"}
-        # gear reverses sense (-ratio); belt keeps it (+ratio). Rotational, radians.
-        coef = (-float(ratio)) if ctype == "gear" else float(ratio)
+        # gear/belt: a signed rotational ratio (external mesh reverses sense; internal/belt keep).
+        coef = self._angular_ratio(coupling, reverses=(ctype == "gear"))
         return {"joint_id": derived_joint, "joint_type": "revolute",
                 "expression": f"{coef} * {ramp}"}
+
+    def _angular_ratio(self, coupling: dict, reverses: bool) -> float:
+        """The signed angular ratio (omega_derived / omega_driver) for a gear/belt coupling.
+
+        From a ``gears`` block: GearProfile.mesh_ratio, already signed (external <0, internal >0).
+        From an explicit ``ratio``: a gear reverses sense (-ratio), a belt keeps it (+ratio).
+        """
+        gears = coupling.get("gears")
+        if gears is not None:
+            driver, driven = self._gear_pair(coupling, gears)
+            return GearProfile.mesh_ratio(driver, driven)
+        ratio = self._explicit_ratio(coupling)
+        return -ratio if reverses else ratio
+
+    def _rack_travel_mm_per_rad(self, coupling: dict) -> float:
+        """The rack's linear travel per radian of pinion rotation (mm/rad).
+
+        From a ``gears`` block: the pinion (``driver``) pitch radius. From an explicit ``ratio``:
+        the ratio value taken directly as mm/rad.
+        """
+        gears = coupling.get("gears")
+        if gears is not None:
+            driver, _ = self._gear_pair(coupling, gears)
+            return driver.rack_travel_per_radian()
+        return self._explicit_ratio(coupling)
+
+    def _gear_pair(self, coupling: dict, gears: dict) -> tuple[GearProfile, GearProfile]:
+        """Build the (driver, driven) GearProfile pair from a coupling ``gears`` block."""
+        try:
+            driver = GearProfile(**gears["driver"])
+            driven = GearProfile(**gears["driven"])
+        except (KeyError, TypeError, GearProfileError) as exc:
+            raise CouplingDriverError(
+                f"coupling {coupling.get('id')!r} 'gears' block is malformed: {exc}") from exc
+        return driver, driven
+
+    def _explicit_ratio(self, coupling: dict) -> float:
+        """The explicit positive ``ratio`` field, or raise if missing/non-positive."""
+        ratio = coupling.get("ratio")
+        if not isinstance(ratio, (int, float)) or ratio <= 0:
+            raise CouplingDriverError(
+                f"coupling {coupling.get('id')!r} needs a positive 'ratio' or a 'gears' block")
+        return float(ratio)

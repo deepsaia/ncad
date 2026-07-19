@@ -89,6 +89,38 @@ class ModelCatalog:
                       if entry.lower().endswith(suffix)
                       and os.path.isfile(os.path.join(self._directory, entry)))
 
+    def motions_with_labels(self) -> list[dict]:
+        """Motion names each with a short DECLARED-value label for the picker (fps or steps).
+
+        The label reports what the driver actually declared, never a derived number: ``30fps`` when
+        the driver used ``fps`` (+ duration), else ``72 steps`` (the smoothness knob), else ``73f``
+        as a last resort (frame count from the trajectory). Reading is best-effort: a
+        missing/unreadable trajectory yields no label rather than failing the listing.
+        """
+        result: list[dict] = []
+        for name in self.motion_names():
+            result.append({"name": name, "label": self._motion_label(name)})
+        return result
+
+    def _motion_label(self, name: str) -> str | None:
+        """The declared driver label for one motion, or None if the trajectory can't be read."""
+        path = self.resolve_motion(name)
+        if path is None:
+            return None
+        try:
+            with open(path, encoding="utf-8") as handle:
+                doc = json.load(handle)
+        except (OSError, ValueError) as exc:
+            logger.warning("could not read motion label for %s: %s", name, exc)
+            return None
+        driver = doc.get("driver") or {}
+        if driver.get("fps") is not None:
+            return f"{_trim(driver['fps'])}fps"
+        if driver.get("steps") is not None:
+            return f"{int(driver['steps'])} steps"
+        frames = doc.get("frames")
+        return f"{len(frames)}f" if isinstance(frames, list) and frames else None
+
     def resolve_motion(self, name: str) -> str | None:
         """Safe absolute path to ``<name>.motion.json`` (the trajectory), or None if absent.
 
@@ -184,3 +216,9 @@ class ModelCatalog:
         except (OSError, ValueError):
             logger.warning("could not read meta for %s", model_name)
             return None
+
+
+def _trim(value: float) -> str:
+    """Format a number for a label, dropping a trailing ``.0`` (30.0 -> "30", 24.5 -> "24.5")."""
+    number = float(value)
+    return str(int(number)) if number.is_integer() else str(number)

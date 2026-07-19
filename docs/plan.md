@@ -1098,6 +1098,18 @@ a mobility line). Outputs are OPTIONAL + additive (declared in a `.motion.hocon`
 motion doc without it just plays the trajectory) - the reciprocating-pump gate is the single
 demonstrator, and the other gates stay outputs-free.
 
+**Bucket 6.2 (coupled joints + cam) is DONE:** coupling enforcement under motion (5.4b's deferred
+gear/belt/rack_pinion + a new cam) as ncad-computed SECONDARY prescribed motions co-solved alongside
+the primary driver (OndselSolver has no gear/cam constraint). `CamProfile` (one source of truth for
+the drawn cam body AND the follower motion) supports a segmented dwell-rise-return schedule
+(harmonic/cycloidal), emitting a truncated-Fourier motion the solver accepts. `GearProfile` is a
+comprehensive involute generator (external/internal/rack, profile shift, trochoid root, backlash,
+tooth phase) that ALSO owns the mesh relations (ratio, center distance, rack travel) the coupling
+reads. Three gates: cam_follower (engine-style cam), gear_pair (z16->z24 mesh), rack_pinion. Viewer
+gained a bounce (ping-pong) loop mode + P/L/0/Space keys and a per-motion fps/steps label.
+**Deferred:** helical/bevel/worm gears + gear microgeometry (3D, Phase later); bidirectional gear/cam
+CONSTRAINTS + force transmission (dynamics, Phase 14).
+
 - [x] **DoF analysis:** planar Gruebler/Kutzbach mobility from the joint graph next to the static
       solve's rest-pose free DoF (MotionMobility, bucket 6.1); the sketch-DoF 3D analogue
 - [x] **Drivers / forward kinematics:** per-joint driver (revolute angle / slider
@@ -1147,12 +1159,23 @@ recognizable gate candidates as the phase grows)*:
       disengagement. Great motion-envelope + interference demo.
 - [ ] **Scotch yoke** - rotary-to-pure-sinusoidal-linear via a pin in a slot; a
       second slot/point-on-line case, contrasts with the crank-slider's rod linkage.
-- [ ] **Cam-follower** - a rotating cam profile driving a translating (or pivoting)
-      follower; exercises a **cam / higher-pair** driver (function-of-another-DoF)
-      and a non-circular contact, the bridge toward coupled joints.
-- [ ] **Gear pair / rack-and-pinion** - coupled rotation (and rotation->translation);
-      exercises the **gear** and **rack-pinion** coupled joints (bucket 5.4b) under
-      motion, proving a coupler/gear driver.
+- [x] **Cam-follower** (gate-6.2) - a rotating engine-style cam (a base-circle DWELL +
+      a distinct cycloidal NOSE) driving a translating follower; exercises a **cam /
+      higher-pair** driver (function-of-another-DoF). The cam body is drawn from the SAME
+      `CamProfile` that drives the follower (one source of truth), so the drawn lobe and
+      the follower motion cannot disagree. OndselSolver rejects piecewise expressions, so
+      the prescribed motion is a truncated FOURIER fit of the exact displacement (max fit
+      error logged). The follower rides the cam surface with zero gap through a full rev.
+- [x] **Gear pair** (gate-6.2) - a pinion (z16) meshing a gear (z24), a **gear** coupling
+      by the mesh ratio (16/24, external mesh reverses sense); teeth clocked (phase) +
+      backlashed so they interleave clash-free. **Rack-and-pinion** (gate-6.2) - a pinion
+      driving a straight rack (**rack_pinion** coupling, rotation->translation by the
+      pinion pitch radius). Both wheels are true involute profiles from `GearProfile`
+      (external/internal/rack, profile shift, trochoid root fillet, backlash), which is
+      ALSO the source of the coupling's ratio + center distance (one source of truth).
+      Enforcement is a ncad-computed secondary prescribed motion (design section 8): the
+      geometry + ratio match NX/Creo/Fusion, but the coupling is a one-way derived driver,
+      not a bidirectional gear CONSTRAINT (OndselSolver has none); dynamics -> Phase 14.
 - [ ] **Robot arm (2-3R serial articulated)** - an open kinematic chain of revolute
       joints; the **inverse-kinematics** showcase (drive the end-effector frame, solve
       the joint angles) and a trace-curve of the tool path. The reach/envelope demo.

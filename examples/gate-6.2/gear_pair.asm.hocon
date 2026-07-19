@@ -1,0 +1,29 @@
+schema_version = 1
+units = mm
+# Bucket 6.2 gate: a meshing spur-gear pair, driven by the pinion. Three bodies, 2 revolute joints
+# (each wheel turns on its bearing post) + a GEAR coupling that ties them by the mesh ratio. The
+# coupling's `gears` block carries the two GearProfiles (z16 pinion, z24 gear), so the SAME generator
+# that draws the teeth defines the motion ratio (16/24, external mesh reverses sense) - one source of
+# truth. OndselSolver has no gear constraint, so ncad enforces the coupling as a secondary prescribed
+# motion on the gear, co-solved with the pinion driver (design section 8, a coupler DoF).
+metadata {
+  description = "Driven gear pair: pinion drives gear, 2 revolute + a gear coupling (mesh ratio)"
+  tags = [ gear_pair, assembly, mechanism, gear ]
+}
+assembly {
+  instances = [
+    { id = stand, file = "gear_pair.hocon", part = stand, lock = true }
+    { id = pinion, file = "gear_pair.hocon", part = pinion }
+    { id = gear, file = "gear_pair.hocon", part = gear }
+  ]
+  joints = [
+    { id = pinionPin, type = revolute, between = [
+      { instance = stand, connector = pinionBearing }, { instance = pinion, connector = axis } ] }
+    { id = gearPin, type = revolute, between = [
+      { instance = stand, connector = gearBearing }, { instance = gear, connector = axis } ] }
+  ]
+  couplings = [
+    { id = mesh, type = gear, between = [ pinionPin, gearPin ],
+      gears = { driver = { module = 3, teeth = 16 }, driven = { module = 3, teeth = 24 } } }
+  ]
+}
