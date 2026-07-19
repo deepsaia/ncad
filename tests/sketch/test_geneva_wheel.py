@@ -56,3 +56,18 @@ def test_bad_params_raise():
         GenevaWheel(slots=2, crank_radius=30.0)         # need >= 3 slots
     with pytest.raises(GenevaWheelError):
         GenevaWheel(slots=4, crank_radius=0.0)
+
+
+def test_geneva_wheel_entity_expands_to_closed_polyline():
+    from ncad.sketch.entity_expander import EntityExpander
+
+    ents = [
+        {"id": "c", "type": "point", "at": [0, 0]},
+        {"id": "gw", "type": "geneva_wheel", "slots": 4, "crank_radius": 30.0, "center": "c"},
+    ]
+    out = EntityExpander().expand(ents)
+    pts = [e for e in out if e["type"] == "point" and e["id"] != "c"]
+    lines = [e for e in out if e["type"] == "line"]
+    assert len(pts) > 20 and len(pts) == len(lines)   # a real closed loop: one line per point
+    assert all(p.get("fixed") for p in pts)           # derived points are locked
+    assert not any(e["id"] == "gw" for e in out)      # the sugar entity itself is lowered away
