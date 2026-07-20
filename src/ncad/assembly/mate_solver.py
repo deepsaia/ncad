@@ -5,7 +5,7 @@ params) applied to its connector-frame points; ground instances are pinned to th
 normal-form primitive (from MateLowering) becomes one concrete py-slvs constraint. After solving,
 each body's pose is read back FROM ITS TRANSFORM PARAM HANDLES (not the transformed entities, which
 report stale coords) and converted to a row-major 4x4 by BodyPose. GPL, per the settled solver
-decision (design section 8). Verified 3D mechanics: transform POINTS only (rebuild lines in the
+decision. Verified 3D mechanics: transform POINTS only (rebuild lines in the
 solved group); read pose from the param handles; solve codes 0 and 5 are okay.
 """
 

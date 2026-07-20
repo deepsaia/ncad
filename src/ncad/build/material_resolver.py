@@ -4,7 +4,7 @@ A body's material is its creating feature's ``material`` (the feature whose id e
 ``Body.created_by``), falling back to the part-level ``material`` default. An inline
 ``mat_data`` on that feature deep-merges onto the referenced record. This reuses the existing
 per-body provenance (``created_by``) rather than a separate binding, and keeps ``Body``
-geometry-only (design section 2: associative resolution over mutating identity records).
+geometry-only (associative resolution over mutating identity records).
 """
 
 import logging

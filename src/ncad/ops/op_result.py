@@ -15,7 +15,7 @@ class OpResult:
     :ivar shape: The output geometry handle (kernel-opaque), or ``None`` on failure.
     :ivar provenance: Legacy per-op map, retained for signature compatibility and now
         left empty by ops. Element provenance lives in the Builder's ElementMap as of
-        bucket 0.3 (design §2); the Builder does not read this field.
+        bucket 0.3; the Builder does not read this field.
     :ivar issues: Build issues attributed to node ids; empty means clean.
     :ivar status_report: A sketch feature's constraint status (SketchStatus), or None for
         ops that produce no sketch status.

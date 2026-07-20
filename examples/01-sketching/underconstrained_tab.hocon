@@ -1,0 +1,41 @@
+units = mm
+metadata {
+  description = "Underconstrained tab"
+  tags = [ sketching, part ]
+}
+# An intentionally under-constrained tab: a 4-line loop with one corner fixed and the
+# sides horizontal/vertical, but no size dimension, so the width/height are free. It still
+# solves (the seed positions stand in for the free DoF) and builds a face, and its
+# sketch-status sidecar reports `under` with the remaining free degrees of freedom. Proves
+# an under-constrained sketch solves or reports cleanly (the Phase 1 gate, first half).
+parameters { t = 6 }
+parts {
+  underconstrained_tab {
+    profile = solid
+    features = [
+      {
+        id = sk
+        op = sketch
+        plane = XY
+        entities = [
+          { id = p0, type = point, at = [ 0, 0 ] }
+          { id = p1, type = point, at = [ 40, 0 ] }
+          { id = p2, type = point, at = [ 40, 20 ] }
+          { id = p3, type = point, at = [ 0, 20 ] }
+          { id = bottom, type = line, p1 = p0, p2 = p1 }
+          { id = right, type = line, p1 = p1, p2 = p2 }
+          { id = top, type = line, p1 = p2, p2 = p3 }
+          { id = left, type = line, p1 = p3, p2 = p0 }
+        ]
+        constraints = [
+          { type = fix, of = p0 }
+          { type = horizontal, of = bottom }
+          { type = horizontal, of = top }
+          { type = vertical, of = left }
+          { type = vertical, of = right }
+        ]
+      }
+      { id = pad, op = extrude, profile = sk, distance = "${t}" }
+    ]
+  }
+}

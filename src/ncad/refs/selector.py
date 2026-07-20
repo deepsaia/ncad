@@ -1,4 +1,4 @@
-"""Parse and evaluate a selector query over element attributes (design section 2).
+"""Parse and evaluate a selector query over element attributes.
 
 Grammar (lark): ``select (edges|faces|vertices) where <predicate>``. The predicate
 is comparisons of ``attr OP literal`` joined by ``and``/``or`` and parenthesizable.

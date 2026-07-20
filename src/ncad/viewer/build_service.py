@@ -118,6 +118,8 @@ class BuildService:
         document returns ``ok=False`` + diagnostics (never raises for a bad design).
         """
         from ncad.diagnostics.document_validator import DocumentValidator
+        from ncad.params.function_registry import FunctionRegistry
+        from ncad.params.param_resolver import ParamResolver
         from ncad.spec.spec_loader import SpecLoader
 
         resolved = (self._allowed_path(spec) or self._allowed_assembly_path(spec)
@@ -125,7 +127,10 @@ class BuildService:
         if resolved is None:
             raise BuildError(f"spec not allowed: {spec}")
         document = SpecLoader().load(resolved)
-        report = DocumentValidator(base_dir=os.path.dirname(resolved)).validate(document)
+        # Resolve parameter expressions before validating (a field like distance = "${t}" must
+        # become a number before the schema type-checks it), matching the build path.
+        expanded = ParamResolver(FunctionRegistry.with_defaults()).resolve_document(document)
+        report = DocumentValidator(base_dir=os.path.dirname(resolved)).validate(expanded)
         return report.to_dict()
 
     def _allowed_path(self, spec: str) -> str | None:

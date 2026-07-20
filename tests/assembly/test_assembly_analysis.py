@@ -53,7 +53,7 @@ assembly {{
     sidecar = json.loads((out / "pegged.assembly.json").read_text())
     # Interference is checked + classified for the pair. This connect example seats the peg base on
     # the plate top so the peg dips into the plate -> a real interference with positive volume
-    # (the detector correctly catches it; touching vs overlap correctness is the gate-5.6 capstone).
+    # (the detector correctly catches it; touching vs overlap correctness is the assembly capstone).
     pair = next(f for f in sidecar["interference"] if {f["a"], f["b"]} == {"base", "pin"})
     assert pair["status"] == "interfering" and pair["volume"] > 0
     # BOM: two distinct parts, quantity 1 each; mass roll-up present + positive.

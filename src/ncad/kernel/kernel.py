@@ -365,13 +365,13 @@ class Kernel(ABC):
     def version(self) -> str:
         """A stable identifier for the pinned kernel build.
 
-        Baked into cache keys (design section 4a) so a kernel/dependency bump
+        Baked into cache keys so a kernel/dependency bump
         invalidates cached geometry wholesale.
         """
 
     @abstractmethod
     def signature(self, solid: Any) -> dict:
-        """The equality tuple for ``solid`` (design section 4a).
+        """The equality tuple for ``solid``.
 
         ``{"counts": {"face","edge","vertex": int}, "surface_types": {name: int},
         "curve_types": {name: int}, "volume": float, "area": float,
@@ -541,7 +541,7 @@ class Kernel(ABC):
 
     @abstractmethod
     def history(self, inputs: list[Any], output: Any) -> ElementHistory:
-        """Report the lineage of ``output`` relative to ``inputs`` (design section 2).
+        """Report the lineage of ``output`` relative to ``inputs``.
 
         Returns an ElementHistory mapping output sub-shape handles to the input handles they
         were generated from / modified from, plus the inputs that were deleted. Output handles

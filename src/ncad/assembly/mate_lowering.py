@@ -1,8 +1,8 @@
 """Lower a user-facing assembly mate to normal-form primitive constraint records.
 
 The user vocabulary (coincident/flush/concentric/parallel/perpendicular/angle/distance/lock) is
-sugar over a closed set of ~9 primitive kinds (the 21-primitive normal form from
-docs/research/assembly-constraints-3d.md, restricted to the pairs 5.2 ships). MateLowering owns
+sugar over a closed set of ~9 primitive kinds (a normal form drawn from the 3D geometric-
+constraint literature, restricted to the pairs 5.2 ships). MateLowering owns
 the vocabulary; MateSolver maps each primitive to a concrete py-slvs call. Pure data: a primitive
 is a dict {kind, a, b, value} whose a/b are symbolic connector-role tags ("A.origin", "B.axis",
 "A.plane", ...) the solver resolves to transformed entities. Keeping lowering solver-independent

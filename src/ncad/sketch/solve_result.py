@@ -1,4 +1,4 @@
-"""The result of solving a sketch's entities + constraints (design section 5).
+"""The result of solving a sketch's entities + constraints.
 
 Carries the solved 2D point positions plus the solve status (well / under / over
 constrained / inconsistent), the remaining degrees of freedom, and any id-tagged

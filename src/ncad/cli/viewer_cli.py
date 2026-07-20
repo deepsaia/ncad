@@ -177,18 +177,24 @@ class ViewerCli:
     def validate_document(self, file: str) -> dict:
         """Statically validate a part/assembly/motion document; return the ValidationReport dict.
 
-        No kernel and no geometry: the loader reads the doc, DocumentValidator kind-dispatches and
-        runs schema + semantic + cross-document reference checks, resolving referenced part/assembly
-        files relative to the document's own directory. Never raises for a bad design.
+        No kernel and no geometry: the loader reads the doc, parameter expressions are resolved
+        (so a field like ``distance = "${t}"`` becomes a number BEFORE the schema type-checks it,
+        matching the build path, which resolves then validates), and DocumentValidator kind-
+        dispatches and runs schema + semantic + cross-document reference checks, resolving
+        referenced part/assembly files relative to the document's own directory. Never raises for
+        a bad design.
         """
         import os
 
         from ncad.diagnostics.document_validator import DocumentValidator
+        from ncad.params.function_registry import FunctionRegistry
+        from ncad.params.param_resolver import ParamResolver
         from ncad.spec.spec_loader import SpecLoader
 
         document = SpecLoader().load(file)
+        resolved = ParamResolver(FunctionRegistry.with_defaults()).resolve_document(document)
         report = DocumentValidator(base_dir=os.path.dirname(os.path.abspath(file))).validate(
-            document)
+            resolved)
         return report.to_dict()
 
 

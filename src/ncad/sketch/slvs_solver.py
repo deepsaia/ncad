@@ -1,9 +1,9 @@
-"""py-slvs (SolveSpace) implementation of the SketchSolver seam (design section 5).
+"""py-slvs (SolveSpace) implementation of the SketchSolver seam.
 
 Maps our 2D entities/constraints onto a SolveSpace System with a fixed base workplane
 (group 1) and the sketch entities in the solved group (group 2), runs the solver, and
 reads back solved point coordinates. GPL, per the settled solver-licensing decision
-(design section 8). Entities/constraints reference each other by our string ids; a
+. Entities/constraints reference each other by our string ids; a
 dangling reference is reported as an id-tagged error before the solver runs.
 """
 

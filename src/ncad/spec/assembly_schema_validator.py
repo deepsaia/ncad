@@ -2,7 +2,7 @@
 
 Mirrors SchemaValidator (shape/field constraints via jsonschema) and adds the semantic check
 that instance ids are unique within the assembly (author-controlled reference names, so a
-collision is a contract error reported by id, per design section 10).
+collision is a contract error reported by id).
 """
 
 import logging

@@ -1,4 +1,4 @@
-"""Compute a feature's content-addressed cache key (design sections 4, 4a).
+"""Compute a feature's content-addressed cache key.
 
 The key is a chained content hash: the pinned kernel version, the feature's own
 resolved definition (parameters already inlined, reserved runtime keys removed), and

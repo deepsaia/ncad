@@ -1,4 +1,4 @@
-"""Abstract geometric-constraint solver seam (design sections 5, 16).
+"""Abstract geometric-constraint solver seam.
 
 The sketch layer talks only to this interface, so the solver is swappable (py-slvs /
 SolveSpace today, planegcs later) without touching the schema or the sketch op. The

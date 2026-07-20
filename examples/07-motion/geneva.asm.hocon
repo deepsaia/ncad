@@ -1,0 +1,27 @@
+units = mm
+# Bucket 6.3 gate: a Geneva indexer, driven by the crank. Three bodies, 2 revolute joints (crank +
+# wheel each on a bearing post) + a GENEVA coupling that ties them: the crank angle drives the
+# wheel's intermittent (dwell-then-index-90-deg) rotation via GenevaWheel's Fourier-fit law. The pin
+# riding the slot is a higher pair with no native solver constraint, so ncad enforces the wheel as a
+# secondary prescribed motion, co-solved with the crank driver. Stand grounded.
+metadata {
+  description = "Driven Geneva: crank + 4-slot star wheel, 2 revolute + a geneva coupling"
+  tags = [ geneva, assembly, mechanism, slot ]
+}
+assembly {
+  instances = [
+    { id = stand, file = "geneva.hocon", part = stand, lock = true }
+    { id = wheel, file = "geneva.hocon", part = wheel }
+    { id = crank, file = "geneva.hocon", part = crank }
+  ]
+  joints = [
+    { id = crankPin, type = revolute, between = [
+      { instance = stand, connector = crankBearing }, { instance = crank, connector = axis } ] }
+    { id = wheelPin, type = revolute, between = [
+      { instance = stand, connector = wheelBearing }, { instance = wheel, connector = axis } ] }
+  ]
+  couplings = [
+    { id = index, type = geneva, between = [ crankPin, wheelPin ],
+      geneva = { slots = 4, crank_radius = 30 } }
+  ]
+}

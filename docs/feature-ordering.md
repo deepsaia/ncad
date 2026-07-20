@@ -27,7 +27,7 @@ fuse other bodies onto it or `hole` pierces it.
   self-intersects and returns an invalid B-rep (BRepCheck fails, `_robust` rejects it). A
   late `fillet` on that same stack can **segfault** OCCT (a native crash, not a catchable
   exception).
-- **Seen in:** gate-2.9 `mounting_bracket`.
+- **Seen in:** `mounting_bracket`.
 
 ### 1b. A `primitive` is a no-input base body (a SOLID producer), like a sketch+extrude base
 
@@ -40,7 +40,7 @@ for the next op).
 - **Failure mode:** none specific to ordering; a primitive with a bad kind / missing dimension is an
   id-attributed BuildIssue (it never silently produces nothing). Dress-up ordering (rule 1) applies:
   fillet/shell the primitive while it is a clean prism, before fusing other bodies.
-- **Seen in:** gate-1.9 `finial` (a primitive cylinder base + primitive sphere cap, unioned with a
+- **Seen in:** `finial` (a primitive cylinder base + primitive sphere cap, unioned with a
   twisted-extrude shaft).
 
 ### 2. Fillet before draft
@@ -52,7 +52,7 @@ If you both fillet the vertical corners and draft the side walls, fillet FIRST.
   longer vertical and the keyword selects nothing.
 - **Failure mode:** draft-then-fillet >> the fillet finds 0 edges and does nothing (or
   errors on an empty set).
-- **Seen in:** gate-2.9 `mounting_bracket`.
+- **Seen in:** `mounting_bracket`.
 
 ### 3. Draft applies to planar faces only
 
@@ -66,7 +66,7 @@ none remain.
   `Standard_Failure`.
 - **Guard:** the planar filter lives in the kernel, so every `draft` is protected. Author
   intent still matters - select the walls you mean to draft.
-- **Seen in:** gate-2.9 `mounting_bracket` (the kernel filter was added there).
+- **Seen in:** `mounting_bracket` (the kernel filter was added there).
 
 ### 4. A body must be a single solid before ops that require one
 
@@ -80,7 +80,7 @@ none remain.
 - **Guard:** author rib/gusset profiles that clearly overlap both bodies they join (start
   inside the boss wall, end inside the plate). Check `len(solid.solids()) == 1` when
   debugging.
-- **Seen in:** gate-2.9 `mounting_bracket`.
+- **Seen in:** `mounting_bracket`.
 
 ### 5. `revolve`'s profile is the resolved `profile` ref (not adjacency)
 
@@ -91,7 +91,7 @@ silently used the previous feature's shape by adjacency - fixed by adding
 
 - **Why:** additive-in-place ops (`rib`, dress-up) modify the running solid; `revolve`
   originates a new body from a profile, like `extrude`.
-- **Seen in:** gate-2.9 `mounting_bracket`.
+- **Seen in:** `mounting_bracket`.
 
 ### 6. End-conditions are chosen by `end`, not bare boolean flags
 
@@ -105,7 +105,7 @@ An extrude/pocket end-condition is selected by `end` (`end = symmetric`, `end = 
   (a square + a triangle) that looked like two ribs.
 - **Failure mode:** silent wrong geometry (the worst kind - it builds and validates, just
   not what you asked for). Now it raises `ExtrudeParamError`.
-- **Seen in:** gate-2.9 `mounting_bracket` (the gusset trim).
+- **Seen in:** `mounting_bracket` (the gusset trim).
 
 ### 7. `pattern` replicates the running result, so place it after the geometry it copies
 
@@ -119,14 +119,14 @@ it sees several bodies (per-body dispatch is the `scope` field's job, 3.4).
 - **Failure mode:** a `merge = true` pattern of disjoint copies fuses to a multi-solid
   compound, not one solid; if a single solid is required, ensure the copies overlap (or keep
   `merge = false` and treat the result as a multibody part).
-- **Seen in:** gate-3.2 `patterned_bodies` (`spoke_hub` overlaps at the axis to fuse to one
+- **Seen in:** `patterned_bodies` (`spoke_hub` overlaps at the axis to fuse to one
   solid; `pattern_studs` keeps 12 separate bodies).
 - **Curve/path pattern (3.7):** a `kind = curve` pattern follows a FINITE path (an open
   sketch or an edge) with real length; the path feature must be built first (the pattern
   references it, and the path carries the extent the instances span). A datum AXIS is
   infinite/unit-length and is NOT a curve-pattern path (use a linear pattern with a spacing
   along the axis instead); a curve pattern along a unit datum axis collapses all instances
-  into ~1mm. Seen in gate-3.7 `bolt_circle_flange` (a circular hole pattern) and the
+  into ~1mm. Seen in `bolt_circle_flange` (a circular hole pattern) and the
   curve-pattern build test (a block along an open-sketch rail).
 
 ### 8. `mirror` reflects the running result, so place it after the geometry to reflect
@@ -143,7 +143,7 @@ emits a multi-body `BodySet` (original + reflection), so every op after it sees 
 - **Failure mode:** a `merge = true` mirror of a plane-offset body is a multi-solid compound,
   not one solid. Put the body on the plane for a fused symmetric part, or use `merge = false`
   and treat the result as a multibody part.
-- **Seen in:** gate-3.3 `mirrored_bodies` (`symmetric_bracket` touches YZ and fuses to one
+- **Seen in:** `mirrored_bodies` (`symmetric_bracket` touches YZ and fuses to one
   solid; `mirror_pair` is offset and kept separate as 2 bodies).
 
 ### 9. `split` raises body cardinality; `boolean` scope mode needs a prior multibody producer
@@ -158,7 +158,7 @@ bodies of the running multibody shape, addressed by born-once id.
 - **Failure mode:** placing a scope-mode `boolean` before any multibody producer (running
   shape is a single body) errors if more than one id is named; a scope id absent from the
   running BodySet errors. Fix the order or the id, do not drop the op.
-- **Seen in:** gate-3.4 `multibody_algebra` (`scoped_merge` unions `row/body/0`+`row/body/2`
+- **Seen in:** `multibody_algebra` (`scoped_merge` unions `row/body/0`+`row/body/2`
   after the pattern mints them; `split_block` splits one body into two).
 
 ### 10. Authored order is the tie-breaker; the running solid is the last SOLID, not the last feature
@@ -178,7 +178,7 @@ well-defined, and both are enforced by the executor (not left to chance):
 - **Failure mode (before the fix):** a `pattern` authored after `stud` but with a later
   independent `boss` replicated the boss (unstable sort ran `boss` first); a `wrap` right after
   its profile sketch grabbed the sketch face as its base solid.
-- **Seen in:** the spaced multibody parts (pattern of studs + a separate boss) and gate-2.8b
+- **Seen in:** the spaced multibody parts (pattern of studs + a separate boss) and
   `embossed_logo` (wrap after a marker sketch).
 
 ### 11. A datum-referencing op must come after the datum it names
@@ -193,7 +193,7 @@ tree so its geometry exists when the reference resolves.
   with an id-attributed "unresolved semantic reference" issue (skip-and-suppress).
 - **Note:** datums are non-solid (like `sketch`), so they never become the running solid, and
   the part's built shape is the last SOLID feature (rule 10), never a trailing datum.
-- **Seen in:** gate-2.10 `cast_bracket` (a sketch/feature on a datum plane).
+- **Seen in:** `cast_bracket` (a sketch/feature on a datum plane).
 
 ### 12. An until-material rib needs its target faces present (place it after the walls it grows to)
 
@@ -205,7 +205,7 @@ when the rib runs.
   bracing walls are not there yet, there is nothing to grow to.
 - **Failure mode:** an until rib authored before its adjacent walls grows no material and is
   refused ("until-material rib grew no material toward the target").
-- **Seen in:** gate-2.10 `cast_bracket` (an until-material gusset rib after both walls).
+- **Seen in:** `cast_bracket` (an until-material gusset rib after both walls).
 
 ---
 
@@ -220,7 +220,7 @@ thousands of thread edges and is slow/fragile).
   groove, and OCCT dress-up on a threaded surface is fragile.
 - **Failure mode:** threading before the stud exists grooves nothing; filleting after a
   thread can segfault/hang on the thread crest edges.
-- **Seen in:** gate-2.10 `hex_bolt` (thread after the shank, dress-up before).
+- **Seen in:** `hex_bolt` (thread after the shank, dress-up before).
 
 ### 12d. A body-Selector scope needs a prior multibody producer
 
@@ -233,7 +233,7 @@ must run first. Body attributes queryable in scope today are the born-once id (a
   select across.
 - **Failure mode:** a scope query on a single-body running shape is refused ("scope query
   needs a multibody running shape").
-- **Seen in:** gate-3.7 `bimetal_bushing` / the scope-query build test (fuse pattern bodies by
+- **Seen in:** `bimetal_bushing` / the scope-query build test (fuse pattern bodies by
   created_by).
 
 ### 12c. A tool-body split needs the tool body built first
@@ -249,7 +249,7 @@ solid by another body; the tool body must be built earlier so the reference reso
   if the tool extrude is authored LAST it becomes the running solid and the split partitions
   the tool instead (silently wrong: one region comes out empty). Build tool, then target, then
   split.
-- **Seen in:** gate-3.7 `bimetal_bushing` (the sleeve tool is built first so the bushing is the
+- **Seen in:** `bimetal_bushing` (the sleeve tool is built first so the bushing is the
   running solid at the split; authoring the sleeve last gave a zero-volume second region).
 
 ### 12e. A feature_pattern / feature_mirror needs its tool feature built first, and applies to the running solid
@@ -264,18 +264,18 @@ the RUNNING solid. Two order rules follow (same shape as 12c split-by-tool):
   (fails or is silently wrong). Build tool, then target, then feature_pattern.
 - **Failure mode:** cutter-last gives "cut failed: dimensions inconsistent" (cutting the cutter
   by copies of itself).
-- **Seen in:** gate-4.4 `mounting_cover` (the counterbore cutter is built before the cover).
+- **Seen in:** `mounting_cover` (the counterbore cutter is built before the cover).
 
 ### 13. Direct-edit ops (`defeature`, `offset`) come AFTER the geometry they act on
 
-Direct/synchronous ops edit the *current* B-rep in place (design section 3): they consume the
+Direct/synchronous ops edit the *current* B-rep in place: they consume the
 running solid and reference a baked face by persistent name (4.1), so they must be authored
 AFTER every history feature that builds the topology they touch. A `defeature` that removes a
 boss top must come after the `boolean union` that creates the boss; an `offset` thickens
 whatever solid precedes it.
 
-Two order-sensitive facts, both from the measured 4.0 envelope (`docs/research/
-direct-modeling-envelope.md`), enforced by the DirectEditGuard before the kernel op runs:
+Two order-sensitive facts, both from the measured 4.0 direct-modeling envelope,
+enforced by the DirectEditGuard before the kernel op runs:
 
 - **defeature needs a simple planar face on a single-body solid.** Placed before a `boolean`
   that would fuse a second body, the solid is single-body and the target is clean; placed after,
@@ -308,7 +308,7 @@ direct-modeling-envelope.md`), enforced by the DirectEditGuard before the kernel
   cylindrical face, fills the hole (fuse a plug), and re-cuts at the target, so it must follow the
   feature (or import) that created the hole; a `select faces where type='cylinder'` reference must
   resolve to that hole. `replace_face` is NOT available (OCCT/OCP cannot construct the required
-  face-modification tool; see `docs/research/direct-modeling-occt-ceiling.md`).
+  face-modification tool).
 - **`relate moving_body=<id>` (4.4) needs a prior multibody producer.** With `moving_body` set,
   `relate` moves ONE named body of the running BodySet and passes the rest through with their
   born-once ids; so it must come after a keep-separate producer (a `boolean union merge=false`, a
@@ -320,8 +320,8 @@ direct-modeling-envelope.md`), enforced by the DirectEditGuard before the kernel
   that heals back to the base). A `defeature` after a `fillet` that made its target tangent is
   refused by the guard rather than silently corrupting. A `move_face` authored after a `fillet`
   that rounded its neighbour is refused for the same reason.
-- **Seen in:** gate-4.2 `defeatured_block` (boss unioned, then its top defeatured) and
-  `offset_shell` (base, then outward offset); gate-4.2b `imported_edit` (import, then offset).
+- **Seen in:** `defeatured_block` (boss unioned, then its top defeatured) and
+  `offset_shell` (base, then outward offset); `imported_edit` (import, then offset).
 
 ### 12. Assembly mates (5.2) solve AFTER every instance's connectors resolve; grounding is required
 
@@ -341,7 +341,7 @@ its seed pose (from `connect`/`placement`) and reports free DoF rather than erro
   network refines from there. `connect` remains single-pass (its target must be an earlier,
   already-placed instance); the solved `constraints[]` network has no such ordering requirement
   among the mates themselves (py-slvs solves them together).
-- **Seen in:** gate-5.2 `arm_linkage` (bracket grounded via `lock`, lever mated concentric +
+- **Seen in:** `arm_linkage` (bracket grounded via `lock`, lever mated concentric +
   coincident onto it).
 
 ### 13. Component ops expand in document order; a mirror/replace source must precede it (5.7)
@@ -426,7 +426,7 @@ clearance-review finding, and keep the working mechanisms clean.
 
 ## Related
 
-- `docs/design.md` section 4a (equality by topology signature + toleranced measures) - why a
+- Equality is by topology signature + toleranced measures (not BREP bytes), which is why a
   reordered build that changes topology is a different model.
 - The `_robust` wrapper in `build123d_kernel.py` converts OCCT invalid-result failures into
   typed, id-attributed issues; it cannot catch a segfault, which is why order (rule 1)

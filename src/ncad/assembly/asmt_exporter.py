@@ -2,9 +2,10 @@
 
 Bridges ncad's assembly vocabulary (instances, connector frames, joints, a motion driver) to
 OndselSolver's ASMT model (parts with mass/inertia, markers, joints, a time motion) via pyondsel
-(docs/design.md section 8). Each instance becomes a Part at its rest placement carrying REAL mass +
-principal inertia from MassCalculator (the solver needs physically consistent mass properties, which
-is what makes a mechanism solve rather than crash); each connector becomes a Marker in the part's
+(the motion-export boundary). Each instance becomes a Part at its rest placement carrying REAL
+mass + principal inertia from MassCalculator (the solver needs physically consistent mass
+properties, which is what makes a mechanism solve rather than crash); each connector becomes a
+Marker in the part's
 local frame; each joint maps to the matching ASMT joint; a grounded instance is fixed in place; the
 driver becomes a rotational/translational Motion whose angle/distance ramps linearly over the sweep.
 Pure translation to a pyondsel model; solving + reading back is the caller's job. One class.

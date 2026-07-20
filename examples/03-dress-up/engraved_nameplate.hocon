@@ -1,0 +1,18 @@
+units = mm
+metadata {
+  description = "Engraved nameplate"
+  tags = [ dress-up, part ]
+}
+# A plate with engraved text on its top face (a nameplate). Round-trips to STEP (bucket 2.0).
+parts {
+  engraved_nameplate {
+    profile = solid
+    features = [
+      { id = plate_sk, op = sketch, plane = XY,
+        elements = [ { id = sq, type = rectangle, w = 60, h = 20 } ] }
+      { id = plate, op = extrude, profile = plate_sk, distance = 4 }
+      { id = label, op = wrap, on = "plate.cap(+Z)", text = "NCAD-01",
+        font_size = 6, depth = 0.6, mode = engrave }
+    ]
+  }
+}

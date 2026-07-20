@@ -1,6 +1,6 @@
 """Resolve a document's parameters and inline every ``${...}`` expression.
 
-Runs before the build (design section 1). An expression is a string containing one or
+Runs before the build. An expression is a string containing one or
 more ``${name}`` references and/or arithmetic and/or calls to registered functions. The
 evaluator is a restricted AST walker: only literals, references, +-*/ arithmetic, unary
 minus, and registered function calls are allowed; anything else raises ExpressionError.

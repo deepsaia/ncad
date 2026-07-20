@@ -1,7 +1,7 @@
 """Compute per-feature dependency sets and a topological rebuild order for a part.
 
 Features within a part are mostly linear, but profile/target/tool references make the
-dependency structure a DAG (design section 4). This graph is what the cache-key chain
+dependency structure a DAG. This graph is what the cache-key chain
 and the executor walk: a feature's key includes the keys of the features it depends on,
 so a parameter edit dirties exactly the affected suffix. Broken-reference reporting is
 bucket 0.5; here a reference to a missing id is still recorded as a dependency (so keys

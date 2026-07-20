@@ -1,4 +1,4 @@
-"""Assign generative tags (cap/side) to the faces an op creates (design section 2).
+"""Assign generative tags (cap/side) to the faces an op creates.
 
 Bucket 0.3 tags extrude output only: the two faces normal to the extrusion axis are
 the caps, the rest are sides. Tags are recomputed each build from geometry, so they

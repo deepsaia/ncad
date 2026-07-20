@@ -4,9 +4,9 @@ For each instance: build (or reuse, via a per-file DocumentBuilder + its feature
 referenced part's glb, resolve its placement to a 4x4, and record it. An instance is placed either
 explicitly (``placement``) or by a connector-to-connector snap (``connect``): the moving instance's
 named connector frame is landed on an already-placed target instance's connector frame (bucket 5.1).
-The result is a lightweight composition of independently-built cached parts (design section 7
-large-assembly strategy), NOT a re-baked merged glTF. Bad instance refs / connects are id-attributed
-issues; a bad instance is skipped or falls back to identity and the rest still compose.
+The result is a lightweight composition of independently-built cached parts, NOT a re-baked
+merged glTF. Bad instance refs / connects are id-attributed issues; a bad instance is skipped
+or falls back to identity and the rest still compose.
 """
 
 import json
@@ -148,7 +148,7 @@ class AssemblyBuilder:
         # Motion pass (bucket 6.0): when a motion study is supplied (from a .motion.hocon doc, via
         # MotionBuilder), solve the driven mechanism over the driver's value sweep with the
         # OndselSolver multibody engine (via pyondsel) and write a trajectory sidecar. Runs after
-        # the static solve (rest pose). Kinematic only (force dynamics -> Phase 14).
+        # the static solve (rest pose). Kinematic only (force dynamics deferred to Phase 17).
         motion_path = self._run_motion(motion_spec, document, name, out_dir, asm_dir, local_frames,
                                        placements_mm, builders, to_metres, solve_block, issues)
         # Analysis over the solved assembly (bucket 5.6): interference + BOM + roll-up mass +
@@ -339,7 +339,7 @@ class AssemblyBuilder:
         to a pyondsel/OndselSolver ASMT model, solves the multibody kinematics, and maps the results
         back to per-frame instance placements. Runs AFTER the static solve. A bad motion study or an
         absent pyondsel dependency is an id-attributed issue; the static sidecar still writes, no
-        motion sidecar. Kinematic only (force dynamics -> Phase 14).
+        motion sidecar. Kinematic only (force dynamics deferred to Phase 17).
         """
         motion = motion_spec
         if not motion:

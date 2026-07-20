@@ -1,7 +1,7 @@
 """Turn a rate-ratio coupling (gear / belt / rack_pinion) into a secondary prescribed-motion spec.
 
 A coupling relates two joints by a ratio; enforcement drives the primary joint and prescribes the
-coupled (derived) joint's motion by the ratio (design section 8, FK "a function of another DoF").
+coupled (derived) joint's motion by the ratio (a coupled joint driven as a function of another DoF).
 OndselSolver has no gear constraint, so ncad emits the coupled joint as its own prescribed motion
 whose expression is ratio x the primary's linear ramp:
 

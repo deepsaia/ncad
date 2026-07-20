@@ -26,8 +26,8 @@ and every ncad page links back to the Learn concept it realizes.
    capability is not implemented, the docs say so explicitly rather than implying it works. No
    hallucinated features, no aspirational verbs in the present tense. The source of truth for
    "what's real" is the **op registry** (`src/ncad/ops/op_registry.py`), the **schema**
-   (`schema/part_schema.hocon`), and the **gate examples** (`examples/gate-*`, each a tested,
-   building artifact).
+   (`schema/part_schema.hocon`), and the **shipped examples** (`examples/*`, each a building,
+   validating artifact).
 2. **Domain-general, product-neutral.** The Learn material describes each field - the
    operations, workflows, and concepts the discipline supports - **without naming or
    benchmarking specific commercial systems**. The reader learns what a fillet, a kinematic
@@ -60,19 +60,21 @@ and every ncad page links back to the Learn concept it realizes.
 
 ## 2. Relationship to the existing `docs/`
 
-The docs site does **not** replace or duplicate the existing repository documents; it serves
-different audiences and links to them:
+After the Great Cleanup, the contributor-facing docs are deliberately minimal: the **code is
+the source of truth** (the op registry, the schemas, and the shipped examples), and this file
+plus `docs/feature-ordering.md` are the only standing design docs. The site serves a different
+audience and links to what remains:
 
 | Existing doc | Audience | Role vs. the docs site |
 |---|---|---|
-| `docs/design.md` | contributors | *Why* the engine is shaped this way. The ncad "Explained" tier links here; does not restate it. |
-| `docs/plan.md` | contributors | *What to build, in what order*. The authority for `WIP`/`Planned` status and the owned-vs-delegated engine map (the "Analysis & simulation strategy" table). The site does not copy the tracker. |
-| `docs/research/*` | contributors | Sourced decisions (kernel, robustness, direct-modeling envelope, etc.). Cited from the ncad "Explained" tier and `ncad.notes` - **never** as a Learn general-concept source. |
-| `docs/feature-ordering.md` | contributors + advanced users | Op-composition rules. Surfaced in the "authoring a feature tree" how-to. |
+| `docs/documentation-design.md` (this file) | contributors | The docs-site information architecture + node schema + citation model. Not user-facing content. |
+| `docs/feature-ordering.md` | contributors + advanced users | Op-composition rules (safe order + failure mode per op). Surfaced in the "authoring a feature tree" how-to. |
+| the code | everyone | `src/ncad/ops/op_registry.py`, `schema/*.hocon`, and `examples/*` are the authority for what is real; the site is validated against them (§7). |
 
-Rule: **design/plan/research are the contributor-facing source of truth; the docs site is the
-user-facing, accuracy-gated projection.** When they disagree, the code wins, then design.md,
-then the site is corrected.
+Rule: **the code is the contributor-facing source of truth; the docs site is the user-facing,
+accuracy-gated projection.** When they disagree, the code wins and the site is corrected. (The
+prior design.md / plan.md / research notes were removed in the Great Cleanup; their durable
+conclusions live in the code and its inline decision comments.)
 
 ---
 
@@ -118,15 +120,15 @@ Learn
 
 ```
 ncad
-├── Getting Started   [Tutorials]   install & run; first part (gate-0.1); a parametric part
-│                                    (gate-0.2); editing & rebuilding
+├── Getting Started   [Tutorials]   install & run; first part (a sketched block); a
+│                                    parametric part; editing & rebuilding
 ├── How-to Guides     [How-to]      authoring (feature tree, expressions, references);
 │                                    sketching; modeling (per op family); export & view
 ├── Reference         [Reference]   the schema; operations reference (per-op template, §5);
 │                                    sketch entities & constraints; references & selectors;
 │                                    expressions & functions; export & CLI; Capability Matrix
 └── ncad Explained    [Explanation] ncad design rationale (document-as-truth, determinism,
-                                     no authoring GUI, the TNP); links to design.md / research
+                                     no authoring GUI, the TNP); the feature-ordering rules
 ```
 
 Migration from v1: v1's **Concepts** tier is promoted and expanded into **Learn**; v1's
@@ -172,8 +174,11 @@ Every implemented op gets one ncad Reference page from a fixed template:
                feature-ordering rule if any.
 ```
 
-Initial op set (the current `Available` surface, 15 ops): **sketch, extrude, pocket, revolve,
-groove, sweep, loft, rib, hole, fillet, chamfer, shell, draft, boolean, wrap**.
+Op set (the current `Available` surface, from `op_registry.py`): **sketch, extrude, pocket,
+revolve, groove, sweep, loft, rib, hole, fillet, chamfer, shell, draft, boolean, wrap, thread,
+primitive, pattern, mirror, transform, split, offset, defeature, move_face, relate,
+reposition_hole, feature_mirror, feature_pattern, import, datum_plane, datum_axis**. The list is
+generated from the registry (§7), not hand-maintained, so it never drifts.
 
 ---
 
@@ -185,20 +190,20 @@ status**, extended in v2 to the full subject axis and with a **delegated-engine*
 | Domain capability (product-neutral) | ncad status | Engine / delegated-to | Notes / limits | Ref |
 |---|---|---|---|---|
 | Sketched extrude (blind/symmetric/2-side/through/to-face) | Available | (native) | to-surface via face target | [op] |
-| Fillet - variable-radius / face / full-round | Planned | (native) | - | [plan] |
-| Assemblies / mates / joints | Partial | py-slvs | Phase 5 in progress | [op] |
-| Kinematics / motion | Planned | py-slvs (stepped) | Phase 6 | [concept] |
-| Rigid-body dynamics (MBD) | Planned | Ondsel | Phase 14 | [concept] |
-| Robotics / contact simulation | Planned | **MuJoCo** | Phase 17, first-class | [concept] |
-| Structural / thermal FEA | Planned | CalculiX / Elmer / Z88 | export seam, Phase 13 | [concept] |
+| Fillet - variable-radius / face / full-round | Planned | (native) | constant-radius fillet is Available | [op] |
+| Assemblies / mates / joints | Available | py-slvs | 8-mate + 7 lower-pair joints | [op] |
+| Kinematics / motion | Available | OndselSolver (FK) | drivers + gear/cam/slot couplings | [op] |
+| Rigid-body dynamics (MBD) | Planned | physics engine | deferred; not on the FK solver | [concept] |
+| Robotics / contact simulation | Planned | **MuJoCo** | first-class force-driven backend | [concept] |
+| Structural / thermal FEA | Planned | CalculiX / Elmer / Z88 | export seam | [concept] |
 | 1D frame / beam | Planned | frame3dd / PyNite | export seam | [concept] |
 | CFD | Planned | Elmer | export seam | [concept] |
 | Pipe-network flow (hydraulics) | Planned | EPANET | fed by piping profile | [concept] |
-| CAM toolpaths / G-code | Planned | (native + opencamlib) | Phase 15 | [concept] |
-| PCB board model / DRC | Planned | (native + KiCad round-trip) | Phase 16 | [concept] |
+| CAM toolpaths / G-code | Planned | (native + opencamlib) | process profile | [concept] |
+| PCB board model / DRC | Planned | (native + KiCad round-trip) | board data-model profile | [concept] |
 
-The matrix is **generated/validated from code + plan.md** (§7), so it can never drift into a
-lie. The "Engine" column mirrors plan.md's "Analysis & simulation strategy" owned-vs-delegated
+The matrix is **generated/validated from code** (the op registry + shipped examples; §7), so it
+can never drift into a lie. The "Engine" column records the owned-vs-delegated
 map.
 
 ---
@@ -209,15 +214,15 @@ Documentation accuracy is a *tested property*, not a promise:
 
 - **Op coverage check.** Every op in `op_registry.py` has an ncad Reference page, and every
   Reference page names a real op. Drift fails CI.
-- **Example builds.** Every HOCON snippet in the ncad section is a gate example or is built by
-  the doc-check (reusing `test_gate_examples` machinery). A shown example that no longer builds
-  fails CI.
+- **Example builds.** Every HOCON snippet in the ncad section is one of the shipped examples
+  under `examples/`, or is built by the doc-check at build time. A shown example that no longer
+  builds fails CI.
 - **JSON-schema validation.** Every Learn content node validates against
   `content-node.schema.json`; a malformed node fails CI.
 - **Status-source validation.** Each `ncad.status` must match its derivation source:
-  `Available`/`Partial` from the op registry + a gate example; `WIP`/`Planned` from a `plan.md`
-  phase/bucket; `Not-in-scope` from a design non-goal / the analysis-strategy table. A node
-  claiming `Available` for an op not in the registry fails CI.
+  `Available`/`Partial` from the op registry + a shipped example; `WIP`/`Planned` from a
+  documented roadmap direction; `Not-in-scope` from a stated non-goal. A node claiming
+  `Available` for an op not in the registry fails CI.
 - **Citation lint.** Every concept has >=1 `sources[]` entry of tier `primary`; every source
   has its required fields and a shape-valid URL. A non-blocking nightly job link-checks URLs
   (third-party link rot must not break the build).
@@ -288,7 +293,7 @@ others use `see_also`. Node shape:
     "status": "partial",           // available | partial | wip | planned | not-in-scope
     "notes": "B-rep via OCCT; Euler ops are kernel-internal, not authored.",
     "refs": ["/ncad/reference/ops/shell"],   // cross-links INTO the ncad section
-    "phase": "P2",                 // plan.md phase/bucket backing wip/planned (optional)
+    "phase": "P2",                 // roadmap phase backing wip/planned (optional)
     "engine": null                 // delegated domains: "MuJoCo" | "CalculiX" | ...
   },
   "sources": [                     // REQUIRED on concept nodes: >=1 tier "primary"
@@ -365,6 +370,6 @@ subjects (Foundations, CAD, CAM, PCB, Kinematics, MBD, Robotics/MuJoCo, CAE, Int
 concept sourced and carrying an honest "In ncad" status box; and **ncad**, a separate
 exhaustive manual (Diataxis). Learn content is **data** (a JSON taxonomy + MDX bodies, in
 `docs/documentation-structure.json`), math is **KaTeX**, and accuracy is a **tested property**
-(status validated against the op registry + plan.md, examples must build). The defining
+(status validated against the op registry, examples must build). The defining
 discipline is unchanged from v1 and strengthened: **teach the whole field honestly; never
 claim a capability ncad lacks.**

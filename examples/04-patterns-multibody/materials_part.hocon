@@ -1,0 +1,37 @@
+units = mm
+metadata {
+  description = "Materials part"
+  tags = [ patterns-multibody, part ]
+}
+# Per-body materials + derived mass, as a clearly-separated multibody part: two spaced studs
+# (part default material aluminium_6061) plus a taller boss offset to the side, added
+# kept-separate via a boolean union with a steel_1018 feature override. Three distinct solids
+# you can see apart in the viewport, each with its own material feeding derived mass.
+materials_library = "lib/materials.hocon"
+materials {
+  # inline: nudge aluminium density (demonstrates inline > seed).
+  aluminium_6061 { physical { density = 2710 } }
+}
+parts {
+  materials_part {
+    profile = solid
+    material = "aluminium_6061"
+    features = [
+      { id = stud_sk, op = sketch, plane = XY,
+        elements = [ { id = r, type = rectangle, w = 8, h = 8 } ] }
+      { id = stud, op = extrude, profile = stud_sk, distance = 10 }
+      # Two aluminium studs, spaced 24 mm apart (kept separate) -> row/body/0, row/body/1.
+      { id = row, op = pattern, kind = linear, merge = false,
+        x = { dir = [ 1, 0, 0 ], spacing = 24, count = 2 } }
+      # A taller boss offset well to the side (x in [48, 56]) so it stands clearly apart.
+      { id = boss_sk, op = sketch, plane = XY,
+        elements = [ { id = b, type = polygon,
+          points = [ [ 48, -4 ], [ 56, -4 ], [ 56, 4 ], [ 48, 4 ] ] } ] }
+      # The boss is steel: material rides on the feature that CREATES the body (the extrude),
+      # and survives the keep-separate union (which preserves each operand's provenance).
+      { id = boss, op = extrude, profile = boss_sk, distance = 26, material = "steel_1018" }
+      # Add the boss as its own body kept separate -> grp/body/2 (steel, via boss provenance).
+      { id = grp, op = boolean, operation = union, merge = false, target = row, tool = boss }
+    ]
+  }
+}

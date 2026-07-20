@@ -1,4 +1,4 @@
-"""The constraint status of one sketch feature (design section 5, bucket 1.5).
+"""The constraint status of one sketch feature.
 
 Carries a sketch's solve outcome as first-class data (distinct from the problem-oriented
 BuildIssue channel): the feature id, the status (well/under/over/inconsistent), the

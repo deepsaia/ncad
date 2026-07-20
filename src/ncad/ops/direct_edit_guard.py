@@ -1,6 +1,6 @@
 """Enforce the 4.0 direct-modeling envelope before a direct-edit op runs.
 
-The envelope (docs/research/direct-modeling-envelope.md) is narrow: defeature is trustworthy
+The direct-modeling envelope is narrow: defeature is trustworthy
 only on simple planar faces of a single-body part, and inward offset fails on thin walls. This
 guard inspects the target face + neighbourhood and refuses RED preconditions BEFORE the kernel
 op runs, so a fragile OCCT edit is never attempted. Fail-safe: when a needed fact is
@@ -31,7 +31,7 @@ def _same_handle(descriptor_handle: Any, neighbour: Any) -> bool:
 _SLIVER_AREA_MM2 = 1.0        # "sliver/small face" (envelope RED: defeature on sliver faces)
 _MIN_WALL_FACTOR = 1.0        # inward offset/move refused when |distance| >= min wall thickness
 _MAX_FACES_FOR_MOVE = 200     # move_face over-complexity refusal (envelope: complex solids fail)
-_ENVELOPE = "docs/research/direct-modeling-envelope.md"
+_ENVELOPE = "direct-modeling-envelope"
 
 # FakeKernel and Build123dKernel now both emit the canonical "plane"; None tolerates a
 # descriptor with no type set.

@@ -1,4 +1,4 @@
-"""Assign TopoShape-style persistent names from construction lineage (design section 2).
+"""Assign TopoShape-style persistent names from construction lineage.
 
 A name is derived from an element's construction history, not its current position, so it is
 stable when geometry changes. The rules, per output element:

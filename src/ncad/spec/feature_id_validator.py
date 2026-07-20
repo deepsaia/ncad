@@ -1,4 +1,4 @@
-"""Semantic check: feature ids must be unique within a part (design section 2).
+"""Semantic check: feature ids must be unique within a part.
 
 Feature ids are author-controlled and used as reference names, so a collision is a
 contract error, reported by the offending id (never silently suffixed). Ids are

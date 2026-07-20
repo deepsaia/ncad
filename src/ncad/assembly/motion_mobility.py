@@ -3,7 +3,7 @@
 A legibility layer (the 3D analogue of the sketch-DoF status): the nominal Gruebler mobility count
 from the joint graph next to the STATIC solve's rest-pose free DoF.
 
-The gates here are PLANAR mechanisms, so the count is the planar Gruebler mobility
+The mechanisms here are PLANAR, so the count is the planar Gruebler mobility
 M = 3(n-1) - sum(constraints_per_joint), where n counts links INCLUDING ground. A lower pair
 (revolute, slider - one planar freedom) removes 2 planar DoF; a higher pair (slot / point-on-line -
 line contact) removes 1.

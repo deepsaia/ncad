@@ -1,4 +1,4 @@
-"""The per-build element/provenance map (design section 2).
+"""The per-build element/provenance map.
 
 Rebuilt after every feature from the kernel's descriptors of that feature's output shape.
 Element ids are TopoShape-style persistent names derived from construction lineage by the

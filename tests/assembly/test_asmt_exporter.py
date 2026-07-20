@@ -2,7 +2,7 @@
 
 Verifies the mapping pieces without invoking the solver: pose (mm 4x4 -> metres pose), mass terms
 (with the unit fallback for density-less parts), joint-kind translation, per-part markers + anchor,
-and in-place grounding. A slow end-to-end solve is covered by the gate tests.
+and in-place grounding. A slow end-to-end solve is covered by the motion examples.
 """
 
 import pytest

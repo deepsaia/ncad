@@ -4,7 +4,7 @@ Generated ids (projected/offset sketch entities, and later patterns/instances) a
 lexically in the viewer tree, model lists, logs, and the element-map sidecar; unpadded
 numeric suffixes sort wrong (h1, h10, h2). The pad width scales with the count and is
 recomputed each build (a derived display id, never stored). Author feature ids are never
-padded (design section 2).
+padded.
 """
 
 import logging

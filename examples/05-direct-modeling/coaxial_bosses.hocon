@@ -1,0 +1,22 @@
+# Bucket 4.3b demo: a cylindrical boss whose axis is made coaxial with itself (already satisfied),
+# exercising the coaxial relate op in the feature tree. Real two-cylinder coaxial behavior (moving
+# one boss onto another) is covered by tests/ops/test_relational_coaxial_real.py, since a two-body
+# moving relation needs multibody addressing deferred past 4.3a/b. FakeKernel has no cylindrical
+# faces, so this example is real-kernel-only (excluded from the FakeKernel sweep).
+units = mm
+metadata {
+  description = "Coaxial bosses"
+  tags = [ direct-modeling, part ]
+}
+parts {
+  coaxial_bosses {
+    profile = solid
+    features = [
+      { id = sk, op = sketch, plane = XY, elements = [ { id = c, type = circle, d = 20 } ] }
+      { id = boss, op = extrude, profile = sk, distance = 25 }
+      { id = rel, op = relate, relation = coaxial,
+        reference = "select faces where type = 'cylinder'",
+        moving = "select faces where type = 'cylinder'" }
+    ]
+  }
+}

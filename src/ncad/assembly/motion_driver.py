@@ -1,8 +1,9 @@
 """Parse and validate an assembly ``motion`` block into a driven joint + a driver value sweep.
 
 Kinematic only: a driver sweeps ONE joint's free DoF over an even range; the MotionSolver re-solves
-the position network at each value. Force dynamics is Phase 14. A malformed block raises
-MotionParamError (the builder wraps it into an id-attributed issue).
+the position network at each value. Force dynamics is deferred to the physics-engine backend
+(Phase 17). A malformed block raises MotionParamError (the builder wraps it into an id-attributed
+issue).
 """
 
 
