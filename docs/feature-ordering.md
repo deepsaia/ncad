@@ -386,6 +386,29 @@ driven joint is skipped with an id-attributed issue, and the primary motion stil
   tangent with no backlash/phase interpenetrates at rest (interference volume > 0); clock the teeth
   (`phase`) + add `backlash`, and seat a follower on the base circle, not proud of it.
 
+### 16. A driven part's profile + its motion must share ONE handedness; a working mechanism is clash-free (6.3)
+
+For a slot/intermittent mechanism the drawn profile and the enforced motion are two views of the
+same law and MUST agree in SIGN and PHASE, or the driven feature drives through its mate instead of
+riding it. A Geneva is the sharp case: a CCW crank indexes the wheel CW, so `wheel_angle` must be
+NEGATIVE (track the pin's bearing `atan2(a sin, c + a cos)`), and the drawn slots must be PHASED so a
+slot sits at the pin-entry bearing (+180/N) at rest. Get the sign wrong and the pin crosses between
+slots; get the phase wrong and no slot receives it. Verify by checking the pin stays at a CONSTANT
+wheel-local bearing through the whole engagement.
+
+Z-layer the driver clear of the driven body: a crank ARM that shares the wheel's z-range sweeps
+THROUGH the wheel (the dominant clash, peaking at engagement centre); ride the arm above the wheel
+with only the pin hanging down into the slot plane.
+
+A CORRECT mechanism runs clash-free. Do NOT rely on a mechanism's own self-collision to demonstrate
+motion-time interference (that is a bug, not a feature); use a dedicated intentionally-too-tight gate
+(e.g. `clearance_probe`: a swept arm driven through a fixed post) whose clash is a real
+clearance-review finding, and keep the working mechanisms clean.
+
+- **Failure mode:** wrong-sign/phase wheel law -> the pin fouls the wheel every engagement frame
+  (interference volume rising to the engagement centre); an arm sharing the wheel's z -> a large
+  through-body overlap. Fix the law's sign + slot phase and z-layer the arm above the wheel.
+
 ---
 
 ## How to work when order bites you
