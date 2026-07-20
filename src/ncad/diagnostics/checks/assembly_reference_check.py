@@ -12,7 +12,10 @@ from ncad.diagnostics.diagnostic import Diagnostic
 
 _KNOWN_JOINT_TYPES = frozenset({
     "fixed", "revolute", "slider", "cylindrical", "planar", "ball", "point_on_line", "slot",
-    "screw"})
+    "screw",
+    "point_in_line", "point_in_plane", "in_line", "line_in_plane", "in_plane",
+    "cylspherical", "revcylindrical", "sphspherical", "revrevolute",
+    "no_rotation", "parallel_axes", "perpendicular", "constant_velocity", "at_point"})
 
 
 class AssemblyReferenceCheck:

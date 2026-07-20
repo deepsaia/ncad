@@ -79,7 +79,11 @@ definitions {
     properties {
       id { type = string }
       type { enum = ["fixed", "revolute", "slider", "cylindrical", "planar", "ball",
-                     "point_on_line", "slot", "screw"] }
+                     "point_on_line", "slot", "screw",
+                     "point_in_line", "point_in_plane", "in_line", "line_in_plane", "in_plane",
+                     "cylspherical", "revcylindrical", "sphspherical", "revrevolute",
+                     "no_rotation", "parallel_axes", "perpendicular", "constant_velocity",
+                     "at_point"] }
       between {
         type = array
         minItems = 2

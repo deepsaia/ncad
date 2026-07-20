@@ -41,3 +41,18 @@ def test_free_axis_pitch_included_when_set() -> None:
 
 def test_screw_in_signatures() -> None:
     assert SIGNATURES["screw"] == [FreeAxis("screw", "Z")]
+
+
+def test_new_ondsel_joint_kinds_have_signatures() -> None:
+    # Every higher pair / compound / relational joint wired from OndselSolver has a DoF signature so
+    # the static solve reports it (the motion solve drives it via the real ASMT joint).
+    for jtype in ("point_in_line", "point_in_plane", "in_line", "line_in_plane", "in_plane",
+                  "cylspherical", "revcylindrical", "sphspherical", "revrevolute"):
+        assert jtype in SIGNATURES, jtype
+
+
+def test_point_in_line_leaves_slide_plus_free_rotations() -> None:
+    # A bare point on a line slides along the line and is free to rotate (a point has no orientation).
+    sig = SIGNATURES["point_in_line"]
+    assert FreeAxis("translation", "line") in sig
+    assert sum(1 for a in sig if a.motion == "rotation") == 3
