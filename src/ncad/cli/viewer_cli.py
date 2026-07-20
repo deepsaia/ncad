@@ -174,6 +174,23 @@ class ViewerCli:
         out_dir = self.resolve_models_dir(out)
         return MotionBuilder(Build123dKernel()).build(file, str(out_dir))
 
+    def validate_document(self, file: str) -> dict:
+        """Statically validate a part/assembly/motion document; return the ValidationReport dict.
+
+        No kernel and no geometry: the loader reads the doc, DocumentValidator kind-dispatches and
+        runs schema + semantic + cross-document reference checks, resolving referenced part/assembly
+        files relative to the document's own directory. Never raises for a bad design.
+        """
+        import os
+
+        from ncad.diagnostics.document_validator import DocumentValidator
+        from ncad.spec.spec_loader import SpecLoader
+
+        document = SpecLoader().load(file)
+        report = DocumentValidator(base_dir=os.path.dirname(os.path.abspath(file))).validate(
+            document)
+        return report.to_dict()
+
 
 app = typer.Typer(
     help="ncad: build and view parametric CAD models.",
@@ -289,6 +306,27 @@ def motion(
         print(f"  trajectory: {result['motion']}")
     out_dir = result["sidecar"].rsplit("/", 1)[0]
     print(f"\nview with:  ncad view {out_dir}\n")
+
+
+@app.command()
+def validate(
+    document: str = typer.Argument(..., help="path to a part/assembly/motion .hocon/.json doc"),
+) -> None:
+    """Statically validate a document (no geometry). Prints diagnostics; exits 1 if not ok."""
+    report = cli.validate_document(document)
+    diagnostics = report["diagnostics"]
+    print(f"\nncad validate: {document}")
+    for diag in diagnostics:
+        marker = {"error": "ERROR", "warning": "WARN", "info": "INFO"}.get(diag["severity"], "?")
+        print(f"  {marker} [{diag['stage']}/{diag['code']}] {diag['location']}: {diag['message']}")
+        if diag.get("hint"):
+            print(f"        hint: {diag['hint']}")
+    if report["ok"]:
+        print(f"\n  ok ({len(diagnostics)} diagnostic(s), no errors)\n")
+    else:
+        errors = sum(1 for d in diagnostics if d["severity"] == "error")
+        print(f"\n  NOT ok: {errors} error(s)\n")
+        raise typer.Exit(code=1)
 
 
 def main() -> None:
