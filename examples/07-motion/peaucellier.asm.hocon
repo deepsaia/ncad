@@ -1,0 +1,54 @@
+units = mm
+# The Peaucellier-Lipkin straight-line linkage, assembled from peaucellier.hocon. Ground is fixed;
+# the crank is driven about P; the 8-body linkage (mobility = 3*(8-1) - 2*10 = 1 DoF) converts that
+# rotation into an EXACT straight line traced by the output point D. Ten revolute joints, one per
+# shared pivot pair (no higher pairs, no couplings). The motion study traces D's path.
+#
+# Joint graph (each revolute joins the two bodies meeting at a shared pin):
+#   O: ground-longOA, ground-longOC     P: ground-crank
+#   A: longOA-rhAB, longOA-rhDA          B: crank-rhAB, rhAB-rhBC
+#   C: longOC-rhBC, rhBC-rhCD            D: rhCD-rhDA
+metadata {
+  description = "Peaucellier straight-line linkage: driven crank, 8 bodies, 10 revolute, D traces an exact line"
+  tags = [ peaucellier, assembly, mechanism, straight-line ]
+}
+assembly {
+  instances = [
+    { id = ground, file = "peaucellier.hocon", part = ground, lock = true }
+    { id = crank, file = "peaucellier.hocon", part = crank }
+    { id = longOA, file = "peaucellier.hocon", part = longOA }
+    { id = longOC, file = "peaucellier.hocon", part = longOC }
+    { id = rhAB, file = "peaucellier.hocon", part = rhAB }
+    { id = rhBC, file = "peaucellier.hocon", part = rhBC }
+    { id = rhCD, file = "peaucellier.hocon", part = rhCD }
+    { id = rhDA, file = "peaucellier.hocon", part = rhDA }
+  ]
+  joints = [
+    # P: the driven crank pivot.
+    { id = pinP, type = revolute, between = [
+      { instance = ground, connector = pivotP }, { instance = crank, connector = atP } ] }
+    # O: the two long bars pivot on the fixed center.
+    { id = pinO_OA, type = revolute, between = [
+      { instance = ground, connector = pivotO }, { instance = longOA, connector = atO } ] }
+    { id = pinO_OC, type = revolute, between = [
+      { instance = ground, connector = pivotO }, { instance = longOC, connector = atO } ] }
+    # A: long bar OA meets rhombus sides AB and DA.
+    { id = pinA_AB, type = revolute, between = [
+      { instance = longOA, connector = atA }, { instance = rhAB, connector = atA } ] }
+    { id = pinA_DA, type = revolute, between = [
+      { instance = longOA, connector = atA }, { instance = rhDA, connector = atA } ] }
+    # B: crank meets rhombus sides AB and BC.
+    { id = pinB_AB, type = revolute, between = [
+      { instance = crank, connector = atB }, { instance = rhAB, connector = atB } ] }
+    { id = pinB_BC, type = revolute, between = [
+      { instance = rhAB, connector = atB }, { instance = rhBC, connector = atB } ] }
+    # C: long bar OC meets rhombus sides BC and CD.
+    { id = pinC_BC, type = revolute, between = [
+      { instance = longOC, connector = atC }, { instance = rhBC, connector = atC } ] }
+    { id = pinC_CD, type = revolute, between = [
+      { instance = rhBC, connector = atC }, { instance = rhCD, connector = atC } ] }
+    # D: the output point, where rhombus sides CD and DA meet. D traces the straight line.
+    { id = pinD, type = revolute, between = [
+      { instance = rhCD, connector = atD }, { instance = rhDA, connector = atD } ] }
+  ]
+}

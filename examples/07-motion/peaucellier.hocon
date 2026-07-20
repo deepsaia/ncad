@@ -1,0 +1,158 @@
+units = mm
+# The Peaucellier-Lipkin linkage: the first planar linkage to draw a MATHEMATICALLY EXACT straight
+# line from pure rotation (Peaucellier 1864). Authored as a coarse PRIMITIVE BLOCKOUT (the motion
+# lane): each link is a bar + bored eyes, mate points named by COORDINATE. All joints are REVOLUTE
+# (no higher pairs); one driver turns the crank and the output point D traces a perfect straight line.
+#
+# Geometry (mm), the classic inversor. Fixed pivots O=(0,0) and P=(-55,0); crank PB length k=55 so B
+# rides a circle THROUGH O (|OP| = k). Long bars OA=OC=m=90; rhombus A-B-C-D sides n=50. The cell
+# inverts B's circle-through-O into a straight line, so D satisfies OD*OB = m^2 - n^2 = 5600 and stays
+# collinear with O and B; as the crank turns, D.x is CONSTANT (-50.91) - an exact vertical line.
+# Rest pose (crank at 90 deg): B=(-55,55), A=(-88.25,17.66), C=(-17.66,88.25), D=(-50.91,50.91).
+#
+# Bodies (7): ground (O,P) + crank (P->B) + two long bars (O->A, O->C) + the rhombus as four bars
+# (A->B, B->C, C->D, D->A). Pins along Z, z-layered so links nest without clashing:
+#   ground z -16..-8 (pins rise higher per level).  crank z 0..6.  longOA z 8..14.  longOC z 16..22.
+#   rhombus AB z 24..30, BC z 32..38, CD z 40..46, DA z 48..54. Eyes bored d9.4 over d9 pins.
+metadata {
+  description = "Peaucellier straight-line linkage: rotation -> exact straight line, all revolute"
+  tags = [ peaucellier, mechanism, blockout, straight-line ]
+}
+parts {
+  # Ground: base plate + a pin at each fixed pivot (O at origin, P at x=-55). Grounded.
+  ground { profile = solid, material = steel_1018,
+    connectors = [
+      { id = pivotO, at_point = [ 0, 0, 0 ], axis = [ 0, 0, 1 ] }
+      { id = pivotP, at_point = [ -55, 0, 0 ], axis = [ 0, 0, 1 ] }
+    ],
+    features = [
+      { id = base, op = primitive, kind = box, w = 135, d = 140, h = 8, plane = XY,
+        plane_offset = -16, at = [ -120, -25 ] }
+      { id = pinO, op = primitive, kind = cylinder, d = 9, h = 70, plane = XY, plane_offset = -16, at = [ 0, 0 ] }
+      { id = pinP, op = primitive, kind = cylinder, d = 9, h = 22, plane = XY, plane_offset = -16, at = [ -55, 0 ] }
+      { id = g1, op = boolean, operation = union, target = base, tool = pinO }
+      { id = whole, op = boolean, operation = union, target = g1, tool = pinP }
+    ] }
+  # Crank P(-55,0) -> B(-55,55), length 55, on z 0..6. Driven. Bored eye at P; pin at B rises to the
+  # rhombus AB level (z 24..30) so the crank-rhombus joint reads as a pinned connection.
+  crank { profile = solid, material = steel_4140,
+    connectors = [
+      { id = atP, at_point = [ -55, 0, 0 ], axis = [ 0, 0, 1 ] }
+      { id = atB, at_point = [ -55, 55, 0 ], axis = [ 0, 0, 1 ] }
+    ],
+    features = [
+      { id = bar, op = primitive, kind = box, w = 8, d = 55, h = 6, plane = XY, plane_offset = 0, at = [ -59, 0 ], rotation = 0 }
+      { id = eyeP, op = primitive, kind = cylinder, d = 13, h = 6, plane = XY, plane_offset = 0, at = [ -55, 0 ] }
+      { id = eyeB, op = primitive, kind = cylinder, d = 13, h = 6, plane = XY, plane_offset = 0, at = [ -55, 55 ] }
+      { id = c1, op = boolean, operation = union, target = bar, tool = eyeP }
+      { id = c2, op = boolean, operation = union, target = c1, tool = eyeB }
+      { id = boreP, op = primitive, kind = cylinder, d = 9.4, h = 8, plane = XY, plane_offset = -1, at = [ -55, 0 ] }
+      { id = c3, op = boolean, operation = cut, target = c2, tool = boreP }
+      # Pin at B extends up through BOTH rhombus sides that meet here (rhAB eye z24..30 AND rhBC eye
+      # z32..38), so the crank-rhAB-rhBC stack at B reads as one continuous pinned column (h=40 -> z0..40).
+      { id = pinB, op = primitive, kind = cylinder, d = 9, h = 40, plane = XY, plane_offset = 0, at = [ -55, 55 ] }
+      { id = whole, op = boolean, operation = union, target = c3, tool = pinB }
+    ] }
+  # Long bar O(0,0) -> A(-88.25,17.66), length 90, on z 8..14. Bored eyes both ends.
+  longOA { profile = solid, material = bronze,
+    connectors = [
+      { id = atO, at_point = [ 0, 0, 0 ], axis = [ 0, 0, 1 ] }
+      { id = atA, at_point = [ -88.25, 17.66, 0 ], axis = [ 0, 0, 1 ] }
+    ],
+    features = [
+      { id = bar, op = primitive, kind = box, w = 8, d = 90, h = 6, plane = XY, plane_offset = 8, at = [ -0.78, -3.92 ], rotation = 78.68 }
+      { id = eyeO, op = primitive, kind = cylinder, d = 13, h = 6, plane = XY, plane_offset = 8, at = [ 0, 0 ] }
+      { id = eyeA, op = primitive, kind = cylinder, d = 13, h = 6, plane = XY, plane_offset = 8, at = [ -88.25, 17.66 ] }
+      { id = k1, op = boolean, operation = union, target = bar, tool = eyeO }
+      { id = k2, op = boolean, operation = union, target = k1, tool = eyeA }
+      { id = boreO, op = primitive, kind = cylinder, d = 9.4, h = 8, plane = XY, plane_offset = 7, at = [ 0, 0 ] }
+      { id = k3, op = boolean, operation = cut, target = k2, tool = boreO }
+      { id = pinA, op = primitive, kind = cylinder, d = 9, h = 46, plane = XY, plane_offset = 8, at = [ -88.25, 17.66 ] }
+      { id = whole, op = boolean, operation = union, target = k3, tool = pinA }
+    ] }
+  # Long bar O(0,0) -> C(-17.66,88.25), length 90, on z 16..22.
+  longOC { profile = solid, material = bronze,
+    connectors = [
+      { id = atO, at_point = [ 0, 0, 0 ], axis = [ 0, 0, 1 ] }
+      { id = atC, at_point = [ -17.66, 88.25, 0 ], axis = [ 0, 0, 1 ] }
+    ],
+    features = [
+      { id = bar, op = primitive, kind = box, w = 8, d = 90, h = 6, plane = XY, plane_offset = 16, at = [ -3.92, -0.78 ], rotation = 11.32 }
+      { id = eyeO, op = primitive, kind = cylinder, d = 13, h = 6, plane = XY, plane_offset = 16, at = [ 0, 0 ] }
+      { id = eyeC, op = primitive, kind = cylinder, d = 13, h = 6, plane = XY, plane_offset = 16, at = [ -17.66, 88.25 ] }
+      { id = k1, op = boolean, operation = union, target = bar, tool = eyeO }
+      { id = k2, op = boolean, operation = union, target = k1, tool = eyeC }
+      { id = boreO, op = primitive, kind = cylinder, d = 9.4, h = 8, plane = XY, plane_offset = 15, at = [ 0, 0 ] }
+      { id = k3, op = boolean, operation = cut, target = k2, tool = boreO }
+      { id = pinC, op = primitive, kind = cylinder, d = 9, h = 30, plane = XY, plane_offset = 16, at = [ -17.66, 88.25 ] }
+      { id = whole, op = boolean, operation = union, target = k3, tool = pinC }
+    ] }
+  # Rhombus side A(-88.25,17.66) -> B(-55,55), length 50, on z 24..30. Bored eyes both ends.
+  rhAB { profile = solid, material = steel_4140,
+    connectors = [
+      { id = atA, at_point = [ -88.25, 17.66, 0 ], axis = [ 0, 0, 1 ] }
+      { id = atB, at_point = [ -55, 55, 0 ], axis = [ 0, 0, 1 ] }
+    ],
+    features = [
+      { id = bar, op = primitive, kind = box, w = 8, d = 50, h = 6, plane = XY, plane_offset = 24, at = [ -91.24, 20.32 ], rotation = -41.68 }
+      { id = eyeA, op = primitive, kind = cylinder, d = 13, h = 6, plane = XY, plane_offset = 24, at = [ -88.25, 17.66 ] }
+      { id = eyeB, op = primitive, kind = cylinder, d = 13, h = 6, plane = XY, plane_offset = 24, at = [ -55, 55 ] }
+      { id = r1, op = boolean, operation = union, target = bar, tool = eyeA }
+      { id = r2, op = boolean, operation = union, target = r1, tool = eyeB }
+      { id = boreA, op = primitive, kind = cylinder, d = 9.4, h = 8, plane = XY, plane_offset = 23, at = [ -88.25, 17.66 ] }
+      { id = r3, op = boolean, operation = cut, target = r2, tool = boreA }
+      { id = boreB, op = primitive, kind = cylinder, d = 9.4, h = 8, plane = XY, plane_offset = 23, at = [ -55, 55 ] }
+      { id = whole, op = boolean, operation = cut, target = r3, tool = boreB }
+    ] }
+  # Rhombus side B(-55,55) -> C(-17.66,88.25), length 50, on z 32..38.
+  rhBC { profile = solid, material = steel_4140,
+    connectors = [
+      { id = atB, at_point = [ -55, 55, 0 ], axis = [ 0, 0, 1 ] }
+      { id = atC, at_point = [ -17.66, 88.25, 0 ], axis = [ 0, 0, 1 ] }
+    ],
+    features = [
+      { id = bar, op = primitive, kind = box, w = 8, d = 50, h = 6, plane = XY, plane_offset = 32, at = [ -57.66, 57.99 ], rotation = -48.32 }
+      { id = eyeB, op = primitive, kind = cylinder, d = 13, h = 6, plane = XY, plane_offset = 32, at = [ -55, 55 ] }
+      { id = eyeC, op = primitive, kind = cylinder, d = 13, h = 6, plane = XY, plane_offset = 32, at = [ -17.66, 88.25 ] }
+      { id = r1, op = boolean, operation = union, target = bar, tool = eyeB }
+      { id = r2, op = boolean, operation = union, target = r1, tool = eyeC }
+      { id = boreB, op = primitive, kind = cylinder, d = 9.4, h = 8, plane = XY, plane_offset = 31, at = [ -55, 55 ] }
+      { id = r3, op = boolean, operation = cut, target = r2, tool = boreB }
+      { id = boreC, op = primitive, kind = cylinder, d = 9.4, h = 8, plane = XY, plane_offset = 31, at = [ -17.66, 88.25 ] }
+      { id = whole, op = boolean, operation = cut, target = r3, tool = boreC }
+    ] }
+  # Rhombus side C(-17.66,88.25) -> D(-50.91,50.91), length 50, on z 40..46. D carries the output pin.
+  rhCD { profile = solid, material = steel_4140,
+    connectors = [
+      { id = atC, at_point = [ -17.66, 88.25, 0 ], axis = [ 0, 0, 1 ] }
+      { id = atD, at_point = [ -50.91, 50.91, 0 ], axis = [ 0, 0, 1 ] }
+    ],
+    features = [
+      { id = bar, op = primitive, kind = box, w = 8, d = 50, h = 6, plane = XY, plane_offset = 40, at = [ -14.67, 85.59 ], rotation = -221.68 }
+      { id = eyeC, op = primitive, kind = cylinder, d = 13, h = 6, plane = XY, plane_offset = 40, at = [ -17.66, 88.25 ] }
+      { id = eyeD, op = primitive, kind = cylinder, d = 13, h = 6, plane = XY, plane_offset = 40, at = [ -50.91, 50.91 ] }
+      { id = r1, op = boolean, operation = union, target = bar, tool = eyeC }
+      { id = r2, op = boolean, operation = union, target = r1, tool = eyeD }
+      { id = boreC, op = primitive, kind = cylinder, d = 9.4, h = 8, plane = XY, plane_offset = 39, at = [ -17.66, 88.25 ] }
+      { id = r3, op = boolean, operation = cut, target = r2, tool = boreC }
+      { id = pinD, op = primitive, kind = cylinder, d = 9, h = 20, plane = XY, plane_offset = 40, at = [ -50.91, 50.91 ] }
+      { id = whole, op = boolean, operation = union, target = r3, tool = pinD }
+    ] }
+  # Rhombus side D(-50.91,50.91) -> A(-88.25,17.66), length 50, on z 48..54 (closes the rhombus).
+  rhDA { profile = solid, material = steel_4140,
+    connectors = [
+      { id = atD, at_point = [ -50.91, 50.91, 0 ], axis = [ 0, 0, 1 ] }
+      { id = atA, at_point = [ -88.25, 17.66, 0 ], axis = [ 0, 0, 1 ] }
+    ],
+    features = [
+      { id = bar, op = primitive, kind = box, w = 8, d = 50, h = 6, plane = XY, plane_offset = 48, at = [ -48.25, 47.92 ], rotation = -228.32 }
+      { id = eyeD, op = primitive, kind = cylinder, d = 13, h = 6, plane = XY, plane_offset = 48, at = [ -50.91, 50.91 ] }
+      { id = eyeA, op = primitive, kind = cylinder, d = 13, h = 6, plane = XY, plane_offset = 48, at = [ -88.25, 17.66 ] }
+      { id = r1, op = boolean, operation = union, target = bar, tool = eyeD }
+      { id = r2, op = boolean, operation = union, target = r1, tool = eyeA }
+      { id = boreD, op = primitive, kind = cylinder, d = 9.4, h = 8, plane = XY, plane_offset = 47, at = [ -50.91, 50.91 ] }
+      { id = r3, op = boolean, operation = cut, target = r2, tool = boreD }
+      { id = boreA, op = primitive, kind = cylinder, d = 9.4, h = 8, plane = XY, plane_offset = 47, at = [ -88.25, 17.66 ] }
+      { id = whole, op = boolean, operation = cut, target = r3, tool = boreA }
+    ] }
+}
