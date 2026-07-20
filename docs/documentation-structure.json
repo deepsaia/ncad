@@ -1,7 +1,7 @@
 {
   "$schema": "./schema/content-node.schema.json",
   "meta": {
-    "title": "ncad Learn - Engineering Reference & Course",
+    "title": "ncad Learn - Engineering Reference",
     "description": "Product-neutral 4-level taxonomy (subject -> topic -> sub-topic -> concept) for the general engineering reference. Each concept teaches the field to professional depth regardless of ncad's status, carries an honest 'In ncad' box, and cites authoritative sources. Structure is comprehensive and non-duplicated: shared math lives in Foundations (S0), shared file formats in Interchange (S8). See docs/documentation-design.md (v2) for the design, the node schema (8a), and the citation model (8b).",
     "levels": ["subject", "topic", "subtopic", "concept"],
     "status_vocabulary": ["available", "partial", "wip", "planned", "not-in-scope"],
@@ -766,7 +766,7 @@
         ]},
         {"id": "kinematics.spatial", "level": "topic", "title": "Spatial Mechanisms", "summary": "3D linkages and constant-velocity joints.", "subtopics": [
           {"id": "kinematics.spatial.linkages", "level": "subtopic", "title": "Spatial Linkages", "concepts": [
-            {"id": "kinematics.spatial.linkages.rsSr", "level": "concept", "title": "Spatial Linkages (RSSR, Spatial Four-Bar)"}
+            {"id": "kinematics.spatial.linkages.rssr", "level": "concept", "title": "Spatial Linkages (RSSR, Spatial Four-Bar)"}
           ]},
           {"id": "kinematics.spatial.cv-joints", "level": "subtopic", "title": "Universal & Constant-Velocity Joints", "concepts": [
             {"id": "kinematics.spatial.cv-joints.universal-cv", "level": "concept", "title": "Universal (Hooke) & Constant-Velocity Joints"}

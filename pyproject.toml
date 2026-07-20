@@ -51,6 +51,10 @@ dev = [
     "pytest",
     "ruff",
 ]
+docs = [
+    "mkdocs-gen-files>=0.6.1",
+    "mkdocs-material>=9.7.7",
+]
 
 [build-system]
 requires = ["hatchling"]
