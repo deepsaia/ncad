@@ -1,0 +1,111 @@
+units = mm
+# Parts of a small rectangular gable cottage, authored in a shared world frame and composed by an
+# assembly (cottage.asm.hocon). This is pure generic-op modeling: there is NO building/AEC profile
+# in ncad (the v1 building engine was removed; a building profile is planned for Phase 11 and will
+# LOWER to exactly these ops). Each house element maps to a generic feature op:
+#   slab   : foundation floor slab (a box).
+#   walls  : a rectangle-sketch extruded to a mass, then SHELLED to a wall ring (horizontal faces
+#            removed so there is no integral floor/ceiling), then door + window openings cut through.
+#   roof   : a gable (two-sided pitched) roof = a triangular polygon sketch extruded along the ridge.
+#   door   : a simple door leaf panel that fills the door opening.
+#   window : a glass pane that fills a window opening (instanced to each window by the assembly).
+# Z is up; the cottage faces -Y (front wall + door at -Y). Footprint 7000 x 5000, wall height 2600.
+# Coordinate plan (mm), all parts in world coordinates so the assembly seats them at the origin:
+#   footprint : x -3500..3500, y -2500..2500 (centered).
+#   slab      : z -200..0 (200 thick), 200 mm wider than the footprint all round (a base ledge).
+#   walls     : z 0..2600, 200 mm thick ring on the footprint.
+#   roof      : sits on the wall top at z 2600, ridge along X, peak +1500 -> apex z 4100.
+#   door      : 1000 x 2100 in the front (-Y) wall, centered in X.
+#   windows   : 1200 x 1200 openings, sill at z 900, on the front and side walls.
+metadata {
+  description = "Rectangular gable cottage: floor slab, shelled brick walls with a door and windows, and a pitched gable roof; composed from generic ops, no building profile"
+  tags = [ house, cottage, building, gable, generic-ops ]
+}
+# Building materials, defined inline (not in the seed library): density (kg/m^3) + a display color.
+materials {
+  brick    { physical { density = 1920 }, appearance { color = [ 0.62, 0.34, 0.26 ] } }
+  concrete { physical { density = 2400 }, appearance { color = [ 0.66, 0.66, 0.64 ] } }
+  roof_tile{ physical { density = 1900 }, appearance { color = [ 0.38, 0.16, 0.14 ] } }
+  wood     { physical { density = 650 },  appearance { color = [ 0.45, 0.30, 0.18 ] } }
+  # Glass: a display-transparent pane. `opacity` is the viewer alpha (0 see-through .. 1 opaque);
+  # low metalness + low roughness give it a clean glassy sheen in the By-Material view.
+  glass    { physical { density = 2500 },
+             appearance { color = [ 0.60, 0.78, 0.85 ], opacity = 0.35, metalness = 0.1, roughness = 0.05 } }
+}
+parts {
+  # Foundation slab: a concrete box under the whole footprint, 200 mm wider all round, z -200..0.
+  slab { profile = solid, material = concrete,
+    connectors = [
+      { id = top, at_point = [ 0, 0, 0 ], axis = [ 0, 0, 1 ] }
+    ],
+    features = [
+      { id = box, op = primitive, kind = box, w = 7400, d = 5400, h = 200, plane = XY,
+        plane_offset = -200, at = [ -3700, -2700 ] }
+    ] }
+  # Walls: extrude the footprint rectangle to a solid mass, shell it to a 200 mm ring (remove the
+  # horizontal top+bottom faces so there is no integral floor/ceiling), then cut the door + windows.
+  walls { profile = solid, material = brick,
+    connectors = [
+      { id = base, at_point = [ 0, 0, 0 ], axis = [ 0, 0, 1 ] }
+    ],
+    features = [
+      { id = sk, op = sketch, plane = XY,
+        elements = [ { id = r, type = rectangle, w = 7000, h = 5000 } ] }
+      { id = mass, op = extrude, profile = sk, distance = 2600 }
+      # Hollow to a wall ring; removing the horizontal faces leaves four walls, open top and bottom.
+      { id = ring, op = shell, thickness = 200, openings = horizontal }
+      # Front door opening (1000 x 2100) in the -Y wall, centered in X. The cutter straddles the
+      # 200 mm wall (y -2600..-2400) so it cleanly punches through.
+      { id = doorcut, op = primitive, kind = box, w = 1000, d = 400, h = 2100, plane = XY,
+        plane_offset = 0, at = [ -500, -2700 ] }
+      { id = w1, op = boolean, operation = cut, target = ring, tool = doorcut }
+      # Two front windows (1200 x 1200, sill z=900) flanking the door in the -Y wall.
+      { id = fwin_l, op = primitive, kind = box, w = 1200, d = 400, h = 1200, plane = XY,
+        plane_offset = 900, at = [ -2400, -2700 ] }
+      { id = w2, op = boolean, operation = cut, target = w1, tool = fwin_l }
+      { id = fwin_r, op = primitive, kind = box, w = 1200, d = 400, h = 1200, plane = XY,
+        plane_offset = 900, at = [ 1200, -2700 ] }
+      { id = w3, op = boolean, operation = cut, target = w2, tool = fwin_r }
+      # One window on each side wall (+/-X), sill z=900, centered in Y.
+      { id = swin_r, op = primitive, kind = box, w = 400, d = 1200, h = 1200, plane = XY,
+        plane_offset = 900, at = [ 3300, -600 ] }
+      { id = w4, op = boolean, operation = cut, target = w3, tool = swin_r }
+      { id = swin_l, op = primitive, kind = box, w = 400, d = 1200, h = 1200, plane = XY,
+        plane_offset = 900, at = [ -3700, -600 ] }
+      { id = walls, op = boolean, operation = cut, target = w4, tool = swin_l }
+    ] }
+  # Gable roof: a triangular cross-section (spans Y, peaks +1500 at mid) extruded along X (the ridge).
+  # It overhangs the walls ~250 mm each side (y -2750..2750, x -3750..3750). Sits on the wall top.
+  roof { profile = solid, material = roof_tile,
+    connectors = [
+      { id = base, at_point = [ 0, 0, 2600 ], axis = [ 0, 0, 1 ] }
+    ],
+    features = [
+      { id = sk, op = sketch, plane = YZ, plane_offset = -3750,
+        elements = [ { id = tri, type = polygon,
+          points = [ [ -2750, 2600 ], [ 2750, 2600 ], [ 0, 4100 ] ] } ] }
+      { id = prism, op = extrude, profile = sk, distance = 7500 }
+    ] }
+  # A door leaf (960 x 2080 x 50) authored with its HINGE EDGE at the part origin (x=0), extending
+  # in +X. Authoring the hinge at the origin lets the assembly swing the door open by rotating it
+  # about Z (the hinge line) before translating it to the door jamb - so it can be shown ajar.
+  door { profile = solid, material = wood,
+    connectors = [
+      { id = hinge, at_point = [ 0, 0, 0 ], axis = [ 0, 0, 1 ] }
+    ],
+    features = [
+      { id = leaf, op = primitive, kind = box, w = 960, d = 50, h = 2080, plane = XY,
+        plane_offset = 10, at = [ 0, -25 ] }
+    ] }
+  # A window pane (glass) that fills a 1200 x 1200 opening; a thin slab authored CENTERED on the part
+  # origin in all axes (x -590..590, z -590..590, thin in Y). Centering makes assembly placement
+  # trivial: seat the pane at the opening's center and, for a side wall, rotate 90 deg about Z.
+  window { profile = solid, material = glass,
+    connectors = [
+      { id = center, at_point = [ 0, 0, 0 ], axis = [ 0, 1, 0 ] }
+    ],
+    features = [
+      { id = pane, op = primitive, kind = box, w = 1180, d = 30, h = 1180, plane = XY,
+        plane_offset = -590, at = [ -590, -15 ] }
+    ] }
+}

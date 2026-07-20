@@ -1,0 +1,49 @@
+units = mm
+# A rectangular gable cottage, assembled from cottage.hocon. The parts are authored in a shared world
+# frame (see the part file's coordinate plan), so the slab, walls, and roof seat at the origin; the
+# door and the window panes are placed into their openings by explicit placement. The slab is
+# grounded; everything is static (a building, not a mechanism). No building profile is used - this is
+# pure generic-op composition (the Phase 11 building profile will lower to exactly this shape).
+#
+# Openings recap (mm), by CENTER (the wall cutters use corner-origin `at`, so an opening's center is
+# `at + size/2`): front door centered at x=0 in the -Y wall (wall band y -2500..-2300, center -2400);
+# front windows centered at x=-1800 and x=+1800 (-Y wall); side windows centered at y=0 on the +/-X
+# walls (wall centers x=+/-3400). The window PANE is authored centered on a -Y-facing wall, so the
+# two SIDE windows are rotated 90 deg about Z to face +/-X. Fillers seat at these opening centers.
+metadata {
+  description = "Gable cottage: grounded slab, shelled brick walls, gable roof, a wood door, and four glass windows, all placed in a shared world frame"
+  tags = [ house, cottage, building, gable, static-assembly ]
+}
+assembly {
+  instances = [
+    # The shell of the cottage: slab (grounded), walls, roof - all seated at the origin.
+    { id = slab, file = "cottage.hocon", part = slab, lock = true }
+    { id = walls, file = "cottage.hocon", part = walls, placement = { position = [ 0, 0, 0 ] } }
+    { id = roof, file = "cottage.hocon", part = roof, placement = { position = [ 0, 0, 0 ] } }
+
+    # The front door, shown SWUNG OPEN 70 deg. The door is authored with its hinge edge at the part
+    # origin (leaf extending +X); we seat the hinge just inside the LEFT jamb (x=-485, a ~15 mm reveal
+    # so the hinge stile does not sit exactly on the jamb plane) and ~38 mm into the room from the -Y
+    # wall inner face (y=-2262), then rotate 70 deg about Z. With that inset the swept leaf clears both
+    # the jamb (min swept x=-485 > jamb -500) and the wall band (min swept y ~ -2279 > inner -2300),
+    # so it opens into the room with zero clash. (Closed would be angle=0.)
+    { id = door, file = "cottage.hocon", part = door,
+      placement = { position = [ -485, -2262, 0 ], rotation = { axis = [ 0, 0, 1 ], angle = 70 } } }
+
+    # Four window panes, one per opening, seated at each opening's CENTER (opening center = cutter
+    # `at` + size/2). The pane is authored centered and thin in Y (facing -Y), so the two FRONT
+    # windows just translate; the two SIDE windows rotate 90 deg about Z to lie in the +/-X walls.
+    # Front-wall centerline y=-2400; side-wall centerlines x=+/-3400; window centers z=1500.
+    { id = win_front_l, file = "cottage.hocon", part = window,
+      placement = { position = [ -1800, -2400, 1500 ] } }
+    { id = win_front_r, file = "cottage.hocon", part = window,
+      placement = { position = [ 1800, -2400, 1500 ] } }
+    { id = win_side_r, file = "cottage.hocon", part = window,
+      placement = { position = [ 3400, 0, 1500 ], rotation = { axis = [ 0, 0, 1 ], angle = 90 } } }
+    { id = win_side_l, file = "cottage.hocon", part = window,
+      placement = { position = [ -3400, 0, 1500 ], rotation = { axis = [ 0, 0, 1 ], angle = 90 } } }
+  ]
+  # A static building: no joints, no mates. Grounding the slab and seating everything by placement
+  # composes the whole cottage as one rigid piece.
+  constraints = [ ]
+}
