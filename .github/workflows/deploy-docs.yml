@@ -41,7 +41,9 @@ jobs:
         # the committed lockfile so uv does not try to re-resolve the missing ../pyondsel path.
         run: uv sync --group docs --frozen --no-install-package pyondsel
       - name: Build site
-        run: uv run mkdocs build --strict
+        # --no-sync: the env is already prepared by the previous step; skip uv's implicit sync so
+        # it does not re-resolve the absent ../pyondsel path.
+        run: uv run --no-sync mkdocs build --strict
         env:
           DISABLE_MKDOCS_2_WARNING: "true"
       - name: Upload Pages artifact
