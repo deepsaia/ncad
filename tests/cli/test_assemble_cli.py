@@ -11,7 +11,6 @@ _RUNNER = CliRunner()
 def test_assemble_command_builds_scene(tmp_path) -> None:
     part = tmp_path / "peg.hocon"
     part.write_text("""
-schema_version = 2
 units = mm
 parts { peg { profile = solid, features = [
   { id = sk, op = sketch, plane = XY, elements = [ { id = c, type = circle, d = 8 } ] }
@@ -20,7 +19,6 @@ parts { peg { profile = solid, features = [
 """)
     asm = tmp_path / "pegs.asm.hocon"
     asm.write_text(f"""
-schema_version = 1
 units = mm
 assembly {{ instances = [ {{ id = p1, file = "{part.name}", part = peg }} ] }}
 """)

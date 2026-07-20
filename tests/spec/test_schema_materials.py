@@ -2,9 +2,7 @@ from ncad.spec.schema_validator import SchemaValidator
 
 
 def test_material_fields_validate():
-    doc = {
-        "schema_version": 2,
-        "units": "mm",
+    doc = {"units": "mm",
         "materials_library": "lib/materials.hocon",
         "materials": {"brass": {"physical": {"density": 8500}}},
         "parts": {

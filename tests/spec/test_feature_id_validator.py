@@ -2,7 +2,7 @@ from ncad.spec.feature_id_validator import FeatureIdValidator
 
 
 def _doc(features):
-    return {"schema_version": 1, "units": "mm",
+    return {"units": "mm",
             "parts": {"p": {"profile": "solid", "features": features}}}
 
 
@@ -19,7 +19,7 @@ def test_duplicate_id_reported_by_id():
 
 
 def test_duplicates_are_scoped_per_part():
-    doc = {"schema_version": 1, "units": "mm", "parts": {
+    doc = {"units": "mm", "parts": {
         "p1": {"profile": "solid", "features": [{"id": "x", "op": "sketch"}]},
         "p2": {"profile": "solid", "features": [{"id": "x", "op": "sketch"}]},
     }}

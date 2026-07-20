@@ -5,9 +5,7 @@ import pytest
 from ncad.spec.spec_loader import SpecLoader
 from ncad.spec.spec_writer import SpecWriter
 
-_SPEC = {
-    "schema_version": 1,
-    "seed": 42,
+_SPEC = {"seed": 42,
     "units": "m",
     "storeys": [
         {

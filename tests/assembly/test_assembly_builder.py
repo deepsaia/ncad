@@ -16,7 +16,6 @@ def test_assemble_composes_scene_sidecar(tmp_path) -> None:
 
     part = tmp_path / "peg.hocon"
     _write(part, """
-schema_version = 2
 units = mm
 parts { peg { profile = solid, features = [
   { id = sk, op = sketch, plane = XY, elements = [ { id = c, type = circle, d = 8 } ] }
@@ -25,7 +24,6 @@ parts { peg { profile = solid, features = [
 """)
     asm = tmp_path / "pegs.asm.hocon"
     _write(asm, f"""
-schema_version = 1
 units = mm
 assembly {{ instances = [
   {{ id = p1, file = "{part.name}", part = peg }}
@@ -51,7 +49,6 @@ def test_assemble_reports_bad_instance_ref(tmp_path) -> None:
 
     asm = tmp_path / "bad.asm.hocon"
     _write(asm, """
-schema_version = 1
 units = mm
 assembly { instances = [ { id = x, file = "missing.hocon", part = nope } ] }
 """)

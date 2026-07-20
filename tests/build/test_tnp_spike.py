@@ -6,7 +6,7 @@ from tests.kernel.fake_kernel import FakeKernel
 
 
 def _bracket(thickness=10):
-    return {"schema_version": 1, "units": "mm", "parameters": {"t": thickness},
+    return {"units": "mm", "parameters": {"t": thickness},
             "parts": {"p": {"profile": "solid", "features": [
                 {"id": "sk", "op": "sketch", "plane": "XY",
                  "elements": [{"id": "r", "type": "rectangle", "w": 40, "h": 40}]},

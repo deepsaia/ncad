@@ -11,7 +11,6 @@ def _write(p: Path, s: str) -> None:
 
 
 _PARTS = """
-schema_version = 2
 units = mm
 parts {
   plate { profile = solid,
@@ -39,7 +38,6 @@ def test_solve_block_carries_explanation_and_roles(tmp_path) -> None:
     _write(part, _PARTS)
     asm = tmp_path / "mated.asm.hocon"
     _write(asm, f"""
-schema_version = 1
 units = mm
 assembly {{
   instances = [
@@ -74,7 +72,6 @@ def test_redundant_mate_reported_not_over_constrained(tmp_path) -> None:
     # coincident already aligns the connector axes; adding a parallel on the SAME pair is redundant
     # (both lower to the axis-parallel primitive), not a conflict. py-slvs flags it code 5.
     _write(asm, f"""
-schema_version = 1
 units = mm
 assembly {{
   instances = [

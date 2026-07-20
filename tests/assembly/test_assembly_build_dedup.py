@@ -13,7 +13,6 @@ def _write(p: Path, s: str) -> None:
 # A part file with ONE part, instanced many times, so redundant per-instance rebuilds would show as
 # load/build counts scaling with the instance count.
 _PART = """
-schema_version = 2
 units = mm
 parts {
   peg { profile = solid,
@@ -39,7 +38,7 @@ def test_part_file_built_once_regardless_of_instance_count(tmp_path, monkeypatch
         f' placement = {{ position = [{n * 15}, 0, 0] }} }}'
         for n in range(5))
     asm = tmp_path / "many.asm.hocon"
-    _write(asm, f"schema_version = 1\nunits = mm\nassembly {{ instances = [\n{insts}\n] }}\n")
+    _write(asm, f"units = mm\nassembly {{ instances = [\n{insts}\n] }}\n")
 
     # Count how many times the part document is actually built (build_part_mapped runs the ops).
     calls = {"n": 0}

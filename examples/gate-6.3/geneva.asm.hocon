@@ -1,4 +1,3 @@
-schema_version = 1
 units = mm
 # Bucket 6.3 gate: a Geneva indexer, driven by the crank. Three bodies, 2 revolute joints (crank +
 # wheel each on a bearing post) + a GENEVA coupling that ties them: the crank angle drives the

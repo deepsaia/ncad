@@ -2,7 +2,6 @@
 # is pinned to the bracket's pivot axis by a revolute (1 rotational DoF free). The assembly exports
 # as a structured STEP AP242 (named + colored components, an assembly tree that opens in FreeCAD),
 # reports its BOM + roll-up mass, and its interference is checked (the coaxial pin reads correctly).
-schema_version = 1
 units = mm
 metadata {
   description = "Mated bracket assembly"

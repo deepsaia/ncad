@@ -11,7 +11,6 @@ def _write(p: Path, s: str) -> None:
 
 
 _PARTS = """
-schema_version = 2
 units = mm
 parts {
   plate { profile = solid, material = steel_1018,
@@ -39,7 +38,6 @@ def test_assembly_writes_interference_bom_mass_and_step(tmp_path) -> None:
     _write(part, _PARTS)
     asm = tmp_path / "pegged.asm.hocon"
     _write(asm, f"""
-schema_version = 1
 units = mm
 assembly {{
   instances = [

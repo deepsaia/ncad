@@ -26,7 +26,7 @@ def test_feature_mirror_unions_a_reflected_boss():
     from ncad.build.document_builder import DocumentBuilder
     from ncad.kernel.build123d_kernel import Build123dKernel
 
-    doc = {"schema_version": 2, "units": "mm",
+    doc = {"units": "mm",
            "parts": {"p": {"profile": "solid", "features": [
                {"id": "boss_sk", "op": "sketch", "plane": "XY",
                 "elements": [{"id": "c", "type": "circle", "d": 8, "at": [20, 0]}]},

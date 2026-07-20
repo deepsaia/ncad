@@ -2,7 +2,7 @@ from ncad.spec.dependency_validator import DependencyValidator
 
 
 def _doc(features):
-    return {"schema_version": 1, "units": "mm",
+    return {"units": "mm",
             "parts": {"p": {"profile": "solid", "features": features}}}
 
 
@@ -55,7 +55,7 @@ def test_generative_and_selector_refs_are_not_checked():
 
 
 def test_refs_are_scoped_per_part():
-    doc = {"schema_version": 1, "units": "mm", "parts": {
+    doc = {"units": "mm", "parts": {
         "p1": {"profile": "solid", "features": [{"id": "sk", "op": "sketch"}]},
         "p2": {"profile": "solid", "features": [
             {"id": "pad", "op": "extrude", "profile": "sk"}]},

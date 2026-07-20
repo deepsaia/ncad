@@ -2,7 +2,7 @@ from ncad.spec.assembly_schema_validator import AssemblySchemaValidator
 
 
 def _base(joints, couplings):
-    return {"schema_version": 1, "units": "mm", "assembly": {
+    return {"units": "mm", "assembly": {
         "instances": [{"id": "a", "file": "p.hocon", "part": "p"}],
         "joints": joints, "couplings": couplings}}
 
@@ -13,7 +13,7 @@ def _rev(jid):
 
 
 def test_screw_joint_with_pitch_validates() -> None:
-    doc = {"schema_version": 1, "units": "mm", "assembly": {
+    doc = {"units": "mm", "assembly": {
         "instances": [{"id": "a", "file": "p.hocon", "part": "p"}],
         "joints": [{"id": "s1", "type": "screw", "pitch": 2, "value": 90,
                     "between": [{"instance": "a", "connector": "c"},

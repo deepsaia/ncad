@@ -1,4 +1,3 @@
-schema_version = 1
 units = mm
 # The wheel + axle sub-assembly of the caster (bucket 5.7): the wheel is pinned to the axle by a
 # revolute joint (free to spin). This sub-assembly is instanced into the top-level caster assembly

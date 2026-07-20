@@ -1,4 +1,3 @@
-schema_version = 1
 # A motion study driving the rack-and-pinion. The pinion turns a half revolution (0 -> 180 deg); the
 # `rack_pinion` coupling turns that into the rack's prescribed SLIDE (travel = pitch_r * angle), so
 # the rack advances pi*27 ~= 84.8 mm. The rack is long (26 teeth ~= 245 mm) and its rest position is

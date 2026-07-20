@@ -1,4 +1,3 @@
-schema_version = 1
 units = mm
 # A study table / writing desk, assembled from study_table.hocon. The parts are authored in a
 # shared world frame (see the part file's coordinate plan), so most instances seat at the origin;

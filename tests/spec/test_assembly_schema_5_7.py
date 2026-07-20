@@ -10,7 +10,7 @@ from ncad.spec.assembly_schema_validator import AssemblySchemaValidator
 
 def _asm(instances, **extra) -> dict:
     assembly = {"instances": instances, **extra}
-    return {"schema_version": 1, "units": "mm", "assembly": assembly}
+    return {"units": "mm", "assembly": assembly}
 
 
 def _validate(document: dict):

@@ -1,4 +1,3 @@
-schema_version = 1
 # A motion study driving the Geneva one crank revolution. The crank angle is the driver; the
 # `geneva` coupling turns it into the wheel's intermittent rotation (dwell, then index 90 deg during
 # the engagement window, then dwell). A 6.1 `angle` measure reports the wheel's turned angle (the

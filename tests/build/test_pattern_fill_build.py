@@ -11,8 +11,7 @@ def test_fill_pattern_over_a_face_builds_many_bodies():
     from ncad.build.document_builder import DocumentBuilder
     from ncad.kernel.build123d_kernel import Build123dKernel
 
-    doc = {
-        "schema_version": 2, "units": "mm",
+    doc = {"units": "mm",
         "parts": {"p": {"profile": "solid", "features": [
             {"id": "plate_sk", "op": "sketch", "plane": "XY",
              "elements": [{"id": "r", "type": "rectangle", "w": 40, "h": 24}]},

@@ -16,7 +16,6 @@ def test_concentric_coincident_solves_and_records_mates(tmp_path) -> None:
 
     part = tmp_path / "parts.hocon"
     _write(part, """
-schema_version = 2
 units = mm
 parts {
   plate { profile = solid,
@@ -36,7 +35,6 @@ parts {
 """)
     asm = tmp_path / "mated.asm.hocon"
     _write(asm, f"""
-schema_version = 1
 units = mm
 assembly {{
   instances = [

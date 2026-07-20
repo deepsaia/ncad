@@ -1,0 +1,162 @@
+schema_version = 2
+units = mm
+# Parts of an L-shaped two-storey house, authored in a shared world frame and composed by an assembly
+# (l_house.asm.hocon). Pure generic-op modeling, no building profile. This is a step up from the
+# cottage: two storeys with TWO-TONE walls (a stone ground floor + a rendered upper floor), a proud
+# floor band and base plinth (string courses), a real CROSS-GABLE slate roof over the L, transparent
+# glass on both storeys, and an ajar front door.
+#
+# Z is up; the house faces -Y (front + door at -Y). The L footprint is the union of two wings:
+#   wing 1 (main) : x 0..12000, y 0..6000   (runs along X)
+#   wing 2 (side) : x 0..6000,  y 0..10000  (runs along Y)
+# so the L outline (CCW, outer faces) is [0,0] [12000,0] [12000,6000] [6000,6000] [6000,10000] [0,10000].
+# Storey heights 3000; wall thickness 200 (walls go inward from the outline). Elevations (mm):
+#   plinth      : z -300..0    (concrete, footprint + 250 proud)
+#   ground_walls: z 0..3000    (stone ring, door + windows cut)
+#   floor_band  : z 3000..3200 (concrete string course, footprint + 120 proud)
+#   upper_walls : z 3200..6200 (render ring, windows cut; sills at world z 4100)
+#   roof        : z 6200..8400 (cross-gable = two perpendicular gable prisms unioned; 300 eaves)
+# Windows are 1200 x 1200 openings (sill 900 above each storey floor); the door is 1000 x 2100.
+metadata {
+  description = "L-shaped two-storey house: stone ground floor, rendered upper floor, proud floor band and plinth, cross-gable slate roof, glass windows on both storeys, an ajar door; generic ops, no building profile"
+  tags = [ house, building, two-storey, l-shape, cross-gable, generic-ops ]
+}
+# Building materials, defined inline: density (kg/m^3) + display appearance. Glass carries `opacity`
+# (the viewer alpha) + low roughness so the By-Material view renders the panes as clear glass.
+materials {
+  stone    { physical { density = 2600 }, appearance { color = [ 0.56, 0.53, 0.48 ] } }
+  render   { physical { density = 1600 }, appearance { color = [ 0.90, 0.88, 0.82 ] } }
+  concrete { physical { density = 2400 }, appearance { color = [ 0.70, 0.70, 0.68 ] } }
+  slate    { physical { density = 2700 }, appearance { color = [ 0.26, 0.27, 0.32 ] } }
+  wood     { physical { density = 650 },  appearance { color = [ 0.36, 0.22, 0.12 ] } }
+  glass    { physical { density = 2500 },
+             appearance { color = [ 0.58, 0.76, 0.85 ], opacity = 0.32, metalness = 0.1, roughness = 0.05 } }
+}
+parts {
+  # Base plinth: a concrete pad under the whole L footprint, expanded 250 mm all round (a proud base),
+  # z -300..0. The expanded-L outline offsets every outer vertex outward by 250 (the reflex notch
+  # vertex moves to [6250,6250]).
+  plinth { profile = solid, material = concrete,
+    connectors = [ { id = top, at_point = [ 0, 0, 0 ], axis = [ 0, 0, 1 ] } ],
+    features = [
+      { id = sk, op = sketch, plane = XY, plane_offset = -300,
+        elements = [ { id = p, type = polygon, points = [
+          [ -250, -250 ], [ 12250, -250 ], [ 12250, 6250 ], [ 6250, 6250 ], [ 6250, 10250 ], [ -250, 10250 ] ] } ] }
+      { id = pad, op = extrude, profile = sk, distance = 300 }
+    ] }
+  # Ground floor walls: extrude the L footprint to a 3000 mass, shell to a 200 mm ring (horizontal
+  # faces removed -> no integral floor/ceiling), then cut the front door + five windows. Stone.
+  ground_walls { profile = solid, material = stone,
+    connectors = [ { id = base, at_point = [ 0, 0, 0 ], axis = [ 0, 0, 1 ] } ],
+    features = [
+      { id = sk, op = sketch, plane = XY,
+        elements = [ { id = p, type = polygon, points = [
+          [ 0, 0 ], [ 12000, 0 ], [ 12000, 6000 ], [ 6000, 6000 ], [ 6000, 10000 ], [ 0, 10000 ] ] } ] }
+      { id = mass, op = extrude, profile = sk, distance = 3000 }
+      { id = ring, op = shell, thickness = 200, openings = horizontal }
+      # Front door (1000 x 2100), centered at x=2500 in the -Y wall.
+      { id = doorcut, op = primitive, kind = box, w = 1000, d = 400, h = 2100, plane = XY,
+        plane_offset = 0, at = [ 2000, -100 ] }
+      { id = g1, op = boolean, operation = cut, target = ring, tool = doorcut }
+      # Two front windows (centers x=6000, x=9500), sill z=900.
+      { id = fw1, op = primitive, kind = box, w = 1200, d = 400, h = 1200, plane = XY,
+        plane_offset = 900, at = [ 5400, -100 ] }
+      { id = g2, op = boolean, operation = cut, target = g1, tool = fw1 }
+      { id = fw2, op = primitive, kind = box, w = 1200, d = 400, h = 1200, plane = XY,
+        plane_offset = 900, at = [ 8900, -100 ] }
+      { id = g3, op = boolean, operation = cut, target = g2, tool = fw2 }
+      # Two west windows (x=0 wall; centers y=3000, y=7000).
+      { id = ww1, op = primitive, kind = box, w = 400, d = 1200, h = 1200, plane = XY,
+        plane_offset = 900, at = [ -100, 2400 ] }
+      { id = g4, op = boolean, operation = cut, target = g3, tool = ww1 }
+      { id = ww2, op = primitive, kind = box, w = 400, d = 1200, h = 1200, plane = XY,
+        plane_offset = 900, at = [ -100, 6400 ] }
+      { id = g5, op = boolean, operation = cut, target = g4, tool = ww2 }
+      # One east window (x=12000 wall, spans y 0..6000; center y=3000).
+      { id = ew1, op = primitive, kind = box, w = 400, d = 1200, h = 1200, plane = XY,
+        plane_offset = 900, at = [ 11700, 2400 ] }
+      { id = ground_walls, op = boolean, operation = cut, target = g5, tool = ew1 }
+    ] }
+  # Floor band (string course between storeys): a concrete slab over the L footprint, expanded 120 mm
+  # all round so it reads as a proud banding line, z 3000..3200.
+  floor_band { profile = solid, material = concrete,
+    connectors = [ { id = base, at_point = [ 0, 0, 3000 ], axis = [ 0, 0, 1 ] } ],
+    features = [
+      { id = sk, op = sketch, plane = XY, plane_offset = 3000,
+        elements = [ { id = p, type = polygon, points = [
+          [ -120, -120 ], [ 12120, -120 ], [ 12120, 6120 ], [ 6120, 6120 ], [ 6120, 10120 ], [ -120, 10120 ] ] } ] }
+      { id = band, op = extrude, profile = sk, distance = 200 }
+    ] }
+  # Upper floor walls: the same L footprint, authored at z 3200, extruded 3000, shelled, windows cut
+  # (sills at world z 4100 = the upper floor + 900). Rendered (plaster) finish.
+  upper_walls { profile = solid, material = render,
+    connectors = [ { id = base, at_point = [ 0, 0, 3200 ], axis = [ 0, 0, 1 ] } ],
+    features = [
+      { id = sk, op = sketch, plane = XY, plane_offset = 3200,
+        elements = [ { id = p, type = polygon, points = [
+          [ 0, 0 ], [ 12000, 0 ], [ 12000, 6000 ], [ 6000, 6000 ], [ 6000, 10000 ], [ 0, 10000 ] ] } ] }
+      { id = mass, op = extrude, profile = sk, distance = 3000 }
+      { id = ring, op = shell, thickness = 200, openings = horizontal }
+      # Three front windows (x=2500, 6000, 9500), sill world z=4100.
+      { id = ufw1, op = primitive, kind = box, w = 1200, d = 400, h = 1200, plane = XY,
+        plane_offset = 4100, at = [ 1900, -100 ] }
+      { id = u1, op = boolean, operation = cut, target = ring, tool = ufw1 }
+      { id = ufw2, op = primitive, kind = box, w = 1200, d = 400, h = 1200, plane = XY,
+        plane_offset = 4100, at = [ 5400, -100 ] }
+      { id = u2, op = boolean, operation = cut, target = u1, tool = ufw2 }
+      { id = ufw3, op = primitive, kind = box, w = 1200, d = 400, h = 1200, plane = XY,
+        plane_offset = 4100, at = [ 8900, -100 ] }
+      { id = u3, op = boolean, operation = cut, target = u2, tool = ufw3 }
+      # Two west windows (y=3000, 7000).
+      { id = uww1, op = primitive, kind = box, w = 400, d = 1200, h = 1200, plane = XY,
+        plane_offset = 4100, at = [ -100, 2400 ] }
+      { id = u4, op = boolean, operation = cut, target = u3, tool = uww1 }
+      { id = uww2, op = primitive, kind = box, w = 400, d = 1200, h = 1200, plane = XY,
+        plane_offset = 4100, at = [ -100, 6400 ] }
+      { id = u5, op = boolean, operation = cut, target = u4, tool = uww2 }
+      # One east window (y=3000).
+      { id = uew1, op = primitive, kind = box, w = 400, d = 1200, h = 1200, plane = XY,
+        plane_offset = 4100, at = [ 11700, 2400 ] }
+      { id = u6, op = boolean, operation = cut, target = u5, tool = uew1 }
+      # One north window (y=10000 wall, spans x 0..6000; center x=3000).
+      { id = unw1, op = primitive, kind = box, w = 1200, d = 400, h = 1200, plane = XY,
+        plane_offset = 4100, at = [ 2400, 9700 ] }
+      { id = upper_walls, op = boolean, operation = cut, target = u6, tool = unw1 }
+    ] }
+  # Cross-gable roof over the L: two perpendicular gable prisms (equal ridge height 8400) unioned, so
+  # they meet in a valley - a real L-house roof. Both peak 2200 above the wall top (z 6200 -> 8400),
+  # overhanging the walls 300 mm at the eaves. Slate.
+  #   roof 1 : gable over wing 1 (ridge along X). Triangle in YZ (spans y -300..6300, peak y=3000),
+  #            extruded along X from -300 to 12300.
+  #   roof 2 : gable over wing 2 (ridge along Y). Triangle in XZ (spans x -300..6300, peak x=3000),
+  #            extruded along Y to cover y -300..10300.
+  roof { profile = solid, material = slate,
+    connectors = [ { id = base, at_point = [ 0, 0, 6200 ], axis = [ 0, 0, 1 ] } ],
+    features = [
+      { id = sk1, op = sketch, plane = YZ, plane_offset = -300,
+        elements = [ { id = t1, type = polygon,
+          points = [ [ -300, 6200 ], [ 6300, 6200 ], [ 3000, 8400 ] ] } ] }
+      { id = r1, op = extrude, profile = sk1, distance = 12600 }
+      { id = sk2, op = sketch, plane = XZ, plane_offset = -300,
+        elements = [ { id = t2, type = polygon,
+          points = [ [ -300, 6200 ], [ 6300, 6200 ], [ 3000, 8400 ] ] } ] }
+      { id = r2, op = extrude, profile = sk2, distance = 10600 }
+      { id = roof, op = boolean, operation = union, target = r1, tool = r2 }
+    ] }
+  # A door leaf (960 x 2080 x 50), hinge edge at the part origin (leaf extends +X), so the assembly
+  # can swing it open about Z. Wood.
+  door { profile = solid, material = wood,
+    connectors = [ { id = hinge, at_point = [ 0, 0, 0 ], axis = [ 0, 0, 1 ] } ],
+    features = [
+      { id = leaf, op = primitive, kind = box, w = 960, d = 50, h = 2080, plane = XY,
+        plane_offset = 10, at = [ 0, -25 ] }
+    ] }
+  # A glass window pane (1180 x 1180 x 30), authored CENTERED on the part origin in all axes, thin in
+  # Y. The assembly seats it at each opening center; side-wall panes rotate 90 deg about Z.
+  window { profile = solid, material = glass,
+    connectors = [ { id = center, at_point = [ 0, 0, 0 ], axis = [ 0, 1, 0 ] } ],
+    features = [
+      { id = pane, op = primitive, kind = box, w = 1180, d = 30, h = 1180, plane = XY,
+        plane_offset = -590, at = [ -590, -15 ] }
+    ] }
+}

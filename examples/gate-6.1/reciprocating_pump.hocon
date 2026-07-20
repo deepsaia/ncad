@@ -1,4 +1,3 @@
-schema_version = 2
 units = mm
 # A reciprocating (plunger) PUMP authored as a coarse PRIMITIVE BLOCKOUT: a crank-driven plunger
 # slides in a pump cylinder, drawing + discharging fluid each stroke. Kinematically it is a

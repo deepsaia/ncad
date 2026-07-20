@@ -11,7 +11,6 @@ def _write(p: Path, s: str) -> None:
 
 
 _PARTS = """
-schema_version = 2
 units = mm
 parts {
   bracket { profile = solid,
@@ -38,7 +37,6 @@ def test_revolute_joint_solves_and_records_signature(tmp_path) -> None:
     _write(part, _PARTS)
     asm = tmp_path / "pinned.asm.hocon"
     _write(asm, f"""
-schema_version = 1
 units = mm
 assembly {{
   instances = [

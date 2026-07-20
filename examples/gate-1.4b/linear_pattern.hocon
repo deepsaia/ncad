@@ -1,4 +1,3 @@
-schema_version = 1
 units = mm
 metadata {
   description = "Linear pattern"

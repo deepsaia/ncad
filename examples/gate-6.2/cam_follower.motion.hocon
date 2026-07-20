@@ -1,4 +1,3 @@
-schema_version = 1
 # A motion study driving the cam-follower one cam revolution. The cam angle is the driver; the `cam`
 # coupling (in the assembly) turns it into the follower's prescribed lift via a segmented cam profile
 # (a base-circle dwell + a cycloidal rise-return). A 6.1 `coordinate` measure reports the follower

@@ -160,9 +160,8 @@ definitions {
 }
 
 type = object
-required = ["schema_version", "units", "assembly"]
+required = ["units", "assembly"]
 properties {
-  schema_version { type = integer, minimum = 1 }
   units { enum = ["mm", "m", "in"] }
   metadata = ${definitions.metadata}
   assembly {

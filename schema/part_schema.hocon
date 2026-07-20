@@ -8,7 +8,7 @@
 # Units are declared per-document (mm | m | in); canonical internal unit is mm.
 # Intentionally PERMISSIVE while young: no additionalProperties=false, so unknown
 # fields pass and the schema grows without rejecting future documents. Only settled
-# structural fields are constrained. Bump schema_version on incompatible changes.
+# structural fields are constrained.
 
 definitions {
   # A 2D point (x, y).
@@ -231,9 +231,8 @@ definitions {
 }
 
 type = object
-required = ["schema_version", "units", "parts"]
+required = ["units", "parts"]
 properties {
-  schema_version { type = integer, minimum = 1 }
   units { enum = ["mm", "m", "in"] }
   metadata = ${definitions.metadata}
   parameters { type = object }

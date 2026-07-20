@@ -1,4 +1,3 @@
-schema_version = 1
 units = mm
 # A study chair, assembled from chair.hocon. The parts are authored in a shared world frame (see the
 # part file's coordinate plan), so the seat seats at the origin and the legs / posts / rails / slats

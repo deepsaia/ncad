@@ -14,9 +14,7 @@ _FIXTURE = (
 
 
 def _document() -> dict:
-    return {
-        "schema_version": 2,
-        "units": "mm",
+    return {"units": "mm",
         "parts": {
             "block": {
                 "profile": "solid",
@@ -91,8 +89,7 @@ def test_build_file_writes_hierarchy_sidecar(tmp_path) -> None:
 
 def test_build_resolves_parameters_and_expressions() -> None:
     builder = DocumentBuilder(FakeKernel())
-    doc = {
-        "schema_version": 2, "units": "mm",
+    doc = {"units": "mm",
         "parameters": {"w": 80, "h": 60, "t": 8},
         "parts": {"block": {"profile": "solid", "features": [
             {"id": "sk", "op": "sketch", "plane": "XY",
@@ -110,7 +107,7 @@ def test_build_resolves_parameters_and_expressions() -> None:
 def test_build_file_writes_elementmap_sidecar(tmp_path) -> None:
     import json
 
-    doc = {"schema_version": 1, "units": "mm", "parts": {"blk": {
+    doc = {"units": "mm", "parts": {"blk": {
         "profile": "solid", "features": [
             {"id": "sk", "op": "sketch", "plane": "XY",
              "elements": [{"id": "r", "type": "rectangle", "w": 20, "h": 20}]},
@@ -129,8 +126,7 @@ def test_build_raises_on_expression_error() -> None:
     from ncad.params.expression_error import ExpressionError
 
     builder = DocumentBuilder(FakeKernel())
-    bad = {
-        "schema_version": 2, "units": "mm",
+    bad = {"units": "mm",
         "parameters": {"x": "${missing} + 1"},
         "parts": {"block": {"profile": "solid", "features": []}},
     }
@@ -147,7 +143,7 @@ def test_incremental_rebuild_reuses_unchanged_features() -> None:
     builder = DocumentBuilder(kernel)
 
     def doc(thickness):
-        return {"schema_version": 1, "units": "mm", "parameters": {"t": thickness},
+        return {"units": "mm", "parameters": {"t": thickness},
                 "parts": {"blk": {"profile": "solid", "features": [
                     {"id": "sk", "op": "sketch", "plane": "XY",
                      "elements": [{"id": "r", "type": "rectangle", "w": 40, "h": 40}]},
@@ -170,7 +166,7 @@ def test_same_document_builds_are_deterministic() -> None:
     from ncad.build.equality_comparator import EqualityComparator
     from tests.kernel.fake_kernel import FakeKernel
 
-    doc = {"schema_version": 1, "units": "mm", "parts": {"blk": {
+    doc = {"units": "mm", "parts": {"blk": {
         "profile": "solid", "features": [
             {"id": "sk", "op": "sketch", "plane": "XY",
              "elements": [{"id": "r", "type": "rectangle", "w": 20, "h": 30}]},
@@ -185,7 +181,7 @@ def test_build_rejects_forward_reference() -> None:
 
     from tests.kernel.fake_kernel import FakeKernel
 
-    doc = {"schema_version": 1, "units": "mm", "parts": {"p": {
+    doc = {"units": "mm", "parts": {"p": {
         "profile": "solid", "features": [
             {"id": "pad", "op": "extrude", "profile": "sk", "distance": 5},
             {"id": "sk", "op": "sketch", "plane": "XY",

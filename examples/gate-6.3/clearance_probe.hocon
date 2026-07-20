@@ -1,4 +1,3 @@
-schema_version = 2
 units = mm
 # A deliberate motion-time INTERFERENCE demonstrator (bucket 6.3): a driven arm sweeps about Z and
 # its tip passes THROUGH a fixed obstruction post over part of the sweep. This is an intentionally

@@ -1,4 +1,3 @@
-schema_version = 1
 units = mm
 # Bucket 6.2 gate: a meshing spur-gear pair, driven by the pinion. Three bodies, 2 revolute joints
 # (each wheel turns on its bearing post) + a GEAR coupling that ties them by the mesh ratio. The

@@ -145,8 +145,11 @@ and §2 is the engine's answer.
 - **Angles:** degrees in the document; radians internally.
 - **Identity:** every node carries a stable `id` (string), *never reused* even
   after delete: ids anchor references, provenance, joints, and annotations (§2).
-- **Versioning:** every document carries a domain `schema_version` (int);
-  migrations convert old definitions forward on load (§14, Q6).
+- **Versioning:** input documents are unversioned while the schema is young (no backward
+  compatibility is maintained; broken examples are regenerated, not migrated). OUTPUT sidecars
+  (the assembly/motion JSON the viewer consumes) still carry a `schema_version`. A per-domain
+  input `schema_version` + migration converters is a future interchange concern (§14, Q6), added
+  when the format stabilizes and external documents must survive upgrades.
 - **Determinism:** the executor is pure; `seed` (when a generator is used) is part
   of the document; the kernel version is pinned, because geometry equality, and
   the cache (§4), is only meaningful against a fixed kernel.
@@ -219,7 +222,7 @@ the filesystem, network, or global state.
 
 ```jsonc
 {
-  "schema_version": 2, "units": "mm",
+  "units": "mm",
   "parameters": { "width": 80, "thickness": 8, "hole_d": 6,
                   "margin": "${hole_d} * 1.5" },        // refs + arithmetic
   "datums":     { "base": { "type": "plane", "ref": "XY" } },

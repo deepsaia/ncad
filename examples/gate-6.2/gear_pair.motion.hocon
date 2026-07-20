@@ -1,4 +1,3 @@
-schema_version = 1
 # A motion study driving the gear pair one pinion revolution. The pinion angle is the driver; the
 # `gear` coupling (in the assembly) turns it into the gear's prescribed rotation by the mesh ratio
 # (16/24, reversed sense), so the gear turns 2/3 of a revolution in the opposite direction. A 6.1

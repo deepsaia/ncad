@@ -5,7 +5,7 @@ from tests.kernel.fake_kernel import FakeKernel
 
 
 def _doc():
-    return {"schema_version": 1, "units": "mm", "parts": {"p": {
+    return {"units": "mm", "parts": {"p": {
         "profile": "solid", "features": [
             {"id": "sk", "op": "sketch", "plane": "XY",
              "entities": [

@@ -11,7 +11,6 @@ def _write(p: Path, s: str) -> None:
 
 
 _PARTS = """
-schema_version = 2
 units = mm
 parts {
   disk { profile = solid,
@@ -32,7 +31,6 @@ def test_screw_solved_and_gear_coupling_recorded(tmp_path) -> None:
     _write(part, _PARTS)
     asm = tmp_path / "geared.asm.hocon"
     _write(asm, f"""
-schema_version = 1
 units = mm
 assembly {{
   instances = [
@@ -71,7 +69,6 @@ def test_cam_coupling_recorded_with_profile(tmp_path) -> None:
     _write(part, _PARTS)
     asm = tmp_path / "cammed.asm.hocon"
     _write(asm, f"""
-schema_version = 1
 units = mm
 assembly {{
   instances = [

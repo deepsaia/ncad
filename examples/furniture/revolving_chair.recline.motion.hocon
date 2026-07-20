@@ -1,4 +1,3 @@
-schema_version = 1
 # A second motion study for the office chair: RECLINE. The backrest (with its headrest) hangs on the
 # lumbar hinge (the `recline` revolute about a horizontal X axis); driving that joint tilts the whole
 # back + headrest rearward, while the seat, arms, column, and base stay put. Drive it 0..-18 deg

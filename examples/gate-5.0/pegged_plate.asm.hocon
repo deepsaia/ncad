@@ -4,7 +4,6 @@
 # x -30..30, y -20..20, top at z=6) and each peg's origin is its base center. So the pegs are
 # placed in the plate's centered frame: on the plate top (z=6), inset from the edges. Named
 # mate connectors (bucket 5.1) will let a placement reference a face/hole instead of the origin.
-schema_version = 1
 units = mm
 metadata {
   description = "Pegged plate assembly"

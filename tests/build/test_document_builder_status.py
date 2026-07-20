@@ -8,8 +8,7 @@ from ncad.build.document_builder import DocumentBuilder
 
 
 def _doc(tmp_path):
-    src = """schema_version = 2
-units = mm
+    src = """units = mm
 parts {
   plate {
     profile = solid

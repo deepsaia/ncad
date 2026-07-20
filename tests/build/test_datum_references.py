@@ -19,8 +19,7 @@ def test_sketch_on_datum_plane_builds():
     from ncad.build.document_builder import DocumentBuilder
     from ncad.kernel.build123d_kernel import Build123dKernel
 
-    doc = {
-        "schema_version": 2, "units": "mm",
+    doc = {"units": "mm",
         "parts": {"p": {"profile": "solid", "features": [
             {"id": "d", "op": "datum_plane", "method": "offset", "base": "XY",
              "distance": 10.0},
@@ -44,8 +43,7 @@ def test_revolve_about_datum_axis_end_to_end():
     from ncad.build.document_builder import DocumentBuilder
     from ncad.kernel.build123d_kernel import Build123dKernel
 
-    doc = {
-        "schema_version": 2, "units": "mm",
+    doc = {"units": "mm",
         "parts": {"p": {"profile": "solid", "features": [
             # A datum axis parallel to Z but offset to x=-6, fully to one side of the profile
             # (the primitive rectangle is centered at origin, spanning x=[-2,2]), so revolving

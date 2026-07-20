@@ -1,4 +1,3 @@
-schema_version = 1
 units = mm
 # Bucket 6.2 gate: a cam-follower, driven by the cam. The cam turns on the stand bearing (revolute);
 # the follower slides in the stand guide (slider). A `cam` coupling links the two: the motion study

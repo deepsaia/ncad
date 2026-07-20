@@ -6,7 +6,7 @@ from tests.kernel.fake_kernel import FakeKernel
 
 def _rounded_bar():
     # a bar 40 long, 20 tall, with two semicircular ends: a stadium/slot shape
-    return {"schema_version": 1, "units": "mm", "parts": {"p": {
+    return {"units": "mm", "parts": {"p": {
         "profile": "solid", "features": [
             {"id": "sk", "op": "sketch", "plane": "XY",
              "entities": [

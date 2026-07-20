@@ -1,4 +1,3 @@
-schema_version = 1
 units = mm
 # Bucket 6.3 gate: a scotch yoke, driven by the crank. Three bodies, a revolute (crank on its boss)
 # + a slider (yoke in its guide) + a SCOTCH_YOKE coupling that turns the crank angle into the yoke's

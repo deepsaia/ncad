@@ -1,4 +1,3 @@
-schema_version = 2
 units = mm
 # Parts of a study table / writing desk, authored in a shared world frame and laid out clash-free
 # so the assembly's explicit placements seat them without overlap. Z is up; the desk faces -Y (the

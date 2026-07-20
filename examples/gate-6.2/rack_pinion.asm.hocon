@@ -1,4 +1,3 @@
-schema_version = 1
 units = mm
 # Bucket 6.2 gate: a rack-and-pinion, driven by the pinion. Three bodies, a revolute (pinion on its
 # post) + a slider (rack in its guide) + a RACK_PINION coupling that converts pinion rotation into
