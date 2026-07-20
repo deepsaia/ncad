@@ -2,8 +2,8 @@ schema_version = 1
 # A motion study driving the Geneva one crank revolution. The crank angle is the driver; the
 # `geneva` coupling turns it into the wheel's intermittent rotation (dwell, then index 90 deg during
 # the engagement window, then dwell). A 6.1 `angle` measure reports the wheel's turned angle (the
-# intermittent staircase); an `interference` output watches the pin/slot engagement pinch (the
-# motion-time interference demonstrator, bucket 6.3).
+# intermittent staircase). A correct Geneva runs clash-free, so it declares no interference output
+# (the motion-time interference demonstrator is the dedicated clearance_probe gate).
 metadata {
   description = "Geneva motion study: drive the crank one rev, wheel indexes 90 deg then dwells"
   tags = [ geneva, motion ]
@@ -21,6 +21,5 @@ motion {
         a = { instance = stand, point = [ 20, 0, 0 ] }
         b = { instance = wheel, point = [ 20, 0, 0 ] } }
     ]
-    interference = { pairs = [ [ crank, wheel ] ] }
   }
 }

@@ -39,16 +39,19 @@ parts {
   # Crank: an arm from the crank axis (42.43, 0) out to the pin, a PIN post at radius 30 (world x =
   # 72.43 at rest, reaching z 0..10 into the wheel's slot plane), and a hub into the stand post. At
   # rest (crank 0) the pin is FAR from the wheel (dwell); at crank 180 it is deep in a slot (indexing).
+  # The arm rides ABOVE the wheel (z 9..15, clear of the wheel z 0..8) so it never sweeps through the
+  # wheel body; the pin HANGS DOWN from the arm into the slot plane (z 0..8). The hub is a tall shaft
+  # at the crank axis (x=42.4, clear of the wheel since 42.4 > wheel rim 24.4) down into the post bore.
   crank { profile = solid, material = aluminium_6061,
     connectors = [
       { id = axis, at_point = [ 42.426, 0, 0 ], axis = [ 0, 0, 1 ] }
     ],
     features = [
-      { id = arm, op = primitive, kind = box, w = 44, d = 12, h = 8, plane = XY,
-        plane_offset = -4, at = [ 36.426, -6 ] }
-      { id = hub, op = primitive, kind = cylinder, d = 16, h = 12, plane = XY, plane_offset = -16,
+      { id = arm, op = primitive, kind = box, w = 44, d = 12, h = 6, plane = XY,
+        plane_offset = 9, at = [ 36.426, -6 ] }
+      { id = hub, op = primitive, kind = cylinder, d = 16, h = 31, plane = XY, plane_offset = -16,
         at = [ 42.426, 0 ] }
-      { id = pin, op = primitive, kind = cylinder, d = 8, h = 14, plane = XY, plane_offset = -4,
+      { id = pin, op = primitive, kind = cylinder, d = 8, h = 15, plane = XY, plane_offset = 0,
         at = [ 72.426, 0 ] }
       { id = c1, op = boolean, operation = union, target = arm, tool = hub }
       { id = whole, op = boolean, operation = union, target = c1, tool = pin }
