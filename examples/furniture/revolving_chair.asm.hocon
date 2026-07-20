@@ -1,0 +1,42 @@
+schema_version = 1
+units = mm
+# A modern office swivel chair, assembled from revolving_chair.hocon. The base is GROUNDED; the gas-
+# lift column turns in the base socket on a REVOLUTE joint (the swivel); the seat and armrests are
+# FIXED-welded to the column, so they revolve with it; the backrest (with its headrest) hangs on a
+# second REVOLUTE, the lumbar RECLINE hinge, so it can tilt fore/aft. This gives the chair TWO
+# freedoms - swivel and recline - each animated by its own motion study (swivel + recline), the same
+# one-grounded-link + one-driver drive pattern as the 6.x gate mechanisms, applied to a real product.
+#
+# Bodies (5): base (ground), column, seat + arms (welded to column), backrest (reclines). Two
+# revolute + two fixed joints -> two free rotational DoF; each study drives one, the other rests.
+metadata {
+  description = "Office swivel chair: grounded 5-star caster base, gas-lift column on a revolute joint, seat + backrest + armrests fixed to the column so the whole upper revolves"
+  tags = [ furniture, chair, office, swivel, assembly, mechanism ]
+}
+assembly {
+  instances = [
+    # The 5-star caster base, grounded (the fixed reference the chair turns on).
+    { id = base, file = "revolving_chair.hocon", part = base, lock = true }
+    # The gas-lift column: the driven body, turns in the base socket.
+    { id = column, file = "revolving_chair.hocon", part = column }
+    # The upper, all fixed to the column so they revolve with it.
+    { id = seat, file = "revolving_chair.hocon", part = seat }
+    { id = backrest, file = "revolving_chair.hocon", part = backrest }
+    { id = arms, file = "revolving_chair.hocon", part = arms }
+  ]
+  joints = [
+    # The swivel: the column turns in the base socket about Z. This is the driven joint.
+    { id = swivel, type = revolute, between = [
+      { instance = base, connector = socket }, { instance = column, connector = axis } ] }
+    # Weld the seat + arms to the column's support plate (same +Z axis, so they hold their authored
+    # pose and carry along when the column turns).
+    { id = seatWeld, type = fixed, between = [
+      { instance = column, connector = seatMount }, { instance = seat, connector = hub } ] }
+    { id = armWeld, type = fixed, between = [
+      { instance = column, connector = armMount }, { instance = arms, connector = hub } ] }
+    # The backrest hangs on the lumbar recline hinge (revolute about the horizontal X axis): upright
+    # at rest, tilts fore/aft when the recline study drives it. It carries the headrest with it.
+    { id = recline, type = revolute, between = [
+      { instance = column, connector = reclineAxis }, { instance = backrest, connector = pivot } ] }
+  ]
+}

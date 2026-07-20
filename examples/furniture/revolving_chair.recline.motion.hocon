@@ -1,0 +1,14 @@
+schema_version = 1
+# A second motion study for the office chair: RECLINE. The backrest (with its headrest) hangs on the
+# lumbar hinge (the `recline` revolute about a horizontal X axis); driving that joint tilts the whole
+# back + headrest rearward, while the seat, arms, column, and base stay put. Drive it 0..-18 deg
+# (negative = lean back, since the hinge axis is +X and the back is at +Y) for a natural recline, as
+# a real task chair leans when you push back. One assembly, two studies (swivel + this recline).
+metadata {
+  description = "Office chair recline study: tilt the backrest + headrest back about the lumbar hinge"
+  tags = [ revolving_chair, motion, recline ]
+}
+motion {
+  assembly = "revolving_chair.asm.hocon"
+  driver = { joint = recline, from = 0, to = -18, steps = 36 }
+}
