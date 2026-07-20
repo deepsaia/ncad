@@ -25,7 +25,7 @@ def test_gate_3_7_builds_and_step_round_trips(name, tmp_path):
     from ncad.kernel.build123d_kernel import Build123dKernel
 
     artifacts = DocumentBuilder(Build123dKernel()).build_file(
-        str(_DIR / f"{name}.hocon"), str(tmp_path), formats=("step",))
+        str(_DIR / f"{name}.hocon"), str(tmp_path), formats=("step",))["artifacts"]
     step_path = Path(artifacts[name])
     assert step_path.is_file()
     assert abs(import_step(str(step_path)).volume) > 0

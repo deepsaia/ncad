@@ -19,7 +19,7 @@ def test_loop_offset_example_builds_on_real_kernel(name: str, tmp_path) -> None:
     from ncad.kernel.build123d_kernel import Build123dKernel
 
     doc = _EXAMPLES / f"{name}.hocon"
-    artifacts = DocumentBuilder(Build123dKernel()).build_file(str(doc), str(tmp_path))
+    artifacts = DocumentBuilder(Build123dKernel()).build_file(str(doc), str(tmp_path))["artifacts"]
 
     glb = Path(artifacts[name])
     assert glb.is_file() and glb.stat().st_size > 0

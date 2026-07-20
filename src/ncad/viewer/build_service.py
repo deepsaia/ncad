@@ -66,10 +66,13 @@ class BuildService:
         builder = self._builder_factory()
         started = time.perf_counter()
         try:
-            artifacts = builder.build_file(resolved, self._models_dir)
-        except (ValueError, OSError, RuntimeError) as exc:
+            build_result = builder.build_file(resolved, self._models_dir)
+        except (OSError, RuntimeError) as exc:
             raise BuildError(str(exc)) from exc
         build_ms = (time.perf_counter() - started) * 1000.0
+        # A design-invalid document no longer raises: it returns error diagnostics + no artifacts.
+        diagnostics = [d.to_dict() for d in build_result["diagnostics"]]
+        artifacts = build_result["artifacts"]
         built = [os.path.basename(path) for path in artifacts.values()]
         built_at = self._clock() if self._clock is not None else ""
         for name in built:
@@ -80,8 +83,9 @@ class BuildService:
                 ncad_version=self._versions["ncad"],
                 kernel_version=self._versions["kernel"],
             )
-        logger.info("built %s from %s in %.1f ms", built, spec, build_ms)
-        return {"built": built, "build_ms": round(build_ms, 1)}
+        logger.info("built %s from %s in %.1f ms (%d diagnostic(s))", built, spec, build_ms,
+                    len(diagnostics))
+        return {"built": built, "build_ms": round(build_ms, 1), "diagnostics": diagnostics}
 
     def assemble(self, spec: str) -> dict:
         """Compose an assembly document ``spec`` into a scene sidecar.
@@ -105,6 +109,24 @@ class BuildService:
         logger.info("assembled %s from %s (%d issues) in %.1f ms",
                     name, spec, len(result["issues"]), build_ms)
         return {"assembled": name, "issues": result["issues"], "build_ms": round(build_ms, 1)}
+
+    def validate(self, spec: str) -> dict:
+        """Validate a document spec WITHOUT building; return the ValidationReport dict.
+
+        Resolves the spec by the same allow-rules as build/assemble/motion (part, else assembly,
+        else motion). Raises BuildError only for a disallowed/unresolvable spec; a valid-but-broken
+        document returns ``ok=False`` + diagnostics (never raises for a bad design).
+        """
+        from ncad.diagnostics.document_validator import DocumentValidator
+        from ncad.spec.spec_loader import SpecLoader
+
+        resolved = (self._allowed_path(spec) or self._allowed_assembly_path(spec)
+                    or self._allowed_motion_path(spec))
+        if resolved is None:
+            raise BuildError(f"spec not allowed: {spec}")
+        document = SpecLoader().load(resolved)
+        report = DocumentValidator(base_dir=os.path.dirname(resolved)).validate(document)
+        return report.to_dict()
 
     def _allowed_path(self, spec: str) -> str | None:
         """Resolve ``spec`` if under examples or a recorded meta source, else None."""

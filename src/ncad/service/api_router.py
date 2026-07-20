@@ -32,6 +32,7 @@ from ncad.service.sidecar_handlers import (
 )
 from ncad.service.spec_handlers import SpecsHandler
 from ncad.service.swagger_handler import SwaggerHandler
+from ncad.service.validate_handler import ValidateHandler
 from ncad.service.viewer_handler import RootRedirectHandler, ViewerHandler
 
 
@@ -66,6 +67,7 @@ class ApiRouter:
             URLSpec(r"/api/v1/build", BuildHandler, deps),
             URLSpec(r"/api/v1/assemble", AssembleHandler, deps),
             URLSpec(r"/api/v1/motion-build", MotionBuildHandler, deps),
+            URLSpec(r"/api/v1/validate", ValidateHandler, deps),
             # CRITICAL ORDER: Tornado matches by URL pattern only (method-agnostic, `$`-anchored,
             # `.+` matches `/`). The delete POSTs MUST precede the GET catch-alls below, or e.g.
             # POST /api/v1/models/foo/delete would match `/api/v1/models/(.+)` and route to the

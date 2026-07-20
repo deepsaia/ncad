@@ -20,14 +20,14 @@ class _StubBuilder:
             with open(glb, "wb") as handle:
                 handle.write(b"glb")
             artifacts[name] = glb
-        return artifacts
+        return {"artifacts": artifacts, "diagnostics": []}
 
 
 class _FailingBuilder:
-    """Raises as a real build would on a schema-invalid document."""
+    """Raises as a real build would on a genuine kernel/OS error (not a design issue)."""
 
     def build_file(self, path: str, out_dir: str) -> dict:
-        raise ValueError("document failed schema validation: bad")
+        raise RuntimeError("kernel export failed")
 
 
 def _service(tmp_path, out_names=("block",)):

@@ -849,6 +849,33 @@ to "broken feature / topology / constraint." Phases:
 Validators return text, not exceptions, so one surface serves a human at a CLI, an
 agent reading a result, and a golden test reading a snapshot.
 
+**Unified diagnostic contract (agent-facing).** The three historical issue shapes
+(schema `SchemaIssue`, build-time `BuildIssue`, ad-hoc motion dicts) converge on one
+envelope, `Diagnostic{severity, code, location, message, hint, stage}`, collected in a
+`ValidationReport{ok, diagnostics}` (`ok` = no error-severity diagnostic). `severity` is
+`error`/`warning`/`info`; `stage` is `schema`/`semantic`/`build`/`motion`; `code` is a
+stable machine token from an open taxonomy (`ncad.diagnostics.codes`). A single entry
+point, `DocumentValidator(base_dir).validate(document) -> ValidationReport`, detects the
+document kind (part/assembly/motion) and runs the applicable static checks (schema + id +
+dependency, plus cross-document reference checks: assembly connector/instance/joint-type,
+motion driver/assembly-ref/coupling-primary). It reads no kernel and **never raises for a
+bad design** (a design error is data; only a true programmer/contract error raises). The
+file build path returns `{artifacts, diagnostics}` so build-stage failures ride the same
+envelope, and `POST /api/v1/validate {spec} -> {ok, diagnostics}` exposes static validation
+to a service client. This is the contract a multi-agent authoring loop consumes: an agent
+authors a document, validates, reads coded diagnostics, and iterates without ever catching
+an exception.
+
+**Diagnostic codes: how the taxonomy grows.** The code list is open by convention, not a
+closed enum. A code exists only where an agent (or the UI) takes a *distinct action* on it;
+undifferentiated cases share a broad code (all schema-shape violations map to the single
+`SCHEMA` code, since the jsonschema keyword is carried in the message, not the code). When a
+new check draws a distinction a consumer would branch on, add a code to
+`ncad.diagnostics.codes` in that same change; otherwise reuse the nearest existing one. We
+do **not** try to enumerate every fathomable code up front, and we do not add sub-codes
+speculatively (the removed `SCHEMA_TYPE`/`SCHEMA_REQUIRED`/`SCHEMA_ENUM` split is the
+cautionary example).
+
 ---
 
 ## 11. Drafting, documentation & PMI

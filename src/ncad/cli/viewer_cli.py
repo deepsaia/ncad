@@ -114,8 +114,12 @@ class ViewerCli:
         logging.basicConfig(level=logging.INFO, format="%(message)s")
         logging.getLogger("build123d").setLevel(logging.WARNING)
         out_dir = self.resolve_models_dir(out)
-        return DocumentBuilder(Build123dKernel()).build_file(
+        result = DocumentBuilder(Build123dKernel()).build_file(
             document, str(out_dir), formats=formats)
+        for diag in result["diagnostics"]:
+            if diag.severity == "error":
+                logging.error("%s [%s] %s", diag.code, diag.location, diag.message)
+        return result["artifacts"]
 
     def import_document(self, file: str, out: str | None) -> dict[str, str]:
         """Build a one-feature import document from ``file``; return built artifacts.
@@ -134,7 +138,6 @@ class ViewerCli:
         logging.getLogger("build123d").setLevel(logging.WARNING)
         out_dir = self.resolve_models_dir(out)
         document = {
-            "schema_version": 2,
             "units": "mm",
             "parts": {"imported": {"profile": "solid", "features": [
                 {"id": "import", "op": "import", "file": os.path.abspath(file)}]}},
@@ -143,7 +146,11 @@ class ViewerCli:
         try:
             json.dump(document, handle)
             handle.close()
-            return DocumentBuilder(Build123dKernel()).build_file(handle.name, str(out_dir))
+            result = DocumentBuilder(Build123dKernel()).build_file(handle.name, str(out_dir))
+            for diag in result["diagnostics"]:
+                if diag.severity == "error":
+                    logging.error("%s [%s] %s", diag.code, diag.location, diag.message)
+            return result["artifacts"]
         finally:
             os.unlink(handle.name)
 
@@ -166,6 +173,23 @@ class ViewerCli:
         logging.getLogger("build123d").setLevel(logging.WARNING)
         out_dir = self.resolve_models_dir(out)
         return MotionBuilder(Build123dKernel()).build(file, str(out_dir))
+
+    def validate_document(self, file: str) -> dict:
+        """Statically validate a part/assembly/motion document; return the ValidationReport dict.
+
+        No kernel and no geometry: the loader reads the doc, DocumentValidator kind-dispatches and
+        runs schema + semantic + cross-document reference checks, resolving referenced part/assembly
+        files relative to the document's own directory. Never raises for a bad design.
+        """
+        import os
+
+        from ncad.diagnostics.document_validator import DocumentValidator
+        from ncad.spec.spec_loader import SpecLoader
+
+        document = SpecLoader().load(file)
+        report = DocumentValidator(base_dir=os.path.dirname(os.path.abspath(file))).validate(
+            document)
+        return report.to_dict()
 
 
 app = typer.Typer(
@@ -282,6 +306,27 @@ def motion(
         print(f"  trajectory: {result['motion']}")
     out_dir = result["sidecar"].rsplit("/", 1)[0]
     print(f"\nview with:  ncad view {out_dir}\n")
+
+
+@app.command()
+def validate(
+    document: str = typer.Argument(..., help="path to a part/assembly/motion .hocon/.json doc"),
+) -> None:
+    """Statically validate a document (no geometry). Prints diagnostics; exits 1 if not ok."""
+    report = cli.validate_document(document)
+    diagnostics = report["diagnostics"]
+    print(f"\nncad validate: {document}")
+    for diag in diagnostics:
+        marker = {"error": "ERROR", "warning": "WARN", "info": "INFO"}.get(diag["severity"], "?")
+        print(f"  {marker} [{diag['stage']}/{diag['code']}] {diag['location']}: {diag['message']}")
+        if diag.get("hint"):
+            print(f"        hint: {diag['hint']}")
+    if report["ok"]:
+        print(f"\n  ok ({len(diagnostics)} diagnostic(s), no errors)\n")
+    else:
+        errors = sum(1 for d in diagnostics if d["severity"] == "error")
+        print(f"\n  NOT ok: {errors} error(s)\n")
+        raise typer.Exit(code=1)
 
 
 def main() -> None:

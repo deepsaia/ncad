@@ -2,6 +2,9 @@
 
 from dataclasses import dataclass
 
+from ncad.diagnostics.codes import GEOMETRY_FAILED, SKETCH_UNDERCONSTRAINED
+from ncad.diagnostics.diagnostic import Diagnostic
+
 
 @dataclass(frozen=True)
 class BuildIssue:
@@ -16,3 +19,11 @@ class BuildIssue:
     node_id: str
     message: str
     level: str = "error"
+
+    def to_diagnostic(self) -> Diagnostic:
+        """Map this build issue to a Diagnostic (stage=build; warning -> underconstrained code)."""
+        warning = self.level == "warning"
+        return Diagnostic(
+            severity="warning" if warning else "error",
+            code=SKETCH_UNDERCONSTRAINED if warning else GEOMETRY_FAILED,
+            location=self.node_id, message=self.message, stage="build")

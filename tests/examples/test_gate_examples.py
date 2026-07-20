@@ -165,7 +165,7 @@ def test_gate_0_1_exports_glb(tmp_path) -> None:
 
     doc = _EXAMPLES_DIR / "gate-0.1-first-shape" / "block.hocon"
 
-    artifacts = DocumentBuilder(Build123dKernel()).build_file(str(doc), str(tmp_path))
+    artifacts = DocumentBuilder(Build123dKernel()).build_file(str(doc), str(tmp_path))["artifacts"]
 
     glb = Path(artifacts["block"])
     assert glb.is_file() and glb.stat().st_size > 0
@@ -177,7 +177,7 @@ def test_gate_0_2_bracket_exports_glb(tmp_path) -> None:
 
     doc = _EXAMPLES_DIR / "gate-0.2" / "bracket.hocon"
 
-    artifacts = DocumentBuilder(Build123dKernel()).build_file(str(doc), str(tmp_path))
+    artifacts = DocumentBuilder(Build123dKernel()).build_file(str(doc), str(tmp_path))["artifacts"]
 
     glb = Path(artifacts["bracket"])
     assert glb.is_file() and glb.stat().st_size > 0
@@ -189,7 +189,7 @@ def test_gate_0_2_hex_boss_exports_glb(tmp_path) -> None:
 
     doc = _EXAMPLES_DIR / "gate-0.2" / "hex_boss.hocon"
 
-    artifacts = DocumentBuilder(Build123dKernel()).build_file(str(doc), str(tmp_path))
+    artifacts = DocumentBuilder(Build123dKernel()).build_file(str(doc), str(tmp_path))["artifacts"]
 
     glb = Path(artifacts["hex_boss"])
     assert glb.is_file() and glb.stat().st_size > 0
@@ -203,7 +203,7 @@ def test_gate_0_3_exports_glb_and_elementmap(tmp_path) -> None:
 
     doc = _EXAMPLES_DIR / "gate-0.3" / "selector_fillet.hocon"
     builder = DocumentBuilder(Build123dKernel())
-    artifacts = builder.build_file(str(doc), str(tmp_path))
+    artifacts = builder.build_file(str(doc), str(tmp_path))["artifacts"]
 
     glb = Path(artifacts["selector_fillet"])
     assert glb.is_file() and glb.stat().st_size > 0
@@ -285,7 +285,7 @@ def test_gate_2_9_bracket_step_round_trips(tmp_path) -> None:
 
     doc = _EXAMPLES_DIR / "gate-2.9" / "mounting_bracket.hocon"
     artifacts = DocumentBuilder(Build123dKernel()).build_file(
-        str(doc), str(tmp_path), formats=("step",))
+        str(doc), str(tmp_path), formats=("step",))["artifacts"]
     step_path = Path(artifacts["mounting_bracket"])
     assert step_path.is_file()
     # Validity is by measure magnitude (design section 4a), not orientation sign.
@@ -381,7 +381,8 @@ def test_gate_3_0_two_body_step_round_trips_as_two_solids(tmp_path) -> None:
 
     doc = _EXAMPLES_DIR / "gate-3.0" / "two_body_bracket.hocon"
     kernel = Build123dKernel()
-    artifacts = DocumentBuilder(kernel).build_file(str(doc), str(tmp_path), formats=("step",))
+    artifacts = DocumentBuilder(kernel).build_file(
+        str(doc), str(tmp_path), formats=("step",))["artifacts"]
     step_path = Path(artifacts["two_body_bracket"])
     assert step_path.is_file()
     assert abs(import_step(str(step_path)).volume) > 0
@@ -443,7 +444,8 @@ def test_gate_3_1_transformed_step_round_trips_as_two_solids(tmp_path) -> None:
 
     doc = _EXAMPLES_DIR / "gate-3.1" / "transformed_blocks.hocon"
     kernel = Build123dKernel()
-    artifacts = DocumentBuilder(kernel).build_file(str(doc), str(tmp_path), formats=("step",))
+    artifacts = DocumentBuilder(kernel).build_file(
+        str(doc), str(tmp_path), formats=("step",))["artifacts"]
     step_path = Path(artifacts["transformed_blocks"])
     assert step_path.is_file()
     assert abs(import_step(str(step_path)).volume) > 0
@@ -521,7 +523,8 @@ def test_gate_3_2_studs_step_round_trips_as_twelve_solids(tmp_path) -> None:
 
     doc = _EXAMPLES_DIR / "gate-3.2" / "patterned_bodies.hocon"
     kernel = Build123dKernel()
-    artifacts = DocumentBuilder(kernel).build_file(str(doc), str(tmp_path), formats=("step",))
+    artifacts = DocumentBuilder(kernel).build_file(
+        str(doc), str(tmp_path), formats=("step",))["artifacts"]
     step_path = Path(artifacts["pattern_studs"])
     assert step_path.is_file()
     assert abs(import_step(str(step_path)).volume) > 0
@@ -627,7 +630,8 @@ def test_gate_3_3_bracket_step_round_trips(tmp_path) -> None:
 
     doc = _EXAMPLES_DIR / "gate-3.3" / "mirrored_bodies.hocon"
     kernel = Build123dKernel()
-    artifacts = DocumentBuilder(kernel).build_file(str(doc), str(tmp_path), formats=("step",))
+    artifacts = DocumentBuilder(kernel).build_file(
+        str(doc), str(tmp_path), formats=("step",))["artifacts"]
     step_path = Path(artifacts["symmetric_bracket"])
     assert step_path.is_file()
     assert abs(import_step(str(step_path)).volume) > 0
@@ -708,7 +712,8 @@ def test_gate_3_4_split_block_step_round_trips(tmp_path) -> None:
 
     doc = _EXAMPLES_DIR / "gate-3.4" / "multibody_algebra.hocon"
     kernel = Build123dKernel()
-    artifacts = DocumentBuilder(kernel).build_file(str(doc), str(tmp_path), formats=("step",))
+    artifacts = DocumentBuilder(kernel).build_file(
+        str(doc), str(tmp_path), formats=("step",))["artifacts"]
     step_path = Path(artifacts["split_block"])
     assert step_path.is_file()
     assert abs(import_step(str(step_path)).volume) > 0
@@ -802,7 +807,8 @@ def test_gate_3_6_step_round_trips(tmp_path) -> None:
 
     doc = _EXAMPLES_DIR / "gate-3.6" / "flanged_coupling.hocon"
     kernel = Build123dKernel()
-    artifacts = DocumentBuilder(kernel).build_file(str(doc), str(tmp_path), formats=("step",))
+    artifacts = DocumentBuilder(kernel).build_file(
+        str(doc), str(tmp_path), formats=("step",))["artifacts"]
     step_path = Path(artifacts["flanged_coupling"])
     assert step_path.is_file()
     assert abs(import_step(str(step_path)).volume) > 0

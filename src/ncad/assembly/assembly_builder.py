@@ -743,11 +743,17 @@ class AssemblyBuilder:
         # clobbered stand.glb). The stem is the part file's basename without extensions.
         doc_stem = os.path.basename(part_file).split(".", 1)[0]
         try:
-            artifacts = builder.build_file(part_file, out_dir, formats=("glb",),
-                                           name_prefix=f"{doc_stem}__")
+            build_result = builder.build_file(part_file, out_dir, formats=("glb",),
+                                               name_prefix=f"{doc_stem}__")
         except Exception as exc:  # noqa: BLE001 - a bad part becomes an id-attributed issue
             issues.append({"instance_id": instance_id, "message": f"part build failed: {exc}"})
             return None
+        artifacts = build_result["artifacts"]
+        # A design-invalid part no longer raises; surface its error diagnostics as instance issues.
+        for diag in build_result["diagnostics"]:
+            if diag.severity == "error":
+                issues.append({"instance_id": instance_id,
+                               "message": f"part invalid [{diag.location}]: {diag.message}"})
         if part_name not in artifacts:
             issues.append({"instance_id": instance_id,
                            "message": f"part {part_name!r} not in {instance['file']!r}"})

@@ -47,8 +47,25 @@ def test_build_rejects_schema_invalid_document() -> None:
     bad = _document()
     del bad["units"]
 
-    with pytest.raises(ValueError, match="schema"):
+    with pytest.raises(ValueError, match="validation"):
         builder.build(bad)
+
+
+def test_build_file_returns_artifacts_and_diagnostics(tmp_path) -> None:
+    from ncad.kernel.build123d_kernel import Build123dKernel
+
+    result = DocumentBuilder(Build123dKernel()).build_file(str(_FIXTURE), str(tmp_path))
+    assert set(result) == {"artifacts", "diagnostics"}
+    assert result["artifacts"]                 # a valid fixture built something
+    assert result["diagnostics"] == []
+
+
+def test_invalid_document_returns_diagnostics_not_raises(tmp_path) -> None:
+    bad = tmp_path / "bad.hocon"
+    bad.write_text("parts { }")   # missing required 'units'
+    result = DocumentBuilder(FakeKernel()).build_file(str(bad), str(tmp_path))   # NO raise
+    assert result["artifacts"] == {}
+    assert any(d.stage == "schema" for d in result["diagnostics"])
 
 
 def test_fixture_document_is_loadable_and_builds() -> None:
@@ -65,7 +82,7 @@ def test_build_file_exports_glb(tmp_path) -> None:
 
     builder = DocumentBuilder(Build123dKernel())
 
-    artifacts = builder.build_file(str(_FIXTURE), str(tmp_path))
+    artifacts = builder.build_file(str(_FIXTURE), str(tmp_path))["artifacts"]
 
     glb = Path(artifacts["block"])
     assert glb.is_file() and glb.stat().st_size > 0
@@ -187,7 +204,7 @@ def test_build_rejects_forward_reference() -> None:
             {"id": "sk", "op": "sketch", "plane": "XY",
              "elements": [{"id": "r", "type": "rectangle", "w": 20, "h": 20}]}]}}}
 
-    with pytest.raises(ValueError, match="dependency"):
+    with pytest.raises(ValueError, match="validation"):
         DocumentBuilder(FakeKernel()).build(doc)
 
 

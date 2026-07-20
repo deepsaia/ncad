@@ -28,6 +28,6 @@ def test_involute_gear_entity_extrudes_to_a_solid(tmp_path):
     path = os.path.join(str(tmp_path), "gear.hocon")
     with open(path, "w", encoding="utf-8") as handle:
         handle.write(_DOC)
-    artifacts = DocumentBuilder(Build123dKernel()).build_file(path, str(tmp_path))
+    artifacts = DocumentBuilder(Build123dKernel()).build_file(path, str(tmp_path))["artifacts"]
     assert list(artifacts) == ["gear"]
     assert os.path.isfile(artifacts["gear"])

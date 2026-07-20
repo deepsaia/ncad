@@ -2,6 +2,8 @@
 
 from dataclasses import dataclass
 
+from ncad.diagnostics.diagnostic import Diagnostic
+
 
 @dataclass(frozen=True)
 class SchemaIssue:
@@ -14,3 +16,8 @@ class SchemaIssue:
 
     location: str
     message: str
+
+    def to_diagnostic(self, stage: str, code: str) -> Diagnostic:
+        """Map this schema/semantic issue into the unified Diagnostic (error severity)."""
+        return Diagnostic(severity="error", code=code, location=self.location,
+                          message=self.message, stage=stage)
