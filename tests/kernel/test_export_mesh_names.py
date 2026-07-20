@@ -31,7 +31,7 @@ def test_multibody_meshes_list_is_per_primitive_aligned(tmp_path):
     kernel = Build123dKernel()
     builder = DocumentBuilder(kernel)
     doc = _EXAMPLES / "gate-3.6" / "flanged_coupling.hocon"
-    artifacts = builder.build_file(str(doc), str(tmp_path), formats=("glb",))
+    artifacts = builder.build_file(str(doc), str(tmp_path), formats=("glb",))["artifacts"]
     primitive_count = _glb_primitive_count(artifacts["flanged_coupling"])
 
     sidecar = json.loads((tmp_path / "flanged_coupling.elementmap.json").read_text())

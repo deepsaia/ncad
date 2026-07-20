@@ -114,8 +114,12 @@ class ViewerCli:
         logging.basicConfig(level=logging.INFO, format="%(message)s")
         logging.getLogger("build123d").setLevel(logging.WARNING)
         out_dir = self.resolve_models_dir(out)
-        return DocumentBuilder(Build123dKernel()).build_file(
+        result = DocumentBuilder(Build123dKernel()).build_file(
             document, str(out_dir), formats=formats)
+        for diag in result["diagnostics"]:
+            if diag.severity == "error":
+                logging.error("%s [%s] %s", diag.code, diag.location, diag.message)
+        return result["artifacts"]
 
     def import_document(self, file: str, out: str | None) -> dict[str, str]:
         """Build a one-feature import document from ``file``; return built artifacts.
@@ -134,7 +138,6 @@ class ViewerCli:
         logging.getLogger("build123d").setLevel(logging.WARNING)
         out_dir = self.resolve_models_dir(out)
         document = {
-            "schema_version": 2,
             "units": "mm",
             "parts": {"imported": {"profile": "solid", "features": [
                 {"id": "import", "op": "import", "file": os.path.abspath(file)}]}},
@@ -143,7 +146,11 @@ class ViewerCli:
         try:
             json.dump(document, handle)
             handle.close()
-            return DocumentBuilder(Build123dKernel()).build_file(handle.name, str(out_dir))
+            result = DocumentBuilder(Build123dKernel()).build_file(handle.name, str(out_dir))
+            for diag in result["diagnostics"]:
+                if diag.severity == "error":
+                    logging.error("%s [%s] %s", diag.code, diag.location, diag.message)
+            return result["artifacts"]
         finally:
             os.unlink(handle.name)
 

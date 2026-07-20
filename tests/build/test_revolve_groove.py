@@ -19,7 +19,7 @@ def test_revolved_washer_builds_and_step_round_trips(tmp_path):
     from ncad.kernel.build123d_kernel import Build123dKernel
 
     artifacts = DocumentBuilder(Build123dKernel()).build_file(
-        str(_EXAMPLE), str(tmp_path), formats=("step",))
+        str(_EXAMPLE), str(tmp_path), formats=("step",))["artifacts"]
     step_path = Path(artifacts["revolved_washer"])
     assert step_path.is_file()
     solid = import_step(str(step_path))

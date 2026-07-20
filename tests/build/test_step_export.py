@@ -21,7 +21,7 @@ def test_step_export_round_trips(tmp_path):
     from ncad.kernel.build123d_kernel import Build123dKernel
 
     artifacts = DocumentBuilder(Build123dKernel()).build_file(
-        str(_EXAMPLE), str(tmp_path), formats=("step",))
+        str(_EXAMPLE), str(tmp_path), formats=("step",))["artifacts"]
 
     step_path = Path(artifacts["step_block"])
     assert step_path.suffix == ".step" and step_path.is_file()

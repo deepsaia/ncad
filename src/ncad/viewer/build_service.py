@@ -66,10 +66,13 @@ class BuildService:
         builder = self._builder_factory()
         started = time.perf_counter()
         try:
-            artifacts = builder.build_file(resolved, self._models_dir)
-        except (ValueError, OSError, RuntimeError) as exc:
+            build_result = builder.build_file(resolved, self._models_dir)
+        except (OSError, RuntimeError) as exc:
             raise BuildError(str(exc)) from exc
         build_ms = (time.perf_counter() - started) * 1000.0
+        # A design-invalid document no longer raises: it returns error diagnostics + no artifacts.
+        diagnostics = [d.to_dict() for d in build_result["diagnostics"]]
+        artifacts = build_result["artifacts"]
         built = [os.path.basename(path) for path in artifacts.values()]
         built_at = self._clock() if self._clock is not None else ""
         for name in built:
@@ -80,8 +83,9 @@ class BuildService:
                 ncad_version=self._versions["ncad"],
                 kernel_version=self._versions["kernel"],
             )
-        logger.info("built %s from %s in %.1f ms", built, spec, build_ms)
-        return {"built": built, "build_ms": round(build_ms, 1)}
+        logger.info("built %s from %s in %.1f ms (%d diagnostic(s))", built, spec, build_ms,
+                    len(diagnostics))
+        return {"built": built, "build_ms": round(build_ms, 1), "diagnostics": diagnostics}
 
     def assemble(self, spec: str) -> dict:
         """Compose an assembly document ``spec`` into a scene sidecar.

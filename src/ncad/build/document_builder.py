@@ -1,8 +1,10 @@
 """Load, validate, build, and export a feature-tree document.
 
-Ties the reuse-core spec layer (loader + schema validator) to the pure Builder and the
-kernel's export. Schema-invalid input is a contract error and raises; per-feature build
-problems are returned as issues on each part's OpResult (design §10).
+Ties the reuse-core spec layer (loader + DocumentValidator) to the pure Builder and the kernel's
+export. The agent-facing file entry (:meth:`build_file`) returns diagnostics as DATA and never
+raises for a bad design; the strict programmatic entries (:meth:`build` and the assembly-support
+resolvers) raise on an invalid document, since their callers have no diagnostics channel.
+Per-feature build problems ride the same Diagnostic envelope (design §10).
 """
 
 import json
@@ -15,16 +17,15 @@ from ncad.build.feature_cache import FeatureCache
 from ncad.build.hierarchy_builder import HierarchyBuilder
 from ncad.build.material_resolver import MaterialResolver
 from ncad.build.sketch_status_sidecar import SketchStatusSidecar
+from ncad.diagnostics.diagnostic import Diagnostic
+from ncad.diagnostics.document_validator import DocumentValidator
 from ncad.kernel.kernel import Kernel
 from ncad.ops.op_registry import OpRegistry
 from ncad.ops.op_result import OpResult
 from ncad.params.function_registry import FunctionRegistry
 from ncad.params.param_resolver import ParamResolver
 from ncad.refs.attribute_model import AttributeModel
-from ncad.spec.dependency_validator import DependencyValidator
-from ncad.spec.feature_id_validator import FeatureIdValidator
 from ncad.spec.material_library import MaterialLibrary
-from ncad.spec.schema_validator import SchemaValidator
 from ncad.spec.spec_loader import SpecLoader
 
 logger = logging.getLogger(__name__)
@@ -57,9 +58,7 @@ class DocumentBuilder:
         self._kernel = kernel
         self._cache = FeatureCache()
         self._builder = Builder(kernel, OpRegistry.with_defaults(), cache=self._cache)
-        self._validator = SchemaValidator()
-        self._id_validator = FeatureIdValidator()
-        self._dependency_validator = DependencyValidator()
+        self._validator = DocumentValidator()
         self._hierarchy = HierarchyBuilder()
         self._loader = SpecLoader()
         self._resolver = ParamResolver(FunctionRegistry.with_defaults())
@@ -98,7 +97,7 @@ class DocumentBuilder:
 
     def build_file(self, path: str, out_dir: str,
                    formats: tuple[str, ...] = ("glb",),
-                   name_prefix: str = "") -> dict[str, str]:
+                   name_prefix: str = "") -> dict[str, Any]:
         """Load, build, and export each part to ``<out_dir>/<prefix><part>.<ext>`` per format.
 
         Also writes each part's element-map / hierarchy / status sidecars beside the
@@ -110,14 +109,21 @@ class DocumentBuilder:
         keeps the bare ``<part>`` names). Assembly composition passes the source document's
         stem so two mechanisms that both define a part named ``stand`` write distinct
         ``<doc>__stand.glb`` files into the shared output dir instead of clobbering one
-        ``stand.glb``. The returned map is still keyed by the bare part name.
+        ``stand.glb``. The artifacts map is still keyed by the bare part name.
 
-        :return: Map from part name to its primary artifact (the first requested format).
+        This is the agent-facing entry: a bad DESIGN is reported as data, not raised. On any
+        error-severity diagnostic (schema/semantic) geometry is skipped and ``artifacts`` is empty;
+        warnings/info do not block. Per-feature build failures ride the same Diagnostic envelope.
+
+        :return: ``{"artifacts": {part: primary_artifact_path}, "diagnostics": [Diagnostic, ...]}``.
         """
         resolved_formats = resolve_formats(formats)
         os.makedirs(out_dir, exist_ok=True)
         document = self._loader.load(path)
-        resolved = self._resolve_and_validate(document)
+        resolved, diagnostics = self._resolve_with_diagnostics(document)
+        if any(d.severity == "error" for d in diagnostics):
+            # The document is invalid: skip geometry entirely and hand the errors back as data.
+            return {"artifacts": {}, "diagnostics": diagnostics}
         # The material library reads the RAW document (materials / materials_library), resolved
         # relative to the document's own directory. Bodies get their material via created_by.
         material_library = MaterialLibrary(document, base_dir=os.path.dirname(path))
@@ -125,6 +131,8 @@ class DocumentBuilder:
         for name, part in resolved["parts"].items():
             stem = f"{name_prefix}{name}"
             result, element_map, statuses = self._builder.build_part_mapped(part)
+            # Build-stage issues ride the same envelope as schema/semantic ones (design §10).
+            diagnostics.extend(issue.to_diagnostic() for issue in result.issues)
             if result.shape is None:
                 reasons = "; ".join(f"[{i.node_id}] {i.message}" for i in result.issues
                                     if i.level == "error") or "no error detail reported"
@@ -150,7 +158,7 @@ class DocumentBuilder:
                             status.status, status.dof,
                             f" {status.failing_ids}" if status.failing_ids else "")
             artifacts[name] = written[0]
-        return artifacts
+        return {"artifacts": artifacts, "diagnostics": diagnostics}
 
     def write_element_maps(self, document: dict, out_dir: str) -> dict[str, str]:
         """Build each part and write its ``<part>.elementmap.json`` sidecar.
@@ -201,21 +209,29 @@ class DocumentBuilder:
             out[name] = (part, element_map.elements())
         return out
 
-    def _resolve_and_validate(self, document: dict) -> dict:
-        """Resolve expressions and run schema + feature-id validation (raises on failure)."""
+    def _resolve_with_diagnostics(self, document: dict) -> tuple[dict, list[Diagnostic]]:
+        """Resolve expressions + run static validation; return (resolved, diagnostics).
+
+        Never raises for a bad DESIGN (design errors are data now, per the agent-facing contract):
+        the file entry skips geometry when any error-severity diagnostic is present. A malformed
+        parameter EXPRESSION still raises (a contract error, not a design issue) from resolve.
+        """
         resolved = self._resolver.resolve_document(document)
-        issues = self._validator.validate(resolved)
-        if issues:
-            rendered = "; ".join(f"{issue.location}: {issue.message}" for issue in issues)
-            raise ValueError(f"document failed schema validation: {rendered}")
-        id_issues = self._id_validator.validate(resolved)
-        if id_issues:
-            rendered = "; ".join(f"{i.location}: {i.message}" for i in id_issues)
-            raise ValueError(f"document has duplicate feature ids: {rendered}")
-        dep_issues = self._dependency_validator.validate(resolved)
-        if dep_issues:
-            rendered = "; ".join(f"{i.location}: {i.message}" for i in dep_issues)
-            raise ValueError(f"document has dependency errors: {rendered}")
+        report = self._validator.validate(resolved)
+        return resolved, report.diagnostics
+
+    def _resolve_and_validate(self, document: dict) -> dict:
+        """Resolve + validate for the strict programmatic entries; raise on any error diagnostic.
+
+        :meth:`build` and the assembly-support resolvers have no diagnostics channel, so an invalid
+        document is surfaced as a ValueError there (unchanged contract). :meth:`build_file` uses
+        :meth:`_resolve_with_diagnostics` directly and returns the diagnostics instead.
+        """
+        resolved, diagnostics = self._resolve_with_diagnostics(document)
+        errors = [d for d in diagnostics if d.severity == "error"]
+        if errors:
+            rendered = "; ".join(f"{d.location}: {d.message}" for d in errors)
+            raise ValueError(f"document failed validation: {rendered}")
         return resolved
 
     def _write_element_map(self, element_map, out_dir: str, name: str,

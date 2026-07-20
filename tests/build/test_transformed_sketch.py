@@ -21,7 +21,7 @@ def test_mirrored_profile_builds_on_real_kernel(tmp_path) -> None:
     from ncad.kernel.build123d_kernel import Build123dKernel
 
     doc = _EXAMPLES / "mirrored_profile.hocon"
-    artifacts = DocumentBuilder(Build123dKernel()).build_file(str(doc), str(tmp_path))
+    artifacts = DocumentBuilder(Build123dKernel()).build_file(str(doc), str(tmp_path))["artifacts"]
 
     glb = Path(artifacts["mirrored_profile"])
     assert glb.is_file() and glb.stat().st_size > 0

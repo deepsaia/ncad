@@ -19,7 +19,7 @@ def test_loft_example_builds_and_step_round_trips(name, tmp_path):
     from ncad.kernel.build123d_kernel import Build123dKernel
 
     artifacts = DocumentBuilder(Build123dKernel()).build_file(
-        str(_DIR / f"{name}.hocon"), str(tmp_path), formats=("step",))
+        str(_DIR / f"{name}.hocon"), str(tmp_path), formats=("step",))["artifacts"]
     step_path = Path(artifacts[name])
     assert step_path.is_file()
     # Validity is by measure magnitude (design section 4a), not orientation sign.
