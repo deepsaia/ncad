@@ -622,6 +622,11 @@ class FakeKernel(Kernel):
             return shape.bodies
         return [Body(id="body/0", kind="solid", shape=shape, created_by="")]
 
+    def solid_count(self, shape: Any) -> int:
+        # The analytic fake has no B-rep topology; approximate the disjoint-solid count by the body
+        # count (enough for tests that do not exercise fused-but-disconnected shapes).
+        return len(self.bodies(shape))
+
     def mesh_body_ids(self, shape: Any) -> list:
         # One body id per exported glTF primitive (face), in body order. The analytic fake does
         # not tessellate, so it emits one entry per body (its one implicit face); the real kernel

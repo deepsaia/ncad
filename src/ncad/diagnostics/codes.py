@@ -26,3 +26,6 @@ COUPLING_PRIMARY_MISMATCH = "coupling_primary_mismatch"
 GEOMETRY_FAILED = "geometry_failed"
 SKETCH_UNDERCONSTRAINED = "sketch_underconstrained"
 MOTION_SOLVE_FAILED = "motion_solve_failed"
+# a part built as multiple DISJOINT solids (floating pieces). Info-only: often the "floating bodies"
+# authoring bug, but legitimate for a multibody part - the diagnostic reports, makes no judgment.
+DISCONNECTED_SOLID = "disconnected_solid"

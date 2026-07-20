@@ -17,6 +17,7 @@ from ncad.build.feature_cache import FeatureCache
 from ncad.build.hierarchy_builder import HierarchyBuilder
 from ncad.build.material_resolver import MaterialResolver
 from ncad.build.sketch_status_sidecar import SketchStatusSidecar
+from ncad.diagnostics.checks.disconnected_solid_check import DisconnectedSolidCheck
 from ncad.diagnostics.diagnostic import Diagnostic
 from ncad.diagnostics.document_validator import DocumentValidator
 from ncad.kernel.kernel import Kernel
@@ -59,6 +60,7 @@ class DocumentBuilder:
         self._cache = FeatureCache()
         self._builder = Builder(kernel, OpRegistry.with_defaults(), cache=self._cache)
         self._validator = DocumentValidator()
+        self._disconnected = DisconnectedSolidCheck()
         self._hierarchy = HierarchyBuilder()
         self._loader = SpecLoader()
         self._resolver = ParamResolver(FunctionRegistry.with_defaults())
@@ -139,6 +141,10 @@ class DocumentBuilder:
                 logger.warning("part %s did not build; skipping export. reason(s): %s",
                                name, reasons)
                 continue
+            # Report (info) if the part came out as multiple disjoint solids - often the "floating
+            # bodies" bug, but legitimate for a multibody part; the check makes no judgment.
+            diagnostics.extend(
+                self._disconnected.check(name, self._kernel.solid_count(result.shape)))
             bodies = self._body_materials(result.shape, part, material_library)
             # The authored per-body appearance color is model data, so export writes it (the
             # glTF baseColorFactor) - default per-body colors then port to any renderer, not
