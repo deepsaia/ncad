@@ -47,6 +47,10 @@ class MaterialLibrary:
         """Whether ``name`` resolves to a material."""
         return name in self._materials
 
+    def names(self) -> set:
+        """The set of all resolvable material names (seed + external + document-inline)."""
+        return set(self._materials)
+
     def resolve(self, name: str, override: dict | None = None) -> dict:
         """The merged ``mat_data`` for ``name`` (with ``override`` deep-merged on top)."""
         if name not in self._materials:
