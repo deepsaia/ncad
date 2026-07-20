@@ -1,6 +1,6 @@
 """Parse and validate a motion study's ``outputs`` block into typed trace + measure records.
 
-A motion study can declare OUTPUTS (design section 8): trace curves (the path a point sweeps) and
+A motion study can declare OUTPUTS: trace curves (the path a point sweeps) and
 measures over time (a scalar sampled per frame). This unit turns the raw ``outputs { traces = [...],
 measures = [...] }`` block into normalized, validated records the TraceExtractor / MeasureEvaluator
 consume; a malformed entry raises MotionOutputsError (the builder wraps it into an id-attributed

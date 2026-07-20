@@ -1,4 +1,4 @@
-"""Registry of pure functions callable from parameter expressions (design section 1).
+"""Registry of pure functions callable from parameter expressions.
 
 The expression evaluator dispatches ``Call`` nodes here. The library is intentionally
 tiny in this bucket (the mechanism matters, not breadth); it grows in code, never in

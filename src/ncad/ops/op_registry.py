@@ -1,7 +1,7 @@
 """Op-dispatch registry: feature ``op`` name to builder callable.
 
 Adding an operation is registering an op; this is the generalization of v1's
-``roof_builders[kind]`` pattern (design section 4). Each op is a class with a ``build``
+``roof_builders[kind]`` pattern. Each op is a class with a ``build``
 method matching the uniform op signature; the registry stores the bound ``build``
 methods so the executor can dispatch by op name.
 """

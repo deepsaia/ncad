@@ -4,7 +4,7 @@ Ties the reuse-core spec layer (loader + DocumentValidator) to the pure Builder 
 export. The agent-facing file entry (:meth:`build_file`) returns diagnostics as DATA and never
 raises for a bad design; the strict programmatic entries (:meth:`build` and the assembly-support
 resolvers) raise on an invalid document, since their callers have no diagnostics channel.
-Per-feature build problems ride the same Diagnostic envelope (design §10).
+Per-feature build problems ride the same Diagnostic envelope.
 """
 
 import json
@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 _ELEMENTMAP_SUFFIX = ".elementmap.json"
 _HIERARCHY_SUFFIX = ".hierarchy.json"
 # Export format -> file extension. glb is the display mesh (viewer); step is the exact
-# B-rep for CAD interchange (design §14).
+# B-rep for CAD interchange.
 _FORMAT_EXTENSIONS = {"glb": "glb", "step": "step"}
 
 
@@ -68,7 +68,7 @@ class DocumentBuilder:
         """Resolve expressions, validate, and build each part (incremental via cache).
 
         The cache persists across calls on this instance, so re-building an edited
-        document re-executes only the dirty suffix (design section 4). Per-part cache
+        document re-executes only the dirty suffix. Per-part cache
         hit/miss stats are captured for the last call (see :meth:`rebuild_stats`).
 
         :param document: A loaded feature-tree document dict.
@@ -103,7 +103,7 @@ class DocumentBuilder:
         Also writes each part's element-map / hierarchy / status sidecars beside the
         artifacts. ``formats`` selects the export format(s) (``glb`` and/or ``step``); the
         default keeps the viewer's glb-only path unchanged. glb is the display mesh; step
-        is the exact B-rep for CAD interchange (design §14).
+        is the exact B-rep for CAD interchange.
 
         ``name_prefix`` namespaces the written artifact + sidecar basenames (default ""
         keeps the bare ``<part>`` names). Assembly composition passes the source document's
@@ -131,7 +131,7 @@ class DocumentBuilder:
         for name, part in resolved["parts"].items():
             stem = f"{name_prefix}{name}"
             result, element_map, statuses = self._builder.build_part_mapped(part)
-            # Build-stage issues ride the same envelope as schema/semantic ones (design §10).
+            # Build-stage issues ride the same envelope as schema/semantic ones.
             diagnostics.extend(issue.to_diagnostic() for issue in result.issues)
             if result.shape is None:
                 reasons = "; ".join(f"[{i.node_id}] {i.message}" for i in result.issues

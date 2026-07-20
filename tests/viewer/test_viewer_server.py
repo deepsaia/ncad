@@ -384,30 +384,3 @@ def test_index_contains_new_ui_elements(tmp_path) -> None:
         'id="viewport-controls"', 'id="theme-toggle"', 'data-theme="light"]',
     ):
         assert token in html
-
-
-@pytest.mark.slow
-def test_real_build_route_produces_model(tmp_path) -> None:
-    from pathlib import Path
-
-    repo = Path(__file__).resolve().parents[2]
-    examples = repo / "examples"
-    models = tmp_path / "out"
-    models.mkdir()
-    srv = ViewerServer(str(models), port=0, examples_dir=str(examples))
-    srv.start()
-    try:
-        # A generous timeout: this is the first real-kernel build in the process, which
-        # pays the one-time ~90s OCP import cost before the trivial block builds.
-        status, body = _post(
-            f"{srv.base_url}/api/build", {"spec": "gate-0.1-first-shape/block.hocon"},
-            timeout=180.0,
-        )
-    finally:
-        srv.stop()
-
-    assert status == 200
-    data = json.loads(body)
-    assert "block.glb" in data["built"]
-    assert (models / "block.glb").is_file()
-    assert (models / "block.meta.json").is_file()

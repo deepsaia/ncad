@@ -23,7 +23,7 @@ def test_until_material_rib_grows_to_the_target():
     kernel = Build123dKernel()
     base = _bracket()
     # An until-material rib grows (downward) until it meets the bracket, auto-trimmed, so it
-    # needs no manual boolean-trim (the proper fix for the gate-2.9 workaround).
+    # needs no manual boolean-trim (the proper fix for the mounting-bracket workaround).
     blade = kernel.rib(_rib_wire(20), thickness=2.0, to=base)
     assert blade.volume > 0
 

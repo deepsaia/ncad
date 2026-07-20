@@ -4,7 +4,7 @@ units = mm
 # FIXED-welded to the column, so they revolve with it; the backrest (with its headrest) hangs on a
 # second REVOLUTE, the lumbar RECLINE hinge, so it can tilt fore/aft. This gives the chair TWO
 # freedoms - swivel and recline - each animated by its own motion study (swivel + recline), the same
-# one-grounded-link + one-driver drive pattern as the 6.x gate mechanisms, applied to a real product.
+# one-grounded-link + one-driver drive pattern as the motion mechanisms, applied to a real product.
 #
 # Bodies (5): base (ground), column, seat + arms (welded to column), backrest (reclines). Two
 # revolute + two fixed joints -> two free rotational DoF; each study drives one, the other rests.

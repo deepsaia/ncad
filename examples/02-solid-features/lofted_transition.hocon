@@ -1,0 +1,20 @@
+units = mm
+metadata {
+  description = "Lofted transition"
+  tags = [ solid-features, part ]
+}
+# A square-to-round transition: a 20x20 square section at the base blended smoothly to a
+# circular section 40 above it. Proves multi-plane loft sections (via plane_offset) and a
+# smooth blend. Round-trips to STEP (bucket 2.0).
+parts {
+  lofted_transition {
+    profile = solid
+    features = [
+      { id = base, op = sketch, plane = XY, plane_offset = 0,
+        elements = [ { id = sq, type = rectangle, w = 20, h = 20 } ] }
+      { id = top, op = sketch, plane = XY, plane_offset = 40,
+        elements = [ { id = ci, type = circle, d = 16 } ] }
+      { id = body, op = loft, sections = [ base, top ] }
+    ]
+  }
+}

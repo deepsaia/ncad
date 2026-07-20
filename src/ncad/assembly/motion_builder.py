@@ -1,6 +1,6 @@
 """Build a motion study document (.motion.hocon): drive a referenced assembly and emit a trajectory.
 
-A motion document is a first-class kind (like part / assembly, design section 8): it names the
+A motion document is a first-class kind (like part / assembly): it names the
 assembly it drives plus a driver, and produces the assembly scene sidecar AND the .motion.json
 trajectory. One assembly can back several motion studies (different drivers / speeds / ranges). This
 builder resolves the referenced assembly path (relative to the motion doc), then delegates to

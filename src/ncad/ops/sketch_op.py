@@ -2,7 +2,7 @@
 
 Two authoring forms coexist. The primitive form (``elements``: one ``rectangle``,
 ``circle``, or ``polygon`` centred on the origin) is unchanged. The constrained form
-(``entities`` + ``constraints``) is solved by a :class:`SketchSolver` (design section 5)
+(``entities`` + ``constraints``) is solved by a :class:`SketchSolver`
 into 2D positions, ordered into a closed wire, and built as a planar face.
 """
 

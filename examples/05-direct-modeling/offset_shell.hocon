@@ -1,0 +1,17 @@
+# Bucket 4.2 demo: a base block, then an outward whole-solid offset (envelope GREEN).
+# Direct-edit-on-authored-geometry (direct-edit-on-import is bucket 4.3).
+units = mm
+metadata {
+  description = "Offset shell"
+  tags = [ direct-modeling, part ]
+}
+parts {
+  offset_shell {
+    profile = solid
+    features = [
+      { id = sk, op = sketch, plane = XY, elements = [ { id = r, type = rectangle, w = 50, h = 50 } ] }
+      { id = base, op = extrude, profile = sk, distance = 30 }
+      { id = grow, op = offset, distance = 2 }
+    ]
+  }
+}

@@ -1,4 +1,4 @@
-"""The versioned set of element attributes a selector may query (design section 14).
+"""The versioned set of element attributes a selector may query.
 
 Only attributes the kernel computes reliably in bucket 0.3 are included. The set is
 versioned so existing selectors keep meaning as it grows. ``convexity``, adjacency,

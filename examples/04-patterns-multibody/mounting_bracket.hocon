@@ -1,0 +1,84 @@
+units = mm
+metadata {
+  description = "Mounting bracket"
+  tags = [ patterns-multibody, part ]
+}
+# Phase 2 capstone: a mounting bracket - an extruded base plate whose outer corners are
+# filleted and side walls drafted, then shelled to a wall, with a revolved cylindrical boss
+# unioned on top, a triangular gusset bracing the boss to the plate, a symmetric
+# counterbored M6 four-hole pattern, and a chamfered boss rim. Builds deterministically and
+# exports clean STEP (bucket 2.0).
+#
+# Feature order follows CAD best practice: do ALL base dress-up (fillet the corners, draft
+# the walls, shell) while the plate is still a clean prism, BEFORE it is pierced by holes or
+# stacked with the boss/gusset. Order matters within that too: FILLET before DRAFT (the
+# `vertical` edge keyword needs strictly vertical corner edges, which draft's taper would
+# destroy), and DRAFT filters to planar faces (the filleted corners are cylindrical). Doing a
+# late fillet/draft on the complex fused+drilled solid is unstable in OCCT (a late fillet
+# segfaults; draft is ill-posed on mixed gusset/boss/hole faces). Variable-radius fillet is
+# substituted by a constant fillet + a chamfer variant (variable-radius fillet is deferred).
+parts {
+  mounting_bracket {
+    profile = solid
+    features = [
+      # 1-2: base plate.
+      { id = base_sk, op = sketch, plane = XY,
+        elements = [ { id = rect, type = rectangle, w = 80, h = 50 } ] }
+      { id = base, op = extrude, profile = base_sk, distance = 8 }
+
+      # 3: fillet the base's vertical outer corners (strictly-vertical edges; must precede
+      # the draft, which would taper them out of the `vertical` keyword's reach).
+      { id = rounded, op = fillet, edges = vertical, radius = 4 }
+
+      # 4: draft the side walls for mold pull (planar walls only; the filleted corners are
+      # cylindrical and are filtered out by the draft op).
+      { id = pulled, op = draft, faces = vertical, angle = 3, neutral = XY }
+
+      # 5: shell the base to a wall, opening the bottom (still the clean plate).
+      { id = hollow, op = shell, thickness = 3, openings = bottom }
+
+      # 6: cylindrical boss - the revolve resolves its profile ref (bucket 2.9 builder fix)
+      # and returns a standalone solid; a boolean union recombines it with the shelled base.
+      # The profile is an offset rectangle revolved about Z (a cylinder).
+      { id = boss_sk, op = sketch, plane = XZ,
+        elements = [ { id = ring, type = polygon,
+                       points = [ [ 0, 8 ], [ 10, 8 ], [ 10, 30 ], [ 0, 30 ] ] } ] }
+      { id = boss_solid, op = revolve, profile = boss_sk, axis = Z }
+      { id = boss, op = boolean, operation = union, target = hollow, tool = boss_solid }
+
+      # 7: stiffening rib - a straight web on the XZ plane at the plate top (z=8) running
+      # from the boss axis outward, thickened to 4 and grown 20 normal to the sketch plane
+      # into the body. Fuses into the running solid `boss`.
+      { id = rib_sk, op = sketch, plane = XZ, open = true,
+        entities = [
+          { id = ra, type = point, at = [ 0, 8 ] }
+          { id = rb, type = point, at = [ 30, 8 ] }
+          { id = rspan, type = line, p1 = ra, p2 = rb }
+        ]
+        constraints = [ { type = fix, of = ra }, { type = fix, of = rb } ] }
+      { id = braced, op = rib, profile = rib_sk, target = boss, thickness = 4, depth = 20 }
+
+      # 8: a symmetric four-corner counterbored M6 mounting-hole pattern, drilled along the
+      # XY plane's +Z axis (inset from the 80x50 plate corners, clear of the boss and rib).
+      { id = mounts, op = hole, plane = XY,
+        positions = [ [ -32, -18 ], [ 32, -18 ], [ -32, 18 ], [ 32, 18 ] ],
+        size = M6, fit = normal, depth = 8, counterbore = { diameter = 12, depth = 3 } }
+
+      # 9: chamfer the boss rim (a two-distance variant; stands in for variable fillet).
+      { id = beveled, op = chamfer, edges = top, distance = 1.5, distance2 = 1 }
+
+      # 10: trim the rib into a single triangular gusset. The rib op makes a rectangular
+      # blade (x 10..30, z 8..28) at the boss wall. A pocket removes the top-outer triangular
+      # wedge (10,28)-(30,28)-(30,8), i.e. everything ABOVE the diagonal from the rib top at
+      # the boss (x=10, z=28) down to the plate at the far end (x=30, z=8). What remains is a
+      # single triangle: full height against the boss, tapering to the plate - no square
+      # step, and the cut starts at x=10 so it never touches the radius-10 hub. Boolean-trim
+      # technique standing in for a native rib until-material extent (deferred);
+      # symmetric extrude spans the rib thickness.
+      { id = trim_sk, op = sketch, plane = XZ,
+        elements = [ { id = wedge, type = polygon, points = [ [ 10, 28 ], [ 30, 28 ], [ 30, 8 ] ] } ] }
+      { id = gusset, op = pocket, profile = trim_sk, target = beveled,
+        end = symmetric, distance = 6 }
+    ]
+  }
+}

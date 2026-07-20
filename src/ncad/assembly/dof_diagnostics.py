@@ -2,9 +2,9 @@
 
 Pure interpretation over the raw solver signals (no py-slvs, no kernel): the four-state status
 (well/under/over/redundant), a plain-language DoF explanation built from cheap counts, and the
-failing/redundant id split. The 3D analogue of the sketch-status legibility layer (bucket 1.5) and
-the research doc's "better than a bare solver" value (docs/research/assembly-constraints-3d.md,
-Net recommendation #2). Home for a future nested-sparsity pebble-game screen.
+failing/redundant id split. The 3D analogue of the sketch-status legibility layer (bucket 1.5): a
+"better than a bare solver" DoF-diagnostics layer over py-slvs. Home for a future nested-sparsity
+pebble-game screen.
 """
 
 import logging

@@ -2,7 +2,7 @@
 
 Issues are returned as data (a list of SchemaIssue); an empty list means valid. This is
 the *schema* layer of validation (shape and field constraints). Post-build geometry and
-reference validation lives in the build/validate layers; see design.md §10.
+reference validation lives in the build/validate layers.
 """
 
 import logging

@@ -18,7 +18,7 @@ dependencies = [
     "tornado>=6.5.6",
 ]
 
-# pyondsel (the OndselSolver multibody bindings, docs/design.md section 8) is not on PyPI. Default
+# pyondsel (the OndselSolver multibody bindings for motion) is not on PyPI. Default
 # to the local editable checkout alongside this repo (live edits while we co-develop both). For a
 # machine without the side-by-side checkout, comment the path line and use the git source instead
 # (private repo: needs GitHub auth + a C++17 compiler + CMake; not editable, so bump to update):
@@ -35,12 +35,12 @@ ncad = "ncad.cli.viewer_cli:main"
 ncad-build = "ncad.build.__main__:main"
 
 [project.optional-dependencies]
-# CAD interchange: DXF/IFC floor plans (plan.md Phase 7 / 11)
+# CAD interchange: DXF/IFC floor plans (future roadmap: interchange)
 interchange = [
     "ezdxf",
     "ifcopenshell",
 ]
-# Multi-agent orchestration (plan.md Phase 9)
+# Multi-agent orchestration (future roadmap)
 agents = [
     "neuro-san",
 ]

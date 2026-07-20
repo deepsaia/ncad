@@ -747,8 +747,8 @@
         ]},
         {"id": "kinematics.planar", "level": "topic", "title": "Planar Mechanisms", "summary": "The classic linkages and motion converters.", "subtopics": [
           {"id": "kinematics.planar.four-bar", "level": "subtopic", "title": "Four-Bar & Slider-Crank", "concepts": [
-            {"id": "kinematics.planar.four-bar.grashof", "level": "concept", "title": "Four-Bar Linkage & Grashof Criterion", "ncad": {"status": "planned", "notes": "Phase 6 gate example.", "refs": [], "phase": "P6", "engine": "py-slvs"}},
-            {"id": "kinematics.planar.four-bar.slider-crank", "level": "concept", "title": "Slider-Crank", "ncad": {"status": "planned", "notes": "Phase 6 canonical gate example (crank-slider).", "refs": [], "phase": "P6", "engine": "py-slvs"}}
+            {"id": "kinematics.planar.four-bar.grashof", "level": "concept", "title": "Four-Bar Linkage & Grashof Criterion", "ncad": {"status": "planned", "notes": "Phase 6 example.", "refs": [], "phase": "P6", "engine": "py-slvs"}},
+            {"id": "kinematics.planar.four-bar.slider-crank", "level": "concept", "title": "Slider-Crank", "ncad": {"status": "planned", "notes": "Phase 6 canonical example (crank-slider).", "refs": [], "phase": "P6", "engine": "py-slvs"}}
           ]},
           {"id": "kinematics.planar.cams", "level": "subtopic", "title": "Cams & Followers", "concepts": [
             {"id": "kinematics.planar.cams.profiles", "level": "concept", "title": "Cam Profiles & Follower Motion (Displacement Diagrams)"},
@@ -759,9 +759,9 @@
             {"id": "kinematics.planar.gears.trains", "level": "concept", "title": "Gear Trains, Ratios & Epicyclic (Planetary) Gears"}
           ]},
           {"id": "kinematics.planar.intermittent", "level": "subtopic", "title": "Intermittent & Non-Uniform Motion", "concepts": [
-            {"id": "kinematics.planar.intermittent.geneva", "level": "concept", "title": "Geneva Mechanism", "ncad": {"status": "planned", "notes": "Phase 6 candidate gate example (point-on-line/slot).", "refs": [], "phase": "P6", "engine": "py-slvs"}},
+            {"id": "kinematics.planar.intermittent.geneva", "level": "concept", "title": "Geneva Mechanism", "ncad": {"status": "planned", "notes": "Phase 6 example (point-on-line/slot).", "refs": [], "phase": "P6", "engine": "py-slvs"}},
             {"id": "kinematics.planar.intermittent.ratchet", "level": "concept", "title": "Ratchet & Escapement"},
-            {"id": "kinematics.planar.intermittent.scotch-yoke", "level": "concept", "title": "Scotch Yoke", "ncad": {"status": "planned", "notes": "Phase 6 candidate gate example.", "refs": [], "phase": "P6", "engine": "py-slvs"}}
+            {"id": "kinematics.planar.intermittent.scotch-yoke", "level": "concept", "title": "Scotch Yoke", "ncad": {"status": "planned", "notes": "Phase 6 example.", "refs": [], "phase": "P6", "engine": "py-slvs"}}
           ]}
         ]},
         {"id": "kinematics.spatial", "level": "topic", "title": "Spatial Mechanisms", "summary": "3D linkages and constant-velocity joints.", "subtopics": [
@@ -884,7 +884,7 @@
           {"id": "robotics.kinematics.dh-poe", "level": "subtopic", "title": "DH & Product-of-Exponentials", "concepts": [{"id": "robotics.kinematics.dh-poe.forward", "level": "concept", "title": "Forward Kinematics: DH & PoE", "see_also": ["foundations.screw-theory.exp-log.se3"], "sources": [{"type": "textbook", "tier": "primary", "title": "Modern Robotics", "authors": "Lynch & Park", "locator": "Ch. 4", "url": "http://hades.mech.northwestern.edu/index.php/Modern_Robotics"}]}]},
           {"id": "robotics.kinematics.ik", "level": "subtopic", "title": "Inverse Kinematics", "concepts": [
             {"id": "robotics.kinematics.ik.analytic", "level": "concept", "title": "Analytic (Closed-Form) IK"},
-            {"id": "robotics.kinematics.ik.numerical", "level": "concept", "title": "Numerical IK (Jacobian/Newton)", "ncad": {"status": "planned", "notes": "Phase 6 IK; robot-arm gate example.", "refs": [], "phase": "P6", "engine": "py-slvs"}}
+            {"id": "robotics.kinematics.ik.numerical", "level": "concept", "title": "Numerical IK (Jacobian/Newton)", "ncad": {"status": "planned", "notes": "Phase 6 IK; robot-arm example (IK deferred).", "refs": [], "phase": "P6", "engine": "py-slvs"}}
           ]},
           {"id": "robotics.kinematics.jacobian", "level": "subtopic", "title": "Velocity Kinematics", "concepts": [
             {"id": "robotics.kinematics.jacobian.manipulator", "level": "concept", "title": "The Manipulator Jacobian"},
@@ -1065,7 +1065,7 @@
         ]},
         {"id": "cae.workflow", "level": "topic", "title": "Solver Workflow & ncad's Seam", "summary": "Model ownership, deck generation, result read-back.", "subtopics": [
           {"id": "cae.workflow.map", "level": "subtopic", "title": "The Owned-vs-Delegated Map", "concepts": [
-            {"id": "cae.workflow.map.ownership", "level": "concept", "title": "Model Ownership vs Solve Delegation", "ncad": {"status": "planned", "notes": "mirrors plan.md's Analysis & simulation strategy table.", "refs": [], "phase": "P13", "engine": null}},
+            {"id": "cae.workflow.map.ownership", "level": "concept", "title": "Model Ownership vs Solve Delegation", "ncad": {"status": "planned", "notes": "ncad owns the model + writes each engine's input deck; the solve runs outside ncad, results read back for display.", "refs": [], "phase": "P13", "engine": null}},
             {"id": "cae.workflow.map.deck-readback", "level": "concept", "title": "Input-Deck Generation & Result Read-Back", "see_also": ["interchange.analysis.decks.inp-unv"]}
           ]}
         ]}

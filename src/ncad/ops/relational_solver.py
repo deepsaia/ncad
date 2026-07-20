@@ -1,4 +1,4 @@
-"""Compute the one-shot rigid transform that satisfies a planar relation (design section 3).
+"""Compute the one-shot rigid transform that satisfies a planar relation.
 
 A relation aligns a moving planar face's frame to a reference planar face's frame ONCE (no
 maintenance, no solver, no DoF; that is Phase 5). Each relation reduces to a rotation of the

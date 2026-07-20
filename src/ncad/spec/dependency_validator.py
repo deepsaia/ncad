@@ -3,9 +3,9 @@
 A feature's structural references (profile / target / tool) must name another feature
 in the same part that is defined before it in the authored order. A forward reference
 or a reference to a missing id is a contract error, reported by the offending feature
-id before any geometry runs (design section 10). Generative/selector references (``on``,
+id before any geometry runs. Generative/selector references (``on``,
 ``edges``) are not checked here: they resolve against live topology at build time and
-are the reference model's job to fail loudly (design section 2).
+are the reference model's job to fail loudly.
 """
 
 import logging

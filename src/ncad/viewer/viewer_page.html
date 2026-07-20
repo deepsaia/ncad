@@ -765,7 +765,7 @@ scene.background = cssColor("--scene-bg");
 scene.fog = new THREE.Fog(cssColor("--scene-bg"), 40, 120);
 
 const camera = new THREE.PerspectiveCamera(45, stage.clientWidth / stage.clientHeight, 0.01, 1000);
-// Z-up world: models are authored Z-up (design §0) and the loaded glTF is rotated into a
+// Z-up world: models are authored Z-up and the loaded glTF is rotated into a
 // Z-up scene (see loadModel), so scene coordinates equal modeled coordinates.
 camera.up.set(0, 0, 1);
 const renderer = new THREE.WebGLRenderer({ antialias: true });

@@ -335,7 +335,7 @@ class Build123dKernel(Kernel):
             to: Any = None, side: str = "both", draft: float = 0.0) -> Any:
         # Planar-first (robust): thicken the open wire IN ITS OWN PLANE with trace into a
         # closed ribbon face, then extrude that face. This avoids OCCT's fragile
-        # offset/thicken-a-shell path (design.md: BRepOffsetAPI_MakeOffsetShape fails on C0
+        # offset/thicken-a-shell path (BRepOffsetAPI_MakeOffsetShape fails on C0
         # splines and past the smallest concave radius). thickness is symmetric about the
         # curve by default; side="one" thickens to one side (a rib flush with the sketch).
         line_width = thickness if side == "both" else thickness
@@ -896,10 +896,10 @@ class Build123dKernel(Kernel):
     def _robust(self, op, *args, name: str) -> Any:
         """Run a fragile OCCT op and validate the result; raise KernelOpError on failure.
 
-        Bucket 0.2 uses the validity-gate + typed-failure steps of the robustness ladder
-        (docs/research/occt-boolean-robustness.md). Fuzzy-retry escalation and healing are
-        a later hardening; the gate already converts silent OCCT failures into a typed
-        error the calling op turns into an id-tagged issue.
+        Bucket 0.2 uses the validity-gate + typed-failure steps of the OCCT-robustness
+        ladder. Fuzzy-retry escalation and healing are a later hardening; the gate already
+        converts silent OCCT failures into a typed error the calling op turns into an
+        id-tagged issue.
         """
         try:
             result = op(*args)
@@ -1382,7 +1382,7 @@ class Build123dKernel(Kernel):
         logger.debug("exported assembly (%d components) to %s", len(components), path)
 
     def _deflection(self, solid: Any) -> float:
-        """Tessellation linear deflection scaled to the model size (design §4a, §13).
+        """Tessellation linear deflection scaled to the model size.
 
         build123d's default (0.001 mm ABSOLUTE) is a relative ~1e-4 on a small curved
         part, which explodes the triangle count (a helical coil took ~70s / 8 MB). A

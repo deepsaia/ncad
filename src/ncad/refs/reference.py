@@ -1,6 +1,6 @@
 """A typed reference to geometry: semantic, generative, or selector.
 
-Parsing picks the kind from the surface form (design section 2). The resolver
+Parsing picks the kind from the surface form. The resolver
 (see reference_resolver.py) turns a Reference into concrete elements/shapes at
 build time. No topology or randomness here: parsing is pure.
 """

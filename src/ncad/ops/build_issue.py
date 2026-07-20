@@ -1,4 +1,4 @@
-"""A single build-time issue, returned as data rather than raised (design §10)."""
+"""A single build-time issue, returned as data rather than raised."""
 
 from dataclasses import dataclass
 
