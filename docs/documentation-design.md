@@ -4,7 +4,7 @@ This document specifies **how ncad's documentation is designed, structured, and
 maintained**. It is a design spec for the docs, not the docs themselves. The site is built in
 **two parts**:
 
-- **(A) Learn** - a general, **product-neutral reference and course** on the engineering
+- **(A) Learn** - a general, **product-neutral reference** on the engineering
   subjects ncad touches: **Foundations** (math/geometry), **Geometric & Solid Modeling (CAD)**,
   **Manufacturing (CAM)**, **Electronic Design (PCB/ECAD)**, **Kinematics & Mechanisms**,
   **Multibody Dynamics**, **Robotics & Physics-Engine Simulation**, **Engineering Analysis &
@@ -97,7 +97,7 @@ principle #3 across both parts: **the concept lives in Learn; the capability liv
 
 ## 3. Information architecture
 
-### Part A - Learn (product-neutral course), organized by discipline
+### Part A - Learn (product-neutral reference), organized by discipline
 
 Nine subjects, each a **subject -> topic -> sub-topic -> concept** tree (the full taxonomy is
 in the companion `docs/documentation-structure.json`; §8a). Two of the nine - **Foundations**
@@ -365,7 +365,7 @@ others use `see_also`. Node shape:
 
 ## Summary
 
-v2 is a **two-part site**: **Learn**, a product-neutral, professional-depth course across nine
+v2 is a **two-part site**: **Learn**, a product-neutral, professional-depth reference across nine
 subjects (Foundations, CAD, CAM, PCB, Kinematics, MBD, Robotics/MuJoCo, CAE, Interchange), each
 concept sourced and carrying an honest "In ncad" status box; and **ncad**, a separate
 exhaustive manual (Diataxis). Learn content is **data** (a JSON taxonomy + MDX bodies, in

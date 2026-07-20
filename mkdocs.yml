@@ -1,0 +1,98 @@
+site_name: ncad
+site_description: A data-driven CAD engine
+site_url: https://deepsaia.github.io/ncad/
+repo_url: https://github.com/deepsaia/ncad
+repo_name: deepsaia/ncad
+edit_uri: ""
+
+# Documentation sources live in docs_site/ (the repo's docs/ dir holds contributor design docs).
+docs_dir: docs_site
+site_dir: site
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme)"
+      toggle:
+        icon: material/brightness-auto
+        name: Switch to light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to system preference
+  font:
+    text: Inter
+    code: JetBrains Mono
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.indexes
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - search.share
+    - content.code.copy
+    - content.code.annotate
+
+plugins:
+  - search
+
+# The ncad Operations Reference is generated from the live op registry + shipped examples at build
+# time by a MkDocs core hook (docs_hooks.py), so the reference can never drift from the code. Core
+# hooks are used instead of the gen-files/literate-nav plugins to avoid their advertising-injecting
+# transitive dependency; no extra packages, pure Python.
+hooks:
+  - docs_hooks.py
+
+# `mkdocs serve` only watches docs_dir + config by default; watch the generator sources too so the
+# reference regenerates live when the hook, exporter, renderer, or op registry changes.
+watch:
+  - docs_hooks.py
+  - src/ncad/docs
+  - src/ncad/ops/op_registry.py
+  - examples
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - footnotes
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences
+  - pymdownx.inlinehilite
+  - pymdownx.details
+  - pymdownx.arithmatex:
+      generic: true
+
+extra_javascript:
+  - assets/mathjax.js
+  - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js
+  - https://ajax.googleapis.com/ajax/libs/model-viewer/3.5.0/model-viewer.min.js
+
+nav:
+  - Home: index.md
+  - Learn:
+      - learn/index.md
+  - ncad:
+      - ncad/index.md
+      # Operations Reference children are generated + categorized from the op registry by
+      # docs_hooks.py (on_config); this placeholder is replaced at build time.
+      - Operations Reference:
+          - ncad/reference/index.md
