@@ -22,13 +22,24 @@ parts {
       { id = axis, at_point = [ 0, 0, 0 ], axis = [ 0, 0, 1 ] }
     ],
     features = [
-      { id = disc, op = primitive, kind = cylinder, d = 44, h = 8, plane = XY, plane_offset = -4 }
+      { id = disc, op = primitive, kind = cylinder, d = 76, h = 8, plane = XY, plane_offset = -4 }
       { id = hub, op = primitive, kind = cylinder, d = 12, h = 12, plane = XY, plane_offset = -16,
         at = [ 0, 0 ] }
-      { id = pin, op = primitive, kind = cylinder, d = 8, h = 26, plane = XY, plane_offset = -4,
+      { id = pin, op = primitive, kind = cylinder, d = 8, h = 18, plane = XY, plane_offset = -4,
         at = [ 30, 0 ] }
       { id = c1, op = boolean, operation = union, target = disc, tool = hub }
-      { id = whole, op = boolean, operation = union, target = c1, tool = pin }
+      { id = web, op = boolean, operation = union, target = c1, tool = pin }
+      # Four lightening / balance holes through the web (d10 on a 26 mm bolt circle), the way a real
+      # crank web is drilled to cut mass; clear of the hub, the pin, and the rim.
+      { id = h1, op = primitive, kind = cylinder, d = 10, h = 12, plane = XY, plane_offset = -6,
+        at = [ 0, 26 ] }
+      { id = h2, op = primitive, kind = cylinder, d = 10, h = 12, plane = XY, plane_offset = -6,
+        at = [ 0, -26 ] }
+      { id = h3, op = primitive, kind = cylinder, d = 10, h = 12, plane = XY, plane_offset = -6,
+        at = [ -26, 0 ] }
+      { id = d1, op = boolean, operation = cut, target = web, tool = h1 }
+      { id = d2, op = boolean, operation = cut, target = d1, tool = h2 }
+      { id = whole, op = boolean, operation = cut, target = d2, tool = h3 }
     ] }
   # Yoke: a plate (z 10..18) sliding along +Y in the stand guide, with a HORIZONTAL slot (long in X,
   # a thin box cut through) the crank pin rides. The pin's X sweep (+/-30) rides the slot; the pin's
