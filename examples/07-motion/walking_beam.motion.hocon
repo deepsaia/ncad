@@ -1,0 +1,13 @@
+units = mm
+# A motion study driving the walking-beam engine one flywheel revolution. The flywheel angle is the
+# driver; the OndselSolver engine reproduces the beam rock + piston pump from the 6 revolute + 1
+# slider joints, no formula. Outputs: a TRACE of the piston crown path + a MEASURE of its stroke.
+metadata { description = "Walking-beam motion: drive the flywheel, beam rocks + piston pumps", tags = [ walking_beam, motion ] }
+motion {
+  assembly = "walking_beam.asm.hocon"
+  driver = { joint = flyPin, from = 0, to = 360, steps = 72 }
+  outputs {
+    traces = [ { id = pistonPath, instance = piston, point = [ 150, 10, 40 ] } ]
+    measures = [ { id = stroke, kind = coordinate, instance = piston, point = [ 150, 10, 40 ], axis = y } ]
+  }
+}

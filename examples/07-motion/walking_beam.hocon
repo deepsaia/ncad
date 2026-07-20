@@ -1,0 +1,140 @@
+units = mm
+# A walking-beam (beam) engine: a flywheel crank rocks a centrally-pivoted BEAM through a connecting
+# rod, and the beam's far end drives a vertical piston through a second rod. Authored as a PRIMITIVE
+# BLOCKOUT (the motion lane): bars + bored eyes, mate points named by COORDINATE. All revolute joints
+# + one slider (the piston in its cylinder); one driver turns the flywheel and the train pumps.
+#
+# The crank+rod1+beam-arm+ground sub-loop is a GRASHOF crank-rocker (crank 20 + ground 80 = 100 <=
+# rod1 70 + beam-arm 45 = 115), so the flywheel turns a FULL revolution while the beam rocks a bounded
+# arc - a real beam engine. Geometry (mm), XY side view (X right, Y up), rest pose (crank at top):
+#   F=(0,0) flywheel center, crank R=20 -> crankpin K=(0,20).
+#   M=(69.28,40) beam pivot (fixed). Beam ends L=(42.14,75.89) and N=(96.42,4.11) (arms 45 each).
+#   rod1 K->L length 70. rod2 N->P length 55. Piston P=(96.42,-50.89), slides VERTICALLY at x=96.42.
+# Pins along Z, z-layered so links nest: ground z -16..-8. flywheel 0..8. rod1 10..16. beam 18..26.
+#   rod2 28..34. piston 36..44. Eyes bored d9.4 over d9 pins.
+metadata {
+  description = "Walking-beam engine: flywheel + rod + rocking beam + rod + vertical piston, one driver"
+  tags = [ walking_beam, mechanism, blockout, beam-engine ]
+}
+parts {
+  # Ground: ONE connected frame. A full-footprint base slab carries three supports rooted on it: the
+  # flywheel bearing boss at F, a beam-pivot PEDESTAL at M that ends in a real journal bearing (a
+  # lower collar + a shaft through the beam eye + an upper retaining cap, so the beam visibly rocks on
+  # a captured pin), and a bored column at the piston. Every piece overlaps the slab (z -16..-6) or the
+  # piece below it, so the stand is a single solid - no floating bodies.
+  stand { profile = solid, material = steel_1018,
+    connectors = [
+      { id = flyBearing, at_point = [ 0, 0, 0 ], axis = [ 0, 0, 1 ] }
+      { id = beamPivot, at_point = [ 69.28, 40, 0 ], axis = [ 0, 0, 1 ] }
+      { id = guide, at_point = [ 96.42, -50.89, 40 ], axis = [ 0, 1, 0 ] }
+    ],
+    features = [
+      # Base slab spanning the whole mechanism footprint (F, M, and the piston at (96,-51)).
+      { id = base, op = primitive, kind = box, w = 165, d = 155, h = 10, plane = XY,
+        plane_offset = -16, at = [ -40, -70 ] }
+      # Flywheel bearing boss at F, rising from the slab to the flywheel hub level; pin d9 up the hub.
+      { id = flyBoss, op = primitive, kind = cylinder, d = 22, h = 12, plane = XY, plane_offset = -16, at = [ 0, 0 ] }
+      { id = pinF, op = primitive, kind = cylinder, d = 9, h = 22, plane = XY, plane_offset = -16, at = [ 0, 0 ] }
+      # Beam-pivot PEDESTAL at M: a stout post from the slab (z-6) up to just below the beam (z16).
+      { id = ped, op = primitive, kind = cylinder, d = 26, h = 22, plane = XY, plane_offset = -6, at = [ 69.28, 40 ] }
+      # Journal: a lower bearing collar (z16..18, d20) the beam boss rests against, the SHAFT (d9)
+      # rising through the beam eye (z18..26), and an upper retaining CAP (z26..30, d20) capturing it.
+      { id = collar, op = primitive, kind = cylinder, d = 20, h = 2, plane = XY, plane_offset = 16, at = [ 69.28, 40 ] }
+      { id = shaft, op = primitive, kind = cylinder, d = 9, h = 14, plane = XY, plane_offset = 16, at = [ 69.28, 40 ] }
+      { id = cap, op = primitive, kind = cylinder, d = 20, h = 4, plane = XY, plane_offset = 26, at = [ 69.28, 40 ] }
+      # Piston cylinder column: from the slab up to the piston level, then bored for the piston.
+      { id = cyl, op = primitive, kind = box, w = 24, d = 24, h = 66, plane = XY, plane_offset = -20, at = [ 84.42, -62.89 ] }
+      { id = s1, op = boolean, operation = union, target = base, tool = flyBoss }
+      { id = s2, op = boolean, operation = union, target = s1, tool = pinF }
+      { id = s3, op = boolean, operation = union, target = s2, tool = ped }
+      { id = s4, op = boolean, operation = union, target = s3, tool = collar }
+      { id = s5, op = boolean, operation = union, target = s4, tool = shaft }
+      { id = s6, op = boolean, operation = union, target = s5, tool = cap }
+      { id = s7, op = boolean, operation = union, target = s6, tool = cyl }
+      # Bore the piston cylinder (open channel the piston slides in), z 34..48.
+      { id = bore, op = primitive, kind = box, w = 16, d = 16, h = 16, plane = XY, plane_offset = 33, at = [ 88.42, -58.89 ] }
+      { id = whole, op = boolean, operation = cut, target = s7, tool = bore }
+    ] }
+  # Flywheel: disc on a hub at F, crank pin at radius R=20 (rest at top, K=(0,20)). Driven.
+  flywheel { profile = solid, material = steel_4140,
+    connectors = [
+      { id = axis, at_point = [ 0, 0, 0 ], axis = [ 0, 0, 1 ] }
+      { id = crankpin, at_point = [ 0, 20, 0 ], axis = [ 0, 0, 1 ] }
+    ],
+    features = [
+      { id = disc, op = primitive, kind = cylinder, d = 56, h = 8, plane = XY, plane_offset = 0, at = [ 0, 0 ] }
+      { id = hub, op = primitive, kind = cylinder, d = 12, h = 12, plane = XY, plane_offset = -8, at = [ 0, 0 ] }
+      { id = f1, op = boolean, operation = union, target = disc, tool = hub }
+      { id = boreF, op = primitive, kind = cylinder, d = 9.4, h = 10, plane = XY, plane_offset = -1, at = [ 0, 0 ] }
+      { id = f2, op = boolean, operation = cut, target = f1, tool = boreF }
+      { id = pinK, op = primitive, kind = cylinder, d = 9, h = 16, plane = XY, plane_offset = 0, at = [ 0, 20 ] }
+      { id = whole, op = boolean, operation = union, target = f2, tool = pinK }
+    ] }
+  # Connecting rod 1: K(0,20) -> L(42.14,75.89), length 70, on z 10..16.
+  rod1 { profile = solid, material = bronze,
+    connectors = [
+      { id = atK, at_point = [ 0, 20, 0 ], axis = [ 0, 0, 1 ] }
+      { id = atL, at_point = [ 42.14, 75.89, 0 ], axis = [ 0, 0, 1 ] }
+    ],
+    features = [
+      { id = bar, op = primitive, kind = box, w = 6, d = 70, h = 6, plane = XY, plane_offset = 10, at = [ -2.40, 21.81 ], rotation = -37.01 }
+      { id = eyeK, op = primitive, kind = cylinder, d = 11, h = 6, plane = XY, plane_offset = 10, at = [ 0, 20 ] }
+      { id = eyeL, op = primitive, kind = cylinder, d = 11, h = 6, plane = XY, plane_offset = 10, at = [ 42.14, 75.89 ] }
+      { id = j1, op = boolean, operation = union, target = bar, tool = eyeK }
+      { id = j2, op = boolean, operation = union, target = j1, tool = eyeL }
+      { id = boreK, op = primitive, kind = cylinder, d = 9.4, h = 8, plane = XY, plane_offset = 9, at = [ 0, 20 ] }
+      { id = j3, op = boolean, operation = cut, target = j2, tool = boreK }
+      { id = pinL, op = primitive, kind = cylinder, d = 9, h = 16, plane = XY, plane_offset = 10, at = [ 42.14, 75.89 ] }
+      { id = whole, op = boolean, operation = union, target = j3, tool = pinL }
+    ] }
+  # Beam: lever L(42.14,75.89) -> N(96.42,4.11), pivoted at its center M(69.28,40), on z 18..26. Rocks.
+  beam { profile = solid, material = steel_4140,
+    connectors = [
+      { id = atL, at_point = [ 42.14, 75.89, 0 ], axis = [ 0, 0, 1 ] }
+      { id = atM, at_point = [ 69.28, 40, 0 ], axis = [ 0, 0, 1 ] }
+      { id = atN, at_point = [ 96.42, 4.11, 0 ], axis = [ 0, 0, 1 ] }
+    ],
+    features = [
+      { id = bar, op = primitive, kind = box, w = 10, d = 90, h = 6, plane = XY, plane_offset = 18, at = [ 46.13, 78.91 ], rotation = -142.91 }
+      { id = eyeL, op = primitive, kind = cylinder, d = 14, h = 6, plane = XY, plane_offset = 18, at = [ 42.14, 75.89 ] }
+      { id = eyeM, op = primitive, kind = cylinder, d = 14, h = 6, plane = XY, plane_offset = 18, at = [ 69.28, 40 ] }
+      { id = eyeN, op = primitive, kind = cylinder, d = 14, h = 6, plane = XY, plane_offset = 18, at = [ 96.42, 4.11 ] }
+      { id = b1, op = boolean, operation = union, target = bar, tool = eyeL }
+      { id = b2, op = boolean, operation = union, target = b1, tool = eyeM }
+      { id = b3, op = boolean, operation = union, target = b2, tool = eyeN }
+      { id = boreL, op = primitive, kind = cylinder, d = 9.4, h = 8, plane = XY, plane_offset = 17, at = [ 42.14, 75.89 ] }
+      { id = b4, op = boolean, operation = cut, target = b3, tool = boreL }
+      { id = boreM, op = primitive, kind = cylinder, d = 9.4, h = 8, plane = XY, plane_offset = 17, at = [ 69.28, 40 ] }
+      { id = b5, op = boolean, operation = cut, target = b4, tool = boreM }
+      { id = pinN, op = primitive, kind = cylinder, d = 9, h = 16, plane = XY, plane_offset = 18, at = [ 96.42, 4.11 ] }
+      { id = whole, op = boolean, operation = union, target = b5, tool = pinN }
+    ] }
+  # Connecting rod 2: N(96.42,4.11) -> P(96.42,-50.89), length 55 (vertical at rest), on z 28..34.
+  rod2 { profile = solid, material = bronze,
+    connectors = [
+      { id = atN, at_point = [ 96.42, 4.11, 0 ], axis = [ 0, 0, 1 ] }
+      { id = atP, at_point = [ 96.42, -50.89, 0 ], axis = [ 0, 0, 1 ] }
+    ],
+    features = [
+      { id = bar, op = primitive, kind = box, w = 6, d = 55, h = 6, plane = XY, plane_offset = 28, at = [ 99.42, 4.11 ], rotation = -180 }
+      { id = eyeN, op = primitive, kind = cylinder, d = 11, h = 6, plane = XY, plane_offset = 28, at = [ 96.42, 4.11 ] }
+      { id = eyeP, op = primitive, kind = cylinder, d = 11, h = 6, plane = XY, plane_offset = 28, at = [ 96.42, -50.89 ] }
+      { id = m1, op = boolean, operation = union, target = bar, tool = eyeN }
+      { id = m2, op = boolean, operation = union, target = m1, tool = eyeP }
+      { id = boreN, op = primitive, kind = cylinder, d = 9.4, h = 8, plane = XY, plane_offset = 27, at = [ 96.42, 4.11 ] }
+      { id = m3, op = boolean, operation = cut, target = m2, tool = boreN }
+      { id = pinP, op = primitive, kind = cylinder, d = 9, h = 16, plane = XY, plane_offset = 28, at = [ 96.42, -50.89 ] }
+      { id = whole, op = boolean, operation = union, target = m3, tool = pinP }
+    ] }
+  # Piston: a block sliding VERTICALLY (+Y) at x=96.42 in the stand cylinder, on z 36..44.
+  piston { profile = solid, material = aluminium_6061,
+    connectors = [
+      { id = wrist, at_point = [ 96.42, -50.89, 0 ], axis = [ 0, 0, 1 ] }
+      { id = slide, at_point = [ 96.42, -50.89, 40 ], axis = [ 0, 1, 0 ] }
+    ],
+    features = [
+      { id = body, op = primitive, kind = box, w = 15, d = 30, h = 8, plane = XY, plane_offset = 36, at = [ 88.92, -65.89 ] }
+      { id = boreP, op = primitive, kind = cylinder, d = 9.4, h = 10, plane = XY, plane_offset = 35, at = [ 96.42, -50.89 ] }
+      { id = whole, op = boolean, operation = cut, target = body, tool = boreP }
+    ] }
+}
