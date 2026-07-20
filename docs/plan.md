@@ -130,7 +130,7 @@ modeling, the domain profiles, CAM/PCB seams, and a plugin layer.
 | 3 | Patterns, transforms, booleans, multibody | solid | `[x]` |
 | 4 | Persistent-name layer + direct/synchronous modeling | core | `[x]` |
 | 5 | Assemblies: constraints, joints, in-context | assembly | `[x]` |
-| 6 | Motion & kinematics | motion | `[ ]` |
+| 6 | Motion & kinematics | motion | `[x]` (IK deferred) |
 | 7 | Drafting & documentation (2D drawings) | docs | `[ ]` |
 | 8 | PMI / GD&T | docs | `[ ]` |
 | 9 | Surfacing & freeform (Class A `(A)`) | surface | `[ ]` |
@@ -1125,12 +1125,36 @@ a swept arm drives through a fixed post mid-motion), NOT a broken mechanism. Gat
 DISCRETE per-frame, tied to solve resolution); contact-as-FORCE (dynamics, Phase 14); a generic
 reusable point_on_line coupling.
 
+**PHASE 6 IS CLOSED (bucket 6.4 / IK deferred).** The motion & kinematics phase shipped 6.0-6.3: a
+FORWARD-kinematics motion spine on the OndselSolver multibody engine (via `pyondsel`), motion as its
+own `.motion.hocon` document kind, and a driver that sweeps one joint while the solver re-solves the
+network per frame - reproducing each mechanism's motion from DECLARED joints + one driver, with no
+per-mechanism formula. On that spine: motion outputs (traces, measures, mobility; 6.1), coupled
+joints + a general cam (gear/belt/rack_pinion via ratio, cam/gear/geneva via profile generators that
+are the single source of truth for both the drawn body and the enforced motion; 6.2), and slot /
+intermittent motion + per-frame motion-time interference (6.3). Eight recognizable mechanism gates:
+crank_slider, four_bar, reciprocating_pump, cam_follower, gear_pair, rack_pinion, geneva,
+scotch_yoke (+ clearance_probe as the interference demonstrator). The one Phase 6 candidate NOT built
+is the robot-arm / inverse-kinematics gate (6.4), deferred as a robotics-simulation feature
+peripheral to CAD (see the Inverse-kinematics entry above). **Deferred to Phase 14 (dynamics):**
+force/contact transmission, bidirectional gear/cam constraints, real-time velocity/acceleration.
+
 - [x] **DoF analysis:** planar Gruebler/Kutzbach mobility from the joint graph next to the static
       solve's rest-pose free DoF (MotionMobility, bucket 6.1); the sketch-DoF 3D analogue
 - [x] **Drivers / forward kinematics:** per-joint driver (revolute angle / slider
       distance) ramped linearly over a value sweep; sweep >> configuration per step
       (constant/keyframe/coupler-driven drivers remain for later buckets)
-- [ ] **Inverse kinematics:** drive an output frame, solve joint values (bucket 6.4)
+- [~] **Inverse kinematics (DEFERRED, was bucket 6.4):** drive an output frame, solve joint values.
+      Deferred, not built: IK is a robotics/automation SIMULATION feature, peripheral to CAD itself
+      (in NX/Creo/Fusion it lives in a bolted-on motion-sim add-on where FK still dominates; the real
+      IK users are robotics toolchains like RoboDK / ROS-MoveIt, which CAD feeds geometry to). It is
+      also ambiguous (multiple solutions, singularities, unreachable targets), the opposite of CAD's
+      determinism. Revisit ONLY if a real robotics/automation use case appears, or the generator
+      layer wants IK-as-posing ("pose the arm to a target frame", consistent with the generate-don't-
+      hand-place thesis behind the cam/gear/geneva profile generators). If revisited: IK is a
+      pre-process that computes per-frame joint angles from a target path, then feeds the existing FK
+      trajectory via prescribed motions (the 6.2/6.3 secondary-driver mechanism); OndselSolver has no
+      IK, so solve numerically (CCD / damped-least-squares Jacobian) or analytic 2R/3R closed form.
 - [x] **Mechanism solver:** step the driver, solve the constraint network per frame
       on OndselSolver (via `pyondsel`); closed loops (crank-slider, four-bar) converge
 - [x] **Interference during motion (bucket 6.3):** per-frame pairwise collision
@@ -1200,9 +1224,9 @@ recognizable gate candidates as the phase grows)*:
       Enforcement is a ncad-computed secondary prescribed motion (design section 8): the
       geometry + ratio match NX/Creo/Fusion, but the coupling is a one-way derived driver,
       not a bidirectional gear CONSTRAINT (OndselSolver has none); dynamics -> Phase 14.
-- [ ] **Robot arm (2-3R serial articulated)** - an open kinematic chain of revolute
-      joints; the **inverse-kinematics** showcase (drive the end-effector frame, solve
-      the joint angles) and a trace-curve of the tool path. The reach/envelope demo.
+- [~] **Robot arm (2-3R serial articulated) - DEFERRED with the IK bucket above.** The IK
+      showcase gate; not built (see the Inverse-kinematics deferral). If IK is revisited this is
+      its natural gate: an open revolute chain driven by its end-effector path + a tool-path trace.
 
 **Gate:** the **crank-slider** animates from a single crank-angle driver (matching the
 `tbt-studio` analytic reference), and a **four-bar** produces a coupler trace curve and
