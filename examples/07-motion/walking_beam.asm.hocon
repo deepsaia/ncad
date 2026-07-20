@@ -1,0 +1,45 @@
+units = mm
+# The walking-beam engine, assembled from walking_beam.hocon. The stand is grounded; the flywheel is
+# driven about F; a connecting rod rocks the centrally-pivoted beam, whose far end drives a vertical
+# piston through a second rod. Six revolute joints + one slider (mobility 3*(6-1) - 2*6 - 2*1 = 1),
+# so one driver animates the whole beam-engine train. No couplings - it is a pure linkage.
+#
+# Joint chain: F (stand-flywheel) -> K (flywheel-rod1) -> L (rod1-beam) ; M (beam-stand pivot) ;
+#   N (beam-rod2) -> P (rod2-piston) ; pistonSlide (piston in the stand cylinder, vertical).
+metadata {
+  description = "Walking-beam engine: driven flywheel rocks a beam that pumps a vertical piston"
+  tags = [ walking_beam, assembly, mechanism, beam-engine ]
+}
+assembly {
+  instances = [
+    { id = stand, file = "walking_beam.hocon", part = stand, lock = true }
+    { id = flywheel, file = "walking_beam.hocon", part = flywheel }
+    { id = rod1, file = "walking_beam.hocon", part = rod1 }
+    { id = beam, file = "walking_beam.hocon", part = beam }
+    { id = rod2, file = "walking_beam.hocon", part = rod2 }
+    { id = piston, file = "walking_beam.hocon", part = piston }
+  ]
+  joints = [
+    # F: the driven flywheel bearing.
+    { id = flyPin, type = revolute, between = [
+      { instance = stand, connector = flyBearing }, { instance = flywheel, connector = axis } ] }
+    # K: crankpin -> connecting rod 1.
+    { id = crankPin, type = revolute, between = [
+      { instance = flywheel, connector = crankpin }, { instance = rod1, connector = atK } ] }
+    # L: rod1 -> beam left end.
+    { id = pinL, type = revolute, between = [
+      { instance = rod1, connector = atL }, { instance = beam, connector = atL } ] }
+    # M: beam center pivots on the stand post.
+    { id = pinM, type = revolute, between = [
+      { instance = stand, connector = beamPivot }, { instance = beam, connector = atM } ] }
+    # N: beam right end -> rod2.
+    { id = pinN, type = revolute, between = [
+      { instance = beam, connector = atN }, { instance = rod2, connector = atN } ] }
+    # P: rod2 -> piston wrist.
+    { id = pinP, type = revolute, between = [
+      { instance = rod2, connector = atP }, { instance = piston, connector = wrist } ] }
+    # The piston slides vertically in the stand cylinder.
+    { id = pistonSlide, type = slider, between = [
+      { instance = stand, connector = guide }, { instance = piston, connector = slide } ] }
+  ]
+}

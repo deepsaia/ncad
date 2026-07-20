@@ -1,0 +1,26 @@
+units = mm
+# A motion study driving the Peaucellier linkage's crank; the output point D traces a MATHEMATICALLY
+# EXACT straight line. The crank angle (about P) is the driver; the OndselSolver multibody engine
+# reproduces the inversor motion from the 10 declared revolute joints + one driver, with NO
+# per-mechanism formula. The `trace` output records D's world path - it comes out dead straight
+# (constant x = -50.91 mm), the property that made this linkage historically famous (Peaucellier 1864,
+# the first exact straight-line motion from pure rotation). The crank sweeps 40..140 deg to keep the
+# cell well away from its folded singularity (B crossing O).
+metadata {
+  description = "Peaucellier motion study: drive the crank, output D traces an exact straight line"
+  tags = [ peaucellier, motion, straight-line, trace ]
+}
+motion {
+  assembly = "peaucellier.asm.hocon"
+  driver = { joint = pinP, from = 40, to = 140, steps = 60 }
+  outputs {
+    traces = [
+      # The output point D (world path). Traced on the rhCD link at D's coordinate; it draws a line.
+      { id = straightLine, instance = rhCD, point = [ -50.91, 50.91, 43 ] }
+    ]
+    measures = [
+      # D's world-X: it stays constant (~ -50.91 mm) over the whole sweep - the straightness readout.
+      { id = D_x, kind = coordinate, instance = rhCD, point = [ -50.91, 50.91, 43 ], axis = x }
+    ]
+  }
+}
