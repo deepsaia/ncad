@@ -1,7 +1,7 @@
 [project]
 name = "ncad"
 version = "0.0.1"
-description = "A declarative, parametric and direct CAD/CAM/CAE/PCB engine driven by a text document."
+description = "A data-driven CAD engine: declarative, parametric and direct, driven by a text document."
 readme = "README.md"
 requires-python = ">=3.13,<3.14"
 dependencies = [

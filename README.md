@@ -1,11 +1,11 @@
 # ncad
 
-**A declarative, parametric and direct CAD/CAM/CAE/PCB engine.** Define a part as a
+**A data-driven CAD engine (declarative, parametric and direct).** Define a part as a
 text document (HOCON/JSON/YAML) and a pure executor replays it against an
-exact-geometry kernel to produce solids, and (over the roadmap) assemblies, motion,
-drawings, and more. No authoring GUI; a strong browser viewer for seeing. The same
-document is editable by a human, an agent, or a generator, and rebuilds
-deterministically.
+exact-geometry kernel to produce solids, assemblies, and motion. No authoring GUI;
+a strong browser viewer for seeing. The same document is editable by a human, an
+agent, or a generator, and rebuilds deterministically. (CAM, CAE, and PCB are future
+directions, not current capabilities; see the roadmap below.)
 
 ## Documents
 
