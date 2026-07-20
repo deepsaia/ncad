@@ -64,6 +64,43 @@ class JointLowering:
             # Coaxial like cylindrical; the rotation+axial coupling is enforced by the value pins
             # (valued) or driven in Phase 6 (valueless). Leaves the cylindrical freedom otherwise.
             return [_p("axes_coincident", "A.axis", "B.axis")]
+        # Higher pairs (point/line/plane incidence). For the static rest solve each reduces to the
+        # existing incidence primitives; the motion solver drives them via the real ASMT joint.
+        if jtype in ("point_in_line", "in_line"):
+            # A point (or line) kept ON B's axis line: the origin rides the line (like
+            # point_on_line); in_line additionally aligns the two axes (a line-on-line).
+            prims = [_p("point_on_line", "A.origin", "B.axis")]
+            if jtype == "in_line":
+                prims.append(_p("axes_coincident", "A.axis", "B.axis"))
+            return prims
+        if jtype in ("point_in_plane", "line_in_plane", "in_plane"):
+            # A point/line kept IN B's plane: the origin lies in the plane; line/in-plane also keep
+            # the moving axis parallel to the plane.
+            prims = [_p("point_in_plane", "A.origin", "B.plane")]
+            if jtype in ("line_in_plane", "in_plane"):
+                prims.append(_p("parallel_dirs", "A.axis", "B.axis"))
+            return prims
+        if jtype in ("cylspherical", "revcylindrical"):
+            # Coaxial like cylindrical (slide + rotate along the shared axis); the spherical or
+            # revolute end adds no positioning primitive beyond coaxiality for the rest solve.
+            return [_p("axes_coincident", "A.axis", "B.axis")]
+        if jtype == "sphspherical":
+            # A link with a ball at each end: position by coincident origins (like a ball joint);
+            # the link's free spin + swing are left to the solver.
+            return [_p("points_coincident", "A.origin", "B.origin")]
+        if jtype == "revrevolute":
+            return [_p("axes_coincident", "A.axis", "B.axis"),
+                    _p("point_in_plane", "A.origin", "B.plane")]
+        if jtype in ("no_rotation", "parallel_axes", "at_point", "constant_velocity",
+                     "perpendicular"):
+            # Relational joints: keep the two frames related without pinning position. no_rotation /
+            # parallel_axes / constant_velocity align axes; perpendicular opposes them; at_point
+            # pins the origins. Mostly motion-side; the rest solve applies the alignment.
+            if jtype == "at_point":
+                return [_p("points_coincident", "A.origin", "B.origin")]
+            if jtype == "perpendicular":
+                return [_p("perpendicular_dirs", "A.axis", "B.axis")]
+            return [_p("parallel_dirs", "A.axis", "B.axis")]
         # point_on_line / slot
         return [_p("point_on_line", "A.origin", "B.axis")]
 

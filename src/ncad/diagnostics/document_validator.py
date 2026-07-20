@@ -10,6 +10,7 @@ side-effect-free. Referenced part connector sets and a motion's assembly are res
 import logging
 import os
 
+from ncad.build.material_error import MaterialError
 from ncad.diagnostics import codes
 from ncad.diagnostics.checks.assembly_reference_check import AssemblyReferenceCheck
 from ncad.diagnostics.checks.material_reference_check import MaterialReferenceCheck
@@ -19,6 +20,7 @@ from ncad.diagnostics.validation_report import ValidationReport
 from ncad.spec.assembly_schema_validator import AssemblySchemaValidator
 from ncad.spec.dependency_validator import DependencyValidator
 from ncad.spec.feature_id_validator import FeatureIdValidator
+from ncad.spec.material_library import MaterialLibrary
 from ncad.spec.schema_issue import SchemaIssue
 from ncad.spec.schema_validator import SchemaValidator
 from ncad.spec.spec_loader import SpecLoader
@@ -68,11 +70,6 @@ class DocumentValidator:
         external library referenced but unreadable (no base_dir, missing file, bad record).
         Skipping is the safe choice: better to miss a typo than to flag every material as unknown.
         """
-        # MaterialLibrary / MaterialError are imported lazily: importing them at module scope pulls
-        # ncad.build (material_library -> ncad.build.material_error -> ncad.build.__init__ ->
-        # DocumentBuilder -> this module), a circular import. A function-scope import breaks it.
-        from ncad.build.material_error import MaterialError
-        from ncad.spec.material_library import MaterialLibrary
         if document.get("materials_library") and not self._base_dir:
             return None
         try:

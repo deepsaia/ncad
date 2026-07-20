@@ -19,14 +19,40 @@ from ncad.assembly.connector_frame import ConnectorFrame
 
 logger = logging.getLogger(__name__)
 
-# ncad joint type -> pyondsel joint kind. Types ncad supports that ASMT also models directly.
+# ncad joint type -> pyondsel joint kind (which maps to an OndselSolver ASMT joint block). Every
+# lower AND higher pair OndselSolver models is wired here, so a mechanism is driven by the real
+# constraint, never a faked coupling law. ncad names on the left, pyondsel kinds on the right (some
+# differ: ncad 'slider'/'ball'/'slot' -> pyondsel 'translational'/'spherical'/'point_in_line').
 _JOINT_KIND = {
+    # lower pairs
     "fixed": "fixed",
     "revolute": "revolute",
     "slider": "translational",
     "cylindrical": "cylindrical",
     "ball": "spherical",
     "universal": "universal",
+    "screw": "screw",
+    "planar": "planar",
+    # compound lower pairs
+    "cylspherical": "cylspherical",
+    "revcylindrical": "revcylindrical",
+    "sphspherical": "sphspherical",
+    "revrevolute": "revrevolute",
+    # higher pairs (point/line/plane incidence). 'slot'/'point_on_line' are ncad aliases for the
+    # point-on-line (pin-in-slot) higher pair OndselSolver calls PointInLineJoint.
+    "point_on_line": "point_in_line",
+    "slot": "point_in_line",
+    "point_in_line": "point_in_line",
+    "point_in_plane": "point_in_plane",
+    "in_line": "in_line",
+    "line_in_plane": "line_in_plane",
+    "in_plane": "in_plane",
+    # relational joints
+    "no_rotation": "no_rotation",
+    "parallel_axes": "parallel_axes",
+    "perpendicular": "perpendicular",
+    "constant_velocity": "constant_velocity",
+    "at_point": "at_point",
 }
 # Which joints a driver can prescribe, and the pyondsel motion kind for each.
 _MOTION_KIND = {"revolute": "rotational", "slider": "translational"}
@@ -117,10 +143,17 @@ class AsmtExporter:
                              joint.get("type"))
                 continue
             a, b = between[0], between[1]
+            # Extra scalars for the joints that carry them (screw pitch, in_plane offset); pyondsel
+            # writes them after the markers. Absent keys stay None and are simply not emitted.
+            extra = {}
+            if joint.get("pitch") is not None:
+                extra["pitch"] = float(joint["pitch"])
+            if joint.get("offset") is not None:
+                extra["offset"] = float(joint["offset"])
             model.add_joint(po.Joint(
                 joint["id"], kind,
                 model.part_path(a["instance"], a["connector"]),
-                model.part_path(b["instance"], b["connector"])))
+                model.part_path(b["instance"], b["connector"]), **extra))
 
     def _add_driver(self, po: Any, model: Any, driver: dict) -> None:
         """Add the driver's time motion: angle (rad) or distance (m) ramped linearly over t 0..1."""
