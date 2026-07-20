@@ -2,7 +2,7 @@ from ncad.spec.assembly_schema_validator import AssemblySchemaValidator
 
 
 def _doc(instances):
-    return {"schema_version": 1, "units": "mm", "assembly": {"instances": instances}}
+    return {"units": "mm", "assembly": {"instances": instances}}
 
 
 def test_valid_assembly_passes() -> None:

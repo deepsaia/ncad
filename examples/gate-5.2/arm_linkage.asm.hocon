@@ -2,7 +2,6 @@
 # solved MATE NETWORK: concentric (hub onto the bracket's pivot axis) + coincident (lever bottom onto
 # the bracket top). The bracket is grounded (lock = true); py-slvs solves the lever's pose so it sits
 # coaxially on the bracket top. The constraint solver is bucket 5.2; DoF-bearing joints are 5.4.
-schema_version = 1
 units = mm
 metadata {
   description = "Arm linkage assembly"

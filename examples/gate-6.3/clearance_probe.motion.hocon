@@ -1,4 +1,3 @@
-schema_version = 1
 # A motion study sweeping the arm one full revolution. The rest pose (arm along +X) is clear; the
 # arm drives through the fixed post (at +Y, radius 45) around crank 90 deg. The `interference` output
 # watches the arm/base pair and flags the frames where they collide - the motion-time interference

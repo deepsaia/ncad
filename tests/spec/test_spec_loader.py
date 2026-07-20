@@ -11,20 +11,20 @@ from ncad.spec.spec_loader import SpecLoader
 
 def test_loads_json_file_to_dict(tmp_path) -> None:
     path = tmp_path / "spec.json"
-    path.write_text('{"schema_version": 1, "seed": 42}')
+    path.write_text('{"seed": 42}')
 
     result = SpecLoader().load(str(path))
 
-    assert result == {"schema_version": 1, "seed": 42}
+    assert result == {"seed": 42}
 
 
 def test_loads_hocon_file_to_dict(tmp_path) -> None:
     path = tmp_path / "spec.hocon"
-    path.write_text("schema_version = 1\nseed = 42\n")
+    path.write_text("seed = 42\n")
 
     result = SpecLoader().load(str(path))
 
-    assert result == {"schema_version": 1, "seed": 42}
+    assert result == {"seed": 42}
 
 
 def test_hocon_resolves_substitutions(tmp_path) -> None:

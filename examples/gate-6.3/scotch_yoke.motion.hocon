@@ -1,4 +1,3 @@
-schema_version = 1
 # A motion study driving the scotch yoke one crank revolution. The crank angle is the driver; the
 # `scotch_yoke` coupling turns it into the yoke's prescribed slide A*sin(theta) (A = 30 mm), so the
 # yoke oscillates +/-30 mm as a pure sinusoid. A 6.1 `coordinate` measure reports the yoke's world-X

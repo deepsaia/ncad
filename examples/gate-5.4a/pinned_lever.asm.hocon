@@ -1,7 +1,6 @@
 # Bucket 5.4a demo: gate-5.2's successor. Instead of a rigid coincident+concentric MATE network,
 # the lever is joined to the grounded bracket by a REVOLUTE joint (a pin), leaving one rotational
 # DoF free about the shared axis. The joint carries a DoF signature [rot Z] that Phase 6 will drive.
-schema_version = 1
 units = mm
 metadata {
   description = "Pinned lever assembly"

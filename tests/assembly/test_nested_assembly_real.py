@@ -5,8 +5,7 @@ import pytest
 
 pytestmark = pytest.mark.slow
 
-_PART = '''schema_version = 2
-units = mm
+_PART = '''units = mm
 parts {
   block { profile = solid,
     features = [
@@ -15,8 +14,7 @@ parts {
       { id = ext, op = extrude, profile = sk, distance = 10 } ] }
 }'''
 
-_CHILD = '''schema_version = 1
-units = mm
+_CHILD = '''units = mm
 assembly {
   instances = [
     { id = lower, file = "p.hocon", part = block, lock = true }
@@ -24,8 +22,7 @@ assembly {
   ]
 }'''
 
-_PARENT = '''schema_version = 1
-units = mm
+_PARENT = '''units = mm
 assembly {
   instances = [
     { id = left, assembly = "child.asm.hocon", placement = { position = [0, 0, 0] } }
@@ -33,8 +30,7 @@ assembly {
   ]
 }'''
 
-_SELF = '''schema_version = 1
-units = mm
+_SELF = '''units = mm
 assembly {
   instances = [
     { id = me, assembly = "loop.asm.hocon" }

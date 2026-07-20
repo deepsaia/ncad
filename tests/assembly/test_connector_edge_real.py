@@ -12,7 +12,7 @@ def test_edge_connector_resolves_on_a_real_part():
     from ncad.build.document_builder import DocumentBuilder
     from ncad.kernel.build123d_kernel import Build123dKernel
 
-    doc = {"schema_version": 2, "units": "mm", "parts": {"p": {"profile": "solid",
+    doc = {"units": "mm", "parts": {"p": {"profile": "solid",
         "connectors": [{"id": "topEdge",
                         "at": "select edges where type='line' and min_z>9.9"}],
         "features": [

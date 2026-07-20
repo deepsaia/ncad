@@ -9,8 +9,7 @@ import pytest
 
 pytestmark = pytest.mark.slow
 
-_DOC = {
-    "schema_version": 2, "units": "mm",
+_DOC = {"units": "mm",
     "parts": {"p": {"profile": "solid", "features": [
         {"id": "prof_sk", "op": "sketch", "plane": "XY", "entities": [
             {"id": "p0", "type": "point", "at": [0, 0]},

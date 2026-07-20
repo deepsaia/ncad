@@ -1,4 +1,3 @@
-schema_version = 2
 units = mm
 # The parts of a plate-mount swivel caster (bucket 5.7 capstone), authored in a shared world frame
 # and laid out clash-free. Coordinate plan (mm):

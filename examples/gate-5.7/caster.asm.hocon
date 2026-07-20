@@ -1,4 +1,3 @@
-schema_version = 1
 units = mm
 # Bucket 5.7 CAPSTONE: a plate-mount swivel caster, laid out clash-free in a shared world frame
 # (the parts are authored in-place, so explicit placements seat them without overlap). It

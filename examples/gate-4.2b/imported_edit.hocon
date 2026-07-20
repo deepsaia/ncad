@@ -2,7 +2,6 @@
 # accompanying test exports from our own kernel first (4.0 reproducibility; no committed binary).
 # This is how the design (4.1 section 10) expresses direct ops on an imported model: an `import`
 # base feature with direct ops appended in the same feature tree.
-schema_version = 2
 units = mm
 metadata {
   description = "Imported edit"

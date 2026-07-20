@@ -10,8 +10,7 @@ def test_curve_pattern_along_a_sketch_path_builds_multiple_bodies():
     from ncad.build.document_builder import DocumentBuilder
     from ncad.kernel.build123d_kernel import Build123dKernel
 
-    doc = {
-        "schema_version": 2, "units": "mm",
+    doc = {"units": "mm",
         "parts": {"p": {"profile": "solid", "features": [
             {"id": "path_sk", "op": "sketch", "plane": "XY", "open": True,
              "entities": [{"id": "a", "type": "point", "at": [0, 0]},

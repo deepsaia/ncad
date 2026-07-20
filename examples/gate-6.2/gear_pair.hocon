@@ -1,4 +1,3 @@
-schema_version = 2
 units = mm
 # A meshing spur-gear pair authored as a PRIMITIVE + PROFILE blockout (the motion authoring lane):
 # a small PINION (z=16) drives a larger GEAR (z=24), same module m=3, so they mesh at a center

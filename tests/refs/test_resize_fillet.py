@@ -6,8 +6,7 @@ pytestmark = pytest.mark.slow
 
 
 def _doc() -> dict:
-    return {
-        "schema_version": 2, "units": "mm",
+    return {"units": "mm",
         "parts": {"p": {"profile": "solid", "features": [
             {"id": "sk", "op": "sketch", "plane": "XY",
              "elements": [{"id": "r", "type": "rectangle", "w": 40, "h": 40}]},

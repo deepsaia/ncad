@@ -16,7 +16,6 @@ def test_connect_snaps_instance_onto_target(tmp_path) -> None:
 
     part = tmp_path / "blocks.hocon"
     _write(part, """
-schema_version = 2
 units = mm
 parts {
   plate { profile = solid,
@@ -36,7 +35,6 @@ parts {
 """)
     asm = tmp_path / "stack.asm.hocon"
     _write(asm, f"""
-schema_version = 1
 units = mm
 assembly {{ instances = [
   {{ id = base, file = "{part.name}", part = plate }}

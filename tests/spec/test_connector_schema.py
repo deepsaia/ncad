@@ -3,7 +3,7 @@ from ncad.spec.schema_validator import SchemaValidator
 
 
 def test_part_with_connectors_validates() -> None:
-    doc = {"schema_version": 2, "units": "mm", "parts": {"p": {
+    doc = {"units": "mm", "parts": {"p": {
         "profile": "solid",
         "connectors": [{"id": "top", "at": "select faces where normal_z > 0.9"}],
         "features": [{"id": "sk", "op": "sketch", "plane": "XY",
@@ -13,7 +13,7 @@ def test_part_with_connectors_validates() -> None:
 
 
 def test_instance_with_connect_validates() -> None:
-    doc = {"schema_version": 1, "units": "mm", "assembly": {"instances": [
+    doc = {"units": "mm", "assembly": {"instances": [
         {"id": "a", "file": "p.hocon", "part": "p"},
         {"id": "b", "file": "p.hocon", "part": "p",
          "connect": {"my": "c1", "to": {"instance": "a", "connector": "c2"}, "flip": True}}]}}

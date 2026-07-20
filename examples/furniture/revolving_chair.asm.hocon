@@ -1,4 +1,3 @@
-schema_version = 1
 units = mm
 # A modern office swivel chair, assembled from revolving_chair.hocon. The base is GROUNDED; the gas-
 # lift column turns in the base socket on a REVOLUTE joint (the swivel); the seat and armrests are

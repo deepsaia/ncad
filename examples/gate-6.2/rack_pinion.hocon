@@ -1,4 +1,3 @@
-schema_version = 2
 units = mm
 # A rack-and-pinion authored as a PRIMITIVE + PROFILE blockout (the motion authoring lane): a
 # rotating PINION (z=18, m=3) meshes a straight RACK, converting rotation into linear travel. The

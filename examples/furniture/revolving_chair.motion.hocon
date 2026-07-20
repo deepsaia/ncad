@@ -1,4 +1,3 @@
-schema_version = 1
 # A motion study driving the office chair's swivel one full turn. The column turns in the grounded
 # base socket (the `swivel` revolute); the seat and armrests are fixed to the column, and the
 # backrest hangs on the recline hinge (which rests upright when not driven), so the OndselSolver

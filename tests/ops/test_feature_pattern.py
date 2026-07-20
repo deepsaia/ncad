@@ -30,7 +30,7 @@ def test_feature_pattern_cuts_a_row_of_holes():
     from ncad.build.document_builder import DocumentBuilder
     from ncad.kernel.build123d_kernel import Build123dKernel
 
-    doc = {"schema_version": 2, "units": "mm",
+    doc = {"units": "mm",
            "parts": {"p": {"profile": "solid", "features": [
                {"id": "cutter_sk", "op": "sketch", "plane": "XY",
                 "elements": [{"id": "c", "type": "circle", "d": 5, "at": [-20, 0]}]},

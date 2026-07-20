@@ -1,4 +1,3 @@
-schema_version = 2
 units = mm
 # A cam-follower authored as a coarse PRIMITIVE BLOCKOUT: a rotating cam lifts a translating follower
 # rod in a guide. The follower's lift is a smooth cam LAW (bucket 6.2): the motion study's `cam`

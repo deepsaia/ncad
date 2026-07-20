@@ -1,7 +1,6 @@
 # Bucket 4.2 demo: a base block with a cylindrical boss unioned on top, then defeature the
 # boss top face (a GREEN case: removing it heals the hole and shrinks the solid).
 # Direct-edit-on-authored-geometry (direct-edit-on-import is bucket 4.3).
-schema_version = 2
 units = mm
 metadata {
   description = "Defeatured block"

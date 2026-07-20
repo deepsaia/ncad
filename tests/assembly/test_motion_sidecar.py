@@ -5,8 +5,7 @@ import pytest
 
 pytestmark = pytest.mark.slow
 
-_PART = '''schema_version = 2
-units = mm
+_PART = '''units = mm
 parts {
   disk { profile = solid, material = steel_1018,
     connectors = [ { id = axis, at = "select faces where type = 'cylinder'" } ],
@@ -15,8 +14,7 @@ parts {
       { id = ext, op = extrude, profile = sk, distance = 6 } ] }
 }'''
 
-_ASM = '''schema_version = 1
-units = mm
+_ASM = '''units = mm
 assembly {
   instances = [
     { id = base, file = "p.hocon", part = disk, lock = true }
@@ -27,14 +25,12 @@ assembly {
       { instance = base, connector = axis }, { instance = wheel, connector = axis } ] } ]
 }'''
 
-_MOTION = '''schema_version = 1
-motion {
+_MOTION = '''motion {
   assembly = "a.asm.hocon"
   driver = { joint = spin, from = 0, to = 360, steps = 8 }
 }'''
 
-_MOTION_WITH_OUTPUTS = '''schema_version = 1
-motion {
+_MOTION_WITH_OUTPUTS = '''motion {
   assembly = "a.asm.hocon"
   driver = { joint = spin, from = 0, to = 360, steps = 8 }
   outputs {

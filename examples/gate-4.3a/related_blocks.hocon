@@ -2,7 +2,6 @@
 # satisfied), exercising the relate op in the feature tree. Real two-body relational behavior
 # (moving one block onto another) is covered by tests/ops/test_relational_real.py, since a
 # two-body moving relation needs multibody addressing deferred past 4.3a.
-schema_version = 2
 units = mm
 metadata {
   description = "Related blocks"

@@ -9,8 +9,7 @@ def test_mirror_across_a_model_face_builds():
     from ncad.build.document_builder import DocumentBuilder
     from ncad.kernel.build123d_kernel import Build123dKernel
 
-    doc = {
-        "schema_version": 2, "units": "mm",
+    doc = {"units": "mm",
         "parts": {"p": {"profile": "solid", "features": [
             {"id": "sk", "op": "sketch", "plane": "XY",
              "elements": [{"id": "r", "type": "rectangle", "w": 10, "h": 10}]},

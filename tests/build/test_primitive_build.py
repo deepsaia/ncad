@@ -4,7 +4,7 @@ import pytest
 
 
 def _doc(features):
-    return {"schema_version": 2, "units": "mm",
+    return {"units": "mm",
             "parts": {"p": {"profile": "solid", "features": features}}}
 
 

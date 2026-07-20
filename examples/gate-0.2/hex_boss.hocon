@@ -5,7 +5,6 @@
 # z = 0 (no in-plane offset or face placement until bucket 0.3's reference model), so
 # this part is deliberately concentric: a hexagonal flange, a round boss rising from it,
 # and a square bore straight down the axis.
-schema_version = 2
 units = mm
 metadata {
   description = "Hex boss"

@@ -1,4 +1,3 @@
-schema_version = 1
 units = mm
 # Bucket 6.0 gate: the canonical crank-slider (see docs/images/crank-slider-reference.jpg), driven
 # by the flywheel angle. Four bodies, 3 revolute + 1 slider, one closed kinematic chain

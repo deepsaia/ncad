@@ -1,4 +1,3 @@
-schema_version = 2
 units = mm
 # A crank-slider mechanism authored as a coarse PRIMITIVE BLOCKOUT (the motion authoring lane): each
 # part is a few primitives, and its mate points are named by COORDINATE (at_point/axis), not by

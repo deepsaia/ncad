@@ -1,4 +1,3 @@
-schema_version = 1
 # A motion study (a first-class document kind, like part / assembly; design section 8): it drives a
 # referenced assembly and produces a trajectory. Here the four-bar's input crank turns a full
 # revolution; the OndselSolver multibody engine (via pyondsel) converges the CLOSED LOOP at each

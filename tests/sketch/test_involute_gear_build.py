@@ -4,8 +4,7 @@ import pytest
 
 pytestmark = pytest.mark.slow
 
-_DOC = """schema_version = 2
-units = mm
+_DOC = """units = mm
 parts {
   gear { profile = solid, material = steel_4140,
     features = [

@@ -5,8 +5,7 @@ import pytest
 
 pytestmark = pytest.mark.slow
 
-_PART = '''schema_version = 2
-units = mm
+_PART = '''units = mm
 parts {
   plate { profile = solid,
     features = [
@@ -20,8 +19,7 @@ parts {
       { id = ext, op = extrude, profile = sk, distance = 8 } ] }
 }'''
 
-_ASM = '''schema_version = 1
-units = mm
+_ASM = '''units = mm
 assembly {
   instances = [
     { id = base, file = "p.hocon", part = plate, lock = true }

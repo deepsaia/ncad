@@ -7,9 +7,7 @@ from ncad.spec.schema_validator import SchemaValidator
 
 
 def _valid_document() -> dict:
-    return {
-        "schema_version": 2,
-        "units": "mm",
+    return {"units": "mm",
         "parts": {
             "block": {
                 "profile": "solid",
@@ -61,7 +59,7 @@ def test_negative_extrude_distance_is_flagged() -> None:
 
 
 def test_selector_string_edges_is_valid() -> None:
-    doc = {"schema_version": 1, "units": "mm", "parts": {"p": {
+    doc = {"units": "mm", "parts": {"p": {
         "profile": "solid", "features": [
             {"id": "rnd", "op": "fillet", "radius": 1,
              "edges": "select edges where created_by='pad'"}]}}}
@@ -69,7 +67,7 @@ def test_selector_string_edges_is_valid() -> None:
 
 
 def test_hole_on_field_is_valid() -> None:
-    doc = {"schema_version": 1, "units": "mm", "parts": {"p": {
+    doc = {"units": "mm", "parts": {"p": {
         "profile": "solid", "features": [
             {"id": "h", "op": "hole", "diameter": 4, "depth": 5,
              "positions": [[1, 1]], "on": "pad.cap(+Z)"}]}}}
@@ -77,7 +75,7 @@ def test_hole_on_field_is_valid() -> None:
 
 
 def test_entities_and_constraints_are_valid() -> None:
-    doc = {"schema_version": 1, "units": "mm", "parts": {"p": {
+    doc = {"units": "mm", "parts": {"p": {
         "profile": "solid", "features": [
             {"id": "sk", "op": "sketch", "plane": "XY",
              "entities": [{"id": "p0", "type": "point", "at": [0, 0]},

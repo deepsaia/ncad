@@ -23,8 +23,7 @@ def _build_ids(document: dict) -> set:
     return {e.id for e in element_map.elements()}
 
 
-_DOC = {
-    "schema_version": 2, "units": "mm",
+_DOC = {"units": "mm",
     "parts": {"p": {"profile": "solid", "features": [
         {"id": "base_sk", "op": "sketch", "plane": "XY",
          "elements": [{"id": "r", "type": "rectangle", "w": 40, "h": 30}]},

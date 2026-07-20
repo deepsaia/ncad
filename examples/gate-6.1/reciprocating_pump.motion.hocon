@@ -1,4 +1,3 @@
-schema_version = 1
 # A motion study with OUTPUTS (bucket 6.1): it drives the pump one flywheel revolution and, on top
 # of the trajectory, emits motion outputs - a TRACE of the plunger crown's world path, a MEASURE of
 # the plunger stroke (the crown's world-Y over time), and the SWEPT (displaced) VOLUME (the stroke

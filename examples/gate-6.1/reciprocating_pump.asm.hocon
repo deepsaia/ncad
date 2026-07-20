@@ -1,4 +1,3 @@
-schema_version = 1
 units = mm
 # Bucket 6.1 gate: a reciprocating (plunger) pump, driven by the flywheel. Kinematically a
 # crank-slider (3 revolute + 1 slider, one closed chain: pump_body -> flywheel -> rod -> plunger ->

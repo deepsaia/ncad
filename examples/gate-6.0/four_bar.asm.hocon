@@ -1,4 +1,3 @@
-schema_version = 1
 units = mm
 # Bucket 6.0 gate: the classic four-bar linkage, driven by the input crank. Four bodies, 4 revolute
 # joints in ONE CLOSED kinematic loop (ground -> crank -> coupler -> rocker -> ground). This is the

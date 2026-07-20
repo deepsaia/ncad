@@ -1,4 +1,3 @@
-schema_version = 1
 units = mm
 # Bucket 6.3 gate: the motion-time INTERFERENCE demonstrator. A driven arm (revolute on the base
 # boss) sweeps about Z; a fixed obstruction post on the base sits in the arm's path, so the arm tip
