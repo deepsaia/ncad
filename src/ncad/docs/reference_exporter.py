@@ -20,6 +20,22 @@ logger = logging.getLogger(__name__)
 
 _KIND_BY_TOP_KEY = {"parts": "part", "assembly": "assembly", "motion": "motion"}
 
+# Op categories, in the order they should appear in the docs (grouped the way CAD tools group
+# their operation menus). Every registered op must map to exactly one category; the exporter
+# asserts full coverage so a newly added op cannot silently fall out of the reference nav.
+_CATEGORIES: list[tuple[str, list[str]]] = [
+    ("Sketching", ["sketch"]),
+    ("Primitives", ["primitive"]),
+    ("Sketched features", ["extrude", "pocket", "revolve", "groove", "sweep", "loft", "rib"]),
+    ("Dress-up", ["fillet", "chamfer", "shell", "draft", "hole", "thread", "wrap"]),
+    ("Patterns & transforms",
+     ["pattern", "mirror", "transform", "feature_pattern", "feature_mirror"]),
+    ("Booleans & multibody", ["boolean", "split"]),
+    ("Direct / synchronous", ["defeature", "offset", "move_face", "relate", "reposition_hole"]),
+    ("Datums", ["datum_plane", "datum_axis"]),
+    ("Import", ["import"]),
+]
+
 
 class ReferenceExporter:
     """Collects the op list + the shipped examples + their op usage into one reference dict."""
@@ -38,11 +54,39 @@ class ReferenceExporter:
         """
         examples = self._discover_examples()
         op_names = self._registry.op_names()
+        category_of = self._category_map(op_names)
         ops = []
         for name in op_names:
             used_in = [e["path"] for e in examples if name in e["ops"]]
-            ops.append({"name": name, "examples": used_in})
-        return {"ops": ops, "examples": examples}
+            ops.append({"name": name, "summary": self._op_summary(name),
+                        "category": category_of[name], "examples": used_in})
+        categories = [{"name": cat, "ops": [n for n in names if n in op_names]}
+                      for cat, names in _CATEGORIES]
+        return {"ops": ops, "categories": categories, "examples": examples}
+
+    def _category_map(self, op_names: list[str]) -> dict[str, str]:
+        """Map each op to its category, asserting every registered op is categorized exactly once.
+
+        A missing op (a new op added to the registry without a category here) raises, so the
+        reference nav can never silently drop an operation.
+        """
+        mapping: dict[str, str] = {}
+        for cat, names in _CATEGORIES:
+            for name in names:
+                mapping[name] = cat
+        uncategorized = [n for n in op_names if n not in mapping]
+        if uncategorized:
+            raise ValueError(
+                f"ops missing a docs category (add them to _CATEGORIES): {sorted(uncategorized)}")
+        return mapping
+
+    def _op_summary(self, name: str) -> str:
+        """The op's one-line description: the first line of its Op class docstring (real, not made
+        up). Empty string if the class has no docstring."""
+        builder = self._registry.get(name)
+        op_class = getattr(builder, "__self__", None)
+        doc = (type(op_class).__doc__ or "").strip() if op_class is not None else ""
+        return doc.split("\n", 1)[0].strip() if doc else ""
 
     def _discover_examples(self) -> list[dict]:
         """Walk ``examples/`` for .hocon documents; tag each by section dir, kind, parts, ops."""

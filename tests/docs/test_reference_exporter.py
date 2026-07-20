@@ -16,6 +16,16 @@ def test_every_op_entry_has_a_name_and_example_list():
         assert isinstance(op["examples"], list)  # may be empty (reference-only op)
 
 
+def test_every_op_is_categorized_exactly_once():
+    export = ReferenceExporter().export()
+    # each op carries a category, and every op appears under exactly one category bucket.
+    for op in export["ops"]:
+        assert op["category"], f"{op['name']} has no category"
+    listed = [name for cat in export["categories"] for name in cat["ops"]]
+    assert sorted(listed) == sorted(op["name"] for op in export["ops"])
+    assert len(listed) == len(set(listed)), "an op is listed in more than one category"
+
+
 def test_examples_discovered_and_tagged_by_section_and_kind():
     export = ReferenceExporter().export()
     examples = export["examples"]

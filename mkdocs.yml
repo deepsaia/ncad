@@ -50,6 +50,13 @@ theme:
 plugins:
   - search
 
+# The ncad Operations Reference is generated from the live op registry + shipped examples at build
+# time by a MkDocs core hook (docs_hooks.py), so the reference can never drift from the code. Core
+# hooks are used instead of the gen-files/literate-nav plugins to avoid their advertising-injecting
+# transitive dependency; no extra packages, pure Python.
+hooks:
+  - docs_hooks.py
+
 markdown_extensions:
   - admonition
   - attr_list
@@ -77,3 +84,7 @@ nav:
       - learn/index.md
   - ncad:
       - ncad/index.md
+      # Operations Reference children are generated + categorized from the op registry by
+      # docs_hooks.py (on_config); this placeholder is replaced at build time.
+      - Operations Reference:
+          - ncad/reference/index.md
