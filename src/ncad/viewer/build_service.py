@@ -110,6 +110,24 @@ class BuildService:
                     name, spec, len(result["issues"]), build_ms)
         return {"assembled": name, "issues": result["issues"], "build_ms": round(build_ms, 1)}
 
+    def validate(self, spec: str) -> dict:
+        """Validate a document spec WITHOUT building; return the ValidationReport dict.
+
+        Resolves the spec by the same allow-rules as build/assemble/motion (part, else assembly,
+        else motion). Raises BuildError only for a disallowed/unresolvable spec; a valid-but-broken
+        document returns ``ok=False`` + diagnostics (never raises for a bad design).
+        """
+        from ncad.diagnostics.document_validator import DocumentValidator
+        from ncad.spec.spec_loader import SpecLoader
+
+        resolved = (self._allowed_path(spec) or self._allowed_assembly_path(spec)
+                    or self._allowed_motion_path(spec))
+        if resolved is None:
+            raise BuildError(f"spec not allowed: {spec}")
+        document = SpecLoader().load(resolved)
+        report = DocumentValidator(base_dir=os.path.dirname(resolved)).validate(document)
+        return report.to_dict()
+
     def _allowed_path(self, spec: str) -> str | None:
         """Resolve ``spec`` if under examples or a recorded meta source, else None."""
         under_examples = self._spec_catalog.resolve(spec)

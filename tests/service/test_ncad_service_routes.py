@@ -27,6 +27,9 @@ class _FakeBuildService:
     def build_motion(self, spec: str) -> dict:
         return {"assembled": "asm", "issues": [], "build_ms": 3.0}
 
+    def validate(self, spec: str) -> dict:
+        return {"ok": True, "diagnostics": []}
+
 
 @pytest.fixture
 def service(tmp_path):
@@ -131,6 +134,19 @@ def test_motion_build_post(service):
     payload = json.loads(body)
     assert payload["assembled"] == "asm" and payload["build_ms"] == 3.0
     assert "motions" in payload
+
+
+def test_validate_post(service):
+    status, body, _ = _post(f"{service.base_url}/api/v1/validate", {"spec": "box.hocon"})
+    assert status == 200
+    payload = json.loads(body)
+    assert "ok" in payload and "diagnostics" in payload
+
+
+def test_validate_post_missing_spec_400(service):
+    with pytest.raises(urllib.error.HTTPError) as exc:
+        _post(f"{service.base_url}/api/v1/validate", {"not_spec": 1})
+    assert exc.value.code == 400
 
 
 def test_build_post_missing_spec_400(service):
