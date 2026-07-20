@@ -36,7 +36,10 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v5
       - name: Install docs dependencies
-        run: uv sync --group docs
+        # Skip pyondsel (a C++ editable path dep for motion, not on PyPI and absent on CI runners);
+        # the docs generator never imports it (all pyondsel imports in ncad are lazy). --frozen uses
+        # the committed lockfile so uv does not try to re-resolve the missing ../pyondsel path.
+        run: uv sync --group docs --frozen --no-install-package pyondsel
       - name: Build site
         run: uv run mkdocs build --strict
         env:
