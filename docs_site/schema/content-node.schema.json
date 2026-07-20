@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://deepsaia.github.io/ncad/schema/content-node.json",
+  "title": "ncad Learn content node",
+  "description": "One node of the Learn taxonomy (subject/topic/subtopic/concept). Enforces SHAPE only: every present field must be well-formed. Authoring-completeness (a concept having a body + In-ncad box + a primary source) is reported separately by the accuracy test, not enforced here, so the site ships before every concept is written.",
+  "$defs": {
+    "ncad": {
+      "type": "object",
+      "properties": {
+        "status": { "type": "string", "enum": ["available", "partial", "wip", "planned", "not-in-scope"] },
+        "notes": { "type": "string" },
+        "refs": { "type": "array", "items": { "type": "string" } },
+        "phase": { "type": "string" },
+        "engine": { "type": ["string", "null"] }
+      },
+      "required": ["status"],
+      "additionalProperties": false
+    },
+    "source": {
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "enum": ["textbook", "standard", "paper", "official-docs", "reference"] },
+        "tier": { "type": "string", "enum": ["primary", "secondary"] },
+        "title": { "type": "string" },
+        "authors": { "type": "string" },
+        "year": { "type": "integer" },
+        "edition": { "type": "string" },
+        "locator": { "type": "string" },
+        "doi": { "type": "string" },
+        "url": { "type": "string" }
+      },
+      "required": ["type", "tier", "title"],
+      "additionalProperties": false
+    },
+    "mathEntry": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "tex": { "type": "string" },
+        "caption": { "type": "string" }
+      },
+      "required": ["tex"],
+      "additionalProperties": false
+    },
+    "node": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9]+([._-][a-z0-9]+)*$" },
+        "level": { "type": "string", "enum": ["subject", "topic", "subtopic", "concept"] },
+        "title": { "type": "string", "minLength": 1 },
+        "slug": { "type": "string" },
+        "order": { "type": "integer" },
+        "summary": { "type": "string" },
+        "body": { "type": "string" },
+        "body_file": { "type": "string" },
+        "model": { "type": "string" },
+        "ncad": { "$ref": "#/$defs/ncad" },
+        "sources": { "type": "array", "items": { "$ref": "#/$defs/source" } },
+        "math": { "type": "array", "items": { "$ref": "#/$defs/mathEntry" } },
+        "see_also": { "type": "array", "items": { "type": "string" } },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "topics": { "type": "array", "items": { "$ref": "#/$defs/node" } },
+        "subtopics": { "type": "array", "items": { "$ref": "#/$defs/node" } },
+        "concepts": { "type": "array", "items": { "$ref": "#/$defs/node" } },
+        "children": { "type": "array", "items": { "$ref": "#/$defs/node" } }
+      },
+      "required": ["id", "level", "title"],
+      "additionalProperties": false
+    }
+  },
+  "$ref": "#/$defs/node"
+}
