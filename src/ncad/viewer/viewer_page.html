@@ -1501,8 +1501,22 @@ function onElementMapReady() {
   updateByMaterialButton();
 }
 
+// The bounding box of the real GEOMETRY only (the picked meshes), excluding helper gizmos. Origin
+// axes + connector triads are AxesHelpers sized to a fraction of their part's extent, so a large
+// part with a horizontal connector (e.g. a glass curtain wall) has a triad arm that plunges well
+// below grade; if those were included, frameModel would ground THAT arm and float the whole model.
+// Framing to meshes only keeps the drop-to-ground based on the actual building, not the markers.
+function meshBox() {
+  const box = new THREE.Box3();
+  let any = false;
+  modelRoot.traverse(o => {
+    if (o.isMesh) { box.expandByObject(o); any = true; }
+  });
+  return any ? box : new THREE.Box3().setFromObject(modelRoot);
+}
+
 function frameModel() {
-  const box = new THREE.Box3().setFromObject(modelRoot);
+  const box = meshBox();
   const size = box.getSize(new THREE.Vector3());
   const center = box.getCenter(new THREE.Vector3());
   modelRoot.position.sub(center);
