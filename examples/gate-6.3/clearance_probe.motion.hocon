@@ -1,0 +1,16 @@
+schema_version = 1
+# A motion study sweeping the arm one full revolution. The rest pose (arm along +X) is clear; the
+# arm drives through the fixed post (at +Y, radius 45) around crank 90 deg. The `interference` output
+# watches the arm/base pair and flags the frames where they collide - the motion-time interference
+# demonstrator (bucket 6.3), marked on the viewer scrubber.
+metadata {
+  description = "Clearance-probe motion study: arm sweeps through the post, interference flagged"
+  tags = [ clearance_probe, motion, interference ]
+}
+motion {
+  assembly = "clearance_probe.asm.hocon"
+  driver = { joint = swing, from = 0, to = 360, steps = 72 }
+  outputs {
+    interference = { pairs = [ [ arm, base ] ] }
+  }
+}

@@ -98,7 +98,7 @@ definitions {
     required = ["id", "type", "between"]
     properties {
       id { type = string }
-      type { enum = ["gear", "belt", "rack_pinion", "universal", "cam"] }
+      type { enum = ["gear", "belt", "rack_pinion", "universal", "cam", "scotch_yoke", "geneva"] }
       between {
         type = array
         minItems = 2
@@ -113,6 +113,11 @@ definitions {
       # persistent-name curve ref on the cam part, for a future curved-contact solve) is also
       # accepted; the object form is what the motion pass enforces today.
       profile { oneOf = [ { type = string }, { type = object } ] }
+      # A scotch_yoke coupling's amplitude (mm): the yoke slide = amplitude * sin(crank angle).
+      amplitude { type = number }
+      # A geneva coupling's wheel spec ({slots, crank_radius}): GenevaWheel turns the crank angle
+      # into the wheel's intermittent (dwell-then-index) rotation via a Fourier-fit law (bucket 6.3).
+      geneva { type = object }
     }
   }
 

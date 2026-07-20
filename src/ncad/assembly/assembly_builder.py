@@ -34,6 +34,7 @@ from ncad.assembly.mate_lowering import MateError, MateLowering
 from ncad.assembly.mate_solver import MateSolver
 from ncad.assembly.measure_evaluator import MeasureEvaluator
 from ncad.assembly.motion_driver import MotionDriver, MotionParamError
+from ncad.assembly.motion_interference import MotionInterference
 from ncad.assembly.motion_mobility import MotionMobility
 from ncad.assembly.motion_outputs_spec import MotionOutputsError, MotionOutputsSpec
 from ncad.assembly.sub_assembly_composer import SubAssemblyComposer
@@ -391,11 +392,17 @@ class AssemblyBuilder:
         coupling_count = len(document["assembly"].get("couplings") or [])
         dof = MotionMobility().report(joints, len(instances), int(solve_block.get("dof", 0)),
                                       coupling_count=coupling_count)
+        # Motion-time interference (bucket 6.3): per-frame collision events, only when the motion
+        # `outputs` block declares it (per-frame booleans are costly). None otherwise (key omitted).
+        interference = self._motion_interference(
+            document, asm_dir, placements_mm, builders, frames, to_metres, motion, issues)
         path = os.path.join(out_dir, f"{name}.motion.json")
         # `source` (the .motion.hocon path) lets the viewer's Regenerate re-run the study after a
         # page reload, mirroring the assembly sidecar's source. Omitted when driven directly.
         payload = {"schema_version": 2, "name": name, "driver": motion["driver"],
                    "frames": frames, "traces": traces, "measures": measures, "dof": dof}
+        if interference is not None:
+            payload["interference"] = interference
         if motion.get("source"):
             payload["source"] = motion["source"]
         with open(path, "w", encoding="utf-8") as handle:
@@ -451,6 +458,38 @@ class AssemblyBuilder:
         traces = TraceExtractor().extract(trace_specs, frames, local_frames, to_metres)
         measures = MeasureEvaluator().evaluate(measure_specs, frames, local_frames, to_metres)
         return traces, measures
+
+    def _motion_interference(self, document: dict, asm_dir: str, placements_mm: dict,
+                             builders: dict, frames: list, to_metres: float, motion: dict,
+                             issues: list) -> list[dict] | None:
+        """Per-frame interference events when the motion `outputs` declares an `interference` block.
+
+        Returns None when not declared (the sidecar omits the key); a list (possibly empty) when it
+        is. Rebuilds each instance's base shape (mm) via the cached DocumentBuilder, then runs
+        MotionInterference over the frames. Pure post-processing over the trajectory (no re-solve).
+        """
+        outputs = motion.get("outputs")
+        if not isinstance(outputs, dict) or "interference" not in outputs:
+            return None
+        block = outputs.get("interference") or {}
+        pairs = block.get("pairs")
+        shapes_by_id: dict = {}
+        for inst in document["assembly"]["instances"]:
+            iid = inst.get("id")
+            if iid not in placements_mm or not inst.get("file"):
+                continue
+            file_key = os.path.abspath(os.path.join(asm_dir, inst["file"]))
+            builder = builders.setdefault(file_key, DocumentBuilder(self._kernel))
+            builds = builder.resolve_part_builds(os.path.join(asm_dir, inst["file"]))
+            shape, _ = builds.get(inst["part"], (None, None))
+            if shape is not None:
+                shapes_by_id[iid] = shape
+        try:
+            return MotionInterference(self._kernel).events(pairs, shapes_by_id, frames, to_metres)
+        except Exception as exc:  # noqa: BLE001 - a checker failure is an issue, not a crash
+            logger.warning("motion interference failed for %s: %s", motion.get("assembly"), exc)
+            issues.append({"message": f"motion interference failed: {exc}"})
+            return []
 
     def _motion_ground_ids(self, document: dict, placements_mm: dict) -> set:
         """Instances that stay fixed during motion: the first placed instance + any lock:true one.

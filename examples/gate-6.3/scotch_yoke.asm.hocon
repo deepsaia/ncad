@@ -1,0 +1,27 @@
+schema_version = 1
+units = mm
+# Bucket 6.3 gate: a scotch yoke, driven by the crank. Three bodies, a revolute (crank on its boss)
+# + a slider (yoke in its guide) + a SCOTCH_YOKE coupling that turns the crank angle into the yoke's
+# prescribed slide A*sin(theta). The crank pin rides the yoke's vertical slot (a higher pair with no
+# native solver constraint), so ncad enforces the slide as a secondary prescribed motion (design
+# section 8), co-solved with the crank driver. The stand is grounded.
+metadata {
+  description = "Driven scotch yoke: crank + slotted yoke, revolute + slider + scotch_yoke coupling"
+  tags = [ scotch_yoke, assembly, mechanism, slot ]
+}
+assembly {
+  instances = [
+    { id = stand, file = "scotch_yoke.hocon", part = stand, lock = true }
+    { id = crank, file = "scotch_yoke.hocon", part = crank }
+    { id = yoke, file = "scotch_yoke.hocon", part = yoke }
+  ]
+  joints = [
+    { id = crankPin, type = revolute, between = [
+      { instance = stand, connector = crankBearing }, { instance = crank, connector = axis } ] }
+    { id = yokeSlide, type = slider, between = [
+      { instance = stand, connector = guide }, { instance = yoke, connector = slide } ] }
+  ]
+  couplings = [
+    { id = drive, type = scotch_yoke, between = [ crankPin, yokeSlide ], amplitude = 30 }
+  ]
+}

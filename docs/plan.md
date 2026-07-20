@@ -1110,6 +1110,21 @@ gained a bounce (ping-pong) loop mode + P/L/0/Space keys and a per-motion fps/st
 **Deferred:** helical/bevel/worm gears + gear microgeometry (3D, Phase later); bidirectional gear/cam
 CONSTRAINTS + force transmission (dynamics, Phase 14).
 
+**Bucket 6.3 (slot / intermittent motion + motion-time interference) is DONE:** the slot mechanisms
+(Geneva, scotch yoke) enforced as SECONDARY derived drivers (OndselSolver has no slot/point-on-line
+constraint). `scotch_yoke` = a clean A*sin slider; `geneva` = an intermittent dwell-then-index law
+from a new `GenevaWheel` generator (one source of truth for the drawn slotted wheel AND the motion),
+emitting a truncated-FOURIER fit of the periodic remainder (the profile gains 360/N per rev). A new
+`MotionInterference` reuses the static `InterferenceChecker` per frame to flag colliding pairs as
+timeline events; OPTIONAL + additive (declared in the motion `outputs`), marked on the viewer
+scrubber. A correct Geneva runs CLASH-FREE (the pin rides one slot the whole engagement), so the
+interference demonstrator is a dedicated `clearance_probe` gate (an intentionally too-tight layout:
+a swept arm drives through a fixed post mid-motion), NOT a broken mechanism. Gates: geneva
+(intermittent, clash-free), scotch_yoke (pure A*sin), clearance_probe (interference demo).
+**Deferred:** native point-on-line/slot SOLVER constraints; CONTINUOUS/swept interference (ours is
+DISCRETE per-frame, tied to solve resolution); contact-as-FORCE (dynamics, Phase 14); a generic
+reusable point_on_line coupling.
+
 - [x] **DoF analysis:** planar Gruebler/Kutzbach mobility from the joint graph next to the static
       solve's rest-pose free DoF (MotionMobility, bucket 6.1); the sketch-DoF 3D analogue
 - [x] **Drivers / forward kinematics:** per-joint driver (revolute angle / slider
@@ -1118,8 +1133,11 @@ CONSTRAINTS + force transmission (dynamics, Phase 14).
 - [ ] **Inverse kinematics:** drive an output frame, solve joint values (bucket 6.4)
 - [x] **Mechanism solver:** step the driver, solve the constraint network per frame
       on OndselSolver (via `pyondsel`); closed loops (crank-slider, four-bar) converge
-- [ ] **Interference during motion:** per-step collision/clearance; collision
-      events on the timeline (bucket 6.3)
+- [x] **Interference during motion (bucket 6.3):** per-frame pairwise collision
+      (MotionInterference reuses the static InterferenceChecker) -> timeline events +
+      viewer scrubber marks; opt-in via the motion `outputs`. DISCRETE per-frame sampling
+      (a between-frames collision can be missed; tied to solve resolution); continuous/
+      swept detection + contact-as-force deferred to dynamics (Phase 14).
 - [x] **Outputs (bucket 6.1):** **trace curves** (a point's world path) + **measures over time**
       (coordinate / distance / angle / **swept volume**), a pure post-process over the trajectory.
       DEFERRED: **motion envelopes** (a whole body's swept solid, needs a mesh sweep) and
@@ -1153,12 +1171,18 @@ recognizable gate candidates as the phase grows)*:
       adds a **measure-over-time** (plunger displacement -> swept volume vs. crank
       angle), proving the measures-over-time output on a familiar machine. (Gate 6.1;
       the single motion-outputs demonstrator: crown trace + stroke + swept volume.)
-- [ ] **Geneva mechanism (intermittent indexer)** - a driving pin + slotted wheel
-      giving intermittent rotation; exercises a **point-on-line / slot** joint and a
-      non-uniform output, a strong test of the stepped solve through engagement /
-      disengagement. Great motion-envelope + interference demo.
-- [ ] **Scotch yoke** - rotary-to-pure-sinusoidal-linear via a pin in a slot; a
-      second slot/point-on-line case, contrasts with the crank-slider's rod linkage.
+- [x] **Geneva mechanism (intermittent indexer)** (gate-6.3) - a drive crank + pin
+      indexing a 4-slot star WHEEL 90 deg per revolution, then DWELLING. Exercises the
+      **slot / higher-pair** case: OndselSolver has no slot constraint, so the wheel's
+      intermittent (dwell-then-index) rotation is enforced as a secondary derived driver
+      from `GenevaWheel`'s law (a truncated FOURIER fit of the piecewise profile, like the
+      cam). The slotted wheel is drawn from the SAME `GenevaWheel` (one source of truth).
+      The **motion-time interference** demonstrator: the pin/slot engagement pinch is
+      flagged per frame and marked on the viewer scrubber.
+- [x] **Scotch yoke** (gate-6.3) - rotary to pure-sinusoidal-linear via a crank pin in a
+      horizontal slot driving a vertical yoke; the `scotch_yoke` coupling enforces the
+      slide = A*sin(theta) (a clean sinusoid, no Fourier fit). A coordinate measure shows
+      the pure sine. Contrasts with the crank-slider's rod linkage.
 - [x] **Cam-follower** (gate-6.2) - a rotating engine-style cam (a base-circle DWELL +
       a distinct cycloidal NOSE) driving a translating follower; exercises a **cam /
       higher-pair** driver (function-of-another-DoF). The cam body is drawn from the SAME

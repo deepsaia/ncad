@@ -109,13 +109,56 @@ def test_malformed_gears_block_raises():
         CouplingDriver().secondary(coupling, _primary())
 
 
+def test_scotch_yoke_slide_is_a_sine():
+    # yoke slide (metres) = amplitude(mm)/1000 * sin(primary_angle). amplitude 30 mm, sweep 0..360.
+    coupling = {"id": "sy", "type": "scotch_yoke", "between": ["crankPin", "yokeSlide"],
+                "amplitude": 30.0}
+    sec = CouplingDriver().secondary(coupling, _primary(joint_id="crankPin"))
+    assert sec["joint_id"] == "yokeSlide" and sec["joint_type"] == "slider"
+    for t in (0.0, 0.25, 0.5):
+        got = _eval(sec["expression"], t)
+        want = 0.030 * math.sin(math.radians(360.0) * t)
+        assert math.isclose(got, want, rel_tol=1e-9, abs_tol=1e-12)
+
+
+def test_geneva_expression_tracks_wheel_angle():
+    from ncad.sketch.geneva_wheel import GenevaWheel
+
+    coupling = {"id": "gv", "type": "geneva", "between": ["crankPin", "wheelPin"],
+                "geneva": {"slots": 4, "crank_radius": 30.0}}
+    sec = CouplingDriver().secondary(coupling, _primary(joint_id="crankPin"))
+    assert sec["joint_id"] == "wheelPin" and sec["joint_type"] == "revolute"
+    wheel = GenevaWheel(slots=4, crank_radius=30.0)
+    for i in range(0, 100):
+        t = i / 100.0
+        got_deg = math.degrees(_eval(sec["expression"], t))
+        assert abs(got_deg - wheel.wheel_angle(360.0 * t)) < 3.0   # Fourier fit within 3 deg
+
+
+def test_geneva_expression_is_smooth():
+    coupling = {"id": "gv", "type": "geneva", "between": ["crankPin", "wheelPin"],
+                "geneva": {"slots": 4, "crank_radius": 30.0}}
+    sec = CouplingDriver().secondary(coupling, _primary(joint_id="crankPin"))
+    for token in ("min", "max", "abs", ">", "<", "if"):
+        assert token not in sec["expression"]
+
+
+def test_scotch_yoke_needs_amplitude():
+    coupling = {"id": "sy", "type": "scotch_yoke", "between": ["crankPin", "yokeSlide"]}
+    with pytest.raises(CouplingDriverError, match="amplitude"):
+        CouplingDriver().secondary(coupling, _primary(joint_id="crankPin"))
+
+
 _OPS = {ast.Add: operator.add, ast.Sub: operator.sub, ast.Mult: operator.mul,
-        ast.Div: operator.truediv, ast.USub: operator.neg, ast.UAdd: operator.pos}
+        ast.Div: operator.truediv, ast.USub: operator.neg, ast.UAdd: operator.pos,
+        ast.Pow: operator.pow}
+_FUNCS = {"sin": math.sin, "cos": math.cos}
 
 
 def _eval(expr, t):
     # Safely evaluate a coupling-driver arithmetic expression at time t via a numeric-only AST walk
-    # (numbers + - * / and the name `time`). No eval(); rejects anything but arithmetic on `time`.
+    # (numbers + - * / ** , the name `time`, and bare sin()/cos()). No eval(); rejects anything
+    # but arithmetic + sin/cos on `time`.
     def walk(node):
         if isinstance(node, ast.Expression):
             return walk(node.body)
@@ -127,6 +170,9 @@ def _eval(expr, t):
             return _OPS[type(node.op)](walk(node.left), walk(node.right))
         if isinstance(node, ast.UnaryOp) and type(node.op) in _OPS:
             return _OPS[type(node.op)](walk(node.operand))
+        if (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                and node.func.id in _FUNCS and len(node.args) == 1):
+            return _FUNCS[node.func.id](walk(node.args[0]))
         raise ValueError(f"unexpected node {ast.dump(node)}")
 
     return walk(ast.parse(expr, mode="eval"))

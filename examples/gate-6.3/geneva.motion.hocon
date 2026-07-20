@@ -1,0 +1,25 @@
+schema_version = 1
+# A motion study driving the Geneva one crank revolution. The crank angle is the driver; the
+# `geneva` coupling turns it into the wheel's intermittent rotation (dwell, then index 90 deg during
+# the engagement window, then dwell). A 6.1 `angle` measure reports the wheel's turned angle (the
+# intermittent staircase). A correct Geneva runs clash-free, so it declares no interference output
+# (the motion-time interference demonstrator is the dedicated clearance_probe gate).
+metadata {
+  description = "Geneva motion study: drive the crank one rev, wheel indexes 90 deg then dwells"
+  tags = [ geneva, motion ]
+}
+motion {
+  assembly = "geneva.asm.hocon"
+  driver = { joint = crankPin, from = 0, to = 360, steps = 72 }
+  outputs {
+    measures = [
+      # The wheel's turned angle: vertex at the wheel axis (0,0), one ray to a FIXED world reference
+      # on the grounded stand, one ray to a rim marker that RIDES the wheel. Grows during the index,
+      # flat during the dwell.
+      { id = wheelAngle, kind = angle,
+        vertex = { instance = wheel, point = [ 0, 0, 0 ] }
+        a = { instance = stand, point = [ 20, 0, 0 ] }
+        b = { instance = wheel, point = [ 20, 0, 0 ] } }
+    ]
+  }
+}

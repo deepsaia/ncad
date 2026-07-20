@@ -13,6 +13,7 @@ import math
 
 from ncad.assembly.cam_profile import CamProfile
 from ncad.sketch.gear_profile import GearProfile
+from ncad.sketch.geneva_wheel import GenevaWheel
 from ncad.sketch.id_padding import PaddedNaming
 
 logger = logging.getLogger(__name__)
@@ -46,6 +47,8 @@ class EntityExpander:
                 out.extend(self._expand_involute_gear(entity, by_id))
             elif kind == "cam_profile":
                 out.extend(self._expand_cam_profile(entity, by_id))
+            elif kind == "geneva_wheel":
+                out.extend(self._expand_geneva_wheel(entity, by_id))
             else:
                 logger.debug("passing through unknown entity type %r", kind)
                 out.append(entity)
@@ -151,6 +154,31 @@ class EntityExpander:
         n = len(outline)
         point_ids = self._naming.child_ids(f"{cid}/p", n)
         line_ids = self._naming.child_ids(f"{cid}/l", n)
+        result: list[dict] = [
+            {"id": point_ids[i], "type": "point", "at": [cx + x, cy + y], "fixed": True}
+            for i, (x, y) in enumerate(outline)]
+        result += [{"id": line_ids[i], "type": "line",
+                    "p1": point_ids[i], "p2": point_ids[(i + 1) % n]} for i in range(n)]
+        return result
+
+    def _expand_geneva_wheel(self, entity: dict, by_id: dict) -> list[dict]:
+        """A Geneva star wheel -> a closed loop of lines from GenevaWheel.outline().
+
+        Draws the slotted wheel from the SAME GenevaWheel that drives the coupling (one source of
+        truth). Derived points are ``fixed`` (locked at the computed coordinates), well-constrained
+        by construction. The entity carries slots/crank_radius (+ optional pin_radius/clearance);
+        ``id``/``type``/``center`` are stripped.
+        """
+        gid = entity["id"]
+        wheel = GenevaWheel(
+            slots=int(entity["slots"]), crank_radius=float(entity["crank_radius"]),
+            pin_radius=float(entity.get("pin_radius", 3.0)),
+            slot_clearance=float(entity.get("slot_clearance", 0.4)))
+        cx, cy = _seed_of(by_id, entity["center"]) if entity.get("center") else (0.0, 0.0)
+        outline = wheel.outline()
+        n = len(outline)
+        point_ids = self._naming.child_ids(f"{gid}/p", n)
+        line_ids = self._naming.child_ids(f"{gid}/l", n)
         result: list[dict] = [
             {"id": point_ids[i], "type": "point", "at": [cx + x, cy + y], "fixed": True}
             for i, (x, y) in enumerate(outline)]

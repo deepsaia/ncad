@@ -195,7 +195,14 @@
   .motion-step { width: 26px; color: var(--muted); }
   #motion-speed-readout { font-size: 12px; color: var(--text); font-weight: 600; min-width: 38px;
     text-align: center; font-variant-numeric: tabular-nums; cursor: default; }
-  #motion-scrub { width: 200px; accent-color: var(--accent); cursor: pointer; }
+  #motion-scrub-wrap { position: relative; width: 200px; height: 18px; display: flex;
+    align-items: center; }
+  #motion-scrub { width: 100%; accent-color: var(--accent); cursor: pointer; }
+  /* Motion-time interference (6.3): red ticks on the scrubber at interfering frame indices. */
+  #motion-clash-marks { position: absolute; left: 0; right: 0; bottom: 0; height: 4px;
+    pointer-events: none; }
+  #motion-clash-marks .clash-tick { position: absolute; width: 2px; height: 4px;
+    background: #e74c3c; transform: translateX(-1px); }
   #motion-readout { font-size: 12px; color: var(--muted); min-width: 50px;
     text-align: right; font-variant-numeric: tabular-nums; }
 
@@ -648,7 +655,10 @@
           aria-label="Loop mode"></button>
       </div>
       <span id="motion-speed-readout" title="Playback speed (replay only; does not re-solve)">1x</span>
-      <input id="motion-scrub" type="range" min="0" max="0" value="0" step="1" aria-label="Motion frame">
+      <div id="motion-scrub-wrap">
+        <input id="motion-scrub" type="range" min="0" max="0" value="0" step="1" aria-label="Motion frame">
+        <div id="motion-clash-marks" aria-hidden="true"></div>
+      </div>
       <span id="motion-readout">0&deg;</span>
     </div>
   </main>
@@ -2580,6 +2590,26 @@ function resetMotion() {
   // Trace lines are children of modelRoot (cleared with the scene in clearModel); just drop refs.
   traceLines = [];
   renderMeasures(null);
+  renderClashMarks([], 0);
+}
+
+function renderClashMarks(events, frameCount) {
+  // Red ticks on the scrubber at interfering frame indices (motion-time interference, 6.3).
+  const host = document.getElementById("motion-clash-marks");
+  if (!host) return;
+  host.innerHTML = "";
+  if (!events.length || frameCount < 2) return;
+  const seen = new Set();
+  for (const ev of events) {
+    if (seen.has(ev.frame)) continue;
+    seen.add(ev.frame);
+    const tick = document.createElement("div");
+    tick.className = "clash-tick";
+    tick.style.left = (100 * ev.frame / (frameCount - 1)) + "%";
+    tick.title = `clash: ${ev.a} <> ${ev.b} (frame ${ev.frame})`;
+    host.appendChild(tick);
+  }
+  log(`motion interference: ${seen.size} frame(s) with contact`, "warn");
 }
 
 function setupMotion(name, instanceNodes) {
@@ -2602,6 +2632,7 @@ function setupMotion(name, instanceNodes) {
     buildTraceLines(doc.traces || []);   // motion outputs (bucket 6.1); no-op if none declared
     renderMeasures(doc.measures || []);
     renderMobility(doc.dof || null);
+    renderClashMarks(doc.interference || [], doc.frames.length);   // motion-time interference (6.3)
     showMotionFrame(0);
     log(`motion: ${doc.frames.length} frames, driver ${doc.driver ? doc.driver.joint : "?"}`, "info");
   }).catch(() => { /* motion is optional; a fetch error just means no timeline */ });

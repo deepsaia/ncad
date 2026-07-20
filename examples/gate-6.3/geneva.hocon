@@ -1,0 +1,81 @@
+schema_version = 2
+units = mm
+# A Geneva (Maltese-cross) indexer authored as a PROFILE + PRIMITIVE blockout (the motion authoring
+# lane): a drive CRANK carries a PIN at radius 30; once per crank revolution the pin enters a slot in
+# the 4-slot star WHEEL and indexes it 90 deg, then the wheel DWELLS while the pin is clear. The
+# `geneva` coupling (in the assembly) turns the crank angle into the wheel's intermittent rotation
+# via GenevaWheel's Fourier-fit law (the wheel outline is drawn from the SAME GenevaWheel, one source
+# of truth). Center distance c = 30/sin(45) = 42.43 mm; the crank axis sits at (42.43, 0) from the
+# wheel axis at the origin. Motion-time interference watches the pin/slot engagement pinch.
+#
+# Layout (both spin about Z; wheel at origin, crank at +X; z-layered so the pin reaches the slot):
+#   stand : base plate + a wheel bearing post + a crank bearing post. Grounded.
+#   wheel : the 4-slot geneva_wheel profile extruded (z 0..8) on a hub; indexes 90 deg then dwells.
+#   crank : an arm + a PIN post (at radius 30, z 0..8 into the wheel slot) + a hub. Driven.
+metadata {
+  description = "Geneva indexer blockout: drive crank + 4-slot star wheel, intermittent motion"
+  tags = [ geneva, mechanism, blockout, slot ]
+}
+parts {
+  # Wheel: the 4-slot star wheel (geneva_wheel profile) extruded z 0..8, on a hub that seats back in
+  # the stand's wheel post. Indexes 90 deg per crank revolution, then dwells.
+  wheel { profile = solid, material = steel_4140,
+    connectors = [
+      { id = axis, at_point = [ 0, 0, 0 ], axis = [ 0, 0, 1 ] }
+    ],
+    features = [
+      { id = sk, op = sketch, plane = XY, plane_offset = 0,
+        entities = [
+          { id = c, type = point, at = [ 0, 0 ] }
+          { id = star, type = geneva_wheel, slots = 4, crank_radius = 30, pin_radius = 4,
+            center = c }
+        ]
+        constraints = [ { type = fix, of = c } ] }
+      { id = disc, op = extrude, profile = sk, distance = 8 }
+      { id = hub, op = primitive, kind = cylinder, d = 12, h = 12, plane = XY, plane_offset = -16,
+        at = [ 0, 0 ] }
+      { id = whole, op = boolean, operation = union, target = disc, tool = hub }
+    ] }
+  # Crank: an arm from the crank axis (42.43, 0) out to the pin, a PIN post at radius 30 (world x =
+  # 72.43 at rest, reaching z 0..10 into the wheel's slot plane), and a hub into the stand post. At
+  # rest (crank 0) the pin is FAR from the wheel (dwell); at crank 180 it is deep in a slot (indexing).
+  # The arm rides ABOVE the wheel (z 9..15, clear of the wheel z 0..8) so it never sweeps through the
+  # wheel body; the pin HANGS DOWN from the arm into the slot plane (z 0..8). The hub is a tall shaft
+  # at the crank axis (x=42.4, clear of the wheel since 42.4 > wheel rim 24.4) down into the post bore.
+  crank { profile = solid, material = aluminium_6061,
+    connectors = [
+      { id = axis, at_point = [ 42.426, 0, 0 ], axis = [ 0, 0, 1 ] }
+    ],
+    features = [
+      { id = arm, op = primitive, kind = box, w = 44, d = 12, h = 6, plane = XY,
+        plane_offset = 9, at = [ 36.426, -6 ] }
+      { id = hub, op = primitive, kind = cylinder, d = 16, h = 31, plane = XY, plane_offset = -16,
+        at = [ 42.426, 0 ] }
+      { id = pin, op = primitive, kind = cylinder, d = 8, h = 15, plane = XY, plane_offset = 0,
+        at = [ 72.426, 0 ] }
+      { id = c1, op = boolean, operation = union, target = arm, tool = hub }
+      { id = whole, op = boolean, operation = union, target = c1, tool = pin }
+    ] }
+  # Stand: the grounded frame, ONE connected solid: a base plate under both axes + a bearing post at
+  # the wheel axis and at the crank axis (bored for the hubs with running clearance).
+  stand { profile = solid, material = steel_1018,
+    connectors = [
+      { id = wheelBearing, at_point = [ 0, 0, 0 ], axis = [ 0, 0, 1 ] }
+      { id = crankBearing, at_point = [ 42.426, 0, 0 ], axis = [ 0, 0, 1 ] }
+    ],
+    features = [
+      { id = base, op = primitive, kind = box, w = 130, d = 90, h = 8, plane = XY,
+        plane_offset = -16, at = [ -45, -45 ] }
+      { id = postw, op = primitive, kind = cylinder, d = 18, h = 12, plane = XY,
+        plane_offset = -16, at = [ 0, 0 ] }
+      { id = postc, op = primitive, kind = cylinder, d = 22, h = 12, plane = XY,
+        plane_offset = -16, at = [ 42.426, 0 ] }
+      { id = s1, op = boolean, operation = union, target = base, tool = postw }
+      { id = frame, op = boolean, operation = union, target = s1, tool = postc }
+      { id = borew, op = primitive, kind = cylinder, d = 12.6, h = 16, plane = XY,
+        plane_offset = -18, at = [ 0, 0 ] }
+      { id = drilled, op = boolean, operation = cut, target = frame, tool = borew }
+      { id = borec, op = primitive, kind = cylinder, d = 16.6, h = 16, plane = XY,
+        plane_offset = -18, at = [ 42.426, 0 ] }
+      { id = whole, op = boolean, operation = cut, target = drilled, tool = borec }
+    ] } }

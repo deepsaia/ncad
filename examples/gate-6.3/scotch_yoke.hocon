@@ -1,0 +1,80 @@
+schema_version = 2
+units = mm
+# A scotch yoke authored as a coarse PRIMITIVE BLOCKOUT (the motion authoring lane): a crank spins
+# about Z; a pin at radius A=30 on the crank rides a HORIZONTAL SLOT (long in X) in a yoke that slides
+# vertically (+Y) in a guide. The slot absorbs the pin's horizontal travel (A*cos); the pin's Y
+# drives the yoke, so the yoke slide is the pure sinusoid A*sin(theta) (rotary -> pure-sinusoidal-
+# linear). The `scotch_yoke` coupling enforces the slide from the crank angle (no cam-contact solve).
+#
+# Layout (crank spins about Z at origin; yoke slides along +Y; z-layered so the pin reaches the slot):
+#   stand : base plate + a crank bearing boss + two vertical guide rails the yoke slides between.
+#   crank : a disc on a hub in the boss, with a tall PIN post at radius 30 reaching up into the yoke.
+#   yoke  : a plate (z above the crank) with a horizontal slot; slides vertically. Driven slide (+Y).
+metadata {
+  description = "Scotch yoke blockout: crank pin in a vertical slot drives a sinusoidal yoke slide"
+  tags = [ scotch_yoke, mechanism, blockout, slot ]
+}
+parts {
+  # Crank: a disc (r=22) on a hub that seats back in the stand boss, with a pin post at radius 30
+  # (x=30 at rest) rising to z 8..22 so it reaches up into the yoke's slot (z 10..18).
+  crank { profile = solid, material = steel_4140,
+    connectors = [
+      { id = axis, at_point = [ 0, 0, 0 ], axis = [ 0, 0, 1 ] }
+    ],
+    features = [
+      { id = disc, op = primitive, kind = cylinder, d = 76, h = 8, plane = XY, plane_offset = -4 }
+      { id = hub, op = primitive, kind = cylinder, d = 12, h = 12, plane = XY, plane_offset = -16,
+        at = [ 0, 0 ] }
+      { id = pin, op = primitive, kind = cylinder, d = 8, h = 18, plane = XY, plane_offset = -4,
+        at = [ 30, 0 ] }
+      { id = c1, op = boolean, operation = union, target = disc, tool = hub }
+      { id = web, op = boolean, operation = union, target = c1, tool = pin }
+      # Four lightening / balance holes through the web (d10 on a 26 mm bolt circle), the way a real
+      # crank web is drilled to cut mass; clear of the hub, the pin, and the rim.
+      { id = h1, op = primitive, kind = cylinder, d = 10, h = 12, plane = XY, plane_offset = -6,
+        at = [ 0, 26 ] }
+      { id = h2, op = primitive, kind = cylinder, d = 10, h = 12, plane = XY, plane_offset = -6,
+        at = [ 0, -26 ] }
+      { id = h3, op = primitive, kind = cylinder, d = 10, h = 12, plane = XY, plane_offset = -6,
+        at = [ -26, 0 ] }
+      { id = d1, op = boolean, operation = cut, target = web, tool = h1 }
+      { id = d2, op = boolean, operation = cut, target = d1, tool = h2 }
+      { id = whole, op = boolean, operation = cut, target = d2, tool = h3 }
+    ] }
+  # Yoke: a plate (z 10..18) sliding along +Y in the stand guide, with a HORIZONTAL slot (long in X,
+  # a thin box cut through) the crank pin rides. The pin's X sweep (+/-30) rides the slot; the pin's
+  # Y drives the yoke. The `slide` connector (+Y) is the slide axis; its world-Y over the motion is
+  # the yoke displacement A*sin(theta).
+  yoke { profile = solid, material = aluminium_6061,
+    connectors = [
+      { id = slide, at_point = [ 0, 0, 14 ], axis = [ 0, 1, 0 ] }
+    ],
+    features = [
+      { id = plate, op = primitive, kind = box, w = 90, d = 60, h = 8, plane = XY,
+        plane_offset = 10, at = [ -45, -30 ] }
+      { id = slot, op = primitive, kind = box, w = 84, d = 10, h = 12, plane = XY,
+        plane_offset = 8, at = [ -42, -5 ] }
+      { id = whole, op = boolean, operation = cut, target = plate, tool = slot }
+    ] }
+  # Stand: the grounded frame, ONE connected solid: a base plate, a crank bearing boss (bored for the
+  # crank hub), and a raised guide channel the yoke plate slides in. Bores cut for running clearance.
+  stand { profile = solid, material = steel_1018,
+    connectors = [
+      { id = crankBearing, at_point = [ 0, 0, 0 ], axis = [ 0, 0, 1 ] }
+      { id = guide, at_point = [ 0, 0, 14 ], axis = [ 0, 1, 0 ] }
+    ],
+    features = [
+      { id = base, op = primitive, kind = box, w = 110, d = 160, h = 8, plane = XY,
+        plane_offset = -16, at = [ -55, -80 ] }
+      { id = boss, op = primitive, kind = cylinder, d = 18, h = 12, plane = XY, plane_offset = -16 }
+      { id = raile, op = primitive, kind = box, w = 8, d = 160, h = 14, plane = XY,
+        plane_offset = -8, at = [ 46, -80 ] }
+      { id = railw, op = primitive, kind = box, w = 8, d = 160, h = 14, plane = XY,
+        plane_offset = -8, at = [ -54, -80 ] }
+      { id = s1, op = boolean, operation = union, target = base, tool = boss }
+      { id = s2, op = boolean, operation = union, target = s1, tool = raile }
+      { id = frame, op = boolean, operation = union, target = s2, tool = railw }
+      { id = bore, op = primitive, kind = cylinder, d = 12.6, h = 16, plane = XY,
+        plane_offset = -18 }
+      { id = whole, op = boolean, operation = cut, target = frame, tool = bore }
+    ] } }

@@ -25,8 +25,12 @@ translational), as a function of ``time`` matching the primary's ramp. Pure; one
 import math
 
 from ncad.sketch.gear_profile import GearProfile, GearProfileError
+from ncad.sketch.geneva_wheel import GenevaWheel, GenevaWheelError
 
 _RATIO_TYPES = frozenset({"gear", "belt", "rack_pinion"})
+# Slot / intermittent laws (bucket 6.3): the derived joint follows a closed-form of the crank angle,
+# not a constant ratio. scotch_yoke -> a slider = A*sin; geneva -> a revolute = its Fourier-fit law.
+_SLOT_TYPES = frozenset({"scotch_yoke", "geneva"})
 
 
 class CouplingDriverError(Exception):
@@ -45,9 +49,9 @@ class CouplingDriver:
             not drive the coupling's first joint.
         """
         ctype = coupling.get("type")
-        if ctype not in _RATIO_TYPES:
+        if ctype not in _RATIO_TYPES and ctype not in _SLOT_TYPES:
             raise CouplingDriverError(
-                f"coupling {coupling.get('id')!r} type {ctype!r} is not a rate-ratio coupling")
+                f"coupling {coupling.get('id')!r} type {ctype!r} is not an enforceable coupling")
         between = coupling.get("between") or []
         if len(between) < 2:
             raise CouplingDriverError(
@@ -57,6 +61,10 @@ class CouplingDriver:
                 f"coupling {coupling.get('id')!r} primary joint {between[0]!r} is not the one the "
                 f"driver drives ({primary.get('joint_id')!r})")
         derived_joint = between[1]
+        if ctype == "scotch_yoke":
+            return self._scotch_yoke(coupling, derived_joint, primary)
+        if ctype == "geneva":
+            return self._geneva(coupling, derived_joint, primary)
         # The primary ramp in radians: a0 + span*time (the driver sweeps degrees over t 0..1).
         a0 = math.radians(float(primary["start"]))
         span = math.radians(float(primary["end"]) - float(primary["start"]))
@@ -70,6 +78,35 @@ class CouplingDriver:
         coef = self._angular_ratio(coupling, reverses=(ctype == "gear"))
         return {"joint_id": derived_joint, "joint_type": "revolute",
                 "expression": f"{coef} * {ramp}"}
+
+    def _scotch_yoke(self, coupling: dict, derived_joint: str, primary: dict) -> dict:
+        """A scotch yoke: the yoke slide = amplitude * sin(primary_angle), in metres.
+
+        The crank pin rides a slot in the yoke; the yoke's horizontal slide is the pure sinusoid
+        A*sin(theta), a smooth ASMT translational expression (no Fourier fit needed).
+        """
+        amplitude = coupling.get("amplitude")
+        if not isinstance(amplitude, (int, float)) or amplitude <= 0:
+            raise CouplingDriverError(
+                f"coupling {coupling.get('id')!r} needs a positive 'amplitude' (mm)")
+        a0 = math.radians(float(primary["start"]))
+        span = math.radians(float(primary["end"]) - float(primary["start"]))
+        amp_m = float(amplitude) / 1000.0
+        return {"joint_id": derived_joint, "joint_type": "slider",
+                "expression": f"{amp_m} * sin({a0} + {span}*time)"}
+
+    def _geneva(self, coupling: dict, derived_joint: str, primary: dict) -> dict:
+        """A Geneva drive: the wheel rotation from GenevaWheel's Fourier-fit intermittent law."""
+        spec = coupling.get("geneva") or {}
+        try:
+            wheel = GenevaWheel(slots=int(spec["slots"]),
+                                crank_radius=float(spec["crank_radius"]))
+        except (KeyError, TypeError, GenevaWheelError) as exc:
+            raise CouplingDriverError(
+                f"coupling {coupling.get('id')!r} 'geneva' block is malformed: {exc}") from exc
+        span = float(primary["end"]) - float(primary["start"])
+        return {"joint_id": derived_joint, "joint_type": "revolute",
+                "expression": wheel.expression(float(primary["start"]), span)}
 
     def _angular_ratio(self, coupling: dict, reverses: bool) -> float:
         """The signed angular ratio (omega_derived / omega_driver) for a gear/belt coupling.

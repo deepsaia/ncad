@@ -1,0 +1,20 @@
+schema_version = 1
+# A motion study driving the scotch yoke one crank revolution. The crank angle is the driver; the
+# `scotch_yoke` coupling turns it into the yoke's prescribed slide A*sin(theta) (A = 30 mm), so the
+# yoke oscillates +/-30 mm as a pure sinusoid. A 6.1 `coordinate` measure reports the yoke's world-X
+# slide, which tracks 30*sin(theta).
+metadata {
+  description = "Scotch-yoke motion study: drive the crank, yoke slides as a pure sinusoid"
+  tags = [ scotch_yoke, motion ]
+}
+motion {
+  assembly = "scotch_yoke.asm.hocon"
+  driver = { joint = crankPin, from = 0, to = 360, steps = 72 }
+  outputs {
+    measures = [
+      # The yoke's linear slide: world-X of a point on the yoke (its slide connector origin). Tracks
+      # A*sin(crank_angle) = 30*sin(theta).
+      { id = slide, kind = coordinate, instance = yoke, point = [ 0, 0, 14 ], axis = y }
+    ]
+  }
+}
