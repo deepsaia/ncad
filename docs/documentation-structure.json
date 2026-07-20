@@ -47,13 +47,14 @@
               "level": "subtopic",
               "title": "Rotation Representations",
               "concepts": [
-                {"id": "foundations.transforms.rotations.matrix", "level": "concept", "title": "Rotation Matrices & SO(3)"},
+                {"id": "foundations.transforms.rotations.matrix", "level": "concept", "title": "Rotation Matrices & SO(3)", "body_file": "foundations/rotation-matrices.md", "math": [{"id": "so3", "tex": "R^\\top R = I,\\quad \\det R = +1", "caption": "The defining conditions of a rotation matrix"}], "ncad": {"status": "available", "notes": "Rotation matrices act on geometry in the kernel; other rotation forms lower to them.", "refs": ["/ncad/reference/index.md"], "engine": null}, "sources": [{"type": "textbook", "tier": "primary", "title": "Modern Robotics", "authors": "Lynch & Park", "year": 2017, "locator": "Ch. 3", "url": "http://hades.mech.northwestern.edu/index.php/Modern_Robotics"}]},
                 {"id": "foundations.transforms.rotations.euler", "level": "concept", "title": "Euler Angles & Gimbal Lock"},
                 {"id": "foundations.transforms.rotations.axis-angle", "level": "concept", "title": "Axis-Angle & Rodrigues' Formula"},
                 {
                   "id": "foundations.transforms.rotations.quaternions",
                   "level": "concept",
                   "title": "Unit Quaternions",
+                  "body_file": "foundations/quaternions.md",
                   "math": [{"id": "quat", "tex": "q = w + x\\,i + y\\,j + z\\,k,\\quad \\lVert q \\rVert = 1", "caption": "A unit quaternion encoding a 3D rotation"}],
                   "ncad": {"status": "available", "notes": "Used internally for orientation in transforms and assembly placement.", "refs": ["/ncad/reference/schema"], "engine": null},
                   "sources": [{"type": "textbook", "tier": "primary", "title": "Modern Robotics", "authors": "Lynch & Park", "year": 2017, "locator": "Ch. 3", "url": "http://hades.mech.northwestern.edu/index.php/Modern_Robotics"}],
@@ -66,7 +67,7 @@
               "level": "subtopic",
               "title": "Homogeneous & Rigid-Body Transforms (SE(3))",
               "concepts": [
-                {"id": "foundations.transforms.homogeneous.matrices", "level": "concept", "title": "Homogeneous Transformation Matrices"},
+                {"id": "foundations.transforms.homogeneous.matrices", "level": "concept", "title": "Homogeneous Transformation Matrices", "body_file": "foundations/homogeneous-transforms.md", "math": [{"id": "se3", "tex": "T = \\begin{bmatrix} R & t \\\\ 0\\ 0\\ 0 & 1 \\end{bmatrix}", "caption": "A rigid-body transform in SE(3)"}], "ncad": {"status": "available", "notes": "Assembly placement, connector/mate frames, and feature coordinate systems are homogeneous-matrix compositions.", "refs": ["/ncad/reference/index.md"], "engine": null}, "sources": [{"type": "textbook", "tier": "primary", "title": "Modern Robotics", "authors": "Lynch & Park", "year": 2017, "locator": "Ch. 3", "url": "http://hades.mech.northwestern.edu/index.php/Modern_Robotics"}]},
                 {"id": "foundations.transforms.homogeneous.se3", "level": "concept", "title": "Rigid-Body Motion & SE(3)"}
               ]
             }
@@ -134,7 +135,7 @@
           "summary": "Root finding, ODE integration, linear solvers, and optimization used by solvers and simulators.",
           "subtopics": [
             {"id": "foundations.numerics.root-finding", "level": "subtopic", "title": "Root Finding", "concepts": [
-              {"id": "foundations.numerics.root-finding.newton", "level": "concept", "title": "Newton-Raphson Iteration"},
+              {"id": "foundations.numerics.root-finding.newton", "level": "concept", "title": "Newton-Raphson Iteration", "body_file": "foundations/newton-raphson.md", "math": [{"id": "newton", "tex": "x_{k+1} = x_k - J(x_k)^{-1} f(x_k)", "caption": "The multivariate Newton step"}], "ncad": {"status": "available", "notes": "The root-finding core beneath sketch, assembly, and mechanism solves.", "refs": ["/ncad/reference/index.md"], "engine": "py-slvs"}, "sources": [{"type": "textbook", "tier": "primary", "title": "Numerical Recipes", "authors": "Press, Teukolsky, Vetterling, Flannery", "year": 2007, "edition": "3rd", "locator": "Ch. 9", "url": "https://numerical.recipes/"}]},
               {"id": "foundations.numerics.root-finding.convergence", "level": "concept", "title": "Convergence & Robustness (Bracketing, Damping)"}
             ]},
             {"id": "foundations.numerics.integration", "level": "subtopic", "title": "ODE Integration", "concepts": [
@@ -165,7 +166,7 @@
               {"id": "foundations.units-robustness.float.epsilon", "level": "concept", "title": "Machine Epsilon & Numerical Tolerance"},
               {"id": "foundations.units-robustness.float.robustness", "level": "concept", "title": "Geometric Robustness & Exact Predicates"}
             ]},
-            {"id": "foundations.units-robustness.exact-approx", "level": "subtopic", "title": "Exact vs Approximate", "concepts": [{"id": "foundations.units-robustness.exact-approx.brep-vs-mesh", "level": "concept", "title": "Exact (B-rep) vs Approximate (Tessellated) Representation", "ncad": {"status": "available", "notes": "ncad builds exact B-rep (OCCT) and tessellates only for the viewer.", "refs": ["/ncad/explained/determinism"], "engine": null}}]}
+            {"id": "foundations.units-robustness.exact-approx", "level": "subtopic", "title": "Exact vs Approximate", "concepts": [{"id": "foundations.units-robustness.exact-approx.brep-vs-mesh", "level": "concept", "title": "Exact (B-rep) vs Approximate (Tessellated) Representation", "body_file": "foundations/brep-vs-mesh.md", "ncad": {"status": "available", "notes": "ncad builds exact B-rep (OCCT) and tessellates only for the viewer.", "refs": ["/ncad/reference/index.md"], "engine": null}, "sources": [{"type": "textbook", "tier": "primary", "title": "Geometric Modeling", "authors": "Mortenson, M. E.", "year": 2006, "edition": "3rd", "locator": "Ch. 1", "url": "https://www.worldcat.org/title/geometric-modeling/oclc/70172144"}]}]}
           ]
         }
       ]
