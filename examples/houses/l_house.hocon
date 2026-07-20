@@ -1,4 +1,3 @@
-schema_version = 2
 units = mm
 # Parts of an L-shaped two-storey house, authored in a shared world frame and composed by an assembly
 # (l_house.asm.hocon). Pure generic-op modeling, no building profile. This is a step up from the
@@ -28,6 +27,7 @@ materials {
   render   { physical { density = 1600 }, appearance { color = [ 0.90, 0.88, 0.82 ] } }
   concrete { physical { density = 2400 }, appearance { color = [ 0.70, 0.70, 0.68 ] } }
   slate    { physical { density = 2700 }, appearance { color = [ 0.26, 0.27, 0.32 ] } }
+  railing  { physical { density = 7850 }, appearance { color = [ 0.30, 0.31, 0.34 ] } }
   wood     { physical { density = 650 },  appearance { color = [ 0.36, 0.22, 0.12 ] } }
   glass    { physical { density = 2500 },
              appearance { color = [ 0.58, 0.76, 0.85 ], opacity = 0.32, metalness = 0.1, roughness = 0.05 } }
@@ -77,8 +77,11 @@ parts {
         plane_offset = 900, at = [ 11700, 2400 ] }
       { id = ground_walls, op = boolean, operation = cut, target = g5, tool = ew1 }
     ] }
-  # Floor band (string course between storeys): a concrete slab over the L footprint, expanded 120 mm
-  # all round so it reads as a proud banding line, z 3000..3200.
+  # Floor band + inter-storey floor slab (the ceiling between the two storeys): a concrete slab over
+  # the L footprint, expanded 120 mm all round so it reads as a proud banding line, z 3000..3200.
+  # A STAIRWELL is cut through it (x 2400..3600, y 2400..6300) so the staircase passes up to the
+  # upper floor - the opening a person climbs through. The well spans the whole rising flight so the
+  # stair never grazes the solid slab.
   floor_band { profile = solid, material = concrete,
     connectors = [ { id = base, at_point = [ 0, 0, 3000 ], axis = [ 0, 0, 1 ] } ],
     features = [
@@ -86,6 +89,10 @@ parts {
         elements = [ { id = p, type = polygon, points = [
           [ -120, -120 ], [ 12120, -120 ], [ 12120, 6120 ], [ 6120, 6120 ], [ 6120, 10120 ], [ -120, 10120 ] ] } ] }
       { id = band, op = extrude, profile = sk, distance = 200 }
+      # Stairwell opening: a rectangular hole for the staircase (1200 x 3900), cut clean through.
+      { id = wellcut, op = primitive, kind = box, w = 1200, d = 3900, h = 400, plane = XY,
+        plane_offset = 2900, at = [ 2400, 2400 ] }
+      { id = floor_band, op = boolean, operation = cut, target = band, tool = wellcut }
     ] }
   # Upper floor walls: the same L footprint, authored at z 3200, extruded 3000, shelled, windows cut
   # (sills at world z 4100 = the upper floor + 900). Rendered (plaster) finish.
@@ -97,16 +104,18 @@ parts {
           [ 0, 0 ], [ 12000, 0 ], [ 12000, 6000 ], [ 6000, 6000 ], [ 6000, 10000 ], [ 0, 10000 ] ] } ] }
       { id = mass, op = extrude, profile = sk, distance = 3000 }
       { id = ring, op = shell, thickness = 200, openings = horizontal }
-      # Three front windows (x=2500, 6000, 9500), sill world z=4100.
-      { id = ufw1, op = primitive, kind = box, w = 1200, d = 400, h = 1200, plane = XY,
-        plane_offset = 4100, at = [ 1900, -100 ] }
-      { id = u1, op = boolean, operation = cut, target = ring, tool = ufw1 }
+      # Two front BALCONY doors (x=2500, x=9500): floor-length openings (1400 wide x 2100 tall from
+      # the upper floor z 3200, i.e. world z 3200..5300) so each opens onto a projecting balcony.
+      { id = ufd1, op = primitive, kind = box, w = 1400, d = 400, h = 2100, plane = XY,
+        plane_offset = 3200, at = [ 1800, -100 ] }
+      { id = u1, op = boolean, operation = cut, target = ring, tool = ufd1 }
+      { id = ufd2, op = primitive, kind = box, w = 1400, d = 400, h = 2100, plane = XY,
+        plane_offset = 3200, at = [ 8800, -100 ] }
+      { id = u2, op = boolean, operation = cut, target = u1, tool = ufd2 }
+      # One centered front window (x=6000), sill world z=4100.
       { id = ufw2, op = primitive, kind = box, w = 1200, d = 400, h = 1200, plane = XY,
         plane_offset = 4100, at = [ 5400, -100 ] }
-      { id = u2, op = boolean, operation = cut, target = u1, tool = ufw2 }
-      { id = ufw3, op = primitive, kind = box, w = 1200, d = 400, h = 1200, plane = XY,
-        plane_offset = 4100, at = [ 8900, -100 ] }
-      { id = u3, op = boolean, operation = cut, target = u2, tool = ufw3 }
+      { id = u3, op = boolean, operation = cut, target = u2, tool = ufw2 }
       # Two west windows (y=3000, 7000).
       { id = uww1, op = primitive, kind = box, w = 400, d = 1200, h = 1200, plane = XY,
         plane_offset = 4100, at = [ -100, 2400 ] }
@@ -137,7 +146,9 @@ parts {
         elements = [ { id = t1, type = polygon,
           points = [ [ -300, 6200 ], [ 6300, 6200 ], [ 3000, 8400 ] ] } ] }
       { id = r1, op = extrude, profile = sk1, distance = 12600 }
-      { id = sk2, op = sketch, plane = XZ, plane_offset = -300,
+      # The XZ plane's normal faces -Y, so an extrude runs in -Y from the plane; seat the plane at
+      # y=10300 (offset -10300) so roof 2 covers y -300..10300 (over wing 2), not off the -Y side.
+      { id = sk2, op = sketch, plane = XZ, plane_offset = -10300,
         elements = [ { id = t2, type = polygon,
           points = [ [ -300, 6200 ], [ 6300, 6200 ], [ 3000, 8400 ] ] } ] }
       { id = r2, op = extrude, profile = sk2, distance = 10600 }
@@ -158,5 +169,66 @@ parts {
     features = [
       { id = pane, op = primitive, kind = box, w = 1180, d = 30, h = 1180, plane = XY,
         plane_offset = -590, at = [ -590, -15 ] }
+    ] }
+  # A tall glass leaf for a BALCONY DOOR opening (1380 x 2080 x 30), authored CENTERED on the origin
+  # in X and Z, thin in Y. Fills the 1400 x 2100 upper balcony doors (a French-door glass panel).
+  door_glass { profile = solid, material = glass,
+    connectors = [ { id = center, at_point = [ 0, 0, 0 ], axis = [ 0, 1, 0 ] } ],
+    features = [
+      { id = pane, op = primitive, kind = box, w = 1380, d = 30, h = 2080, plane = XY,
+        plane_offset = -1040, at = [ -690, -15 ] }
+    ] }
+  # An interior straight-flight staircase from the ground floor (z 0) to the upper floor (z 3200),
+  # rising in +Y. 16 steps (rise 200, going 250): one tread slab LINEAR-patterned up the flight, on
+  # two sloped stringers (a YZ polygon extruded thin in X). Authored so the first riser is at y=0;
+  # the assembly seats it inside the house. Wood.
+  stair { profile = solid, material = wood,
+    connectors = [ { id = foot, at_point = [ 0, 0, 0 ], axis = [ 0, 0, 1 ] } ],
+    features = [
+      { id = tread0, op = primitive, kind = box, w = 1000, d = 280, h = 60, plane = XY,
+        plane_offset = 140, at = [ -500, 0 ] }
+      # 15 treads: the flight rises to the underside of the upper floor (top tread top z~3000), the
+      # last step landing at the stairwell edge (world y~6280, inside the well). One more riser onto
+      # the z3200 floor is the landing itself, part of the upper floor, not modeled here.
+      { id = treads, op = pattern, kind = linear, merge = true,
+        x = { dir = [ 0, 250, 200 ], spacing = 1, count = 15 } }
+      { id = sl_sk, op = sketch, plane = YZ, plane_offset = -500,
+        elements = [ { id = p, type = polygon,
+          points = [ [ 0, 0 ], [ 3800, 3040 ], [ 3800, 3200 ], [ 0, 160 ] ] } ] }
+      { id = sl, op = extrude, profile = sl_sk, distance = 80 }
+      { id = s1, op = boolean, operation = union, target = treads, tool = sl }
+      { id = sr_sk, op = sketch, plane = YZ, plane_offset = 420,
+        elements = [ { id = p, type = polygon,
+          points = [ [ 0, 0 ], [ 3800, 3040 ], [ 3800, 3200 ], [ 0, 160 ] ] } ] }
+      { id = sr, op = extrude, profile = sr_sk, distance = 80 }
+      { id = stair, op = boolean, operation = union, target = s1, tool = sr }
+    ] }
+  # A projecting balcony for an upper-storey opening: a cantilevered concrete deck slab + a metal
+  # railing (two end posts, two side posts, and a capping top rail), built as one part. Authored in
+  # LOCAL coordinates with the balcony's back edge at the origin (the wall face at y=0), projecting
+  # in -Y (outward from a -Y wall). The assembly seats it at each balcony door and, for a side wall,
+  # rotates it about Z. Deck 2000 wide x 1200 deep; railing 1000 tall.
+  #   deck    : z -200..0  (slab, y -1200..0, x -1000..1000), the walk-on surface top at z=0.
+  #   railing : z 0..1000  around the three open edges (front + two returns), 60 mm posts, a top rail.
+  balcony { profile = solid, material = concrete,
+    connectors = [ { id = mount, at_point = [ 0, 0, 0 ], axis = [ 0, 0, 1 ] } ],
+    features = [
+      # Cantilevered deck slab.
+      { id = deck, op = primitive, kind = box, w = 2000, d = 1200, h = 200, plane = XY,
+        plane_offset = -200, at = [ -1000, -1200 ] }
+      # Front railing rail (a low wall along the outer -Y edge), plus two side returns. Use thin
+      # boxes as balusters/rails; material overridden to a metal look via inline mat_data.
+      { id = rail_front, op = primitive, kind = box, w = 2000, d = 60, h = 1000, plane = XY,
+        plane_offset = 0, at = [ -1000, -1200 ], material = railing,
+        mat_data = { physical { density = 7850 }, appearance { color = [ 0.30, 0.31, 0.34 ] } } }
+      { id = b1, op = boolean, operation = union, target = deck, tool = rail_front }
+      { id = rail_left, op = primitive, kind = box, w = 60, d = 1200, h = 1000, plane = XY,
+        plane_offset = 0, at = [ -1000, -1200 ], material = railing,
+        mat_data = { physical { density = 7850 }, appearance { color = [ 0.30, 0.31, 0.34 ] } } }
+      { id = b2, op = boolean, operation = union, target = b1, tool = rail_left }
+      { id = rail_right, op = primitive, kind = box, w = 60, d = 1200, h = 1000, plane = XY,
+        plane_offset = 0, at = [ 940, -1200 ], material = railing,
+        mat_data = { physical { density = 7850 }, appearance { color = [ 0.30, 0.31, 0.34 ] } } }
+      { id = balcony, op = boolean, operation = union, target = b2, tool = rail_right }
     ] }
 }
