@@ -1,0 +1,42 @@
+schema_version = 1
+units = mm
+# A study table / writing desk, assembled from study_table.hocon. The parts are authored in a
+# shared world frame (see the part file's coordinate plan), so most instances seat at the origin;
+# the legs and aprons are instanced from a single authored part to their four/two positions by
+# explicit placement. The top is grounded; nothing interferes.
+#
+# Layout recap (mm): top 1200 x 600 x 25 at z 735..760; legs 50 x 50 x 735 inset 40 mm at the four
+# corners; side aprons along X at y = +/-265; end aprons along Y at x = +/-560; a knee drawer
+# centered under the top. Z is up, the user sits at -Y.
+metadata {
+  description = "Study table / writing desk: a 1200x600 oak top on four legs with an apron frame and a knee drawer, assembled in a shared world frame with the top grounded"
+  tags = [ furniture, desk, table, study, oak, static-assembly ]
+}
+assembly {
+  instances = [
+    # The desktop, grounded (the fixed reference for the whole desk).
+    { id = top, file = "study_table.hocon", part = top, lock = true }
+
+    # Four legs. The part is authored at the front-left corner (x -560, y -265); place the other
+    # three by translating along X and/or Y to the remaining corners (spacing 1120 in X, 530 in Y).
+    { id = leg_fl, file = "study_table.hocon", part = leg, placement = { position = [ 0, 0, 0 ] } }
+    { id = leg_fr, file = "study_table.hocon", part = leg, placement = { position = [ 1120, 0, 0 ] } }
+    { id = leg_bl, file = "study_table.hocon", part = leg, placement = { position = [ 0, 530, 0 ] } }
+    { id = leg_br, file = "study_table.hocon", part = leg, placement = { position = [ 1120, 530, 0 ] } }
+
+    # One long back apron only (authored at y = +265). There is NO front apron: the front bay is
+    # left open for the knee drawer, whose front panel fills that opening (a writing-desk design).
+    { id = apron_back, file = "study_table.hocon", part = side_apron, placement = { position = [ 0, 0, 0 ] } }
+
+    # Two short end aprons (authored at the right x = +560): keep the right one, translate a copy to
+    # the left (x = -560, i.e. -1120 in X).
+    { id = apron_right, file = "study_table.hocon", part = end_apron, placement = { position = [ 0, 0, 0 ] } }
+    { id = apron_left, file = "study_table.hocon", part = end_apron, placement = { position = [ -1120, 0, 0 ] } }
+
+    # The knee drawer, hung under the top, centered.
+    { id = drawer, file = "study_table.hocon", part = drawer, placement = { position = [ 0, 0, 0 ] } }
+  ]
+  # A static desk: no joints. Grounding the top and seating everything by placement is enough; the
+  # assembly composes as one rigid piece of furniture.
+  constraints = [ ]
+}

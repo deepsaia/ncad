@@ -1,0 +1,192 @@
+schema_version = 2
+units = mm
+# Parts of a modern office swivel chair, authored in a shared world frame and split into a GROUNDED
+# base and a REVOLVING upper so the assembly can drive a real swivel in a motion study. Z is up; the
+# sitter faces -Y (backrest at +Y). The design mirrors a real gas-lift task chair:
+#
+#   base    : a 5-star nylon spider (central hub + five tapered radial legs, each ending in a caster
+#             wheel) with a gas-lift socket boss on top. GROUNDED. Built with a feature_pattern that
+#             replays ONE leg+wheel five times about Z (the NX/Creo "pattern feature").
+#   column  : the chromed gas-lift cartridge (telescoping housing + piston rod + a seat-support
+#             plate). Its lower shaft seats in the base socket and turns there on a REVOLUTE joint -
+#             this is the driven body; everything above is fixed to it, so the whole upper revolves.
+#   seat    : an upholstered contoured seat pan (waterfall front edge, rounded corners). Fixed-welded
+#             to the column's support plate.
+#   backrest: a tall upholstered back on a spine riser behind the seat. Fixed-welded to the column.
+#   arms    : a pair of poly armrests (one arm built, then feature_mirror across YZ for the other),
+#             posts rising outboard of the seat to horizontal pads. Fixed-welded to the column.
+#
+# Layout (mm): base footprint ~630 dia (legs to r=314), hub z 8..124; column z 100..494; seat top
+# ~558; armrest pads ~700; back top ~950. Clearances are designed in so the assembly interference
+# report shows only touching (welds) + clearance, never overlap.
+metadata {
+  description = "Modern office swivel chair: 5-star caster base, gas-lift column, contoured seat, tall backrest, armrests; upper revolves on the column"
+  tags = [ furniture, chair, office, swivel, revolving, mechanism ]
+}
+# Materials, defined inline (not in the seed library): density (kg/m^3) + a display color.
+materials {
+  nylon      { physical { density = 1150 }, appearance { color = [ 0.10, 0.10, 0.12 ] } }
+  chrome     { physical { density = 7850 }, appearance { color = [ 0.72, 0.74, 0.78 ] } }
+  upholstery { physical { density = 260 },  appearance { color = [ 0.20, 0.34, 0.58 ] } }
+  poly       { physical { density = 1040 }, appearance { color = [ 0.14, 0.14, 0.16 ] } }
+}
+parts {
+  # The 5-star base: a central hub + a gas-lift socket boss, with five tapered legs (each carrying a
+  # caster wheel) arrayed by a feature_pattern. GROUNDED in the assembly. Built so the running solid
+  # is the HUB when the feature_pattern replays the leg+wheel tool five times about Z and unions them.
+  base { profile = solid, material = nylon,
+    connectors = [
+      # The gas-lift socket axis: the column turns here on the assembly's revolute joint.
+      { id = socket, at_point = [ 0, 0, 115 ], axis = [ 0, 0, 1 ] }
+    ],
+    features = [
+      # ONE radial leg + twin-wheel caster pointing +X, built once as the tool the feature_pattern
+      # replays five times about Z. A real office caster: two grooved wheels on a visible axle held
+      # in a two-plate fork at the leg tip, lifted so the wheels (not the leg) meet the floor.
+      #   leg   : a low bar from inside the hub (x=30) out to the fork (x=262), z 8..38.
+      #   fork  : two thin plates (y = +/-27) bracketing the wheel gap, z 6..42, down to the axle.
+      #   axle  : a d12 pin along Y through the fork at wheel center (z=25), visible in the gap.
+      #   wheels: twin d50 discs (axis along Y), one each side of the axle; each tread cut by a torus
+      #           groove so the wheels read as real rubber casters. Wheel center z=25 -> floor at z=0.
+      { id = leg, op = primitive, kind = box, w = 232, d = 58, h = 30, plane = XY,
+        plane_offset = 8, at = [ 30, -29 ] }
+      { id = forkP, op = primitive, kind = box, w = 46, d = 6, h = 36, plane = XY,
+        plane_offset = 6, at = [ 256, 24 ] }
+      { id = forkN, op = primitive, kind = box, w = 46, d = 6, h = 36, plane = XY,
+        plane_offset = 6, at = [ 256, -30 ] }
+      { id = f1, op = boolean, operation = union, target = leg, tool = forkP }
+      { id = f2, op = boolean, operation = union, target = f1, tool = forkN }
+      { id = axle, op = primitive, kind = cylinder, d = 12, h = 60, plane = XZ,
+        plane_offset = -30, at = [ 280, 25 ] }
+      { id = f3, op = boolean, operation = union, target = f2, tool = axle }
+      { id = wheelP, op = primitive, kind = cylinder, d = 50, h = 18, plane = XZ,
+        plane_offset = 6, at = [ 280, 25 ] }
+      { id = wheelN, op = primitive, kind = cylinder, d = 50, h = 18, plane = XZ,
+        plane_offset = -24, at = [ 280, 25 ] }
+      { id = f4, op = boolean, operation = union, target = f3, tool = wheelP }
+      { id = f5, op = boolean, operation = union, target = f4, tool = wheelN }
+      { id = grooveP, op = primitive, kind = torus, major_d = 50, minor_d = 6, plane = XZ,
+        plane_offset = 15, at = [ 280, 25 ] }
+      { id = f6, op = boolean, operation = cut, target = f5, tool = grooveP }
+      { id = grooveN, op = primitive, kind = torus, major_d = 50, minor_d = 6, plane = XZ,
+        plane_offset = -15, at = [ 280, 25 ] }
+      { id = legcaster, op = boolean, operation = cut, target = f6, tool = grooveN }
+      # The central hub (running solid the pattern acts on).
+      { id = hub, op = primitive, kind = cylinder, d = 92, h = 96, plane = XY,
+        plane_offset = 8, at = [ 0, 0 ] }
+      # Feature pattern: replay the leg+caster five times about Z, unioned onto the hub -> a 5-star.
+      { id = spider, op = feature_pattern, tool = legcaster, operation = union,
+        kind = circular, count = 5, axis = { point = [ 0, 0, 0 ], dir = [ 0, 0, 1 ] } }
+      # Gas-lift socket boss on top of the hub, then bore the socket the column shaft turns in.
+      { id = boss, op = primitive, kind = cylinder, d = 72, h = 20, plane = XY,
+        plane_offset = 104, at = [ 0, 0 ] }
+      { id = withBoss, op = boolean, operation = union, target = spider, tool = boss }
+      { id = bore, op = primitive, kind = cylinder, d = 52, h = 62, plane = XY,
+        plane_offset = 70, at = [ 0, 0 ] }
+      { id = drilled, op = boolean, operation = cut, target = withBoss, tool = bore }
+    ] }
+  # The gas-lift column: a chromed cartridge that seats in the base socket and turns there (revolute),
+  # carrying the whole upper. Lower shaft (in the socket) + telescoping housing + piston rod + a
+  # seat-support plate on top. DRIVEN body of the swivel.
+  column { profile = solid, material = chrome,
+    connectors = [
+      # Turns in the base socket (revolute); coincident with base `socket`.
+      { id = axis, at_point = [ 0, 0, 115 ], axis = [ 0, 0, 1 ] }
+      # Weld frames on the support plate: the seat and arms fix here and revolve with the column.
+      { id = seatMount, at_point = [ 0, 0, 494 ], axis = [ 0, 0, 1 ] }
+      { id = armMount,  at_point = [ 0, 0, 494 ], axis = [ 0, 0, 1 ] }
+      # The recline hinge: a horizontal X axis at the lumbar. The backrest pivots here (revolute),
+      # so it can be welded upright (swivel study) or tilted (recline study). Coincident with the
+      # backrest's `pivot`.
+      { id = reclineAxis, at_point = [ 0, 235, 500 ], axis = [ 1, 0, 0 ] }
+    ],
+    features = [
+      # Lower shaft inside the base socket (d48 in the d52 bore, 2 mm running clearance).
+      { id = shaft, op = primitive, kind = cylinder, d = 48, h = 40, plane = XY,
+        plane_offset = 100, at = [ 0, 0 ] }
+      # Telescoping gas-lift housing.
+      { id = housing, op = primitive, kind = cylinder, d = 56, h = 230, plane = XY,
+        plane_offset = 140, at = [ 0, 0 ] }
+      # Piston rod.
+      { id = rod, op = primitive, kind = cylinder, d = 34, h = 110, plane = XY,
+        plane_offset = 370, at = [ 0, 0 ] }
+      # Seat-support plate (the tilt-mechanism pan the seat bolts to).
+      { id = plate, op = primitive, kind = cylinder, d = 220, h = 14, plane = XY,
+        plane_offset = 480, at = [ 0, 0 ] }
+      # (connector reclineAxis below is a horizontal hinge line at the lumbar; the backrest tilts
+      #  about it in the recline study. It carries no geometry, it is a mount frame.)
+      { id = c1, op = boolean, operation = union, target = shaft, tool = housing }
+      { id = c2, op = boolean, operation = union, target = c1, tool = rod }
+      { id = column, op = boolean, operation = union, target = c2, tool = plate }
+    ] }
+  # The seat pan: an upholstered contoured slab with a rounded waterfall front and rounded corners.
+  # Fixed-welded to the column plate at its underside (z=494), so it sits right on the support plate.
+  seat { profile = solid, material = upholstery,
+    connectors = [
+      { id = hub, at_point = [ 0, 0, 494 ], axis = [ 0, 0, 1 ] }
+    ],
+    features = [
+      { id = sk, op = sketch, plane = XY, plane_offset = 494,
+        elements = [ { id = r, type = rectangle, w = 480, h = 470 } ] }
+      { id = pan, op = extrude, profile = sk, distance = 64 }
+      # Round the four vertical corners for a soft modern seat.
+      { id = corners, op = fillet, radius = 40, edges = vertical }
+      # Waterfall front (sitter, -Y) top edge, eased generously for the thigh.
+      { id = waterfall, op = fillet, radius = 22,
+        edges = "select edges where type = 'line' and orientation = 'horizontal' and min_y < -234 and min_z > 556" }
+    ] }
+  # The backrest: a tall upholstered panel on a spine riser, standing BEHIND the seat (+Y), topped by
+  # a contoured HEADREST on a neck stem. Joined to the column by a RECLINE hinge (a revolute about a
+  # horizontal X axis at the lumbar), so a recline motion study tilts the whole back + headrest as one
+  # piece while the seat and arms stay put. Rounded corners give the soft ergonomic task-chair outline.
+  backrest { profile = solid, material = upholstery,
+    connectors = [
+      # The lumbar recline hinge: a horizontal X axis low on the back. The backrest tilts fore/aft
+      # about this line (rest = upright); it coincides with the column's `reclineAxis`.
+      { id = pivot, at_point = [ 0, 235, 500 ], axis = [ 1, 0, 0 ] }
+    ],
+    features = [
+      # Spine riser from the plate up behind the seat; its FRONT face sits flush against the seat's
+      # rear face (y=235) so the back reads as bolted to the seat (touching, no overlap).
+      { id = spine, op = primitive, kind = box, w = 90, d = 48, h = 112, plane = XY,
+        plane_offset = 494, at = [ -45, 235 ] }
+      # Back panel (the cushion), rising from the top of the riser to z=950.
+      { id = panel_sk, op = sketch, plane = XY, plane_offset = 560,
+        elements = [ { id = r, type = rectangle, w = 440, h = 64, at = [ 0, 264 ] } ] }
+      { id = panel, op = extrude, profile = panel_sk, distance = 390 }
+      { id = back, op = boolean, operation = union, target = spine, tool = panel }
+      # Neck stem rising from the top of the back panel (overlaps it 4 mm for a clean union).
+      { id = neck, op = primitive, kind = box, w = 120, d = 50, h = 70, plane = XY,
+        plane_offset = 946, at = [ -60, 240 ] }
+      { id = withNeck, op = boolean, operation = union, target = back, tool = neck }
+      # Contoured headrest pad on top of the neck stem (z 1012..1104), wider than the neck.
+      { id = headpad, op = primitive, kind = box, w = 300, d = 78, h = 92, plane = XY,
+        plane_offset = 1012, at = [ -150, 232 ] }
+      { id = withHead, op = boolean, operation = union, target = withNeck, tool = headpad }
+      # Soften the four tall vertical corners of the back panel (z 560..950 only, so the short neck
+      # and headrest edges are excluded - they are too short for this radius and would fail the cut).
+      { id = softBack, op = fillet, radius = 24,
+        edges = "select edges where type = 'line' and orientation = 'vertical' and min_z > 560 and max_z < 951" }
+      # Round the headrest pad's own vertical corners with a smaller radius.
+      { id = softHead, op = fillet, radius = 18,
+        edges = "select edges where type = 'line' and orientation = 'vertical' and min_z > 1011" }
+    ] }
+  # A pair of armrests: one arm (outboard post + horizontal pad) is built, then feature_mirror across
+  # the YZ plane makes the other. Fixed-welded to the column; the posts rise outboard of the seat.
+  arms { profile = solid, material = poly,
+    connectors = [
+      { id = hub, at_point = [ 0, 0, 494 ], axis = [ 0, 0, 1 ] }
+    ],
+    features = [
+      # Right-side post: inner face flush with the seat side (x=240) so the arm reads as attached;
+      # post spans x 240..272, rising alongside the seat.
+      { id = post, op = primitive, kind = box, w = 32, d = 54, h = 180, plane = XY,
+        plane_offset = 494, at = [ 240, -46 ] }
+      # Right-side pad on top of the post.
+      { id = pad, op = primitive, kind = box, w = 52, d = 220, h = 26, plane = XY,
+        plane_offset = 674, at = [ 234, -150 ] }
+      { id = onearm, op = boolean, operation = union, target = post, tool = pad }
+      # Mirror the whole arm across YZ (x=0) to make the left arm; union into one two-arm part.
+      { id = both, op = feature_mirror, tool = onearm, operation = union, plane = YZ }
+    ] }
+}

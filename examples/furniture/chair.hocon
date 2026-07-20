@@ -1,0 +1,90 @@
+schema_version = 2
+units = mm
+# Parts of a study chair, authored in a shared world frame and laid out clash-free so the assembly
+# seats them by explicit placement with only face-to-face contact (no volume overlap). Z is up; the
+# sitter faces -Y (back of the chair at +Y). Coordinate plan (mm), seat 420 (X) x 380 (Y), seat top
+# at z 480, back top ~830:
+#   seat        : 420 x 380 x 40 slab, z 440..480, centered in X, front edge y = -190, rear edge
+#                 y = +190 (the rear edge BUTTS the front faces of the two back posts).
+#   front_leg   : 40 x 40 post, z 0..440, tucked UNDER the seat's front corners (top face touches the
+#                 seat underside). One part, instanced to both front corners.
+#   back_post   : 40 x 40 post that is BOTH a rear leg AND a backrest upright: z 0..860, standing
+#                 BEHIND the seat's rear edge (front face at y = +190). One part, instanced to both
+#                 rear corners.
+#   side_rail   : 20 x 340 x 60 stretcher along Y under each seat side, z 380..440 (top touches the
+#                 seat underside), spanning front leg to back post. One part, instanced L/R.
+#   back_rail   : 340 x 40 x 60 stretcher along X under the seat's rear, z 380..440, between the posts.
+#   back_slat   : 340 x 40 x 70 horizontal ladder-back slat spanning the two back posts (inner faces
+#                 x = +/-170), z 620..690. One part, instanced to a second height for a ladder back.
+# Every contact is a shared face (posts butt the seat edge, legs/rails touch the seat underside), so
+# the assembly interference report shows touching + clearance only, never overlap.
+metadata {
+  description = "Study chair: seat, two front legs, two back posts (leg + backrest upright), side + back rails, two ladder-back slats"
+  tags = [ furniture, chair, seating ]
+}
+# Wood materials, defined inline (not in the seed library): density (kg/m^3) + a display color so
+# the chair reads as warm timber. Structural/thermal omitted (not analyzed here).
+materials {
+  oak    { physical { density = 750 }, appearance { color = [ 0.71, 0.52, 0.30 ] } }
+  walnut { physical { density = 655 }, appearance { color = [ 0.40, 0.26, 0.16 ] } }
+}
+parts {
+  # The seat slab, centered in X, front edge y = -190, rear edge y = +190.
+  seat { profile = solid, material = walnut,
+    connectors = [
+      { id = underside, at = "select faces where type = 'plane' and normal_z < -0.9" }
+    ],
+    features = [
+      { id = sk, op = sketch, plane = XY, plane_offset = 440,
+        elements = [ { id = r, type = rectangle, w = 420, h = 380 } ] }
+      { id = slab, op = extrude, profile = sk, distance = 40 }
+      # Ease the front (sitter, -Y) top edge for comfort.
+      { id = ease, op = fillet, radius = 6,
+        edges = "select edges where type = 'line' and orientation = 'horizontal' and min_y < -189 and min_z > 478" }
+    ] }
+  # A front leg, authored at the front-left corner (outer faces flush with the seat: x -210..-170,
+  # y -190..-150), tucked under the seat. Instanced to the front-right corner in the assembly.
+  front_leg { profile = solid, material = oak,
+    connectors = [
+      { id = top_face, at = "select faces where type = 'plane' and normal_z > 0.9" }
+    ],
+    features = [
+      { id = sk, op = sketch, plane = XY,
+        elements = [ { id = r, type = rectangle, w = 40, h = 40, at = [ -190, -170 ] } ] }
+      { id = post, op = extrude, profile = sk, distance = 440 }
+    ] }
+  # A back post: a rear leg that continues up as a backrest upright. Authored at the back-left corner
+  # (x -210..-170, y +190..+230, i.e. front face flush with the seat rear edge); instanced back-right.
+  back_post { profile = solid, material = oak,
+    connectors = [
+      { id = seat_side, at = "select faces where type = 'plane' and normal_y < -0.9" }
+    ],
+    features = [
+      { id = sk, op = sketch, plane = XY,
+        elements = [ { id = r, type = rectangle, w = 40, h = 40, at = [ -190, 210 ] } ] }
+      { id = post, op = extrude, profile = sk, distance = 860 }
+    ] }
+  # Side stretcher under the seat, running along Y from the front leg (y -150) to the back post
+  # (y +190). Authored at the left (x -200); instanced to the right.
+  side_rail { profile = solid, material = oak,
+    features = [
+      { id = sk, op = sketch, plane = XY, plane_offset = 380,
+        elements = [ { id = r, type = rectangle, w = 20, h = 340, at = [ -200, 20 ] } ] }
+      { id = rail, op = extrude, profile = sk, distance = 60 }
+    ] }
+  # Back stretcher under the seat's rear, running along X between the back posts (inner faces x = +/-170).
+  back_rail { profile = solid, material = oak,
+    features = [
+      { id = sk, op = sketch, plane = XY, plane_offset = 380,
+        elements = [ { id = r, type = rectangle, w = 340, h = 40, at = [ 0, 170 ] } ] }
+      { id = rail, op = extrude, profile = sk, distance = 60 }
+    ] }
+  # A horizontal ladder-back slat spanning between the two back posts (inner faces x = +/-170), in the
+  # backrest zone at y = +210. Authored at the LOWER slat height (z 620..690); instanced up.
+  back_slat { profile = solid, material = walnut,
+    features = [
+      { id = sk, op = sketch, plane = XY, plane_offset = 620,
+        elements = [ { id = r, type = rectangle, w = 340, h = 40, at = [ 0, 210 ] } ] }
+      { id = slat, op = extrude, profile = sk, distance = 70 }
+    ] }
+}

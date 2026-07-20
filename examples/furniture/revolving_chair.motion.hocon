@@ -1,0 +1,15 @@
+schema_version = 1
+# A motion study driving the office chair's swivel one full turn. The column turns in the grounded
+# base socket (the `swivel` revolute); the seat and armrests are fixed to the column, and the
+# backrest hangs on the recline hinge (which rests upright when not driven), so the OndselSolver
+# multibody engine (via pyondsel) carries the whole upper around with the column. Drive the swivel
+# 0..360 deg and the entire chair (everything above the base) revolves, exactly as a real gas-lift
+# chair spins on its casters. The base stays put. See revolving_chair.recline.motion.hocon for tilt.
+metadata {
+  description = "Office chair swivel study: drive the column one full revolution, the whole upper turns"
+  tags = [ revolving_chair, motion, swivel ]
+}
+motion {
+  assembly = "revolving_chair.asm.hocon"
+  driver = { joint = swivel, from = 0, to = 360, steps = 72 }
+}

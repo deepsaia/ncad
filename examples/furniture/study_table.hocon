@@ -1,0 +1,88 @@
+schema_version = 2
+units = mm
+# Parts of a study table / writing desk, authored in a shared world frame and laid out clash-free
+# so the assembly's explicit placements seat them without overlap. Z is up; the desk faces -Y (the
+# user sits at -Y). Coordinate plan (mm), overall footprint 1200 (X) x 600 (Y), height 760:
+#   top        : 1200 x 600 x 25 slab, z 735..760. Front (-Y) edge eased with a fillet.
+#   leg        : 50 x 50 post, z 0..735 (one part, instanced x4 to the corners, inset 40 mm).
+#   side_apron : 1120 x 20 x 80 rail along X, z 645..725, set at y = +/-265 (long sides).
+#   end_apron  : 20 x 520 x 80 rail along Y, z 645..725, set at x = +/-560 (short ends).
+#   drawer     : a 500 x 480 x 90 box (open top) centered, hung just under the top at z 620..710;
+#                a d24 knob-less pull recess is left out for simplicity.
+# Everything is a solid; a soft fillet on the top's user edge makes it read as a real desk.
+metadata {
+  description = "Study table / writing desk: top slab, four legs, side + end aprons, a knee drawer"
+  tags = [ furniture, desk, table ]
+}
+# Wood materials (not in the seed library), defined inline: density (kg/m^3) + a display color so
+# the desk reads as warm timber in the viewer / glTF export. Structural/thermal omitted (furniture
+# is not analyzed here).
+materials {
+  oak   { physical { density = 750 }, appearance { color = [ 0.71, 0.52, 0.30 ] } }
+  maple { physical { density = 705 }, appearance { color = [ 0.84, 0.70, 0.48 ] } }
+}
+parts {
+  # The desktop: a slab centered on the world origin in X/Y, sitting on top of the legs.
+  top { profile = solid, material = oak,
+    connectors = [
+      { id = underside, at = "select faces where type = 'plane' and normal_z < -0.9" }
+    ],
+    features = [
+      { id = sk, op = sketch, plane = XY, plane_offset = 735,
+        elements = [ { id = r, type = rectangle, w = 1200, h = 600 } ] }
+      { id = slab, op = extrude, profile = sk, distance = 25 }
+      # Ease the front (user, -Y) top edge so it is comfortable to lean on.
+      { id = ease, op = fillet, radius = 8,
+        edges = "select edges where type = 'line' and orientation = 'horizontal' and min_y < -299 and min_z > 758" }
+    ] }
+  # One square leg, authored at the front-left corner (x -560, y -265, inset 40 from the slab edge
+  # by construction). Instanced to the other three corners in the assembly by explicit placement.
+  leg { profile = solid, material = oak,
+    connectors = [
+      { id = top_face, at = "select faces where type = 'plane' and normal_z > 0.9" }
+    ],
+    features = [
+      { id = sk, op = sketch, plane = XY,
+        elements = [ { id = r, type = rectangle, w = 50, h = 50, at = [ -560, -265 ] } ] }
+      { id = post, op = extrude, profile = sk, distance = 735 }
+    ] }
+  # Long apron rail running along X, spanning the CLEAR gap between the two back legs (inner faces
+  # at x = +/-535, so 1060 leaves ~5 mm each end). At the back (+Y) side; instanced to the front.
+  side_apron { profile = solid, material = oak,
+    features = [
+      { id = sk, op = sketch, plane = XY, plane_offset = 645,
+        elements = [ { id = r, type = rectangle, w = 1060, h = 20, at = [ 0, 265 ] } ] }
+      { id = rail, op = extrude, profile = sk, distance = 80 }
+    ] }
+  # Short apron rail running along Y, spanning the CLEAR gap between the front + back legs (inner
+  # faces at y = +/-240, so 470 leaves ~5 mm each end). At the right (+X) end; instanced to the left.
+  end_apron { profile = solid, material = oak,
+    features = [
+      { id = sk, op = sketch, plane = XY, plane_offset = 645,
+        elements = [ { id = r, type = rectangle, w = 20, h = 470, at = [ 560, 0 ] } ] }
+      { id = rail, op = extrude, profile = sk, distance = 80 }
+    ] }
+  # A centered knee drawer that lives in the OPEN front bay (there is no front apron - the drawer
+  # front fills that opening, a common writing-desk design). It is one part = a hollow open-top box
+  # + a front face panel flush with the desk's front edge:
+  #   box   : 414 x 482 x 70 cavity, z 650..720, centered in X, set back into the knee (y -282..+200);
+  #           shelled to a 12 mm wall with the top open.
+  #   front : 450 x 20 face panel, z 646..724, flush with the desk front edge (y -300..-280); slightly
+  #           taller than the box and overlapping its front by 2 mm so it unions into one drawer.
+  # It sits inside the apron z-band (645..725) but well clear of the two end aprons (x = +/-560) and
+  # the back apron (y = +265): a real, pullable-looking closed drawer with clearance all round.
+  drawer { profile = solid, material = maple,
+    connectors = [
+      { id = front, at = "select faces where type = 'plane' and normal_y < -0.9" }
+    ],
+    features = [
+      { id = box_sk, op = sketch, plane = XY, plane_offset = 650,
+        elements = [ { id = r, type = rectangle, w = 414, h = 482, at = [ 0, -41 ] } ] }
+      { id = box, op = extrude, profile = box_sk, distance = 70 }
+      { id = hollow, op = shell, thickness = 12, openings = top }
+      { id = front_sk, op = sketch, plane = XY, plane_offset = 646,
+        elements = [ { id = r, type = rectangle, w = 450, h = 20, at = [ 0, -290 ] } ] }
+      { id = front_panel, op = extrude, profile = front_sk, distance = 78 }
+      { id = drawer, op = boolean, operation = union, target = hollow, tool = front_panel }
+    ] }
+}

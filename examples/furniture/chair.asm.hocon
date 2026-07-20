@@ -1,0 +1,44 @@
+schema_version = 1
+units = mm
+# A study chair, assembled from chair.hocon. The parts are authored in a shared world frame (see the
+# part file's coordinate plan), so the seat seats at the origin and the legs / posts / rails / slats
+# are instanced from single authored parts to their mirror positions by explicit placement. The seat
+# is grounded; contacts are face-to-face, so nothing interferes.
+#
+# Layout recap (mm): seat 420 x 380 x 40 at z 440..480; front legs 40 x 40 under the front corners;
+# back posts 40 x 40 rising to z 860 behind the seat; side + back rails under the seat at z 380..440;
+# two ladder-back slats across the posts. Z is up, the sitter faces -Y.
+metadata {
+  description = "Study chair: a walnut seat on two front legs and two back posts (rear leg + backrest upright), braced by side and back rails, with a two-slat ladder back, assembled in a shared world frame with the seat grounded"
+  tags = [ furniture, chair, seating, walnut, static-assembly ]
+}
+assembly {
+  instances = [
+    # The seat, grounded (the fixed reference for the whole chair).
+    { id = seat, file = "chair.hocon", part = seat, lock = true }
+
+    # Two front legs. The part is authored at the front-left corner; mirror to the front-right by
+    # translating +380 in X (seat is 420 wide, legs inset flush to the corners).
+    { id = leg_fl, file = "chair.hocon", part = front_leg, placement = { position = [ 0, 0, 0 ] } }
+    { id = leg_fr, file = "chair.hocon", part = front_leg, placement = { position = [ 380, 0, 0 ] } }
+
+    # Two back posts (rear legs that rise into the backrest). Authored at the back-left corner;
+    # mirror to the back-right by +380 in X.
+    { id = post_bl, file = "chair.hocon", part = back_post, placement = { position = [ 0, 0, 0 ] } }
+    { id = post_br, file = "chair.hocon", part = back_post, placement = { position = [ 380, 0, 0 ] } }
+
+    # Two side rails under the seat. Authored at the left; mirror to the right by +400 in X.
+    { id = rail_left, file = "chair.hocon", part = side_rail, placement = { position = [ 0, 0, 0 ] } }
+    { id = rail_right, file = "chair.hocon", part = side_rail, placement = { position = [ 400, 0, 0 ] } }
+
+    # One back rail under the seat's rear edge, between the posts.
+    { id = rail_back, file = "chair.hocon", part = back_rail, placement = { position = [ 0, 0, 0 ] } }
+
+    # Two ladder-back slats across the posts. Authored at the lower height; raise a copy +90 in Z.
+    { id = slat_low, file = "chair.hocon", part = back_slat, placement = { position = [ 0, 0, 0 ] } }
+    { id = slat_high, file = "chair.hocon", part = back_slat, placement = { position = [ 0, 0, 90 ] } }
+  ]
+  # A static chair: no joints. Grounding the seat and seating everything by placement composes the
+  # whole piece as one rigid object.
+  constraints = [ ]
+}
