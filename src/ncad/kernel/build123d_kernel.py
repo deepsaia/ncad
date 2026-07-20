@@ -992,6 +992,16 @@ class Build123dKernel(Kernel):
             return shape.bodies
         return [Body(id="body/0", kind="solid", shape=shape, created_by="")]
 
+    def solid_count(self, shape: Any) -> int:
+        # Count topologically disjoint solids across all bodies (a BodySet's bodies may each hold a
+        # multi-solid shape). Unlike bodies(), this sees a fused-but-disconnected shape as >1 solid.
+        total = 0
+        for body in self.bodies(shape):
+            s = body.shape
+            solids = s.solids() if hasattr(s, "solids") else None
+            total += len(solids) if solids is not None else 1
+        return total
+
     def union_bodies(self, shapes: list, *, origin: str, sources: list | None = None) -> Any:
         return union_bodies(shapes, origin, sources)
 

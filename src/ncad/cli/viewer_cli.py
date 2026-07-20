@@ -119,6 +119,10 @@ class ViewerCli:
         for diag in result["diagnostics"]:
             if diag.severity == "error":
                 logging.error("%s [%s] %s", diag.code, diag.location, diag.message)
+            elif diag.severity == "warning":
+                logging.warning("%s [%s] %s", diag.code, diag.location, diag.message)
+            else:
+                logging.info("%s [%s] %s", diag.code, diag.location, diag.message)
         return result["artifacts"]
 
     def import_document(self, file: str, out: str | None) -> dict[str, str]:

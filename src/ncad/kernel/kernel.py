@@ -428,6 +428,15 @@ class Kernel(ABC):
         """
 
     @abstractmethod
+    def solid_count(self, shape: Any) -> int:
+        """The number of TOPOLOGICALLY DISJOINT solids in ``shape``.
+
+        Distinct from :meth:`bodies` (which counts by provenance, so a union of two non-touching
+        lumps is still one body): this counts connected solid regions, so it detects the "floating
+        bodies" case where a fuse left separate pieces. One connected solid returns 1.
+        """
+
+    @abstractmethod
     def mesh_body_ids(self, shape: Any) -> list:
         """The body id of each exported glTF mesh, in export (mesh) order.
 
