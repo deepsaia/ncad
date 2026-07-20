@@ -59,6 +59,10 @@ class OpRegistry:
         """
         return self._ops[op]
 
+    def op_names(self) -> list[str]:
+        """The names of every registered op (the authoritative op vocabulary)."""
+        return list(self._ops)
+
     @classmethod
     def with_defaults(cls) -> "OpRegistry":
         """A registry with the built-in feature ops registered."""
