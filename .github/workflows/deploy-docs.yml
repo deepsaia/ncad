@@ -1,0 +1,58 @@
+name: Deploy docs
+
+# Build the MkDocs site (the op reference is generated from the live ncad code by docs_hooks.py)
+# and publish it to GitHub Pages on every push to main. The site is served at
+# https://deepsaia.github.io/ncad/.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs_site/**"
+      - "docs/documentation-structure.json"
+      - "mkdocs.yml"
+      - "docs_hooks.py"
+      - "src/ncad/docs/**"
+      - "src/ncad/ops/op_registry.py"
+      - "examples/**"
+      - ".github/workflows/deploy-docs.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deploy at a time; let an in-progress run finish rather than cancelling it.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+      - name: Install docs dependencies
+        run: uv sync --group docs
+      - name: Build site
+        run: uv run mkdocs build --strict
+        env:
+          DISABLE_MKDOCS_2_WARNING: "true"
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

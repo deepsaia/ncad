@@ -10,13 +10,32 @@ directions, not current capabilities; see the roadmap below.)
 ## Documents
 
 - [`docs/documentation-design.md`](./docs/documentation-design.md): the documentation site's
-  information architecture (the Docusaurus Learn + ncad two-part model).
+  information architecture (the Learn + ncad two-part model).
 - [`docs/feature-ordering.md`](./docs/feature-ordering.md): op-composition rules (safe order +
   failure mode per op).
 - [`CLAUDE.md`](./CLAUDE.md): coding guidelines and best practices.
 
 The code is the source of truth for what ncad can actually do: the op registry
 (`src/ncad/ops/op_registry.py`), the schemas (`schema/*.hocon`), and the shipped `examples/`.
+
+## Documentation site
+
+The docs site is **MkDocs Material** under [`docs_site/`](./docs_site), deployed to GitHub Pages
+at **https://deepsaia.github.io/ncad/**. It has two parts: **Learn** (a product-neutral engineering
+reference across the subjects ncad touches) and **ncad** (the manual). The **Operations Reference**
+and **Capability Matrix** are generated from the live op registry + shipped examples at build time
+(`docs_hooks.py`), so the docs can never claim a capability the engine lacks; a pytest accuracy gate
+(`tests/docs/`) enforces this.
+
+Run it locally (docs live-reload):
+
+```bash
+uv sync --group docs
+uv run mkdocs serve            # http://127.0.0.1:8000/ncad/
+```
+
+`uv run mkdocs build --strict` produces the static site; the GitHub Actions workflow deploys it on
+every push to `main`.
 
 ## Core idea
 
