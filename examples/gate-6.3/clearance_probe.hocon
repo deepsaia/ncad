@@ -1,0 +1,49 @@
+schema_version = 2
+units = mm
+# A deliberate motion-time INTERFERENCE demonstrator (bucket 6.3): a driven arm sweeps about Z and
+# its tip passes THROUGH a fixed obstruction post over part of the sweep. This is an intentionally
+# too-tight layout (a design-review "does this clear?" check), NOT a working mechanism: the point is
+# to show ncad flagging the frames where two bodies collide during motion and marking them on the
+# viewer timeline. A real design would move the post or shorten the arm; here we want the clash.
+#
+# Layout (arm spins about Z at the origin; the post is fixed in the arm's swept path):
+#   base : a plate + a bearing boss the arm turns on + an obstruction POST at +Y (off the arm's rest
+#          axis, so the REST pose is clean); the arm drives through it partway through the sweep.
+#   arm  : a bar along +X from the axis; as it swings it passes through the post on some mid frames.
+metadata {
+  description = "Clearance probe: a swept arm clips a fixed post (motion-time interference demo)"
+  tags = [ clearance_probe, mechanism, blockout, interference ]
+}
+parts {
+  # Arm: a bar from the axis (z 0..8) reaching out to radius ~60; as it sweeps it passes through the
+  # post sitting at radius 45. Driven about Z.
+  arm { profile = solid, material = aluminium_6061,
+    connectors = [
+      { id = axis, at_point = [ 0, 0, 0 ], axis = [ 0, 0, 1 ] }
+    ],
+    features = [
+      { id = bar, op = primitive, kind = box, w = 66, d = 12, h = 8, plane = XY,
+        plane_offset = 0, at = [ 0, -6 ] }
+      { id = hub, op = primitive, kind = cylinder, d = 14, h = 12, plane = XY, plane_offset = -12,
+        at = [ 0, 0 ] }
+      { id = whole, op = boolean, operation = union, target = bar, tool = hub }
+    ] }
+  # Base: a plate + a bearing boss (bored) the arm turns on + a fixed obstruction POST at +Y radius
+  # 45 (in the z 0..8 arm-sweep plane), off the arm's +X rest axis so the REST pose is clear; the arm
+  # drives through it near crank 90 deg.
+  base { profile = solid, material = steel_1018,
+    connectors = [
+      { id = bearing, at_point = [ 0, 0, 0 ], axis = [ 0, 0, 1 ] }
+    ],
+    features = [
+      { id = plate, op = primitive, kind = box, w = 160, d = 160, h = 8, plane = XY,
+        plane_offset = -12, at = [ -80, -80 ] }
+      { id = boss, op = primitive, kind = cylinder, d = 20, h = 12, plane = XY, plane_offset = -12 }
+      { id = post, op = primitive, kind = cylinder, d = 16, h = 10, plane = XY, plane_offset = 0,
+        at = [ 0, 45 ] }
+      { id = b1, op = boolean, operation = union, target = plate, tool = boss }
+      { id = frame, op = boolean, operation = union, target = b1, tool = post }
+      { id = bore, op = primitive, kind = cylinder, d = 14.6, h = 16, plane = XY,
+        plane_offset = -14 }
+      { id = whole, op = boolean, operation = cut, target = frame, tool = bore }
+    ] } }

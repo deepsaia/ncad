@@ -1,0 +1,21 @@
+schema_version = 1
+units = mm
+# Bucket 6.3 gate: the motion-time INTERFERENCE demonstrator. A driven arm (revolute on the base
+# boss) sweeps about Z; a fixed obstruction post on the base sits in the arm's path, so the arm tip
+# drives THROUGH the post over part of the revolution. Two bodies, one revolute joint, no coupling.
+# The point is to exercise MotionInterference: ncad flags the frames where the arm and base collide
+# (an intentional too-tight layout, a clearance-review case), marked on the viewer timeline.
+metadata {
+  description = "Clearance probe: driven arm sweeps through a fixed post (interference demo)"
+  tags = [ clearance_probe, assembly, interference ]
+}
+assembly {
+  instances = [
+    { id = base, file = "clearance_probe.hocon", part = base, lock = true }
+    { id = arm, file = "clearance_probe.hocon", part = arm }
+  ]
+  joints = [
+    { id = swing, type = revolute, between = [
+      { instance = base, connector = bearing }, { instance = arm, connector = axis } ] }
+  ]
+}
