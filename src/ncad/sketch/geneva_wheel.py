@@ -48,6 +48,9 @@ class GenevaWheel:
         self._clear = float(slot_clearance)
         self._c = self._a / math.sin(math.pi / self._n)         # center distance
         self._index_deg = 360.0 / self._n                        # wheel rotation per engagement
+        # The pin enters/leaves the slot at wheel-local bearing +/- 180/N (= index/2); this is both
+        # the wheel_angle zero-offset and the slot phase so a slot faces the pin at rest.
+        self._psi_start = 180.0 / self._n
 
     @property
     def center_distance(self) -> float:
@@ -69,43 +72,63 @@ class GenevaWheel:
     def wheel_angle(self, crank_deg: float) -> float:
         """Cumulative wheel rotation (deg) at crank angle ``crank_deg``.
 
-        The wheel indexes once per crank revolution (one engagement centred at local crank 180 deg):
-        flat (dwell) outside the +/- engagement half-window, the exact engagement kinematics inside.
-        Cumulative across revolutions, so a multi-rev sweep keeps advancing (base + partial); the
-        end of each revolution holds the completed index (crank 360 deg -> a full index, not 0).
+        The wheel indexes once per crank revolution (one engagement centred at local crank 180 deg,
+        the pin deepest in a slot): flat (dwell) outside the +/- engagement half-window, the exact
+        engagement kinematics inside. For a CCW crank the wheel indexes CW, so the rotation is
+        NEGATIVE (decreasing by index = 360/N per revolution). The rotation is the pin's bearing
+        from the wheel axis, ``psi(crank) = atan2(a sin, c + a cos)``, offset so it is 0 at the
+        engagement start (pin enters the slot at local bearing +180/N). Cumulative across revs.
         """
         revs = math.floor(crank_deg / 360.0)
         local = crank_deg - revs * 360.0                         # 0 .. 360 within this revolution
-        base = revs * self._index_deg
+        base = -revs * self._index_deg                           # CW index per revolution
         half = self.engagement_half_angle_deg
         if local < 180.0 - half:
             return base
         if local > 180.0 + half:
-            return base + self._index_deg
-        alpha = math.radians(local - 180.0)                      # from the engagement centre
-        ratio = self._c / self._a
-        beta = math.atan2(math.sin(alpha), ratio - math.cos(alpha))   # -index/2 .. +index/2 (rad)
-        return base + self._index_deg / 2.0 + math.degrees(beta)
+            return base - self._index_deg
+        # psi = the pin's bearing from the wheel axis; the slot the pin rides tracks it. Offset by
+        # the entry bearing (+180/N) so wheel_angle is 0 at engagement start, -index at the end.
+        psi = math.degrees(math.atan2(self._a * math.sin(math.radians(local)),
+                                      self._c + self._a * math.cos(math.radians(local))))
+        return base + psi - self._psi_start
 
-    def outline(self, samples: int = 240) -> list[list[float]]:
+    def outline(self, rim_arc_samples: int = 16) -> list[list[float]]:
         """The star-wheel outline as a closed [x, y] point list (mm), centred at the wheel axis.
 
-        N convex lobes at the rim separated by N radial slots (open channels the pin enters). Each
-        slot is a straight-sided notch cut radially to a depth so the pin bottoms at mid-engagement.
-        Approximated as a sampled polar profile: the radius drops to the slot bottom within a slot's
-        angular half-width, else sits at the rim.
+        N convex lobes at the rim separated by N radial slots the pin enters. Each slot is a
+        STRAIGHT-WALLED channel (parallel walls a constant half-width apart, = pin_r + clearance),
+        cut radially in to a flat bottom, so the round pin clears the walls at every depth (a wedge
+        notch would pinch the pin deep in). The slots are PHASED so a slot centre sits at the
+        pin-entry bearing (+180/N) at rest, aligned to receive the pin as the engagement begins.
+
+        The boundary is walked CCW, one slot + lobe per period: down the leading wall, across the
+        bottom, up the trailing wall, then a convex rim arc to the next slot.
         """
-        slot_half = self._pin_r + self._clear
+        w = self._pin_r + self._clear                            # slot half-width (parallel walls)
         rim = self.wheel_radius
-        slot_bottom = max(self._c - self._a - self._pin_r, rim * 0.2)
-        slot_ang_half = math.asin(min(1.0, slot_half / max(rim, 1e-6)))   # slot angular half-width
+        bottom_r = max(self._c - self._a - self._pin_r, w + 2.0)  # bottom corner radius (> w)
+        t_out = math.sqrt(max(rim * rim - w * w, 0.0))           # wall length at the rim
+        t_in = math.sqrt(max(bottom_r * bottom_r - w * w, 0.0))  # wall length at the bottom corner
+        wall_rim_ang = math.asin(min(1.0, w / rim))              # rim angle offset of a wall corner
+        pitch = 2.0 * math.pi / self._n
         pts: list[list[float]] = []
-        for i in range(samples):
-            phi = 2.0 * math.pi * i / samples
-            k = round(phi / (2.0 * math.pi / self._n))            # nearest slot centre index
-            slot_centre = k * (2.0 * math.pi / self._n)
-            r = slot_bottom if abs(_wrap(phi - slot_centre)) < slot_ang_half else rim
-            pts.append([r * math.cos(phi), r * math.sin(phi)])
+        for k in range(self._n):
+            sc = math.radians(self._psi_start) + k * pitch       # slot centre angle
+            u = (math.cos(sc), math.sin(sc))                     # radial (centreline) direction
+            v = (-math.sin(sc), math.cos(sc))                    # perpendicular (across the slot)
+            # Leading wall: rim corner -> bottom corner (offset -w across the slot).
+            pts.append([t_out * u[0] - w * v[0], t_out * u[1] - w * v[1]])
+            pts.append([t_in * u[0] - w * v[0], t_in * u[1] - w * v[1]])
+            # Bottom, then trailing wall: bottom corner -> rim corner (offset +w).
+            pts.append([t_in * u[0] + w * v[0], t_in * u[1] + w * v[1]])
+            pts.append([t_out * u[0] + w * v[0], t_out * u[1] + w * v[1]])
+            # Convex rim (lobe) arc from this slot's trailing corner to the next slot's leading one.
+            start = sc + wall_rim_ang
+            end = sc + pitch - wall_rim_ang
+            for j in range(1, rim_arc_samples):
+                a = start + (end - start) * j / rim_arc_samples
+                pts.append([rim * math.cos(a), rim * math.sin(a)])
         return pts
 
     def expression(self, a0_deg: float, span_deg: float) -> str:
@@ -117,7 +140,8 @@ class GenevaWheel:
         """
         thetas = np.arange(_FIT_SAMPLES) * (360.0 / _FIT_SAMPLES)
         wheel = np.array([math.radians(self.wheel_angle(float(t))) for t in thetas])
-        ramp_slope = math.radians(self._index_deg) / (2.0 * math.pi)      # wheel rad per crank rad
+        # Mean index per crank radian; NEGATIVE (a CCW crank indexes the wheel CW by index/rev).
+        ramp_slope = -math.radians(self._index_deg) / (2.0 * math.pi)     # wheel rad per crank rad
         crank_rad = np.radians(thetas)
         remainder = wheel - ramp_slope * crank_rad
         spectrum = np.fft.rfft(remainder)
@@ -148,11 +172,6 @@ class GenevaWheel:
             recon += (-2.0 * float(spectrum[k].imag) / _FIT_SAMPLES) * np.sin(k * theta)
         err = math.degrees(float(np.max(np.abs(recon - remainder))))
         logger.info("geneva Fourier fit: %d harmonics, max error %.3f deg", max_k, err)
-
-
-def _wrap(angle: float) -> float:
-    """Wrap an angle (radians) to [-pi, pi]."""
-    return (angle + math.pi) % (2.0 * math.pi) - math.pi
 
 
 def _assemble(pairs: list[tuple[float, str]]) -> str:

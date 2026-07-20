@@ -14,23 +14,24 @@ def test_center_distance_and_engagement_window():
 
 def test_wheel_dwells_then_indexes_one_step_per_rev():
     g = GenevaWheel(slots=4, crank_radius=30.0)
-    # Engagement centred at crank 180 deg, +/- 45 deg. Outside [135, 225] the wheel is flat.
+    # Engagement centred at crank 180 deg, +/- 45 deg. Outside [135, 225] the wheel is flat. A CCW
+    # crank indexes the wheel CW, so the rotation is NEGATIVE: 0 -> -90 (= -index) over the window.
     assert math.isclose(g.wheel_angle(0.0), 0.0, abs_tol=1e-9)
     assert math.isclose(g.wheel_angle(90.0), 0.0, abs_tol=1e-9)      # pre-engagement dwell
     assert math.isclose(g.wheel_angle(135.0), 0.0, abs_tol=1e-6)     # engagement start
-    assert math.isclose(g.wheel_angle(180.0), 45.0, abs_tol=1e-6)    # mid engagement = half index
-    assert math.isclose(g.wheel_angle(225.0), 90.0, abs_tol=1e-6)    # engagement end = index 360/N
-    assert math.isclose(g.wheel_angle(360.0), 90.0, abs_tol=1e-9)    # post-engagement dwell holds
+    assert math.isclose(g.wheel_angle(180.0), -45.0, abs_tol=1e-6)   # mid engagement = -half index
+    assert math.isclose(g.wheel_angle(225.0), -90.0, abs_tol=1e-6)   # engagement end = -index 360/N
+    assert math.isclose(g.wheel_angle(360.0), -90.0, abs_tol=1e-9)   # post-engagement dwell holds
 
 
-def test_wheel_angle_is_monotonic_nondecreasing():
+def test_wheel_angle_is_monotonic_nonincreasing():
     g = GenevaWheel(slots=6, crank_radius=25.0)
-    prev = -1.0
+    prev = 1.0
     for d in range(0, 361, 3):
         v = g.wheel_angle(float(d))
-        assert v >= prev - 1e-9
+        assert v <= prev + 1e-9                                     # CW index: non-increasing
         prev = v
-    assert math.isclose(g.wheel_angle(360.0), 60.0, abs_tol=1e-6)    # 360/6
+    assert math.isclose(g.wheel_angle(360.0), -60.0, abs_tol=1e-6)  # -360/6
 
 
 def test_outline_is_closed_star_with_n_slots():
