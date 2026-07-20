@@ -1,0 +1,72 @@
+units = mm
+# An L-shaped two-storey house, assembled from l_house.hocon. Parts are authored in a shared world
+# frame (see the part file's coordinate + elevation plan), so the plinth, walls, floor band, upper
+# walls, and roof seat at the origin; the door, glass panes, and balconies are placed into their
+# openings by explicit placement. The plinth is grounded; everything is static. Pure generic-op
+# composition (no building profile).
+#
+# Opening centers (mm): ground door x=2500 (front -Y wall); ground front windows x=6000, 9500; ground
+# west windows y=3000, 7000; ground east window y=3000. Upper BALCONY doors x=2500, 9500 (front);
+# upper front window x=6000; upper west windows y=3000, 7000; upper east window y=3000; upper north
+# window x=3000. Window centers: ground z=1500, upper z=4700. Balcony-door glass centers: z=4250.
+metadata {
+  description = "L-shaped two-storey house: stone + rendered walls, floor band, plinth, cross-gable slate roof, two projecting balconies, glass on both storeys, an ajar door; generic ops"
+  tags = [ house, building, two-storey, l-shape, balcony, static-assembly ]
+}
+assembly {
+  instances = [
+    # Shell: plinth (grounded), two wall storeys, the floor band between them, and the roof.
+    { id = plinth, file = "l_house.hocon", part = plinth, lock = true }
+    { id = ground_walls, file = "l_house.hocon", part = ground_walls, placement = { position = [ 0, 0, 0 ] } }
+    { id = floor_band, file = "l_house.hocon", part = floor_band, placement = { position = [ 0, 0, 0 ] } }
+    { id = upper_walls, file = "l_house.hocon", part = upper_walls, placement = { position = [ 0, 0, 0 ] } }
+    { id = roof, file = "l_house.hocon", part = roof, placement = { position = [ 0, 0, 0 ] } }
+
+    # Front door, swung open 70 deg: hinge just inside the left jamb of the x=2500 opening, on the
+    # -Y wall inner face (y=200), rotated about Z so the leaf swings into the hall.
+    { id = door, file = "l_house.hocon", part = door,
+      placement = { position = [ 2015, 238, 0 ], rotation = { axis = [ 0, 0, 1 ], angle = 70 } } }
+
+    # Two projecting balconies at the upper front (-Y) balcony doors (x=2500, x=9500). The balcony is
+    # authored with its back edge at y=0 projecting -Y; seat it at the wall's outer face y=0. Deck at
+    # z=3400 (local deck z -200..0 -> world 3200..3400) so it sits just ABOVE the floor band (z3200),
+    # clear of it, with the deck top a small step below the interior floor.
+    { id = balcony_l, file = "l_house.hocon", part = balcony, placement = { position = [ 2500, 0, 3400 ] } }
+    { id = balcony_r, file = "l_house.hocon", part = balcony, placement = { position = [ 9500, 0, 3400 ] } }
+
+    # The interior staircase: rises in +Y from the ground floor up through the stairwell cut in the
+    # floor band. Seated at x=3000 (spans x 2500..3500), first riser at y=2500, rising to the upper
+    # floor at y~6300 - passing through the well (x 2400..3600, y 2400..5200).
+    { id = stair, file = "l_house.hocon", part = stair, placement = { position = [ 3000, 2500, 0 ] } }
+
+    # Ground-floor glass: two front windows + two west + one east. Front panes translate; side panes
+    # rotate 90 deg about Z. Centers at z=1500.
+    { id = gw_f1, file = "l_house.hocon", part = window, placement = { position = [ 6000, 0, 1500 ] } }
+    { id = gw_f2, file = "l_house.hocon", part = window, placement = { position = [ 9500, 0, 1500 ] } }
+    { id = gw_w1, file = "l_house.hocon", part = window,
+      placement = { position = [ 0, 3000, 1500 ], rotation = { axis = [ 0, 0, 1 ], angle = 90 } } }
+    { id = gw_w2, file = "l_house.hocon", part = window,
+      placement = { position = [ 0, 7000, 1500 ], rotation = { axis = [ 0, 0, 1 ], angle = 90 } } }
+    { id = gw_e1, file = "l_house.hocon", part = window,
+      placement = { position = [ 12000, 3000, 1500 ], rotation = { axis = [ 0, 0, 1 ], angle = 90 } } }
+
+    # Upper-floor glass: the two balcony doors get a tall floor-length glass leaf (the `door_glass`
+    # part), centered on each door opening (x=2500/9500, door z 3200..5300 -> center z=4250). The leaf
+    # is set at y=100 (inside the wall opening, seated in the door reveal) so it clears the balcony
+    # deck + railing that start at the wall face y=0. Plus the centered front window, two west, one
+    # east, one north (windows centered z=4700).
+    { id = uw_bd1, file = "l_house.hocon", part = door_glass, placement = { position = [ 2500, 100, 4250 ] } }
+    { id = uw_bd2, file = "l_house.hocon", part = door_glass, placement = { position = [ 9500, 100, 4250 ] } }
+    { id = uw_f1, file = "l_house.hocon", part = window, placement = { position = [ 6000, 0, 4700 ] } }
+    { id = uw_w1, file = "l_house.hocon", part = window,
+      placement = { position = [ 0, 3000, 4700 ], rotation = { axis = [ 0, 0, 1 ], angle = 90 } } }
+    { id = uw_w2, file = "l_house.hocon", part = window,
+      placement = { position = [ 0, 7000, 4700 ], rotation = { axis = [ 0, 0, 1 ], angle = 90 } } }
+    { id = uw_e1, file = "l_house.hocon", part = window,
+      placement = { position = [ 12000, 3000, 4700 ], rotation = { axis = [ 0, 0, 1 ], angle = 90 } } }
+    { id = uw_n1, file = "l_house.hocon", part = window, placement = { position = [ 3000, 10000, 4700 ] } }
+  ]
+  # A static building: no joints, no mates. Grounding the plinth and placing everything composes the
+  # whole house as one rigid piece.
+  constraints = [ ]
+}
