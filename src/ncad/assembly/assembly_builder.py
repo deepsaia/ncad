@@ -581,12 +581,14 @@ class AssemblyBuilder:
             part_key = (inst["file"], inst["part"])
             if part_key not in part_mass:
                 part_mass[part_key] = self._part_mass(shape, resolver)
-            # Stamp the instance's material + appearance color onto the sidecar record so the viewer
-            # can color assemblies by material (per instance) without a per-part element map.
+            # Stamp the instance's material + appearance onto the sidecar record so the viewer can
+            # color assemblies by material (per instance) without a per-part element map. The full
+            # appearance dict (opacity/metalness/roughness) rides along so glass renders clear.
             sidecar_inst = by_id.get(iid)
             if sidecar_inst is not None:
                 sidecar_inst["material"] = part_mass[part_key].get("material")
                 sidecar_inst["appearance_color"] = part_mass[part_key].get("color")
+                sidecar_inst["appearance"] = part_mass[part_key].get("appearance")
             components.append({
                 "shape": world, "name": iid,
                 "color": part_mass[part_key].get("color"),
@@ -598,9 +600,10 @@ class AssemblyBuilder:
         return interference, {"items": bom_out["items"]}, bom_out["mass"]
 
     def _part_mass(self, shape: Any, resolver: Any) -> dict:
-        """A part's total mass + local COG + material + color; mass is None when no density."""
+        """A part's total mass + local COG + material + appearance; mass is None when no density."""
         material = None
         color = None
+        appearance = _appearance(resolver, shape, self._kernel)
         try:
             props = self._mass.mass_properties(shape, resolver)
             total = props["total"]
@@ -608,10 +611,11 @@ class AssemblyBuilder:
             material = body.get("material")
             color = _appearance_color(resolver, shape, self._kernel)
             return {"mass": total["mass"], "material": material, "cog": tuple(total["cog"]),
-                    "color": color}
+                    "color": color, "appearance": appearance}
         except MaterialError:
             # No density (or no material): counted in BOM quantity, omitted from the mass roll-up.
-            return {"mass": None, "material": material, "cog": (0.0, 0.0, 0.0), "color": color}
+            return {"mass": None, "material": material, "cog": (0.0, 0.0, 0.0),
+                    "color": color, "appearance": appearance}
 
     def _lower_joint(self, joint: dict, local_frames: dict, issues: list):
         """Resolve a joint's refs + lower to primitives + signature; None on error."""
@@ -773,6 +777,23 @@ def _appearance_color(resolver: Any, shape: Any, kernel: Any) -> tuple | None:
         color = (mat or {}).get("appearance", {}).get("color")
         return tuple(color) if color is not None else None
     except Exception:  # noqa: BLE001 - color is optional; a failure just means no STEP color
+        return None
+
+
+def _appearance(resolver: Any, shape: Any, kernel: Any) -> dict | None:
+    """The first body's full material `appearance` dict (color, opacity, metalness, roughness, ...).
+
+    Display-only, carried to the viewer so a material can render as glass (opacity < 1) or metal.
+    Best-effort: never raises (a missing material/appearance just means the viewer uses defaults).
+    """
+    try:
+        bodies = kernel.bodies(shape)
+        if not bodies:
+            return None
+        mat = resolver.for_body(bodies[0])
+        appearance = (mat or {}).get("appearance")
+        return dict(appearance) if isinstance(appearance, dict) else None
+    except Exception:  # noqa: BLE001 - appearance is optional display data; a failure means none
         return None
 
 

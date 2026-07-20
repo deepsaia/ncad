@@ -1260,6 +1260,24 @@ function colorFor(name, appearanceColor) {
   return paletteColor(name);
 }
 
+// Build a By-Material MeshStandardMaterial from a resolved color + the body/instance `appearance`
+// dict. Honors appearance.opacity (< 1 => transparent, e.g. glass), appearance.metalness, and
+// appearance.roughness; each falls back to a matte-solid default when absent. This is the single
+// place By-Material turns authored appearance into a THREE material, so glass declared in the
+// document (opacity < 1) actually renders see-through in the viewer, for ANY material (not a glass
+// special-case). depthWrite is disabled on transparent materials so panes blend without z-fighting.
+function byMaterialMat(color, appearance) {
+  const a = appearance || {};
+  const opacity = (typeof a.opacity === "number") ? a.opacity : 1;
+  const params = {
+    color: color,
+    metalness: (typeof a.metalness === "number") ? a.metalness : 0.05,
+    roughness: (typeof a.roughness === "number") ? a.roughness : 0.85,
+  };
+  if (opacity < 1) { params.transparent = true; params.opacity = opacity; params.depthWrite = false; }
+  return new THREE.MeshStandardMaterial(params);
+}
+
 // Per-exported-mesh body/material, from the sidecar `meshes` list (one entry per glTF mesh, in
 // export order). pickParts is collected in that same glb mesh order, so meshInfo(i) maps mesh i
 // -> its body id + material. This is positional, not name-based: glTF mesh names do not survive
@@ -1373,10 +1391,12 @@ function applyMode() {
       for (const id in instanceMeshMap) {
         const info = assemblyMaterials[id] || {};
         const col = new THREE.Color(colorFor(info.material, info.appearance_color));
+        const transparent = info.appearance && typeof info.appearance.opacity === "number"
+          && info.appearance.opacity < 1;
         for (const mesh of instanceMeshMap[id]) {
-          mesh.material = new THREE.MeshStandardMaterial({
-            color: col, metalness: 0.05, roughness: 0.85 });
-          mesh.castShadow = castShadows;
+          mesh.material = byMaterialMat(col, info.appearance);
+          // A transparent pane should not cast a hard shadow (it would read as opaque on the floor).
+          mesh.castShadow = castShadows && !transparent;
         }
       }
     } else {
@@ -1385,10 +1405,11 @@ function applyMode() {
       // entry falls back to the "(no material)" color.
       pickParts.forEach((mesh, i) => {
         const info = meshInfo(i);
-        mesh.material = new THREE.MeshStandardMaterial({
-          color: new THREE.Color(colorFor(info.material, info.appearance_color)),
-          metalness: 0.05, roughness: 0.85 });
-        mesh.castShadow = castShadows;
+        const col = new THREE.Color(colorFor(info.material, info.appearance_color));
+        mesh.material = byMaterialMat(col, info.appearance);
+        const transparent = info.appearance && typeof info.appearance.opacity === "number"
+          && info.appearance.opacity < 1;
+        mesh.castShadow = castShadows && !transparent;
       });
     }
     edges.forEach(e => { e.visible = showEdges; });
@@ -2358,7 +2379,8 @@ function loadAssembly(name, verbose, timing) {
       assemblyMaterials = {};
       for (const inst of sceneDoc.instances) {
         assemblyMaterials[inst.id] = {material: inst.material || null,
-                                      appearance_color: inst.appearance_color || null};
+                                      appearance_color: inst.appearance_color || null,
+                                      appearance: inst.appearance || null};
       }
       buildJointOverlay(sceneDoc, root, instanceNodes);
       updateByMaterialButton();  // show the By-Material control if this assembly has materials
