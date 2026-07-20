@@ -57,6 +57,14 @@ plugins:
 hooks:
   - docs_hooks.py
 
+# `mkdocs serve` only watches docs_dir + config by default; watch the generator sources too so the
+# reference regenerates live when the hook, exporter, renderer, or op registry changes.
+watch:
+  - docs_hooks.py
+  - src/ncad/docs
+  - src/ncad/ops/op_registry.py
+  - examples
+
 markdown_extensions:
   - admonition
   - attr_list

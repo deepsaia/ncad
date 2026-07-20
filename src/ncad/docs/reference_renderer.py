@@ -55,31 +55,42 @@ class ReferenceRenderer:
         return "\n".join(lines)
 
     def _matrix_page(self, export: dict) -> str:
-        """The Capability Matrix: every registered op, its status, and its example count."""
+        """The Capability Matrix: every registered op grouped by category (status + examples)."""
+        by_name = {op["name"]: op for op in export["ops"]}
         lines = ["# Capability Matrix", "",
-                 "Every operation ncad implements today, generated from the op registry. "
-                 "An op is **Available** when it is registered and buildable; the example count is "
-                 "how many shipped example documents exercise it.", "",
-                 "| Operation | Status | Examples | Summary |", "|---|---|---|---|"]
-        for op in sorted(export["ops"], key=lambda o: o["name"]):
-            summary = (op.get("summary") or "").replace("|", "\\|")
-            lines.append(
-                f"| [`{op['name']}`](ops/{op['name']}.md) | Available | "
-                f"{len(op['examples'])} | {summary} |")
-        lines.append("")
+                 "Every operation ncad implements today, generated from the op registry and "
+                 "grouped by category. An op is **Available** when it is registered and buildable; "
+                 "the example count is how many shipped example documents exercise it.", ""]
+        for cat in export["categories"]:
+            if not cat["ops"]:
+                continue
+            lines += [f"## {cat['name']}", "",
+                      "| Operation | Status | Examples | Summary |", "|---|---|---|---|"]
+            for name in cat["ops"]:
+                op = by_name[name]
+                summary = (op.get("summary") or "").replace("|", "\\|")
+                lines.append(
+                    f"| [`{name}`](ops/{name}.md) | Available | "
+                    f"{len(op['examples'])} | {summary} |")
+            lines.append("")
         return "\n".join(lines)
 
     def _index_page(self, export: dict) -> str:
-        """The reference landing page: links to every op page + the matrix."""
+        """The reference landing page: op links grouped by category + a link to the matrix."""
+        by_name = {op["name"]: op for op in export["ops"]}
         lines = ["# Operations Reference", "",
                  "ncad's operation vocabulary, generated from the op registry "
-                 f"(`src/ncad/ops/op_registry.py`). {len(export['ops'])} operations are available.",
-                 "", "See the [Capability Matrix](capability-matrix.md) for a status overview.",
-                 "", "## Operations", ""]
-        for op in sorted(export["ops"], key=lambda o: o["name"]):
-            summary = op.get("summary") or ""
-            lines.append(f"- [`{op['name']}`](ops/{op['name']}.md) - {summary}")
-        lines.append("")
+                 f"(`src/ncad/ops/op_registry.py`). {len(export['ops'])} operations are available, "
+                 "grouped by category below.", "",
+                 "See the [Capability Matrix](capability-matrix.md) for a status overview.", ""]
+        for cat in export["categories"]:
+            if not cat["ops"]:
+                continue
+            lines += [f"## {cat['name']}", ""]
+            for name in cat["ops"]:
+                summary = by_name[name].get("summary") or ""
+                lines.append(f"- [`{name}`](ops/{name}.md) - {summary}")
+            lines.append("")
         return "\n".join(lines)
 
     def _first_example(self, op: dict, export: dict) -> dict | None:
