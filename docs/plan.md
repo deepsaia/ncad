@@ -1779,12 +1779,13 @@ Run alongside the phases, not after them:
       kind-dispatches (part/assembly/motion), runs schema + id + dependency + cross-document
       reference checks (assembly connector/instance/joint-type; motion driver/assembly-ref/
       coupling-primary), reads no kernel, and NEVER raises for a bad design. `build_file`
-      returns `{artifacts, diagnostics}`, and `POST /api/v1/validate {spec} -> {ok,
-      diagnostics}` exposes static validation to a service client. Codes are open by
-      convention (a code only where a consumer branches on it; all schema-shape violations
-      share the single `SCHEMA` code). Deferred: dry-build-inside-validate, a broad new-check
-      suite (units/range/redundant-constraint), fix-hint autocorrection, an `ncad validate`
-      CLI subcommand, and specific schema sub-codes.
+      returns `{artifacts, diagnostics}`, `POST /api/v1/validate {spec} -> {ok, diagnostics}`
+      exposes static validation to a service client, and `ncad validate <doc>` is the CLI
+      subcommand (prints diagnostics, exits 1 on any error). Codes are open by convention (a
+      code only where a consumer branches on it; all schema-shape violations share the single
+      `SCHEMA` code). Deferred: dry-build-inside-validate, a broad new-check suite
+      (units/range/redundant-constraint), fix-hint autocorrection, and specific schema
+      sub-codes.
 - [~] **Testing & golden**: the §4a **equality harness** (topology signature +
       toleranced measures, *not* BREP bytes) shipped (bucket 0.4); golden equality
       tuples + fast/slow gate examples per bucket. Ahead: per-feature failure goldens,
