@@ -9,7 +9,8 @@ from ncad.standard import StandardLibrary
 
 def test_families_and_designations():
     lib = StandardLibrary()
-    assert set(lib.families()) == {"washer", "hex_nut"}
+    # washer + hex_nut are the S5 originals; the family set grows as new families register.
+    assert {"washer", "hex_nut"} <= set(lib.families())
     assert "M8" in lib.designations("washer")
     assert "M8" in lib.designations("hex_nut")
 

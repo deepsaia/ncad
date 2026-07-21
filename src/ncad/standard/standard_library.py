@@ -10,18 +10,34 @@ Everything is produced natively (no network, no third-party CAD import). One cla
 from collections.abc import Callable
 from typing import Any
 
+from ncad.standard.bearing_generator import BearingGenerator
+from ncad.standard.flange_generator import FlangeGenerator
+from ncad.standard.gasket_generator import GasketGenerator
 from ncad.standard.hex_nut_generator import HexNutGenerator
+from ncad.standard.i_beam_generator import IBeamGenerator
+from ncad.standard.pipe_generator import PipeGenerator
 from ncad.standard.standard_table import StandardTable
 from ncad.standard.washer_generator import WasherGenerator
 
 # Family key -> (table file name, generator factory, required dimension keys). New families slot in
 # here with a table + a generator + their required dims; the CLI and callers need no change. The
-# required keys let the custom-dimensions path reject an incomplete spec with a clear error.
+# required keys let the custom-dimensions path reject an incomplete spec with a clear error. Each
+# family is generatable BOTH by standard designation (table lookup) and by custom dimensions.
+_BOLT_CIRCLE_DIMS = ("outer_diameter", "bore_diameter", "thickness",
+                     "bolt_circle_diameter", "bolt_hole_diameter", "bolt_count")
 _FAMILIES: dict[str, tuple[str, Callable[[], Any], tuple[str, ...]]] = {
     "washer": ("iso_7089_washers.json", WasherGenerator,
                ("inner_diameter", "outer_diameter", "thickness")),
     "hex_nut": ("iso_4032_hex_nuts.json", HexNutGenerator,
                 ("thread_diameter", "width_across_flats", "thickness")),
+    "pipe": ("en_10220_pipes.json", PipeGenerator,
+             ("outer_diameter", "wall_thickness")),
+    "flange": ("asme_b16_5_flanges.json", FlangeGenerator, _BOLT_CIRCLE_DIMS),
+    "gasket": ("asme_b16_21_gaskets.json", GasketGenerator, _BOLT_CIRCLE_DIMS),
+    "bearing": ("iso_15_bearings.json", BearingGenerator,
+                ("outer_diameter", "bore_diameter", "width")),
+    "i_beam": ("euronorm_ipe_beams.json", IBeamGenerator,
+               ("height", "flange_width", "web_thickness", "flange_thickness")),
 }
 
 

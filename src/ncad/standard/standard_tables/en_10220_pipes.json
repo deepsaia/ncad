@@ -1,0 +1,20 @@
+{
+  "standard": "EN 10220",
+  "title": "Seamless and welded steel tubes, nominal outside diameter + wall",
+  "version": "2026-07-21",
+  "source": "EN 10220 nominal pipe outside diameters with a representative wall thickness per size. Nominal only; a specific schedule/pressure class is not modeled. Keyed by DN designation. length_default is a convenient stock cut, not a standard value.",
+  "unit": "mm",
+  "designations": {
+    "DN15":  {"outer_diameter": 21.3,  "wall_thickness": 2.6, "length_default": 200},
+    "DN20":  {"outer_diameter": 26.9,  "wall_thickness": 2.6, "length_default": 200},
+    "DN25":  {"outer_diameter": 33.7,  "wall_thickness": 3.2, "length_default": 250},
+    "DN32":  {"outer_diameter": 42.4,  "wall_thickness": 3.2, "length_default": 250},
+    "DN40":  {"outer_diameter": 48.3,  "wall_thickness": 3.2, "length_default": 300},
+    "DN50":  {"outer_diameter": 60.3,  "wall_thickness": 3.6, "length_default": 300},
+    "DN65":  {"outer_diameter": 76.1,  "wall_thickness": 3.6, "length_default": 400},
+    "DN80":  {"outer_diameter": 88.9,  "wall_thickness": 4.0, "length_default": 400},
+    "DN100": {"outer_diameter": 114.3, "wall_thickness": 4.5, "length_default": 500},
+    "DN125": {"outer_diameter": 139.7, "wall_thickness": 5.0, "length_default": 500},
+    "DN150": {"outer_diameter": 168.3, "wall_thickness": 5.6, "length_default": 600}
+  }
+}

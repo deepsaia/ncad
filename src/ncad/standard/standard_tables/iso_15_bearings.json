@@ -1,0 +1,27 @@
+{
+  "standard": "ISO 15 (deep-groove ball bearing boundary dimensions)",
+  "title": "Single-row deep-groove ball bearings, boundary dimensions",
+  "version": "2026-07-21",
+  "source": "ISO 15 boundary dimensions (bore d, outside diameter D, width B) for the 6000/6200/6300 series. Simplified to the mounting envelope: a solid ring of outside diameter D, bore d, width B (no races, balls, or cage). Boundary dimensions are physical facts; keyed by the bearing designation.",
+  "unit": "mm",
+  "designations": {
+    "6000": {"outer_diameter": 26.0,  "bore_diameter": 10.0, "width": 8.0},
+    "6001": {"outer_diameter": 28.0,  "bore_diameter": 12.0, "width": 8.0},
+    "6002": {"outer_diameter": 32.0,  "bore_diameter": 15.0, "width": 9.0},
+    "6003": {"outer_diameter": 35.0,  "bore_diameter": 17.0, "width": 10.0},
+    "6004": {"outer_diameter": 42.0,  "bore_diameter": 20.0, "width": 12.0},
+    "6005": {"outer_diameter": 47.0,  "bore_diameter": 25.0, "width": 12.0},
+    "6200": {"outer_diameter": 30.0,  "bore_diameter": 10.0, "width": 9.0},
+    "6201": {"outer_diameter": 32.0,  "bore_diameter": 12.0, "width": 10.0},
+    "6202": {"outer_diameter": 35.0,  "bore_diameter": 15.0, "width": 11.0},
+    "6203": {"outer_diameter": 40.0,  "bore_diameter": 17.0, "width": 12.0},
+    "6204": {"outer_diameter": 47.0,  "bore_diameter": 20.0, "width": 14.0},
+    "6205": {"outer_diameter": 52.0,  "bore_diameter": 25.0, "width": 15.0},
+    "6300": {"outer_diameter": 35.0,  "bore_diameter": 10.0, "width": 11.0},
+    "6301": {"outer_diameter": 37.0,  "bore_diameter": 12.0, "width": 12.0},
+    "6302": {"outer_diameter": 42.0,  "bore_diameter": 15.0, "width": 13.0},
+    "6303": {"outer_diameter": 47.0,  "bore_diameter": 17.0, "width": 14.0},
+    "6304": {"outer_diameter": 52.0,  "bore_diameter": 20.0, "width": 15.0},
+    "6305": {"outer_diameter": 62.0,  "bore_diameter": 25.0, "width": 17.0}
+  }
+}
