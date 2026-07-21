@@ -191,12 +191,27 @@ function initShowcases() {
 }
 
 // Material for MkDocs swaps page content without a full reload (navigation.instant). Its document$
-// observable emits on every page load AND swap; subscribe when present so viewers wire up on any
-// page. Fall back to DOMContentLoaded when the theme's document$ is unavailable.
-if (typeof window.document$ !== "undefined" && window.document$.subscribe) {
-  window.document$.subscribe(() => initShowcases());
-} else if (document.readyState !== "loading") {
+// observable emits on every page load AND swap; subscribing is the only reliable hook (a one-shot
+// DOMContentLoaded scan misses instant-nav swaps, so viewers never appear when you navigate INTO the
+// page). document$ is defined by Material's bundle.js; this module loads after it (see
+// overrides/main.html), but poll briefly in case script order ever changes. Always run an immediate
+// scan too, so a direct hard load (document$ already emitted) still wires up.
+function wireShowcases() {
   initShowcases();
-} else {
-  document.addEventListener("DOMContentLoaded", initShowcases);
+  if (typeof window.document$ !== "undefined" && window.document$.subscribe) {
+    window.document$.subscribe(() => initShowcases());
+    return true;
+  }
+  return false;
+}
+
+if (!wireShowcases()) {
+  // document$ not ready yet: poll a few times, then give up to a plain DOMContentLoaded scan.
+  let tries = 0;
+  const timer = setInterval(() => {
+    if (wireShowcases() || ++tries > 40) clearInterval(timer);
+  }, 50);
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initShowcases);
+  }
 }
