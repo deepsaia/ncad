@@ -1,0 +1,15 @@
+A **rigid body** is an idealized collection of particles whose mutual distances never change: for any two material points \(p_i\) and \(p_j\), the constraint \(\lVert p_i - p_j \rVert = \text{const}\) holds for all time. Because of this rigidity, the pose of the entire body is fixed once we know the position of one reference point plus the orientation of a frame attached to the body. Counting the independent parameters needed to specify that pose gives the body's **degrees of freedom (DOF)**, and this count is the single most important distinction between planar and spatial kinematics.
+
+In the plane, a free rigid body has **three DOF**: two translations \((x, y)\) and one rotation \(\theta\). In space, it has **six DOF**: three translations and three rotations. The pose is written compactly as a homogeneous transform combining a rotation matrix and a translation vector,
+
+\[
+T = \begin{bmatrix} R & \mathbf{t} \\ \mathbf{0} & 1 \end{bmatrix},
+\]
+
+where \(R \in SO(2)\) or \(SO(3)\) is a proper orthogonal matrix (\(R^{\top}R = I\), \(\det R = +1\)) and \(\mathbf{t}\) is the position of the body frame's origin. The set of all such transforms forms the special Euclidean groups \(SE(2)\) (a 3-dimensional manifold) and \(SE(3)\) (a 6-dimensional manifold). This group structure is what lets us compose motions by matrix multiplication and invert them cleanly, and it is the algebraic backbone of every joint model built on top of it.
+
+## The structure of a general displacement
+
+Beyond counting DOF, classical theorems describe the *shape* of an arbitrary displacement. In the plane, **Euler's theorem** (the planar case of Chasles') states that any rigid displacement that is not a pure translation is equivalent to a single rotation about a unique fixed point, the **pole** (or instantaneous center for infinitesimal motion). In space, **Chasles' theorem** states that the most general rigid displacement is a **screw motion**: a rotation about an axis combined with a translation along that same axis, parameterized by an angle and a pitch. Pure rotations and pure translations are degenerate special cases (infinite and zero pitch, respectively). This screw structure is why twists and wrenches, not separate linear and angular quantities, are the natural language of spatial mechanics.
+
+The planar/spatial distinction matters far beyond bookkeeping. A mechanism analyzed as planar assumes all motion stays in parallel planes; if real joint axes are even slightly skew, the planar model silently omits constraints and predicts motions the hardware cannot perform. Spatial models capture those effects but pay with nonlinear trigonometry, potential gimbal-type orientation singularities, and the need to choose a rotation representation (matrices, Euler angles, quaternions, or exponential coordinates) that avoids parameterization artifacts. Choosing the right dimensional setting up front, \(d = 3\) versus \(d = 6\), fixes the DOF budget that every downstream mobility, assembly, and singularity calculation depends on.

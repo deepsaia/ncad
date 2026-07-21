@@ -1,0 +1,19 @@
+A keyword input deck is an ASCII serialization of a finite element model. It is line oriented and case tolerant: lines that begin with a single asterisk open a block (for example `*NODE`, `*ELEMENT`, `*MATERIAL`, `*STEP`), the comma separated lines that follow populate that block, and lines beginning with two asterisks are comments. Keywords carry parameters on their opening line, such as `*ELEMENT, TYPE=C3D8, ELSET=BODY`, which name an element family and bind the block to a set. The deck is split into two logical halves. Everything before the first `*STEP` is *model data*: geometry, mesh, materials, section assignments, coordinate systems, and initial conditions. Everything inside a `*STEP ... *END STEP` block is *history data*: the analysis procedure, the loads and boundary conditions active during that step, and the requested output.
+
+## What the blocks encode
+
+The core entities map directly onto the mathematical objects of the method. `*NODE` gives each node an id and coordinates; `*ELEMENT` gives connectivity plus a type code (hexahedra such as `C3D8`, tetrahedra such as `C3D4`, shells such as `S4`, beams such as `B31`). `*NSET` and `*ELSET` group entities so that loads and constraints reference named sets rather than raw ids, which decouples the physics from the mesh numbering. Material behavior lives under `*MATERIAL` with sub blocks like `*ELASTIC`, `*DENSITY`, and `*PLASTIC`; sections tie a material to a region through `*SOLID SECTION` or `*SHELL SECTION`. Essential (Dirichlet) constraints use `*BOUNDARY`, coupling uses `*MPC` or `*EQUATION`, and natural (Neumann) loads use `*CLOAD` and `*DLOAD`. The procedure keyword inside a step selects the solver path: `*STATIC`, `*FREQUENCY`, `*DYNAMIC`, `*BUCKLE`, `*HEAT TRANSFER`, and so on.
+
+## Why the deck mirrors the math
+
+The finite element method reduces a boundary value problem to a discrete algebraic system. For linear statics that system is
+\[ K\,u = f, \]
+where the global stiffness \(K\) is assembled from element contributions
+\[ K^e = \int_{\Omega^e} B^\top D\,B \; d\Omega. \]
+Each keyword block supplies exactly one ingredient of this construction: `*NODE` and `*ELEMENT` define the discretized domain \(\Omega \approx \bigcup_e \Omega^e\) and the shape functions behind \(B\); `*MATERIAL` supplies the constitutive matrix \(D\); `*BOUNDARY` fixes components of \(u\); `*CLOAD` and `*DLOAD` build \(f\); and the step procedure names the algorithm that solves for \(u\). Because the file is a near one to one transcript of the assembled problem, it is both human readable and mechanically parseable, which is why it doubles as a scripting and regression target.
+
+## Interchange value and limits
+
+The format's practical importance is that a widely used commercial implicit solver and a compatible open source solver both consume the same syntax, so the deck behaves as a de facto neutral exchange for many preprocessing and postprocessing pipelines. The text is diffable and version controllable, sets keep loads and constraints stable across remeshes, and `*INCLUDE` lets a model be split into reusable fragments. Numeric fields are free format and unit agnostic, so the analyst is responsible for a consistent unit system.
+
+The deck is not a ratified standard, and that is the main caveat for interchange. Each implementation supports only a subset of keywords, ships a slightly different element library, and applies different defaults for integration, hourglass control, and nonlinear switches such as `NLGEOM`. Round trip fidelity is therefore bounded by the intersection of the two implementations. Step sequencing, restart state, and output requests are the usual portability gaps, so a reliable importer validates element type codes and reports keywords it chooses to ignore rather than assuming the writer's dialect.

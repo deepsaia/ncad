@@ -1,0 +1,15 @@
+Every signal current that leaves a driver must return to it; a signal is a loop, not a one-way trip. On a PCB the forward current flows in the trace and the **return current** flows in the adjacent reference plane (or another conductor). Signal integrity depends as much on where that return current goes as on the trace itself, because the loop the two currents enclose determines the interconnect's inductance, its susceptibility to and generation of noise, and its radiated emissions. Ignoring the return path is the single most common source of high-speed design failure.
+
+The key physics is frequency dependent. At DC and low frequency, return current spreads to follow the path of **least resistance**, taking the broadest copper available. At high frequency it instead follows the path of **least inductance**, which means it crowds into the plane directly beneath the trace to minimize enclosed loop area. The lateral current density in the reference plane under a microstrip follows an approximately Lorentzian distribution about the trace:
+
+\[ i(d) = \frac{I_0}{\pi h}\,\frac{1}{1 + \left(\frac{d}{h}\right)^2} \]
+
+where \(d\) is the horizontal distance from the trace centerline and \(h\) is the trace-to-plane height. Most of the return concentrates within a few multiples of \(h\), which is why a solid, uninterrupted plane close to the signal layer is so effective: it lets the return hug the signal and keeps the loop tight.
+
+## Discontinuities and Reference Transitions
+
+Problems arise when the return path is forced to detour. A **gap or slot** in the reference plane (a split power plane, an antipad chain, a cutout) makes the return current flow around the obstruction, enlarging the loop, raising local inductance, and creating a voltage drop that appears as ground bounce and as a strong source of crosstalk and radiation. Routing a fast signal across a plane split is a classic defect: the return cannot follow, so the loop area balloons.
+
+A subtler case is a **layer transition through a via**. When a signal changes reference from one plane to another, the return current must also transition. If the two reference planes are at the same DC potential, a nearby **stitching via** gives the return a low-inductance route between them. If they are at different potentials (e.g. signal referenced to ground on one layer and to a power plane on another), the return must couple through the interplane capacitance, and a **stitching capacitor** placed near the signal via provides that AC path. Without either, the transition inductance spikes.
+
+The design consequences are concrete: keep a continuous reference plane adjacent to every high-speed layer; never route across plane splits (or bridge the split with a return path and, ideally, a stitching capacitor); place ground vias next to signal vias at layer changes; and reference signals to ground rather than to noisy power planes where possible. The governing quantity is loop inductance \(L \approx \mu_0 A / \ell\) scaling with enclosed area \(A\); every good return-path practice is ultimately an effort to make that area small.

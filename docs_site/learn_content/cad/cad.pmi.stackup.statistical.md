@@ -1,0 +1,15 @@
+Statistical tolerance analysis recognizes that the worst-case assumption — every contributor at its extreme, all in the same direction, at once — describes an event so improbable that designing to it wastes tolerance. If the contributing dimensions vary *independently* and are roughly centered, their deviations partly cancel, and the resultant's spread grows far more slowly than the arithmetic sum. The classical model treats each contributor \( x_i \) as a random variable with variance \( \sigma_i^2 \); for a linearized stack with sensitivities \( a_i \), the variance of the resultant is the scaled sum of variances, so its standard deviation is a **root-sum-square (RSS)** combination:
+
+\[ \sigma_Y = \sqrt{\sum_i a_i^2\, \sigma_i^2} \]
+
+## From tolerances to the RSS formula
+
+In practice tolerances, not standard deviations, are what a drawing states. The common convention equates a symmetric tolerance \( t_i \) to a \( \pm 3\sigma \) band, i.e. \( \sigma_i = t_i / 3 \), under the assumption that each process is centered and normally distributed. Substituting and expressing the resultant tolerance at the same \( 3\sigma \) confidence gives the familiar RSS stack:
+
+\[ T_{rss} = \sqrt{\sum_i a_i^2\, t_i^2} \]
+
+The contrast with worst-case is stark: five contributors each with tolerance \( t \) give \( T_{wc} = 5t \) but \( T_{rss} = \sqrt{5}\,t \approx 2.24\,t \). The RSS result is always smaller (equal only for a single contributor), so the same resultant requirement permits looser — cheaper — individual tolerances, or equivalently a tighter assembly from the same parts. The trade is that RSS is a *probabilistic* guarantee: it predicts that some tiny fraction of assemblies will fall outside \( \pm T_{rss} \), the fraction implied by the chosen sigma multiplier (about 0.27% beyond \( \pm 3\sigma \) for a normal resultant).
+
+## Assumptions, correction factors, and process capability
+
+The clean formula rests on assumptions that real production violates: contributors must be statistically independent, individually near-normal, and — critically — **centered** on nominal. Processes drift, tools wear, and distributions are often skewed, so mechanically applying \( \sigma = t/3 \) can under-predict variation. Practitioners compensate with an *inflation factor* (a Benderized or 1.5-sigma-shift correction) that widens \( T_{rss} \) to account for mean shift, and they tie \( \sigma_i \) to measured **process capability** rather than to the drawing tolerance, since a capable process has \( C_{pk} = \min(USL-\mu,\ \mu-LSL)/(3\sigma) \ge 1 \) and a marginal one does not. Statistical stack-up is therefore the method of choice for high-volume assembly with many independent contributors and monitored, capable processes, where predicting a defect rate is more useful than guaranteeing the impossible-worst case. It is the wrong tool for small lots (no meaningful population to average over), for strongly correlated contributors, or for safety-critical interfaces where even a 0.27% out-of-spec fraction is unacceptable — there, worst-case still governs.

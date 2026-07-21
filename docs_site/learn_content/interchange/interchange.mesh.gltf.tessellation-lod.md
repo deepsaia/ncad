@@ -1,0 +1,21 @@
+Runtime 3D delivery formats are triangle-mesh formats: a graphics pipeline rasterizes triangles, so any curved or analytic surface must first be *tessellated* into a piecewise-linear approximation of flat facets. A transmission format such as glTF stores no NURBS patches, analytic cylinders, or B-rep faces; a mesh is a set of *primitives*, each referencing vertex *accessors* (position, normal, texture coordinate, tangent) and, usually, an index accessor describing triangles. Tessellation therefore happens upstream, in whatever authoring or conversion step exports the asset, and the result of that one-time conversion is baked into the file. Getting it right is the difference between a smooth, compact, faithful asset and one that is either visibly faceted or needlessly enormous.
+
+## The tessellation criterion
+
+The central quantity governing tessellation is the *chordal deviation* (also called sag): the maximum distance between the true surface and the flat chord that approximates it. For a circular arc of radius \( R \), a chord subtending a central angle \( \theta \) deviates from the arc by
+
+\[ \epsilon = R\left(1 - \cos\frac{\theta}{2}\right). \]
+
+Inverting this gives the maximum angular step for a target tolerance \( \epsilon \),
+
+\[ \theta_{\max} = 2\arccos\!\left(1 - \frac{\epsilon}{R}\right), \]
+
+so a full circle of radius \(R\) needs about \( n = \lceil 2\pi / \theta_{\max} \rceil \) facets around its circumference. In practice tessellators combine this *chord tolerance* with an *angular tolerance* (a cap on the normal deviation between adjacent facets, controlling silhouette and shading quality) and often a maximum-edge-length limit. Because \( \theta_{\max} \) shrinks as \(R\) grows for fixed \(\epsilon\), an absolute tolerance adapts facet count to feature size automatically, whereas a relative tolerance (a fraction of the bounding box or of \(R\)) keeps facet counts stable across scales but lets large parts deviate more in absolute terms.
+
+## Normals, watertightness, and cost
+
+Tessellation must also decide how vertices are shared. Along a smooth surface, adjacent facets should share vertices whose normals are averaged so shading interpolates smoothly (Gouraud/Phong-style); across a genuine hard edge, the seam vertices must be *duplicated* so each side keeps its own normal and the crease stays sharp. A common failure is over-welding, which rounds off intended edges, or under-welding, which cracks a surface that should be continuous. Because triangle count grows roughly with \( 1/\sqrt{\epsilon} \) along a curved edge, halving the sag tolerance can nearly double the vertices on curved regions; tessellation is thus an explicit trade of file size, GPU vertex-processing cost, and visual fidelity.
+
+## Level of Detail
+
+A single tessellation cannot be optimal at every viewing distance: facets finer than a pixel waste bandwidth and fill rate, while a coarse mesh looks broken up close. *Level of Detail* (LOD) supplies several discrete representations of the same object and selects among them at runtime, typically by projected screen size or camera distance, so on-screen triangle density stays roughly constant. glTF expresses discrete LOD through an extension (`MSFT_lod`) that lists alternative meshes/materials in decreasing fidelity, letting a client pick the appropriate rung and even stream lower rungs first. The complementary idea, *geometry compression* (e.g. the `KHR_draco_mesh_compression` extension), shrinks the transmitted vertex/index data itself and is orthogonal to LOD: LOD reduces how many triangles you draw, compression reduces how many bytes you send for a given triangle set. Discrete LOD contrasts with continuous or view-dependent schemes (progressive meshes, edge-collapse hierarchies, and modern cluster-based approaches) that adjust detail per region; delivery formats favor discrete LOD because it is simple, cacheable, and cheap to select. The engineering discipline is to generate each rung by *simplification with an error bound* (quadric edge-collapse decimation is the standard method) and to pick switch thresholds so the geometric error stays below one pixel at the transition, making level changes imperceptible.

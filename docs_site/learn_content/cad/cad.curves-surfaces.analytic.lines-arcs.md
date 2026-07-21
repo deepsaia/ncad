@@ -1,0 +1,13 @@
+Lines and circular arcs are the *analytic* (or *elementary*, *canonical*) primitives of a geometric modeler: curves whose shape is captured by a handful of intrinsic parameters rather than by a network of control points. A line is fully described by a point and a direction, and a circle by a center, a plane (an axis normal), and a radius. Despite the generality of free-form representations, these primitives remain first-class citizens because they are *exact*, *compact*, *cheap to evaluate*, and *semantically meaningful*: a drilled feature is genuinely a cylinder bounded by circular edges, and a chamfered corner is genuinely a line. Preserving that identity lets downstream reasoning (feature recognition, tolerancing, manufacturing) recover design intent that a generic spline would blur.
+
+Parametrically, a line segment is the affine map
+\[ \mathbf{p}(t) = \mathbf{p}_0 + t\,\mathbf{d}, \qquad t \in [t_0, t_1], \]
+and a circular arc in its own placement frame \((\mathbf{o}; \mathbf{x}, \mathbf{y})\) is
+\[ \mathbf{c}(\theta) = \mathbf{o} + r\cos\theta\,\mathbf{x} + r\sin\theta\,\mathbf{y}, \qquad \theta \in [\theta_0, \theta_1]. \]
+The defining differential-geometric fact is curvature: a line has \(\kappa = 0\) everywhere, and a circular arc has *constant* curvature \(\kappa = 1/r\). Constant curvature is exactly what makes the line-arc-line profile the workhorse of 2D sketching and slot/keyway geometry: consecutive segments can be joined with tangent (\(G^1\)) continuity, and the constant-radius arc gives a predictable, machinable transition.
+
+## Construction conventions
+
+Arcs are rarely typed in as center-plus-angles. Common authoring inputs are *three points* on the arc (start, an intermediate point, end), *two endpoints plus a radius* with a side/sense flag, or the *bulge* factor used in 2D exchange formats (the tangent of one quarter of the included angle). A modeler converts any of these to the canonical center/radius/angle form and flags degeneracies: three collinear points yield a line, and a zero or infinite radius is rejected.
+
+A subtle but important point is representability. A full circle *cannot* be reproduced exactly by a non-rational polynomial parametric curve of any finite degree, because a rational function is required to trace a conic; the analytic circle sidesteps this entirely by carrying the closed-form trigonometric definition. When a modeler needs one uniform evaluator for meshing, intersection, or file exchange, it converts the analytic arc into its *rational* B-spline equivalent (a quadratic with a non-unit middle weight), which reproduces the arc exactly. The healthy pattern is to store the analytic form as the source of truth and derive the spline form on demand.

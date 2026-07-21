@@ -1,0 +1,15 @@
+A kinematic singularity is a configuration where the manipulator Jacobian \( J(q) \) loses rank. Geometrically, it is a posture in which the robot momentarily cannot move its end-effector in some direction no matter how it drives the joints: two or more joint axes have lined up so their contributions become linearly dependent, and a degree of freedom of the task space collapses. Singularities are intrinsic to the mechanism, not artifacts of the math, and they matter because control laws built on the Jacobian misbehave violently near them: the inverse \( J^{-1} \) (or pseudoinverse) diverges, commanding unbounded joint velocities to achieve a modest Cartesian motion.
+
+## Detecting singularities
+
+For a non-redundant arm the test is whether the Jacobian determinant vanishes, \( \det J(q) = 0 \); more generally one uses the singular value decomposition \( J = U\Sigma V^{\top} \) and watches the smallest singular value \( \sigma_{\min} \) approach zero. The singular values are the semi-axis lengths of the *manipulability ellipsoid*, the image under \( J \) of the unit sphere of joint velocities. When the ellipsoid is round the robot moves and transmits force equally well in all directions; when one axis shrinks toward zero the ellipsoid flattens into a disk or line and the robot is near-singular. Common cases include the *boundary singularity* (arm fully stretched at the edge of its workspace), the *wrist singularity* (two wrist axes align, losing an orientation DOF), and internal *elbow* or *shoulder* alignments.
+
+## Quantifying manipulability
+
+Yoshikawa's manipulability measure condenses the ellipsoid into a single scalar,
+
+\[ w(q) = \sqrt{\det\bigl(J(q)\,J(q)^{\top}\bigr)} = \sigma_1 \sigma_2 \cdots \sigma_m, \]
+
+the product of the singular values, which is proportional to the ellipsoid's volume and goes to zero exactly at a singularity. A related and often more useful diagnostic is the condition number \( \kappa = \sigma_{\max}/\sigma_{\min} \), which measures dexterity: \( \kappa = 1 \) is an isotropic, well-conditioned pose, while \( \kappa \to \infty \) signals a singularity. Because force and velocity are dual (through \( \tau = J^{\top}\mathcal{F} \)), a direction that is easy to move is hard to push in and vice versa, so the *force* manipulability ellipsoid is the geometric inverse of the velocity one.
+
+These measures are used in three ways. Offline, in workcell layout and mechanism design, they help place tasks in high-manipulability regions and choose link proportions that maximize dexterity across the workspace. Online, \( \sigma_{\min} \) or \( w(q) \) is monitored so the controller can slow down, switch to damped least squares, or reject a trajectory before entering a singular neighborhood. In redundant robots the null space is exploited to actively *maximize* manipulability, steering the extra joints away from singular postures while the end-effector follows its commanded path. Treating singularities as something to be predicted and avoided, rather than survived, is a hallmark of a robust kinematics implementation.

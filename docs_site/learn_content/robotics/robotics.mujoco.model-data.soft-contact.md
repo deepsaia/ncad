@@ -1,0 +1,17 @@
+Most rigid-body engines treat contact as a hard, non-smooth complementarity condition (no penetration, and force only when touching), typically solved as a linear complementarity problem (LCP). MuJoCo takes a different route: it casts **all** constraints, frictionless and frictional contacts, joint and tendon limits, dry friction, and equality constraints, as a single **convex optimization** over accelerations, with intentionally *soft* (compliant) behavior. This makes the dynamics continuous and well-posed even at large time steps, and it is the design choice that most distinguishes the engine.
+
+Each scalar constraint is given a target dynamics by a virtual spring-damper. Let \(r\) be the constraint's position residual (for a contact, the signed gap, negative when penetrating) and \(v = J\dot q\) its velocity in constraint space. The solver drives the constraint toward a **reference acceleration**
+
+\[ a_{\text{ref}} = -k\, r - b\, v, \]
+
+where the stiffness \(k\) and damping \(b\) are derived from the two `solref` parameters, a **time constant** \(\tau\) and a **damping ratio** \(\zeta\), so that the constraint relaxes like a mass-spring-damper (critically damped when \(\zeta = 1\)). Intuitively \(b \propto 1/\tau\) and \(k \propto 1/(\zeta\tau)^2\): small \(\tau\) yields a stiff, fast-restoring constraint, larger \(\tau\) a softer one.
+
+How strongly that reference is enforced is governed by a scalar **impedance** \(d(r) \in (0,1)\) computed from the five `solimp` parameters `(dmin, dmax, width, midpoint, power)`, which interpolate impedance from a low value far from the constraint boundary to a high value once it is active. Impedance enters the solver as a diagonal **regularization** \(R\) added to the constraint-space inverse inertia \(A = J M^{-1} J^{\top}\). The constraint force \(f\) then satisfies, in essence,
+
+\[ (A + R)\, f = a_{\text{ref}} - a_{0}, \qquad R_{ii} \sim \frac{1 - d_i}{d_i}\,\frac{1}{A_{ii}}, \]
+
+where \(a_0 = J M^{-1}(\tau - c)\) is the unconstrained constraint acceleration. As \(d \to 1\) the regularizer vanishes and the constraint becomes hard; as \(d\) shrinks the constraint softens. This variable impedance is what lets contacts feel firm on solid contact yet gain a gentle, penetration-dependent cushion.
+
+**Friction** is handled per contact by a friction cone whose dimensionality is set by `condim`: 1 (normal force only), 3 (normal + two tangential, sliding), 4 (adds torsional friction), or 6 (adds rolling friction on two axes). The cone can be approximated by a **pyramid** (the default, which keeps the problem a friction-constrained convex program) or represented as an **elliptic** cone for a more isotropic law. The overall convex problem is solved by an iterative method, projected Gauss-Seidel (`PGS`), conjugate gradient (`CG`), or a `Newton` solver, all of which converge on the same well-defined minimizer.
+
+The payoff of this formulation is a contact model that is continuous, invertible, and stable under coarse integration, which suits gradient-based optimization, control, and learning far better than a non-smooth LCP. The price is that constraints are never perfectly rigid: a small amount of penetration and residual slip is always present. In practice this is a feature, since `solref` and `solimp` expose that softness as physically meaningful, tunable parameters, and can even be set to emulate near-rigid or deliberately compliant materials on a per-geom or per-pair basis.

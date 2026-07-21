@@ -1,0 +1,21 @@
+The Industry Foundation Classes (IFC) are an open, vendor-neutral data model for describing buildings and, increasingly, civil infrastructure across their whole life cycle. Standardized as ISO 16739, IFC lets independent authoring, analysis, cost, coordination, and facility-management tools exchange a semantically rich building model rather than mere geometry. A wall in IFC is not a box; it is an `IfcWall` with a material layer set, a fire rating, a bounding space relationship, and a stable identity. This object orientation is what separates IFC from geometry-only exchange formats and is the reason it underpins open-standard Building Information Modeling (openBIM) workflows.
+
+## Schema and serialization
+
+IFC is defined in the EXPRESS data modeling language (ISO 10303-11), the same technology family as the STEP product-data standard, and it inherits STEP's file grammar. The canonical serialization is the STEP Physical File (a `.ifc` text file per ISO 10303-21); alternative encodings include `ifcXML`, a JSON form, and an RDF/OWL representation (`ifcOWL`) for linked-data use. Every persistent object derives from `IfcRoot`, which carries a 128-bit Globally Unique Identifier (GUID, compressed to a 22-character base-64 string), an owner-history record, and optional name and description. That GUID is the backbone of round-tripping: it lets a downstream tool recognize the *same* element after the model has been edited and re-exported.
+
+## Spatial structure, relationships, and properties
+
+Content is organized as a containment hierarchy, the spatial structure: `IfcProject` > `IfcSite` > `IfcBuilding` > `IfcBuildingStorey` > `IfcSpace`, with physical elements attached via objectified relationships such as `IfcRelContainedInSpatialStructure` and `IfcRelAggregates`. IFC deliberately models relationships as first-class objects (the `IfcRel*` family) rather than as direct pointers, so a connection, a void, or a boundary can itself carry attributes. Non-geometric data lives in dynamically extensible property sets (`IfcPropertySet`, the `Pset_*` library) and quantity sets (`IfcElementQuantity`), which is how thermal transmittance, load-bearing flags, or net floor areas travel with the element instead of being trapped in a proprietary schema.
+
+## Geometry and placement
+
+Shape is attached through `IfcProductDefinitionShape`, which references one or more `IfcShapeRepresentation` objects (swept solids such as extrusions and revolutions, constructive solid geometry, boundary representation, or triangulated tessellation) interpreted within a geometric `IfcRepresentationContext`. Position is expressed by a chain of relative `IfcLocalPlacement` records, each an `IfcAxis2Placement3D` giving an origin \(P\), a local \(Z\) axis, and a reference \(X\) direction. The world transform of an element is the ordered product of the placements up the chain:
+
+\[ M_{\text{world}} = M_{\text{storey}} \cdot M_{\text{building}} \cdot \; \cdots \; \cdot M_{\text{local}}, \qquad M = \begin{bmatrix} \mathbf{x} & \mathbf{y} & \mathbf{z} & P \\ 0 & 0 & 0 & 1 \end{bmatrix} \]
+
+where \(\mathbf{z}\) is the placement axis, \(\mathbf{x}\) is the reference direction made orthonormal to it, and \(\mathbf{y}=\mathbf{z}\times\mathbf{x}\). Reading IFC geometry therefore means resolving nested frames, not just parsing coordinates.
+
+## Scoping exchange with MVDs and IDS
+
+The full schema is far larger than any single exchange needs, so buildingSMART defines Model View Definitions (MVDs) that subset it for a purpose: a Reference View for coordination and clash detection, a Design Transfer View for editable handover, and domain views for structural or MEP data. An MVD fixes which entities, attributes, and property sets are mandatory, which makes conformance testable. Complementary specifications add rigor: the Information Delivery Specification (IDS) expresses machine-checkable requirements ("every wall must carry a fire rating"), while the buildingSMART Data Dictionary (bSDD) supplies shared classifications and property definitions. Together these turn IFC from a file format into a governed contract for information handover, which is why it is mandated in many public procurement and asset-lifecycle policies.

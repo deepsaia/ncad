@@ -27,7 +27,8 @@
         "edition": { "type": "string" },
         "locator": { "type": "string" },
         "doi": { "type": "string" },
-        "url": { "type": "string" }
+        "url": { "type": "string" },
+        "publisher": { "type": "string" }
       },
       "required": ["type", "tier", "title"],
       "additionalProperties": false

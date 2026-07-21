@@ -1,0 +1,17 @@
+Almost every numerical engineering task -- a finite-element stress solve, a mesh Laplacian, a constraint system, a deformation update -- eventually reduces to solving a linear system \(A x = b\). There are two fundamentally different strategies, and choosing correctly is often the single biggest performance and robustness decision in a solver.
+
+## Direct solvers: factorize once
+
+A **direct** method transforms \(A\) into a product of easily invertible factors, then solves by substitution. The general case uses LU factorization with pivoting, \(PA = LU\); a symmetric positive-definite matrix uses the cheaper and stable Cholesky \(A = LL^\top\); least-squares systems use QR. Once factored, each new right-hand side costs only forward/backward substitution -- ideal when many loads share one stiffness matrix. For dense \(A\) the factorization is \(O(n^3)\). Real engineering matrices are **sparse**, and the danger is *fill-in*: factors acquire nonzeros where \(A\) had none. Fill-reducing orderings (approximate minimum degree, nested dissection) reorder rows and columns to keep the factors sparse. Direct methods are prized for predictability and robustness -- they succeed in a fixed number of operations regardless of conditioning -- but their memory footprint from fill-in eventually limits problem size.
+
+## Iterative solvers: converge to the answer
+
+An **iterative** method never forms the factors; it produces a sequence \(x_k \to x^\*\), needing \(A\) only through matrix-vector products. Classical *stationary* iterations (Jacobi, Gauss-Seidel, SOR) are simple but slow. Modern practice uses **Krylov subspace** methods, which build the solution from \(\mathcal{K}_k = \operatorname{span}\{b, Ab, A^2 b, \dots, A^{k-1}b\}\). **Conjugate gradients (CG)** applies to symmetric positive-definite systems and minimizes the \(A\)-norm error over the Krylov space; **GMRES**, **BiCGStab**, and **MINRES** handle nonsymmetric or indefinite systems. For CG the error obeys
+\[
+\frac{\lVert e_k \rVert_A}{\lVert e_0 \rVert_A} \;\le\; 2\left(\frac{\sqrt{\kappa}-1}{\sqrt{\kappa}+1}\right)^{k},
+\]
+where \(\kappa = \kappa(A)\) is the condition number: convergence is fast when the spectrum is clustered and slow when \(\kappa\) is large. **Preconditioning** -- solving \(M^{-1}A x = M^{-1}b\) with \(M \approx A\) but cheap to invert (incomplete factorizations, multigrid, domain decomposition) -- is what makes iterative methods practical, and a good preconditioner usually matters more than the choice of Krylov method.
+
+## Choosing between them
+
+The trade-offs are complementary. Direct methods are robust, insensitive to conditioning, and unbeatable when the same matrix is reused for many right-hand sides, but their fill-in makes them memory-bound as \(n\) grows. Iterative methods have a small, near-constant memory footprint and exploit sparsity fully, so they scale to the very large systems from three-dimensional meshes -- but they demand a good preconditioner and their convergence is problem-dependent, sometimes stalling on hard cases. A practical guideline: moderate-size or repeated-RHS or ill-conditioned systems favor a sparse direct solver; large three-dimensional sparse systems with a known effective preconditioner favor a Krylov method. Saddle-point systems from constraints (KKT structure) are indefinite and need methods and preconditioners chosen specifically for that structure.
