@@ -1,0 +1,146 @@
+units = mm
+# A PLANETARY (epicyclic) gear train, authored as the motion-lane blockout: a central SUN gear
+# drives three PLANET gears that roll inside a fixed internal RING, carried by a spider CARRIER that
+# turns on the same central axis. Standard involute spur teeth, module m = 2, pressure angle 20 deg.
+# The tooth-count relation for a concentric set is  z_ring = z_sun + 2*z_planet  ->  54 = 18 + 2*18,
+# so every wheel shares the module and the planets sit on the carrier pitch circle at radius
+#   a = (z_sun + z_planet)*m/2 = (18 + 18)*2/2 = 36 mm,  120 deg apart (equal spacing is allowed
+# because (z_sun + z_ring)/3 = 72/3 = 24 is integral). With the ring HELD, the sun drives the train:
+#   carrier speed = sun/4 (same sense), planet-vs-carrier spin = -3/4 * sun (reversed).
+# Each wheel is a true involute profile (a `involute_gear` sketch entity, the same GearProfile that
+# defines the mesh couplings), extruded to an 8 mm face. Bodies (each its own part with an axis):
+#   stand  : grounded base + central bearing post the sun/carrier shafts turn in.
+#   ring   : the fixed internal (annulus) gear the planets roll inside. Grounded (no joint).
+#   sun    : z=18 external gear on a shaft at the origin. Driven.
+#   planet0..2 : z=18 external gears at radius 36, 120 deg apart, each on a carrier pin.
+#   carrier: a spider plate + central hub + three pins that hold the planet axes.
+metadata {
+  description = "Planetary gear train blockout: sun (z18) drives 3 planets (z18) in a fixed ring (z54), spider carrier"
+  tags = [ planetary, mechanism, blockout, gear, epicyclic ]
+}
+parts {
+  # Stand: the grounded frame, ONE connected solid. A base plate under the train (z -20..-12) and a
+  # central bearing post (z -20..-2) bored down the axis; the sun and carrier shafts seat back into
+  # this bore and turn in the z=0 plane clear of the base.
+  stand { profile = solid, material = steel_1018,
+    connectors = [
+      # Two coaxial bearings on the central axis: the sun and the carrier each turn on their OWN
+      # marker. They cannot share one marker - two revolute joints on a single frame collapse, and
+      # the coupled (carrier) motion is then lost (it follows the sun 1:1 instead of by its ratio).
+      { id = sunBearing, at_point = [ 0, 0, 0 ], axis = [ 0, 0, 1 ] }
+      { id = carrierBearing, at_point = [ 0, 0, 0 ], axis = [ 0, 0, 1 ] }
+    ],
+    features = [
+      { id = base, op = primitive, kind = cylinder, d = 140, h = 8, plane = XY,
+        plane_offset = -20, at = [ 0, 0 ] }
+      { id = post, op = primitive, kind = cylinder, d = 24, h = 18, plane = XY,
+        plane_offset = -20, at = [ 0, 0 ] }
+      { id = frame, op = boolean, operation = union, target = base, tool = post }
+      { id = bore, op = primitive, kind = cylinder, d = 10.6, h = 22, plane = XY,
+        plane_offset = -22, at = [ 0, 0 ] }
+      { id = whole, op = boolean, operation = cut, target = frame, tool = bore }
+    ] }
+  # Ring: the fixed internal (annulus) gear. Extrude a plain outer disc (r_outer = 62), then CUT the
+  # internal involute tooth profile (z=54) from it, leaving a toothed bore in a solid rim. Grounded
+  # (locked in the assembly, no joint): the planets roll inside it, so it is the fixed reference.
+  ring { profile = solid, material = steel_4140,
+    connectors = [
+      { id = axis, at_point = [ 0, 0, 0 ], axis = [ 0, 0, 1 ] }
+    ],
+    features = [
+      { id = blank_sk, op = sketch, plane = XY, elements = [ { id = rim, type = circle, d = 124 } ] }
+      { id = blank, op = extrude, profile = blank_sk, distance = 8 }
+      { id = teeth_sk, op = sketch, plane = XY,
+        entities = [ { id = teeth, type = involute_gear, module = 2, teeth = 54,
+                       pressure_angle = 20, gear_type = internal, backlash = 0.2 } ] }
+      { id = cut_tool, op = extrude, profile = teeth_sk, distance = 8 }
+      { id = whole, op = boolean, operation = cut, target = blank, tool = cut_tool }
+    ] }
+  # Sun: a z=18 external involute gear (m=2, pitch r=18, tip r=20) at the origin, extruded 8 mm, on a
+  # shaft that seats down into the stand bore. Bored d=8 for the shaft. Driven by the motion study.
+  sun { profile = solid, material = bronze,
+    connectors = [
+      { id = axis, at_point = [ 0, 0, 0 ], axis = [ 0, 0, 1 ] }
+    ],
+    features = [
+      # Clocked half a tooth (phase = 360/18/2 = 10 deg) so a sun tooth SPACE faces each planet tooth
+      # at rest: the sun/planet mesh then interleaves with clearance instead of jamming, while the
+      # planet/ring mesh (planets un-clocked) stays clean. Equal-spaced planets share one clocking
+      # because (z_sun + z_ring)/3 = 24 is integral, so this single sun phase seats all three meshes.
+      { id = sk, op = sketch, plane = XY,
+        entities = [ { id = teeth, type = involute_gear, module = 2, teeth = 18,
+                       pressure_angle = 20, gear_type = external, backlash = 0.2, phase = 10 } ] }
+      { id = disc, op = extrude, profile = sk, distance = 8 }
+      { id = shaft, op = primitive, kind = cylinder, d = 10, h = 20, plane = XY,
+        plane_offset = -20, at = [ 0, 0 ] }
+      { id = whole, op = boolean, operation = union, target = disc, tool = shaft }
+    ] }
+  # Planet 0: a z=18 external involute gear at (36, 0), extruded 8 mm, bored d=8 so it rides a carrier
+  # pin. Meshes with the sun (outside) and the ring (inside); the coupling, not the teeth, sets spin.
+  planet0 { profile = solid, material = aluminium_6061,
+    connectors = [
+      { id = axis, at_point = [ 36, 0, 0 ], axis = [ 0, 0, 1 ] }
+    ],
+    features = [
+      { id = sk, op = sketch, plane = XY,
+        entities = [ { id = c, type = point, at = [ 36, 0 ] }
+                     { id = teeth, type = involute_gear, module = 2, teeth = 18,
+                       pressure_angle = 20, backlash = 0.2, center = c } ]
+        constraints = [ { type = fix, of = c } ] }
+      { id = disc, op = extrude, profile = sk, distance = 8 }
+      { id = whole, op = hole, plane = XY, positions = [ [ 36, 0 ] ], diameter = 8, depth = 8 }
+    ] }
+  # Planet 1: same z=18 gear at (-18, 31.18) (120 deg round the carrier circle).
+  planet1 { profile = solid, material = aluminium_6061,
+    connectors = [
+      { id = axis, at_point = [ -18, 31.18, 0 ], axis = [ 0, 0, 1 ] }
+    ],
+    features = [
+      { id = sk, op = sketch, plane = XY,
+        entities = [ { id = c, type = point, at = [ -18, 31.18 ] }
+                     { id = teeth, type = involute_gear, module = 2, teeth = 18,
+                       pressure_angle = 20, backlash = 0.2, center = c } ]
+        constraints = [ { type = fix, of = c } ] }
+      { id = disc, op = extrude, profile = sk, distance = 8 }
+      { id = whole, op = hole, plane = XY, positions = [ [ -18, 31.18 ] ], diameter = 8, depth = 8 }
+    ] }
+  # Planet 2: same z=18 gear at (-18, -31.18) (240 deg round the carrier circle).
+  planet2 { profile = solid, material = aluminium_6061,
+    connectors = [
+      { id = axis, at_point = [ -18, -31.18, 0 ], axis = [ 0, 0, 1 ] }
+    ],
+    features = [
+      { id = sk, op = sketch, plane = XY,
+        entities = [ { id = c, type = point, at = [ -18, -31.18 ] }
+                     { id = teeth, type = involute_gear, module = 2, teeth = 18,
+                       pressure_angle = 20, backlash = 0.2, center = c } ]
+        constraints = [ { type = fix, of = c } ] }
+      { id = disc, op = extrude, profile = sk, distance = 8 }
+      { id = whole, op = hole, plane = XY, positions = [ [ -18, -31.18 ] ], diameter = 8, depth = 8 }
+    ] }
+  # Carrier: the spider that holds the three planet axes and turns on the central bearing. A hub disc
+  # below the gears (z -10..-4) with a central shaft down into the stand bore and three pins rising to
+  # z=8 at the planet centres (the planet bores ride these pins). One connected solid.
+  carrier { profile = solid, material = steel_1018,
+    connectors = [
+      { id = axis, at_point = [ 0, 0, 0 ], axis = [ 0, 0, 1 ] }
+      { id = planetBearing0, at_point = [ 36, 0, 0 ], axis = [ 0, 0, 1 ] }
+      { id = planetBearing1, at_point = [ -18, 31.18, 0 ], axis = [ 0, 0, 1 ] }
+      { id = planetBearing2, at_point = [ -18, -31.18, 0 ], axis = [ 0, 0, 1 ] }
+    ],
+    features = [
+      { id = plate, op = primitive, kind = cylinder, d = 96, h = 6, plane = XY,
+        plane_offset = -10, at = [ 0, 0 ] }
+      { id = hub, op = primitive, kind = cylinder, d = 10, h = 14, plane = XY,
+        plane_offset = -20, at = [ 0, 0 ] }
+      { id = s0, op = boolean, operation = union, target = plate, tool = hub }
+      { id = pin0, op = primitive, kind = cylinder, d = 7.6, h = 14, plane = XY,
+        plane_offset = -6, at = [ 36, 0 ] }
+      { id = s1, op = boolean, operation = union, target = s0, tool = pin0 }
+      { id = pin1, op = primitive, kind = cylinder, d = 7.6, h = 14, plane = XY,
+        plane_offset = -6, at = [ -18, 31.18 ] }
+      { id = s2, op = boolean, operation = union, target = s1, tool = pin1 }
+      { id = pin2, op = primitive, kind = cylinder, d = 7.6, h = 14, plane = XY,
+        plane_offset = -6, at = [ -18, -31.18 ] }
+      { id = whole, op = boolean, operation = union, target = s2, tool = pin2 }
+    ] } }

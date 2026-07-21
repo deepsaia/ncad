@@ -1,0 +1,26 @@
+# A motion study driving the planetary train four sun revolutions with the ring held fixed. The sun
+# angle is the driver; the assembly's couplings turn it into the carrier's and planets' prescribed
+# rotations by the Willis ratios (carrier = +1/4 * sun, each planet-vs-carrier = -3/4 * sun), so the
+# whole train spins from ONE driver with no per-planet formula. The carrier makes one full turn per
+# four sun turns (1440 / 4 = 360 deg). A 6.1 `angle` measure reads out the carrier's turned angle,
+# which should track 1/4 of the sun sweep.
+metadata {
+  description = "Planetary motion study: drive the sun 4 revolutions, carrier + planets follow by ratio"
+  tags = [ planetary, motion ]
+}
+motion {
+  assembly = "planetary.asm.hocon"
+  driver = { joint = sunPin, from = 0, to = 1440, steps = 144 }
+  outputs {
+    measures = [
+      # The carrier's turned angle: vertex at the central axis, one ray to a FIXED world reference
+      # (a point on the grounded stand), one ray to a marker that RIDES the carrier (a planet centre).
+      # As the carrier turns the angle grows (folded at 180 deg), tracking 1/4 of the sun sweep, so
+      # four sun revolutions turn the carrier one full revolution.
+      { id = carrierAngle, kind = angle,
+        vertex = { instance = carrier, point = [ 0, 0, 0 ] }
+        a = { instance = stand, point = [ 36, 0, 0 ] }
+        b = { instance = carrier, point = [ 36, 0, 0 ] } }
+    ]
+  }
+}

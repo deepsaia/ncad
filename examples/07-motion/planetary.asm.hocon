@@ -1,0 +1,54 @@
+units = mm
+# A planetary (epicyclic) gear train, driven by the SUN with the RING held fixed. Seven bodies:
+# stand (grounded frame) + ring (grounded internal gear) + sun (driven) + carrier + 3 planets.
+# The kinematics: the sun turns on the stand bearing; the carrier turns on the SAME central bearing;
+# each planet turns on a pin that RIDES THE CARRIER, so a planet's revolute coordinate is its spin
+# RELATIVE TO THE CARRIER (exactly the Willis train quantity). OndselSolver has no gear constraint,
+# so ncad enforces the mesh as prescribed secondary motions on the derived joints (design section 8):
+#   z_sun = z_planet = 18, z_ring = 54, ring fixed  ->
+#     carrier / sun            = z_sun / (z_sun + z_ring) = 18/72 = +1/4   (same sense)
+#     planet(rel carrier)/ sun = -z_sun / z_planet        = -18/18 = -1     ...(spin about own pin)
+#   but the driven joint for each planet is planet-vs-carrier, whose ratio to the sun is
+#     (1 - carrier/sun) * (-z_sun/z_planet) = (1 - 1/4)*(-1) = -3/4         (reversed).
+# The couplings carry those ratios directly (belt = same sense for the carrier, gear = reversed for
+# the planets); one source of truth is the sun-driver ramp. All derived joints ride the sun joint.
+metadata {
+  description = "Driven planetary train: sun drives, ring fixed, carrier + 3 planets follow (5 revolute + couplings)"
+  tags = [ planetary, assembly, mechanism, gear, epicyclic ]
+}
+assembly {
+  instances = [
+    { id = stand, file = "planetary.hocon", part = stand, lock = true }
+    { id = ring, file = "planetary.hocon", part = ring, lock = true }
+    { id = sun, file = "planetary.hocon", part = sun }
+    { id = carrier, file = "planetary.hocon", part = carrier }
+    { id = planet0, file = "planetary.hocon", part = planet0 }
+    { id = planet1, file = "planetary.hocon", part = planet1 }
+    { id = planet2, file = "planetary.hocon", part = planet2 }
+  ]
+  joints = [
+    # The sun turns on the stand's sun bearing (the driven input).
+    { id = sunPin, type = revolute, between = [
+      { instance = stand, connector = sunBearing }, { instance = sun, connector = axis } ] }
+    # The carrier turns on its OWN coaxial bearing (concentric with the sun, but a distinct marker so
+    # the two revolutes do not collapse and the carrier's coupled motion is preserved).
+    { id = carrierPin, type = revolute, between = [
+      { instance = stand, connector = carrierBearing }, { instance = carrier, connector = axis } ] }
+    # Each planet turns on its carrier pin: this revolute's coordinate is planet-vs-carrier spin.
+    { id = planetPin0, type = revolute, between = [
+      { instance = carrier, connector = planetBearing0 }, { instance = planet0, connector = axis } ] }
+    { id = planetPin1, type = revolute, between = [
+      { instance = carrier, connector = planetBearing1 }, { instance = planet1, connector = axis } ] }
+    { id = planetPin2, type = revolute, between = [
+      { instance = carrier, connector = planetBearing2 }, { instance = planet2, connector = axis } ] }
+  ]
+  couplings = [
+    # Carrier follows the sun by +1/4 (same sense) -> belt coupling (belt keeps sense).
+    { id = carrierRatio, type = belt, between = [ sunPin, carrierPin ], ratio = 0.25 }
+    # Each planet (relative to the carrier) follows the sun by -3/4 (reversed) -> gear coupling
+    # (gear reverses sense, so a positive ratio 0.75 becomes -3/4 * sun).
+    { id = planetRatio0, type = gear, between = [ sunPin, planetPin0 ], ratio = 0.75 }
+    { id = planetRatio1, type = gear, between = [ sunPin, planetPin1 ], ratio = 0.75 }
+    { id = planetRatio2, type = gear, between = [ sunPin, planetPin2 ], ratio = 0.75 }
+  ]
+}
