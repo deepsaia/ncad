@@ -72,7 +72,10 @@ class RobotSidecarBuilder:
         actuated = self._actuated_names(spec, model)
 
         robot_path = out / f"{model.name}{_ROBOT_SUFFIX}"
-        robot_path.write_text(json.dumps(self._tree(model, actuated), indent=2), encoding="utf-8")
+        # Record the .physics.hocon source so the viewer can re-export the robot after a reload
+        # (mirrors the .assembly.json / .motion.json source field).
+        tree = {**self._tree(model, actuated), "source": str(Path(physics_path).resolve())}
+        robot_path.write_text(json.dumps(tree, indent=2), encoding="utf-8")
         if not with_sweeps:
             return {"robot": str(robot_path), "sweeps": None, "warnings": []}
 
