@@ -436,6 +436,27 @@ clearance-review finding, and keep the working mechanisms clean.
   (interference volume rising to the engagement centre); an arm sharing the wheel's z -> a large
   through-body overlap. Fix the law's sign + slot phase and z-layer the arm above the wheel.
 
+### 17. Two concentric joints on the SAME body need DISTINCT connector markers, or the coupled motion collapses
+
+When two joints share an axis on one grounded body (an epicyclic set: the sun and the carrier both
+turn on the central bearing), give the body a SEPARATE connector for each joint, even when the two
+connectors are geometrically identical (same point, same axis). Two revolute joints that reference
+the SAME marker collapse onto one joint frame, and any prescribed/coupled secondary motion on the
+second joint is lost: the coupled body follows the driver 1:1 instead of by its ratio.
+
+- **Why:** each joint lowers to a constraint between two markers; two joints pointing at one shared
+  marker do not stay independent through the solve, so the second joint's prescribed motion does not
+  take. Distinct coaxial markers keep the two rotational DoF separate.
+- **Failure mode:** silent wrong kinematics (it solves, every frame is valid, the ratio is just
+  wrong). A carrier belt-coupled to the sun at ratio 1/4 turns the full sun angle instead of a
+  quarter. Verify by checking the coupled body's swept angle equals `ratio * driver_sweep`, not the
+  driver's.
+- **Guard:** author one connector per joint the body participates in; coaxial-but-distinct is fine
+  (`sunBearing` and `carrierBearing` both at the origin on +Z). Not enforced by the solver, so it is
+  an authoring rule.
+- **Seen in:** `planetary` (the stand carries `sunBearing` + `carrierBearing`; collapsing them to one
+  `centerBearing` made the carrier follow the sun 1:1).
+
 ---
 
 ## How to work when order bites you
