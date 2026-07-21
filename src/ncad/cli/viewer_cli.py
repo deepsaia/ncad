@@ -180,6 +180,28 @@ class ViewerCli:
         out_dir = self.resolve_models_dir(out)
         return MotionBuilder(Build123dKernel()).build(file, str(out_dir))
 
+    def physics_document(self, file: str, out: str | None) -> dict:
+        """Export a physics/robotics document to a robot description (URDF) + per-link meshes.
+
+        Derives a format-neutral RobotModel from the referenced assembly (computed inertials + Stage
+        0 meshes + assembly joints) plus the .physics overlay (actuation/limits/base), then writes
+        the target format. Returns ``{"artifact", "meshes_dir", "warnings", "links", "joints"}``.
+        """
+        from ncad.kernel.build123d_kernel import Build123dKernel
+        from ncad.robotics import RobotModelBuilder, UrdfWriter
+
+        logging.basicConfig(level=logging.INFO, format="%(message)s")
+        logging.getLogger("build123d").setLevel(logging.WARNING)
+        out_dir = self.resolve_models_dir(out)
+        model, warnings = RobotModelBuilder(Build123dKernel()).build(file, str(out_dir))
+        artifact = out_dir / f"{model.name}.urdf"
+        artifact.write_text(UrdfWriter().to_xml(model), encoding="utf-8")
+        for warning in warnings:
+            logging.warning("%s", warning)
+        return {"artifact": str(artifact), "meshes_dir": str(out_dir / "meshes"),
+                "warnings": warnings, "links": len(model.links),
+                "joints": len(model.tree_joints())}
+
     def validate_document(self, file: str) -> dict:
         """Statically validate a part/assembly/motion document; return the ValidationReport dict.
 
@@ -399,6 +421,21 @@ def motion(
         print(f"  trajectory: {result['motion']}")
     out_dir = result["sidecar"].rsplit("/", 1)[0]
     print(f"\nview with:  ncad view {out_dir}\n")
+
+
+@app.command()
+def physics(
+    document: str = typer.Argument(..., help="path to a .physics.hocon robotics-export document"),
+    out: str = typer.Option(None, help="output directory (default: out/)"),
+) -> None:
+    """Export a robot description (URDF) from an assembly + a physics overlay (computed inertia)."""
+    result = cli.physics_document(document, out)
+    print(f"\nncad physics: {document}")
+    print(f"  robot: {result['links']} links, {result['joints']} tree joints")
+    print(f"  urdf:  {result['artifact']}")
+    print(f"  meshes: {result['meshes_dir']}")
+    for warning in result["warnings"]:
+        print(f"  WARN {warning}")
 
 
 @app.command()

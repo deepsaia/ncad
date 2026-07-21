@@ -17,6 +17,7 @@ dependencies = [
     "py-slvs>=1.0.6",
     "pyondsel",
     "tornado>=6.5.6",
+    "mujoco>=3.10.0",
 ]
 
 # pyondsel (the OndselSolver multibody bindings for motion) is not on PyPI. Default

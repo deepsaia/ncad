@@ -1,0 +1,18 @@
+units = mm
+# A physics/robotics overlay on the crank-slider assembly: exports a URDF robot description whose
+# link inertials are COMPUTED from the parts (never authored) and whose joints carry authored
+# actuation limits. The crank-slider is a CLOSED loop (block->flywheel->rod->piston->block), so one
+# joint closes the loop; a tree-only URDF drops it (reported), which an MJCF export would keep.
+metadata {
+  description = "Crank-slider as a URDF robot: computed inertials, one actuated revolute"
+  tags = [ robotics, physics, urdf ]
+}
+physics {
+  assembly = "../07-motion/crank_slider.asm.hocon"
+  base = block
+  joints {
+    mainPin { actuated = true, limit = [ -3.14159, 3.14159 ], effort = 50, velocity = 6.28,
+              damping = 0.05 }
+  }
+  export { format = urdf, mesh = stl }
+}
