@@ -69,6 +69,11 @@ class OpenApiSpec:
             "/api/v1/motions": _get_collection("List assemblies that have a motion trajectory."),
             "/api/v1/motion/{name}": _get_by_name(
                 "Get an assembly's motion trajectory.", "no motion for assembly"),
+            "/api/v1/robots": _get_collection("List robots (assemblies with a .robot.json)."),
+            "/api/v1/robot/{name}": _get_by_name(
+                "Get a robot's tree (links + joints + computed inertia).", "unknown robot"),
+            "/api/v1/robot-sweeps/{name}": _get_by_name(
+                "Get a robot's per-joint articulation sweeps.", "no sweeps for robot"),
             "/api/v1/bom/{name}": _get_by_name("Get a model's BOM.", "no BOM for model"),
             "/api/v1/plan/{name}": _get_bytes(
                 "Get a model's plan SVG.", "image/svg+xml", "no plan for model"),

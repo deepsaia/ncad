@@ -23,6 +23,7 @@ from ncad.service.livereload_handler import LiveReloadHandler
 from ncad.service.model_handlers import ModelBytesHandler, ModelDeleteHandler, ModelsHandler
 from ncad.service.motion_handlers import MotionHandler, MotionsHandler
 from ncad.service.openapi_handler import OpenApiHandler
+from ncad.service.robot_handlers import RobotHandler, RobotsHandler, RobotSweepsHandler
 from ncad.service.sidecar_handlers import (
     BomHandler,
     ElementMapHandler,
@@ -56,8 +57,12 @@ class ApiRouter:
             URLSpec(r"/api/v1/models", ModelsHandler, deps),
             URLSpec(r"/api/v1/assemblies", AssembliesHandler, deps),
             URLSpec(r"/api/v1/motions", MotionsHandler, deps),
+            URLSpec(r"/api/v1/robots", RobotsHandler, deps),
             # Detail routes by name.
             URLSpec(r"/api/v1/motion/(.+)", MotionHandler, deps),
+            # robot-sweeps before robot: different prefixes, but keep the more specific first.
+            URLSpec(r"/api/v1/robot-sweeps/(.+)", RobotSweepsHandler, deps),
+            URLSpec(r"/api/v1/robot/(.+)", RobotHandler, deps),
             URLSpec(r"/api/v1/bom/(.+)", BomHandler, deps),
             URLSpec(r"/api/v1/plan/(.+)", PlanHandler, deps),
             URLSpec(r"/api/v1/elementmap/(.+)", ElementMapHandler, deps),
