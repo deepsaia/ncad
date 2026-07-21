@@ -12,8 +12,9 @@ Define a part as a text document; a pure executor replays it against an exact-ge
 to produce solids, assemblies, and motion. No authoring GUI. The same document is editable by a
 human, an agent, or a generator, and rebuilds deterministically.
 
-[Learn the field](learn/index.md){ .md-button .md-button--primary }
-[Use ncad](ncad/index.md){ .md-button }
+[Use ncad](ncad/index.md){ .md-button .md-button--primary }
+[Showcase](ncad/showcase.md){ .md-button }
+[Learn the field](learn/index.md){ .md-button }
 
 ```properties
 units = mm

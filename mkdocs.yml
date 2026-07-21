@@ -11,6 +11,9 @@ site_dir: site
 
 theme:
   name: material
+  # Theme override: overrides/main.html injects the Three.js import map + the showcase viewer module
+  # (used by the live 3D scenes on the Showcase page).
+  custom_dir: docs_site/overrides
   palette:
     - media: "(prefers-color-scheme)"
       toggle:
@@ -81,18 +84,26 @@ markdown_extensions:
   - pymdownx.arithmatex:
       generic: true
 
+extra_css:
+  - assets/css/showcase.css
+
 extra_javascript:
   - assets/mathjax.js
   - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js
   - https://ajax.googleapis.com/ajax/libs/model-viewer/3.5.0/model-viewer.min.js
+  # The Three.js showcase viewer is a native ES module with an import map, so it is injected by
+  # overrides/main.html (extra_javascript cannot emit type="module"), not listed here.
 
 nav:
   - Home: index.md
-  - Learn:
-      - learn/index.md
+  # "Use ncad" (the product) comes before "Learn" (the product-neutral reference): a visitor sees
+  # what ncad does first, then the background field.
   - ncad:
       - ncad/index.md
+      - Showcase: ncad/showcase.md
       # Operations Reference children are generated + categorized from the op registry by
       # docs_hooks.py (on_config); this placeholder is replaced at build time.
       - Operations Reference:
           - ncad/reference/index.md
+  - Learn:
+      - learn/index.md
