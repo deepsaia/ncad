@@ -249,6 +249,40 @@ class ViewerCli:
             reports[name] = report
         return reports
 
+    def standard_part(self, family: str, designation: str | None, out: str | None,
+                      dimensions: dict | None = None) -> dict:
+        """Generate a standard part (by designation OR custom dimensions), persist + build it.
+
+        Exactly one of ``designation`` (table lookup) or ``dimensions`` (custom size) is used; the
+        generated document is written as ``<part>.hocon`` beside the artifacts so the standard part
+        is a first-class, editable ncad part, then built to glb. Returns ``{"part", "document",
+        "artifacts", "provenance"}``.
+        """
+        import os
+
+        from ncad.build.document_builder import DocumentBuilder
+        from ncad.kernel.build123d_kernel import Build123dKernel
+        from ncad.spec.spec_writer import SpecWriter
+        from ncad.standard import StandardLibrary
+
+        logging.basicConfig(level=logging.INFO, format="%(message)s")
+        logging.getLogger("build123d").setLevel(logging.WARNING)
+        library = StandardLibrary()
+        if dimensions is not None:
+            document = library.generate_custom(family, dimensions)
+        elif designation is not None:
+            document = library.generate(family, designation)
+        else:
+            raise ValueError("standard_part needs a designation or explicit dimensions")
+        part_name = next(iter(document["parts"]))
+        out_dir = self.resolve_models_dir(out)
+        os.makedirs(out_dir, exist_ok=True)
+        doc_path = os.path.join(str(out_dir), f"{part_name}.hocon")
+        SpecWriter().dump(document, doc_path)
+        artifacts = DocumentBuilder(Build123dKernel()).build_file(doc_path, str(out_dir))
+        return {"part": part_name, "document": doc_path,
+                "artifacts": artifacts["artifacts"], "provenance": library.provenance(family)}
+
 
 app = typer.Typer(
     help="ncad: build and view parametric CAD models.",
@@ -420,6 +454,44 @@ def dfm(
               f"need-info={counts['need_more_info']}  (rules v{report['rule_version']})")
     if not reports:
         print("  no parts built\n")
+
+
+@app.command()
+def spgen(
+    family: str = typer.Argument(..., help="standard-part family: washer, hex_nut"),
+    designation: str = typer.Argument(
+        None, help="standard designation (e.g. M8); omit when giving --dim"),
+    dim: list[str] = typer.Option(
+        [], "--dim", "-d",
+        help="custom dimension key=value (mm); repeatable. Replaces the table lookup."),
+    out: str = typer.Option(None, help="output directory (default: out/)"),
+) -> None:
+    """Generate a standard part natively, by designation (M8) or custom --dim values; build it."""
+    dimensions = _parse_dimensions(dim) if dim else None
+    result = cli.standard_part(family, designation, out, dimensions=dimensions)
+    label = designation if dimensions is None else "custom"
+    print(f"\nncad spgen: {family} {label}")
+    print(f"  standard: {result['provenance']['standard']} v{result['provenance']['version']}")
+    print(f"  document: {result['document']}")
+    for name, path in result["artifacts"].items():
+        print(f"  part {name:16} {path}")
+    if result["artifacts"]:
+        out_dir = next(iter(result["artifacts"].values())).rsplit("/", 1)[0]
+        print(f"\nview with:  ncad view {out_dir}\n")
+
+
+def _parse_dimensions(pairs: list[str]) -> dict[str, float]:
+    """Parse ``key=value`` dimension strings into a float dict; raise on a malformed pair."""
+    dimensions: dict[str, float] = {}
+    for pair in pairs:
+        if "=" not in pair:
+            raise typer.BadParameter(f"--dim expects key=value, got {pair!r}")
+        key, _, value = pair.partition("=")
+        try:
+            dimensions[key.strip()] = float(value)
+        except ValueError as exc:
+            raise typer.BadParameter(f"--dim value for {key!r} is not a number: {value!r}") from exc
+    return dimensions
 
 
 def main() -> None:
