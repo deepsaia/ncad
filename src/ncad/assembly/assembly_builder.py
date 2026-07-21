@@ -12,6 +12,7 @@ or falls back to identity and the rest still compose.
 import json
 import logging
 import os
+import time
 from typing import Any
 
 from ncad.assembly.asmt_exporter import AsmtExporter
@@ -74,6 +75,9 @@ class AssemblyBuilder:
         self._interference = InterferenceChecker(kernel)
         self._bom = AssemblyBom()
         self._mass = MassCalculator(kernel)
+        # Wall-clock accumulated in the SOLVE calls during the current top-level assemble (mate
+        # solve + motion solve); read by the caller for the build/solve/render timing split.
+        self._solve_ms = 0.0
 
     def assemble(self, asm_path: str, out_dir: str,
                  _visited: frozenset = frozenset(), motion_spec: dict | None = None) -> dict:
@@ -87,6 +91,12 @@ class AssemblyBuilder:
         abs_path = os.path.abspath(asm_path)
         if abs_path in _visited:
             raise ValueError(f"circular sub-assembly reference: {abs_path}")
+        # Accumulate the wall-clock spent in the actual SOLVE calls (py-slvs mate solve + the
+        # OndselSolver motion solve), so the viewer can split "build" into build + solve + render.
+        # Reset only for the TOP-LEVEL assemble (empty _visited); a sub-assembly's solve time then
+        # accrues into the parent's total rather than being reset away.
+        if not _visited:
+            self._solve_ms = 0.0
         _visited = _visited | {abs_path}
         document = self._loader.load(asm_path)
         schema_issues = self._validator.validate(document)
@@ -166,7 +176,8 @@ class AssemblyBuilder:
                        "joints": joints_out, "couplings": couplings_out,
                        "interference": interference, "bom": bom, "mass": mass}, handle)
         return {"sidecar": sidecar, "issues": issues, "motion": motion_path,
-                "instances": [i["id"] for i in instances]}
+                "instances": [i["id"] for i in instances],
+                "solve_ms": round(self._solve_ms, 1)}
 
     def _expand_components(self, raw_instances: list, issues: list) -> list[dict]:
         """Expand component ops (replace, then mirror, then pattern) into a flat instance list.
@@ -297,7 +308,9 @@ class AssemblyBuilder:
                                "limits": joint.get("limits"),
                                "signature": [a.to_dict() for a in signature], "ok": True})
         ground_ids = self._ground_ids(document, constraints, instances)
+        _solve_t0 = time.perf_counter()
         outcome = self._solver.solve(local_frames, primitives, ground_ids, placements_mm)
+        self._solve_ms += (time.perf_counter() - _solve_t0) * 1000.0
         # Instances that actually PARTICIPATE in a primitive (referenced by a mate/joint) take the
         # solved pose; untouched instances keep their authored placement. The solver seeds rotation
         # as identity (a 5.3+ refinement), so overwriting a non-participating instance would drop an
@@ -373,7 +386,9 @@ class AssemblyBuilder:
             model = AsmtExporter().build_model(
                 name, instances, local_frames, placements_mm, mass_props, joints, ground_ids,
                 driver, to_metres, secondaries=secondaries)
+            _solve_t0 = time.perf_counter()
             trajectory = model.solve()
+            self._solve_ms += (time.perf_counter() - _solve_t0) * 1000.0
         except ImportError as exc:
             issues.append({"message": f"motion needs the pyondsel dependency: {exc}"})
             return None
