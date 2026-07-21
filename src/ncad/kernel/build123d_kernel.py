@@ -1349,7 +1349,8 @@ class Build123dKernel(Kernel):
                 history.deleted.append(parent)
         return history
 
-    def export(self, solid: Any, path: str, body_colors: dict | None = None) -> None:
+    def export(self, solid: Any, path: str, body_colors: dict | None = None,
+               mesh_tolerance: float | None = None) -> None:
         if isinstance(solid, BodySet):
             # A multibody part exports as a compound: STEP as a multi-solid assembly, glTF as
             # one mesh per body solid, in body order (parallel to mesh_body_ids via the shared
@@ -1366,21 +1367,32 @@ class Build123dKernel(Kernel):
                 children.append(one)
             solid = Compound(children=children)
         lowered = path.lower()
+        # Mesh formats share ONE (linear, angular) deflection pair so every mesh export of a part
+        # agrees. With no pinned tolerance we keep the size-relative default + the fixed angular
+        # deflection (the tessellation the goldens assume). A pinned mesh_tolerance ALSO drives the
+        # angular deflection (see _angular_for), because the angular cap otherwise dominates curved
+        # surfaces and a linear-only knob would not change the facet count.
+        linear, angular = self._deflection_pair(solid, mesh_tolerance)
         if lowered.endswith(".glb"):
             export_gltf(solid, path, unit=Unit.MM, binary=True,
-                        linear_deflection=self._deflection(solid),
-                        angular_deflection=_ANGULAR_DEFLECTION)
+                        linear_deflection=linear, angular_deflection=angular)
         elif lowered.endswith(".gltf"):
             export_gltf(solid, path, unit=Unit.MM, binary=False,
-                        linear_deflection=self._deflection(solid),
-                        angular_deflection=_ANGULAR_DEFLECTION)
+                        linear_deflection=linear, angular_deflection=angular)
         elif lowered.endswith((".step", ".stp")):
             export_step(solid, path, unit=Unit.MM)
+        elif lowered.endswith((".iges", ".igs")):
+            _write_iges(solid, path)
         elif lowered.endswith(".stl"):
-            export_stl(solid, path)
+            export_stl(solid, path, tolerance=linear, angular_tolerance=angular)
+        elif lowered.endswith(".3mf"):
+            _write_3mf(solid, path, linear, angular)
+        elif lowered.endswith((".obj", ".ply")):
+            _write_trimesh(solid, path, linear, angular)
         else:
             raise ValueError(
-                f"unsupported export format for {path!r}; expected .gltf/.glb/.step/.stp/.stl"
+                f"unsupported export format for {path!r}; expected "
+                ".gltf/.glb/.step/.stp/.iges/.igs/.stl/.3mf/.obj/.ply"
             )
         logger.debug("exported solid to %s", path)
 
@@ -1404,6 +1416,33 @@ class Build123dKernel(Kernel):
         (x0, y0, z0), (x1, y1, z1) = self.bounding_box(solid)
         diagonal = math.sqrt((x1 - x0) ** 2 + (y1 - y0) ** 2 + (z1 - z0) ** 2)
         return max(diagonal * 0.002, 1e-4)
+
+    def _deflection_pair(self, solid: Any, mesh_tolerance: float | None) -> tuple[float, float]:
+        """The (linear, angular) tessellation deflection for a mesh export.
+
+        With no pinned tolerance: the size-relative linear default + the fixed angular deflection
+        (unchanged behavior; the goldens assume this pair). With a pinned ``mesh_tolerance`` (mm):
+        that value is the linear chord tolerance AND drives the angular deflection via the chord
+        relation against the model's bounding radius, so one intuitive knob genuinely controls
+        curved-surface fidelity (the angular cap would otherwise pin the facet count).
+        """
+        if mesh_tolerance is None:
+            return self._deflection(solid), _ANGULAR_DEFLECTION
+        (x0, y0, z0), (x1, y1, z1) = self.bounding_box(solid)
+        radius = 0.5 * math.sqrt((x1 - x0) ** 2 + (y1 - y0) ** 2 + (z1 - z0) ** 2)
+        return mesh_tolerance, _angular_for(mesh_tolerance, radius)
+
+
+def _angular_for(tolerance: float, radius: float) -> float:
+    """Angular deflection (rad) whose chord height on a ``radius`` arc is ``tolerance``.
+
+    From the chord-sagitta relation ``t = R(1 - cos(theta/2))`` -> ``theta = 2*acos(1 - t/R)``.
+    Clamped to [0.01, 1.0] rad so a tiny or an oversized tolerance still yields a sane facet angle.
+    """
+    if radius <= 0.0 or tolerance >= radius:
+        return 1.0
+    theta = 2.0 * math.acos(1.0 - tolerance / radius)
+    return max(0.01, min(1.0, theta))
 
 
 def _describe_face(face: Any) -> dict:
@@ -1692,3 +1731,38 @@ def _trsf_from(matrix: list[list[float]]) -> Any:
                 matrix[0][1], matrix[1][1], matrix[2][1], matrix[3][1],
                 matrix[0][2], matrix[1][2], matrix[2][2], matrix[3][2])
     return t
+
+
+def _write_iges(solid: Any, path: str) -> None:
+    """Write an exact-B-rep IGES via the OCCT writer (no build123d wrapper for IGES).
+
+    IGES is a surface/wireframe exchange, so this writes the shape's faces (BRepMode) rather than a
+    solid model; that is the portable, widely-read IGES flavor. OCP boundary is Any-typed.
+    """
+    from OCP.IGESControl import IGESControl_Writer  # pyrefly: ignore[missing-module-attribute]
+    writer = IGESControl_Writer()
+    if not writer.AddShape(solid.wrapped):
+        raise ValueError(f"IGES writer rejected the shape for {path!r}")
+    writer.ComputeModel()
+    if not writer.Write(path):
+        raise ValueError(f"IGES write failed for {path!r}")
+
+
+def _write_3mf(solid: Any, path: str, linear: float, angular: float) -> None:
+    """Write 3MF via build123d's Mesher (native OCCT tessellation; no lxml/trimesh dependency)."""
+    from build123d import Mesher
+    mesher = Mesher(unit=Unit.MM)
+    mesher.add_shape(solid, linear_deflection=linear, angular_deflection=angular)
+    mesher.write(path)
+
+
+def _write_trimesh(solid: Any, path: str, linear: float, angular: float) -> None:
+    """Write OBJ/PLY by tessellating the B-rep once and handing the triangle soup to trimesh.
+
+    Reuses the SAME (linear, angular) deflection as the other mesh formats so every mesh export of
+    a part agrees on tessellation; trimesh infers the format from the path extension.
+    """
+    import trimesh
+    vertices, faces = solid.tessellate(linear, angular)
+    mesh = trimesh.Trimesh(vertices=[tuple(v) for v in vertices], faces=faces)
+    mesh.export(path)

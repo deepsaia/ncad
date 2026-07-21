@@ -38,9 +38,12 @@ logger = logging.getLogger(__name__)
 _ELEMENTMAP_SUFFIX = ".elementmap.json"
 _HIERARCHY_SUFFIX = ".hierarchy.json"
 _FACTS_SUFFIX = ".facts.json"
-# Export format -> file extension. glb is the display mesh (viewer); step is the exact
-# B-rep for CAD interchange.
-_FORMAT_EXTENSIONS = {"glb": "glb", "step": "step"}
+# Export format -> file extension. glb is the display mesh (viewer); step/iges are exact B-rep
+# for CAD interchange; stl/3mf/obj/ply are tessellated meshes (slicing, robot links, print).
+_FORMAT_EXTENSIONS = {
+    "glb": "glb", "step": "step", "iges": "iges",
+    "stl": "stl", "3mf": "3mf", "obj": "obj", "ply": "ply",
+}
 
 
 def resolve_formats(formats: tuple[str, ...]) -> tuple[str, ...]:
@@ -107,13 +110,17 @@ class DocumentBuilder:
 
     def build_file(self, path: str, out_dir: str,
                    formats: tuple[str, ...] = ("glb",),
-                   name_prefix: str = "") -> dict[str, Any]:
+                   name_prefix: str = "",
+                   mesh_tolerance: float | None = None) -> dict[str, Any]:
         """Load, build, and export each part to ``<out_dir>/<prefix><part>.<ext>`` per format.
 
         Also writes each part's element-map / hierarchy / status sidecars beside the
-        artifacts. ``formats`` selects the export format(s) (``glb`` and/or ``step``); the
-        default keeps the viewer's glb-only path unchanged. glb is the display mesh; step
-        is the exact B-rep for CAD interchange.
+        artifacts. ``formats`` selects the export format(s): glb is the display mesh; step/iges
+        are the exact B-rep for CAD interchange; stl/3mf/obj/ply are tessellated meshes (slicing,
+        robot links). The default keeps the viewer's glb-only path unchanged.
+
+        ``mesh_tolerance`` (mm, optional) pins the tessellation deflection for the mesh formats;
+        None uses a size-relative default. Ignored by the exact B-rep formats (step/iges).
 
         ``name_prefix`` namespaces the written artifact + sidecar basenames (default ""
         keeps the bare ``<part>`` names). Assembly composition passes the source document's
@@ -162,7 +169,8 @@ class DocumentBuilder:
             written: list[str] = []
             for fmt in resolved_formats:
                 artifact_path = os.path.join(out_dir, f"{stem}.{_FORMAT_EXTENSIONS[fmt]}")
-                self._kernel.export(result.shape, artifact_path, body_colors=body_colors)
+                self._kernel.export(result.shape, artifact_path, body_colors=body_colors,
+                                    mesh_tolerance=mesh_tolerance)
                 written.append(artifact_path)
             self._write_element_map(element_map, out_dir, stem, bodies, result.shape)
             self._write_hierarchy(part, out_dir, stem, statuses, bodies)

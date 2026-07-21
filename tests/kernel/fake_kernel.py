@@ -778,7 +778,8 @@ class FakeKernel(Kernel):
         # Bucket 0.1 uses the XY plane; extrude along +Z by distance.
         return ((min(xs), min(ys), 0.0), (max(xs), max(ys), solid.distance))
 
-    def export(self, solid: Any, path: str, body_colors: dict | None = None) -> None:
+    def export(self, solid: Any, path: str, body_colors: dict | None = None,
+               mesh_tolerance: float | None = None) -> None:
         raise NotImplementedError("FakeKernel does not export geometry")
 
     def export_assembly(self, components: list[dict], path: str) -> None:
