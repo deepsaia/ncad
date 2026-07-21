@@ -1,0 +1,14 @@
+{
+  "standard": "ASME B16.9 (straight tee, representative)",
+  "title": "Butt-weld equal (straight) pipe tees",
+  "version": "2026-07-21",
+  "source": "ASME B16.9 equal tee: outer diameter + wall matched to the pipe DN. run_length = center-to-end x 2 (full run), branch_length = center-to-end (branch height from the run axis). Nominal only; a bored run with a bored branch, no weld bevel. Keyed by DN.",
+  "unit": "mm",
+  "designations": {
+    "DN25":  {"outer_diameter": 33.7,  "wall_thickness": 3.2, "run_length": 152.0, "branch_length": 76.0},
+    "DN40":  {"outer_diameter": 48.3,  "wall_thickness": 3.2, "run_length": 178.0, "branch_length": 89.0},
+    "DN50":  {"outer_diameter": 60.3,  "wall_thickness": 3.6, "run_length": 216.0, "branch_length": 108.0},
+    "DN80":  {"outer_diameter": 88.9,  "wall_thickness": 4.0, "run_length": 305.0, "branch_length": 152.0},
+    "DN100": {"outer_diameter": 114.3, "wall_thickness": 4.5, "run_length": 356.0, "branch_length": 178.0}
+  }
+}
