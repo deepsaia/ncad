@@ -1,0 +1,18 @@
+units = mm
+# The crank-slider exported to MuJoCo MJCF. Unlike the URDF export, MJCF KEEPS the closed loop
+# (block->flywheel->rod->piston->block) as an <equality><connect> constraint, so the full mechanism
+# is simulable, not just the spanning tree. Link inertials are computed from the parts; the driven
+# revolute gets a position actuator.
+metadata {
+  description = "Crank-slider to MJCF: closed loop kept as an equality, actuated main pin"
+  tags = [ robotics, physics, mjcf ]
+}
+physics {
+  assembly = "../07-motion/crank_slider.asm.hocon"
+  base = block
+  joints {
+    mainPin { actuated = true, limit = [ -3.14159, 3.14159 ], effort = 50, velocity = 6.28,
+              damping = 0.05 }
+  }
+  export { format = mjcf, mesh = stl }
+}

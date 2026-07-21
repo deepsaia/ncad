@@ -38,11 +38,20 @@ The key property: inertia is COMPUTED, never typed (most tools, and text-to-cad'
 `RobotModelBuilder` produces a format-neutral `RobotModel` (links + joints, SI units) from the
 assembly + overlay; a format writer serializes it. The IR is written once so writers stay thin.
 
-- **`UrdfWriter`** (now): URDF is a kinematic TREE. `JointTreeSpanner` roots the joint graph at the
-  base link; a joint that closes a loop (e.g. a four-bar) is reported and excluded (URDF cannot
-  express it). Emitted URDF is validated by loading it in MuJoCo (`mujoco.MjModel.from_xml_path`).
-- **`MjcfWriter` / `SdfWriter`** (follow-ups on the same IR): MJCF keeps closed loops as equality
-  constraints and adds actuators/contacts; SDF is the middle ground. See the backlog.
+The `export.format` in the overlay selects the writer (`robot_format.robot_writer`):
+
+- **`UrdfWriter`** (`format = urdf`): URDF is a kinematic TREE. `JointTreeSpanner` roots the joint
+  graph at the base link; a loop-closing joint (e.g. a four-bar) is reported and excluded (URDF
+  cannot express it). Artifact `.urdf`.
+- **`MjcfWriter`** (`format = mjcf`): MuJoCo's native format, the best simulation target. Nests each
+  child body inside its parent (BodyTree), writes the full inertia tensor (`fullinertia`), declares
+  mesh assets, KEEPS every loop-closure joint as an `<equality><connect>`, and adds a `<position>`
+  actuator per actuated joint. Artifact `.xml`.
+- **`SdfWriter`** (`format = sdf`): Gazebo's format, the middle ground. Flat links + joints like
+  URDF but NOT tree-limited, so every joint (including loop closures) is emitted. Artifact `.sdf`.
+
+All three write from the shared `RobotModel` IR. Emitted URDF and MJCF are validated by loading them
+in MuJoCo (`mujoco.MjModel.from_xml_path`); MJCF preserves closed-loop mechanisms a URDF must drop.
 
 A viewer Physics tab (joint-slider articulation of the exported robot) is deferred to the B12
-viewer-parity work; it should follow the MJCF writer so it can articulate closed-loop mechanisms.
+viewer-parity work; it can articulate closed-loop mechanisms now that MJCF keeps them.
