@@ -203,6 +203,18 @@ class ViewerCli:
             resolved)
         return report.to_dict()
 
+    def snapshot_model(self, model: str, out: str | None = None,
+                       frames: int = 24) -> dict[str, str]:
+        """Render a model file to a PNG + orbit GIF review packet; return the written paths.
+
+        No server and no browser: the SnapshotRenderer draws offscreen. ``out`` defaults to the
+        model's own directory. This is the agent-facing visual gate for a geometry change.
+        """
+        from ncad.viewer.snapshot_renderer import SnapshotRenderer
+
+        logging.basicConfig(level=logging.INFO, format="%(message)s")
+        return SnapshotRenderer(frames=frames).render(model, out_dir=out)
+
 
 app = typer.Typer(
     help="ncad: build and view parametric CAD models.",
@@ -339,6 +351,19 @@ def validate(
         errors = sum(1 for d in diagnostics if d["severity"] == "error")
         print(f"\n  NOT ok: {errors} error(s)\n")
         raise typer.Exit(code=1)
+
+
+@app.command()
+def snapshot(
+    model: str = typer.Argument(..., help="path to a built model (glb/stl/obj/ply/3mf)"),
+    out: str = typer.Option(None, help="output directory (default: beside the model)"),
+    frames: int = typer.Option(24, help="orbit frames in the GIF"),
+) -> None:
+    """Render a model to a PNG still + an orbit GIF review packet (offscreen, no viewer)."""
+    result = cli.snapshot_model(model, out, frames=frames)
+    print(f"\nncad snapshot: {model}")
+    print(f"  still: {result['png']}")
+    print(f"  orbit: {result['gif']}\n")
 
 
 def main() -> None:
