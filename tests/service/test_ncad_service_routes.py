@@ -42,6 +42,9 @@ def service(tmp_path):
     (tmp_path / "box.status.json").write_text('{"sketches": []}')
     (tmp_path / "widget.assembly.json").write_text('{"instances": [], "joints": []}')
     (tmp_path / "widget.motion.json").write_text('{"frames": [], "driver": {"joint": "j"}}')
+    (tmp_path / "arm.robot.json").write_text(
+        '{"base_link": "b", "links": [{"name": "b"}], "joints": [{"name": "j1"}]}')
+    (tmp_path / "arm.robot_sweeps.json").write_text('{"j1": {"from": 0, "to": 1, "frames": []}}')
     svc = NcadService(models_dir=str(tmp_path), host="127.0.0.1", port=0,
                       build_service=_FakeBuildService())
     svc.start()
@@ -99,6 +102,16 @@ def test_motions_list_and_trajectory(service):
     assert json.loads(body)["motions"] == [{"name": "widget", "label": None}]
     status, body, _ = _get(f"{service.base_url}/api/v1/motion/widget")
     assert status == 200 and "frames" in json.loads(body)
+
+
+def test_robots_list_tree_and_sweeps(service):
+    status, body, _ = _get(f"{service.base_url}/api/v1/robots")
+    assert status == 200
+    assert json.loads(body)["robots"] == [{"name": "arm", "label": "1j"}]
+    status, body, _ = _get(f"{service.base_url}/api/v1/robot/arm")
+    assert status == 200 and "links" in json.loads(body)
+    status, body, _ = _get(f"{service.base_url}/api/v1/robot-sweeps/arm")
+    assert status == 200 and "j1" in json.loads(body)
 
 
 @pytest.mark.parametrize("route,ctype", [

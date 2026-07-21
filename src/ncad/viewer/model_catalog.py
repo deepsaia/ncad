@@ -132,6 +132,50 @@ class ModelCatalog:
             return None
         return candidate if os.path.isfile(candidate) else None
 
+    def robot_names(self) -> list[str]:
+        """Robot names that have a Physics-viewer tree (files ending in .robot.json)."""
+        if not os.path.isdir(self._directory):
+            return []
+        suffix = ".robot.json"
+        return sorted(entry[: -len(suffix)] for entry in os.listdir(self._directory)
+                      if entry.lower().endswith(suffix)
+                      and os.path.isfile(os.path.join(self._directory, entry)))
+
+    def robots_with_labels(self) -> list[dict]:
+        """Robot names each with a short label for the picker (joint count, best-effort)."""
+        result: list[dict] = []
+        for name in self.robot_names():
+            result.append({"name": name, "label": self._robot_label(name)})
+        return result
+
+    def _robot_label(self, name: str) -> str | None:
+        """A short label for one robot (its joint count), or None if the tree can't be read."""
+        path = self.resolve_robot(name)
+        if path is None:
+            return None
+        try:
+            with open(path, encoding="utf-8") as handle:
+                doc = json.load(handle)
+        except (OSError, ValueError) as exc:
+            logger.warning("could not read robot label for %s: %s", name, exc)
+            return None
+        joints = doc.get("joints")
+        return f"{len(joints)}j" if isinstance(joints, list) and joints else None
+
+    def resolve_robot(self, name: str) -> str | None:
+        """Safe absolute path to ``<name>.robot.json`` (the tree), or None if absent."""
+        candidate = os.path.abspath(os.path.join(self._directory, name + ".robot.json"))
+        if os.path.dirname(candidate) != self._directory:
+            return None
+        return candidate if os.path.isfile(candidate) else None
+
+    def resolve_robot_sweeps(self, name: str) -> str | None:
+        """Safe absolute path to ``<name>.robot_sweeps.json`` (joint sweeps), or None if absent."""
+        candidate = os.path.abspath(os.path.join(self._directory, name + ".robot_sweeps.json"))
+        if os.path.dirname(candidate) != self._directory:
+            return None
+        return candidate if os.path.isfile(candidate) else None
+
     def delete_assembly(self, name: str) -> str | None:
         """Delete ``<name>.assembly.json`` (the composed scene). Returns the name, or None.
 
@@ -143,9 +187,11 @@ class ModelCatalog:
         if resolved is None:
             return None
         os.remove(resolved)
-        motion = self.resolve_motion(name)
-        if motion is not None:
-            os.remove(motion)
+        # Remove the motion trajectory + the Physics-viewer robot sidecars keyed by the same name.
+        for companion in (self.resolve_motion(name), self.resolve_robot(name),
+                          self.resolve_robot_sweeps(name)):
+            if companion is not None:
+                os.remove(companion)
         return name
 
     def resolve_bom(self, model_name: str) -> str | None:
