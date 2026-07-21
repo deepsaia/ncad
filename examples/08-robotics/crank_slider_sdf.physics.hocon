@@ -1,0 +1,16 @@
+units = mm
+# The crank-slider exported to SDF (Gazebo). SDF is a flat link+joint model like URDF but is NOT
+# tree-limited, so every joint (including the loop-closing one) is emitted normally. Link inertials
+# are computed from the parts.
+metadata {
+  description = "Crank-slider to SDF: flat model keeping every joint, computed inertials"
+  tags = [ robotics, physics, sdf ]
+}
+physics {
+  assembly = "../07-motion/crank_slider.asm.hocon"
+  base = block
+  joints {
+    mainPin { actuated = true, limit = [ -3.14159, 3.14159 ], effort = 50, velocity = 6.28 }
+  }
+  export { format = sdf, mesh = stl }
+}

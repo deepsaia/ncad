@@ -181,25 +181,31 @@ class ViewerCli:
         return MotionBuilder(Build123dKernel()).build(file, str(out_dir))
 
     def physics_document(self, file: str, out: str | None) -> dict:
-        """Export a physics/robotics document to a robot description (URDF) + per-link meshes.
+        """Export a physics/robotics document to a robot description + per-link meshes.
 
         Derives a format-neutral RobotModel from the referenced assembly (computed inertials + Stage
-        0 meshes + assembly joints) plus the .physics overlay (actuation/limits/base), then writes
-        the target format. Returns ``{"artifact", "meshes_dir", "warnings", "links", "joints"}``.
+        0 meshes + assembly joints) plus the .physics overlay (actuation/limits/base/format), then
+        writes the chosen format (urdf/mjcf/sdf). Returns
+        ``{"artifact", "meshes_dir", "format", "warnings", "links", "joints"}``.
         """
         from ncad.kernel.build123d_kernel import Build123dKernel
-        from ncad.robotics import RobotModelBuilder, UrdfWriter
+        from ncad.robotics import RobotModelBuilder
+        from ncad.robotics.physics_spec import PhysicsSpec
+        from ncad.robotics.robot_format import robot_writer
+        from ncad.spec.spec_loader import SpecLoader
 
         logging.basicConfig(level=logging.INFO, format="%(message)s")
         logging.getLogger("build123d").setLevel(logging.WARNING)
         out_dir = self.resolve_models_dir(out)
+        export_format = PhysicsSpec(SpecLoader().load(file)).export_format
         model, warnings = RobotModelBuilder(Build123dKernel()).build(file, str(out_dir))
-        artifact = out_dir / f"{model.name}.urdf"
-        artifact.write_text(UrdfWriter().to_xml(model), encoding="utf-8")
+        writer, extension = robot_writer(export_format)
+        artifact = out_dir / f"{model.name}.{extension}"
+        artifact.write_text(writer.to_xml(model), encoding="utf-8")
         for warning in warnings:
             logging.warning("%s", warning)
         return {"artifact": str(artifact), "meshes_dir": str(out_dir / "meshes"),
-                "warnings": warnings, "links": len(model.links),
+                "format": export_format, "warnings": warnings, "links": len(model.links),
                 "joints": len(model.tree_joints())}
 
     def validate_document(self, file: str) -> dict:
@@ -428,11 +434,12 @@ def physics(
     document: str = typer.Argument(..., help="path to a .physics.hocon robotics-export document"),
     out: str = typer.Option(None, help="output directory (default: out/)"),
 ) -> None:
-    """Export a robot description (URDF) from an assembly + a physics overlay (computed inertia)."""
+    """Export a robot description (urdf/mjcf/sdf) from an assembly + a physics overlay (computed
+    inertia)."""
     result = cli.physics_document(document, out)
-    print(f"\nncad physics: {document}")
+    print(f"\nncad physics: {document}  [{result['format']}]")
     print(f"  robot: {result['links']} links, {result['joints']} tree joints")
-    print(f"  urdf:  {result['artifact']}")
+    print(f"  artifact: {result['artifact']}")
     print(f"  meshes: {result['meshes_dir']}")
     for warning in result["warnings"]:
         print(f"  WARN {warning}")
