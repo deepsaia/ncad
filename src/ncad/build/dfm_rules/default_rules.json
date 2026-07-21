@@ -1,0 +1,37 @@
+{
+  "version": "2026-07-21",
+  "source": "ncad default DFM limits: conservative, general-purpose starting points. Override with a shop/vendor-specific rule file; these are NOT authoritative for any specific fabricator.",
+  "processes": {
+    "laser": {
+      "label": "sheet laser cutting",
+      "rules": {
+        "min_hole_diameter": {"fact": "smallest_hole_diameter", "min": 1.0, "unit": "mm", "cite": "hole diameter >= material thickness; small default"},
+        "max_thickness": {"fact": "min_wall_thickness", "max": 20.0, "unit": "mm", "cite": "typical mild-steel laser envelope"},
+        "min_wall_thickness": {"fact": "min_wall_thickness", "min": 0.5, "unit": "mm", "cite": "min feature width for a clean cut"}
+      }
+    },
+    "waterjet": {
+      "label": "abrasive waterjet",
+      "rules": {
+        "min_hole_diameter": {"fact": "smallest_hole_diameter", "min": 1.5, "unit": "mm", "cite": "jet kerf lower bound for a round hole"},
+        "max_thickness": {"fact": "min_wall_thickness", "max": 150.0, "unit": "mm", "cite": "practical waterjet stack depth"},
+        "min_wall_thickness": {"fact": "min_wall_thickness", "min": 0.8, "unit": "mm", "cite": "min standing feature to avoid blowout"}
+      }
+    },
+    "cnc_sheet": {
+      "label": "CNC-routed sheet",
+      "rules": {
+        "min_hole_diameter": {"fact": "smallest_hole_diameter", "min": 2.0, "unit": "mm", "cite": "smallest practical end-mill hole"},
+        "max_thickness": {"fact": "min_wall_thickness", "max": 50.0, "unit": "mm", "cite": "flute-length reach on common tooling"},
+        "min_wall_thickness": {"fact": "min_wall_thickness", "min": 1.0, "unit": "mm", "cite": "min rib width to resist tool deflection"}
+      }
+    },
+    "fdm": {
+      "label": "FDM 3D printing",
+      "rules": {
+        "min_hole_diameter": {"fact": "smallest_hole_diameter", "min": 2.0, "unit": "mm", "cite": "sub-2mm holes close up from over-extrusion"},
+        "min_wall_thickness": {"fact": "min_wall_thickness", "min": 0.8, "unit": "mm", "cite": "~2 perimeters at a 0.4mm nozzle"}
+      }
+    }
+  }
+}
