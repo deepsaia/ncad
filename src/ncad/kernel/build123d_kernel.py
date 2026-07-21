@@ -481,6 +481,25 @@ class Build123dKernel(Kernel):
         basis = _basis(plane, offset)
         return Wire([_build_edge(edge, basis) for edge in edges])
 
+    def wire3d(self, points: list, *, kind: str = "polyline", closed: bool = False) -> Any:
+        vectors = [Vector(float(x), float(y), float(z)) for x, y, z in points]
+        if closed and vectors:
+            vectors = [*vectors, vectors[0]]
+        min_points = 2 if kind == "polyline" else 3
+        if len(vectors) < min_points:
+            raise KernelOpError(
+                f"wire3d {kind} needs at least {min_points} points; got {len(points)}")
+        try:
+            if kind == "polyline":
+                edges = [Edge.make_line(vectors[i], vectors[i + 1])  # pyrefly: ignore[bad-argument-type]
+                         for i in range(len(vectors) - 1)]
+                return Wire(edges)
+            if kind == "spline":
+                return Wire([Edge.make_spline(vectors)])  # pyrefly: ignore[bad-argument-type]
+        except Exception as exc:  # OCCT raises many exception types at this boundary
+            raise KernelOpError(f"wire3d {kind} failed: {exc}") from exc
+        raise KernelOpError(f"unknown wire3d kind {kind!r}; expected 'polyline' or 'spline'")
+
     def project_edges(self, edges: list, plane: Any, offset: float = 0.0) -> list:
         basis = _basis(plane, offset)
         return [_project_edge(edge, basis) for edge in edges]

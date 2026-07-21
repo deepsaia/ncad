@@ -1,0 +1,31 @@
+units = mm
+metadata {
+  description = "Routed pipe"
+  tags = [ solid-features, part, sweep-3d ]
+}
+# A routed tube (a hydraulic/coolant line) whose centerline genuinely turns through all three
+# axes: it runs along +X, corners to run along +Y, then rises in +Z. A planar open sketch cannot
+# express this route; path3d (spline) rounds the two corners like real bent tubing. Exercises
+# path3d + sweep; the tube diameter (10) is well under the corner radii so the bends stay valid.
+# The profile sketch is on YZ (normal +X) so it is PERPENDICULAR to the path's +X start tangent;
+# a profile parallel to the start direction collapses the sweep.
+parameters { tube = 10 }
+parts {
+  routed_pipe {
+    profile = solid
+    features = [
+      { id = tube_sk, op = sketch, plane = YZ,
+        elements = [ { id = c, type = circle, d = 10 } ] }
+      # Run in +X, corner into +Y, then rise in +Z: three legs, two rounded 3D corners.
+      { id = route, op = path3d, kind = spline, points = [
+          [ 0, 0, 0 ],
+          [ 50, 0, 0 ],
+          [ 70, 20, 0 ],
+          [ 70, 60, 0 ],
+          [ 70, 80, 20 ],
+          [ 70, 80, 70 ]
+        ] }
+      { id = pipe, op = sweep, profile = tube_sk, path = route }
+    ]
+  }
+}

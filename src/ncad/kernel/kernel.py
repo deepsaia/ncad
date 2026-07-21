@@ -188,6 +188,17 @@ class Kernel(ABC):
         """
 
     @abstractmethod
+    def wire3d(self, points: list, *, kind: str = "polyline", closed: bool = False) -> Any:
+        """An OPEN free 3D wire (a sweep path) through ordered ``(x, y, z)`` points.
+
+        Unlike ``wire`` (points on one plane), this is a genuine space curve, so a sweep can
+        follow a path that turns in all three axes. ``kind`` is ``polyline`` (straight segments
+        between the points) or ``spline`` (a smooth curve interpolating every point). ``closed``
+        joins the last point back to the first. Needs at least two points (three for a closed
+        polyline). Raises KernelOpError on a degenerate path.
+        """
+
+    @abstractmethod
     def vertices_of(self, shape: Any) -> list:
         """The vertex handles of ``shape`` (a face/edge/solid). Corners for projection."""
 

@@ -26,7 +26,8 @@ _KIND_BY_TOP_KEY = {"parts": "part", "assembly": "assembly", "motion": "motion"}
 _CATEGORIES: list[tuple[str, list[str]]] = [
     ("Sketching", ["sketch"]),
     ("Primitives", ["primitive"]),
-    ("Sketched features", ["extrude", "pocket", "revolve", "groove", "sweep", "loft", "rib"]),
+    ("Sketched features",
+     ["extrude", "pocket", "revolve", "groove", "sweep", "path3d", "loft", "rib"]),
     ("Dress-up", ["fillet", "chamfer", "shell", "draft", "hole", "thread", "wrap"]),
     ("Patterns & transforms",
      ["pattern", "mirror", "transform", "feature_pattern", "feature_mirror"]),
