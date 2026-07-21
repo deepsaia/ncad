@@ -28,12 +28,18 @@ class BuildMain:
         parser = argparse.ArgumentParser(description="ncad build a feature-tree document")
         parser.add_argument("document", help="path to a .hocon/.json feature-tree document")
         parser.add_argument("--out", default=None, help="output directory for artifacts")
-        parser.add_argument("--format", default="glb",
-                            help="comma-separated export formats: glb, step (default: glb)")
+        parser.add_argument(
+            "--format", default="glb",
+            help="comma-separated export formats: glb, step, iges, stl, 3mf, obj, ply "
+                 "(default: glb)")
+        parser.add_argument(
+            "--mesh-tolerance", type=float, default=None,
+            help="tessellation deflection in mm for mesh formats (default: size-relative)")
         args = parser.parse_args()
 
         formats = _parse_formats(args.format)
-        artifacts = ViewerCli().build_document(args.document, args.out, formats)
+        artifacts = ViewerCli().build_document(
+            args.document, args.out, formats, mesh_tolerance=args.mesh_tolerance)
         print(f"\nncad build: {args.document}")
         for name, path in artifacts.items():
             print(f"  part {name:12} {path}")

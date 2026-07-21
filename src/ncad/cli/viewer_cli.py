@@ -102,11 +102,13 @@ class ViewerCli:
             service.stop()
 
     def build_document(self, document: str, out: str | None,
-                       formats: tuple[str, ...] = ("glb",)) -> dict[str, str]:
+                       formats: tuple[str, ...] = ("glb",),
+                       mesh_tolerance: float | None = None) -> dict[str, str]:
         """Build a feature-tree document; return the built artifacts by part.
 
-        Imports the kernel lazily so the viewer commands never pay the OCP cost.
-        ``formats`` selects the export format(s) (``glb`` and/or ``step``).
+        Imports the kernel lazily so the viewer commands never pay the OCP cost. ``formats``
+        selects the export format(s) (glb/step/iges/stl/3mf/obj/ply); ``mesh_tolerance`` (mm)
+        pins the tessellation deflection for the mesh formats (None = size-relative default).
         """
         from ncad.build.document_builder import DocumentBuilder
         from ncad.kernel.build123d_kernel import Build123dKernel
@@ -115,7 +117,7 @@ class ViewerCli:
         logging.getLogger("build123d").setLevel(logging.WARNING)
         out_dir = self.resolve_models_dir(out)
         result = DocumentBuilder(Build123dKernel()).build_file(
-            document, str(out_dir), formats=formats)
+            document, str(out_dir), formats=formats, mesh_tolerance=mesh_tolerance)
         for diag in result["diagnostics"]:
             if diag.severity == "error":
                 logging.error("%s [%s] %s", diag.code, diag.location, diag.message)
