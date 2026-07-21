@@ -18,7 +18,8 @@ from ncad.spec.spec_loader import SpecLoader
 
 logger = logging.getLogger(__name__)
 
-_KIND_BY_TOP_KEY = {"parts": "part", "assembly": "assembly", "motion": "motion"}
+_KIND_BY_TOP_KEY = {"parts": "part", "assembly": "assembly", "motion": "motion",
+                    "physics": "physics"}
 
 # Op categories, in the order they should appear in the docs (grouped the way CAD tools group
 # their operation menus). Every registered op must map to exactly one category; the exporter
