@@ -323,6 +323,33 @@ enforced by the DirectEditGuard before the kernel op runs:
 - **Seen in:** `defeatured_block` (boss unioned, then its top defeatured) and
   `offset_shell` (base, then outward offset); `imported_edit` (import, then offset).
 
+### 14. A `sweep` profile must be PERPENDICULAR to the path's start tangent (3D sweep)
+
+A `sweep` extrudes its `profile` face along a path. The profile must sit on a plane whose normal
+matches the path's tangent at its start point; a profile parallel to the start direction collapses
+the sweep (a valid B-rep but near-zero, even negative, volume). For a `path3d` (or open-sketch)
+path that begins traveling along +X, author the profile on `YZ`; +Y start -> `XZ`; +Z start ->
+`XY`. This is the 3D analogue of the implicit planar-sweep assumption: a planar path's profile is
+usually drawn perpendicular by construction, but a free 3D path makes the start direction explicit,
+so the profile plane must be chosen to match it.
+
+- **Why:** OCCT's pipe/sweep sections the profile along the spine; if the profile lies in the
+  spine's travel plane there is no swept cross-section, so the solid degenerates.
+- **Failure mode:** silent wrong geometry (builds + validates, tiny/negative volume). Catchable
+  with a volume or `min_wall_thickness` check, or the B3 inertia validator downstream.
+- **`path3d` is a leaf (no input) producing an open 3D wire**, like a `datum` or an open sketch; it
+  is in `_NON_SOLID_OPS`, so it does not become the running solid. Build it before the `sweep` that
+  names it as `path` (same as an open-sketch path).
+- **Seen in:** `routed_pipe` (tube routed +X -> +Y -> +Z; profile on `YZ`).
+
+---
+
+## Assembly & motion ordering
+
+Rules 1-14 above are per-part feature-tree ordering. The rules below govern the ASSEMBLY and
+MOTION documents (`.asm.hocon` / `.motion.hocon`) that orchestrate built parts; they are numbered
+independently (this series restarts at 12 for historical reasons).
+
 ### 12. Assembly mates (5.2) solve AFTER every instance's connectors resolve; grounding is required
 
 This is an ASSEMBLY-document rule (an `.asm.hocon` orchestrating parts), not a per-part feature
