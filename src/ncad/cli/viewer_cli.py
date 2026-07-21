@@ -212,7 +212,8 @@ class ViewerCli:
         robot_sidecar = None
         sweeps_sidecar = None
         if sidecars:
-            result = RobotSidecarBuilder(kernel).write(model, file, str(out_dir), with_sweeps=sweeps)
+            result = RobotSidecarBuilder(kernel).write(
+                model, file, str(out_dir), with_sweeps=sweeps)
             robot_sidecar, sweeps_sidecar = result["robot"], result["sweeps"]
             warnings += result["warnings"]
         for warning in warnings:

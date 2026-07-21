@@ -50,8 +50,8 @@ class RobotSidecarBuilder:
     def build(self, physics_path: str, out_dir: str, with_sweeps: bool = True) -> dict:
         """Build the model then write the sidecars; return ``{robot, sweeps, warnings}`` paths.
 
-        ``with_sweeps`` defaults to True here (the standalone builder's job is the full sidecar set);
-        the CLI passes its own flag. Set False for just the cheap ``.robot.json`` tree.
+        ``with_sweeps`` defaults to True here (the standalone builder's job is the full sidecar
+        set); the CLI passes its own flag. Set False for just the cheap ``.robot.json`` tree.
         """
         model, warnings = self._model_builder.build(physics_path, out_dir)
         result = self.write(model, physics_path, out_dir, with_sweeps=with_sweeps)

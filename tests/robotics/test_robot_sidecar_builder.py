@@ -63,7 +63,7 @@ def test_range_auto_travel_for_unlimited_prismatic():
 def test_build_writes_tree_and_sweep_sidecars(tmp_path):
     from ncad.kernel.build123d_kernel import Build123dKernel
 
-    result = RobotSidecarBuilder(Build123dKernel()).build(
+    RobotSidecarBuilder(Build123dKernel()).build(
         "examples/08-robotics/crank_slider.physics.hocon", str(tmp_path), with_sweeps=True)
     tree = json.loads((tmp_path / "crank_slider.robot.json").read_text())
     assert tree["base_link"] == "block"
