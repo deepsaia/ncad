@@ -78,3 +78,25 @@ class MotionBuildHandler(BaseApiHandler):
             self.write_error_json(500, "internal motion-build error")
             return
         self.write_json(200, {"motions": self._catalog.motions_with_labels(), **result})
+
+
+class PhysicsBuildHandler(BaseApiHandler):
+    """POST /api/v1/physics-build -> export a robot + sidecars, return the robot list + result."""
+
+    def post(self, *args: str, **kwargs: str) -> None:
+        """Run the posted physics spec; 400 on bad request/BuildError, 500 on failure."""
+        spec = self.load_spec_body()
+        if spec is None:
+            self.write_error_json(400, "request must be JSON with a 'spec' field")
+            return
+        try:
+            result = self._build_service.build_physics(spec)
+        except BuildError as exc:
+            logger.warning("physics-build rejected for %s: %s", spec, exc)
+            self.write_error_json(400, str(exc))
+            return
+        except Exception:  # noqa: BLE001 - never raise to the socket; log and 500
+            logger.exception("unexpected physics-build failure for %s", spec)
+            self.write_error_json(500, "internal physics-build error")
+            return
+        self.write_json(200, {"robots": self._catalog.robots_with_labels(), **result})

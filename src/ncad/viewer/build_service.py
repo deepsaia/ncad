@@ -178,6 +178,106 @@ class BuildService:
         return {"assembled": name, "issues": issues, "motion": bool(result.get("motion")),
                 "build_ms": round(build_ms, 1), "solve_ms": result.get("solve_ms", 0.0)}
 
+    def build_physics(self, spec: str, with_sweeps: bool = True) -> dict:
+        """Build a physics/robotics ``spec`` (export the robot + write the Physics-viewer sidecars).
+
+        Always writes the cheap ``.robot.json`` tree. ``with_sweeps`` (default True for the viewer,
+        which mirrors the ``ncad physics --sweeps`` flag) also solves the per-actuated-joint
+        ``.robot_sweeps.json`` so the viewer's joint sliders have data; the tab's whole purpose is
+        articulation, so it defaults on here (the CLI defaults it off). Times the build the same way
+        as part/assembly/motion.
+
+        :return: ``{"robot": <name>, "warnings": [...], "build_ms": float}``.
+        :raises BuildError: If the spec is not allowed or the physics build fails.
+        """
+        from ncad.kernel.build123d_kernel import Build123dKernel
+        from ncad.robotics.robot_sidecar_builder import RobotSidecarBuilder
+
+        resolved = self._allowed_physics_path(spec)
+        if resolved is None:
+            raise BuildError(f"physics spec not allowed: {spec}")
+        started = time.perf_counter()
+        try:
+            result = RobotSidecarBuilder(Build123dKernel()).build(
+                resolved, self._models_dir, with_sweeps=with_sweeps)
+        except (ValueError, OSError, RuntimeError) as exc:
+            raise BuildError(str(exc)) from exc
+        build_ms = (time.perf_counter() - started) * 1000.0
+        name = os.path.basename(result["robot"])[: -len(".robot.json")]
+        logger.info("physics-built %s from %s (sweeps=%s, %d warning(s)) in %.1f ms",
+                    name, spec, with_sweeps, len(result["warnings"]), build_ms)
+        return {"robot": name, "warnings": result["warnings"], "build_ms": round(build_ms, 1)}
+
+    def _allowed_physics_path(self, spec: str) -> str | None:
+        """Resolve a physics ``spec`` if under examples, else None (mirrors the motion rule)."""
+        return self._spec_catalog.resolve(spec)
+
+    def export_model(self, name: str, kind: str, fmt: str) -> tuple[str, str, bytes]:
+        """Re-export the model ``name`` (of ``kind``) to ``fmt``; return download bytes (no out/).
+
+        The SOURCE spec is resolved server-side from the recorded sidecars by ``name``/``kind`` (the
+        client never supplies a path), so an export cannot reach an arbitrary file. Returns
+        ``(download_name, content_type, data)``.
+
+        :raises BuildError: If the source is unknown or the kind cannot produce the format.
+        """
+        from ncad.kernel.build123d_kernel import Build123dKernel
+        from ncad.viewer.model_exporter import ModelExporter
+
+        source = self._export_source(name, kind)
+        if source is None:
+            raise BuildError(f"no recorded source for {kind} {name!r}; rebuild it first")
+        # The download stem drops any .glb extension a part name carries (revolved_washer.glb ->
+        # revolved_washer), so the file is <stem>.<fmt>, not <stem>.glb.<fmt>.
+        base_name = os.path.splitext(name)[0]
+        try:
+            return ModelExporter(Build123dKernel()).export(source, kind, fmt, base_name)
+        except (ValueError, OSError, RuntimeError) as exc:
+            raise BuildError(str(exc)) from exc
+
+    def _export_source(self, name: str, kind: str) -> str | None:
+        """The recorded source spec for a model ``name`` of ``kind``, resolved to an absolute path.
+
+        The recorded source is a spec-relative string (e.g. ``02-solid-features/x.hocon``); it is put
+        through the same allow-resolvers as build/assemble/motion so the returned path is absolute
+        AND confirmed to be an allowed spec (never an arbitrary file). None if unknown/disallowed.
+        """
+        recorded = self._recorded_source(name, kind)
+        if recorded is None:
+            return None
+        if kind == "assembly":
+            return self._allowed_assembly_path(recorded)
+        if kind == "motion":
+            return self._allowed_motion_path(recorded)
+        if kind == "physics":
+            return self._allowed_physics_path(recorded)
+        return self._allowed_path(recorded)   # part
+
+    def _recorded_source(self, name: str, kind: str) -> str | None:
+        """The raw ``source`` string recorded in a model ``name``'s sidecar (by kind), or None."""
+        if kind == "part":
+            # A part model name may arrive with or without its .glb extension; match either.
+            stem = os.path.splitext(name)[0]
+            return next((m["source"] for m in self._model_catalog.models_with_sources()
+                         if m["name"] == name or os.path.splitext(m["name"])[0] == stem), None)
+        if kind == "assembly":
+            return self._sidecar_source(self._model_catalog.resolve_assembly(name))
+        if kind == "motion":
+            return self._sidecar_source(self._model_catalog.resolve_motion(name))
+        if kind == "physics":
+            return self._sidecar_source(self._model_catalog.resolve_robot(name))
+        return None
+
+    def _sidecar_source(self, sidecar_path: str | None) -> str | None:
+        """The ``source`` field recorded in a JSON sidecar, or None if absent/unreadable."""
+        if sidecar_path is None or not os.path.isfile(sidecar_path):
+            return None
+        try:
+            with open(sidecar_path, encoding="utf-8") as handle:
+                return json.load(handle).get("source")
+        except (OSError, ValueError):
+            return None
+
     def _allowed_motion_path(self, spec: str) -> str | None:
         """Resolve a motion ``spec`` if under examples or a recorded trajectory source, else None.
 

@@ -89,6 +89,10 @@ class OpenApiSpec:
                 "Compose an assembly. Returns {assemblies, assembled, issues, build_ms}."),
             "/api/v1/motion-build": _post_build(
                 "Run a motion study. Returns {motions, assembled, issues, build_ms}."),
+            "/api/v1/physics-build": _post_build(
+                "Export a robot + sidecars. Returns {robots, robot, warnings, build_ms}."),
+            "/api/v1/export": _post_build(
+                "Re-export a model to a format; streams the file as a download."),
             "/api/v1/validate": _post_build(
                 "Validate a spec without building. Returns {ok, diagnostics}."),
             "/api/v1/models/{name}/delete": _post_delete("Delete a model and its sidecars."),

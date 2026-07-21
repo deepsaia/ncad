@@ -18,7 +18,13 @@ from ncad.service.assembly_handlers import (
     AssemblyDeleteHandler,
     AssemblyHandler,
 )
-from ncad.service.build_handlers import AssembleHandler, BuildHandler, MotionBuildHandler
+from ncad.service.build_handlers import (
+    AssembleHandler,
+    BuildHandler,
+    MotionBuildHandler,
+    PhysicsBuildHandler,
+)
+from ncad.service.export_handler import ExportHandler
 from ncad.service.livereload_handler import LiveReloadHandler
 from ncad.service.model_handlers import ModelBytesHandler, ModelDeleteHandler, ModelsHandler
 from ncad.service.motion_handlers import MotionHandler, MotionsHandler
@@ -72,6 +78,8 @@ class ApiRouter:
             URLSpec(r"/api/v1/build", BuildHandler, deps),
             URLSpec(r"/api/v1/assemble", AssembleHandler, deps),
             URLSpec(r"/api/v1/motion-build", MotionBuildHandler, deps),
+            URLSpec(r"/api/v1/physics-build", PhysicsBuildHandler, deps),
+            URLSpec(r"/api/v1/export", ExportHandler, deps),
             URLSpec(r"/api/v1/validate", ValidateHandler, deps),
             # CRITICAL ORDER: Tornado matches by URL pattern only (method-agnostic, `$`-anchored,
             # `.+` matches `/`). The delete POSTs MUST precede the GET catch-alls below, or e.g.
