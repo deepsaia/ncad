@@ -125,6 +125,10 @@ class _ViewerRequestHandler(BaseHTTPRequestHandler):
             self._handle_assemble()
         elif path == "/api/motion-build":
             self._handle_motion_build()
+        elif path == "/api/physics-build":
+            self._handle_physics_build()
+        elif path == "/api/export":
+            self._handle_export()
         elif path.startswith(_API_MODELS_ROUTE) and path.endswith("/delete"):
             name = path[len(_API_MODELS_ROUTE) : -len("/delete")]
             self._handle_delete(unquote(name))
@@ -193,6 +197,52 @@ class _ViewerRequestHandler(BaseHTTPRequestHandler):
             self._send_json(500, {"error": "internal motion-build error"})
             return
         self._send_json(200, {"motions": self._catalog.motion_names(), **result})
+
+    def _handle_physics_build(self) -> None:
+        length = int(self.headers.get("Content-Length", 0))
+        try:
+            body = json.loads(self.rfile.read(length) or b"{}")
+            spec = body["spec"]
+        except (ValueError, KeyError):
+            self._send_json(400, {"error": "request must be JSON with a 'spec' field"})
+            return
+        try:
+            result = self._build_service.build_physics(spec)
+        except BuildError as exc:
+            logger.warning("physics-build rejected for %s: %s", spec, exc)
+            self._send_json(400, {"error": str(exc)})
+            return
+        except Exception:  # noqa: BLE001 - never raise to the socket; log and 500
+            logger.exception("unexpected physics-build failure for %s", spec)
+            self._send_json(500, {"error": "internal physics-build error"})
+            return
+        self._send_json(200, {"robots": self._catalog.robots_with_labels(), **result})
+
+    def _handle_export(self) -> None:
+        length = int(self.headers.get("Content-Length", 0))
+        try:
+            body = json.loads(self.rfile.read(length) or b"{}")
+            name, kind, fmt = body["name"], body["kind"], body["format"]
+        except (ValueError, KeyError):
+            self._send_json(400, {"error": "request needs JSON with 'name', 'kind', 'format'"})
+            return
+        try:
+            download_name, content_type, data = self._build_service.export_model(name, kind, fmt)
+        except BuildError as exc:
+            logger.warning("export rejected for %s/%s -> %s: %s", kind, name, fmt, exc)
+            self._send_json(400, {"error": str(exc)})
+            return
+        except Exception:  # noqa: BLE001 - never raise to the socket; log and 500
+            logger.exception("unexpected export failure for %s/%s -> %s", kind, name, fmt)
+            self._send_json(500, {"error": "internal export error"})
+            return
+        # Stream as a browser download (Content-Disposition attachment); nothing written to out/.
+        self.send_response(200)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Disposition", f'attachment; filename="{download_name}"')
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
 
     def _handle_delete(self, name: str) -> None:
         removed = self._catalog.delete_model(name)
