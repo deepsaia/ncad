@@ -11,12 +11,15 @@ from collections.abc import Callable
 from typing import Any
 
 from ncad.standard.bearing_generator import BearingGenerator
+from ncad.standard.elbow_generator import ElbowGenerator
 from ncad.standard.flange_generator import FlangeGenerator
 from ncad.standard.gasket_generator import GasketGenerator
 from ncad.standard.hex_nut_generator import HexNutGenerator
 from ncad.standard.i_beam_generator import IBeamGenerator
 from ncad.standard.pipe_generator import PipeGenerator
+from ncad.standard.reducer_generator import ReducerGenerator
 from ncad.standard.standard_table import StandardTable
+from ncad.standard.tee_generator import TeeGenerator
 from ncad.standard.washer_generator import WasherGenerator
 
 # Family key -> (table file name, generator factory, required dimension keys). New families slot in
@@ -40,64 +43,108 @@ _FAMILIES: dict[str, tuple[str, Callable[[], Any], tuple[str, ...]]] = {
                ("height", "flange_width", "web_thickness", "flange_thickness")),
 }
 
+# Grouped families dispatch on a SUBTYPE (family -> subtype -> registry entry). The pipe_fitting
+# family collects the pipe fittings (elbow/tee/reducer), each with its own table + generator. A
+# grouped family is addressed as ``pipe_fitting`` + a subtype; new subtypes (cross, wye, cap) slot
+# in here with a table + a generator, no facade change.
+_SUBTYPED_FAMILIES: dict[str, dict[str, tuple[str, Callable[[], Any], tuple[str, ...]]]] = {
+    "pipe_fitting": {
+        "elbow": ("pipe_fitting_elbows.json", ElbowGenerator,
+                  ("outer_diameter", "wall_thickness", "bend_radius")),
+        "tee": ("pipe_fitting_tees.json", TeeGenerator,
+                ("outer_diameter", "wall_thickness", "run_length", "branch_length")),
+        "reducer": ("pipe_fitting_reducers.json", ReducerGenerator,
+                    ("large_diameter", "small_diameter", "wall_thickness", "length")),
+    },
+}
+
 
 class StandardLibrary:
-    """Generates standard-part documents by family + designation from versioned tables."""
+    """Generates standard-part documents by family (+ optional subtype) + designation."""
 
     def families(self) -> list[str]:
-        """The standard-part families this library can generate."""
-        return sorted(_FAMILIES.keys())
+        """The standard-part families this library can generate (flat + grouped)."""
+        return sorted([*_FAMILIES.keys(), *_SUBTYPED_FAMILIES.keys()])
 
-    def designations(self, family: str) -> list[str]:
-        """The designation keys available for ``family`` (``M3``, ``M4``, ...)."""
-        return self._table(family).designations()
+    def subtypes(self, family: str) -> list[str]:
+        """The subtypes of a grouped ``family`` (pipe_fitting -> elbow/tee/reducer); else []."""
+        return sorted(_SUBTYPED_FAMILIES.get(family, {}).keys())
 
-    def required_dimensions(self, family: str) -> tuple[str, ...]:
-        """The dimension keys ``family`` needs (for the custom-dimensions path and help text)."""
-        return self._family(family)[2]
+    def designations(self, family: str, subtype: str | None = None) -> list[str]:
+        """The designation keys available for ``family`` (+ ``subtype`` for a grouped family)."""
+        return self._table(family, subtype).designations()
 
-    def generate(self, family: str, designation: str, part_name: str | None = None) -> dict:
-        """Return a one-part ncad document for a standard ``family``/``designation`` (table lookup).
+    def required_dimensions(self, family: str, subtype: str | None = None) -> tuple[str, ...]:
+        """The dimension keys ``family`` (+ ``subtype``) needs (for the custom path + help text)."""
+        return self._entry(family, subtype)[2]
 
-        ``part_name`` defaults to ``<family>_<designation>`` lowercased (e.g. ``hex_nut_m8``).
+    def generate(self, family: str, designation: str, part_name: str | None = None,
+                 subtype: str | None = None) -> dict:
+        """Return a one-part ncad document for ``family``/``designation`` (table lookup).
+
+        For a grouped family, pass ``subtype`` (e.g. ``pipe_fitting`` + ``elbow``). ``part_name``
+        defaults to ``<family>_<subtype>_<designation>`` lowercased.
         """
-        table_file, _, _ = self._family(family)
+        table_file, _, _ = self._entry(family, subtype)
         dimensions = StandardTable(table_file).dimensions(designation)
-        name = part_name or f"{family}_{designation}".lower()
-        return self._build_document(family, name, dimensions)
+        name = part_name or self._default_name(family, subtype, designation)
+        return self._build_document(family, subtype, name, dimensions)
 
-    def generate_custom(self, family: str, dimensions: dict, part_name: str | None = None) -> dict:
-        """Return a one-part document for ``family`` from CALLER-supplied dimensions (no table).
+    def generate_custom(self, family: str, dimensions: dict, part_name: str | None = None,
+                        subtype: str | None = None) -> dict:
+        """Return a one-part doc for ``family`` (+ ``subtype``) from CALLER-supplied dimensions.
 
-        The second entry path: a non-standard size. ``dimensions`` must carry every key in
-        ``required_dimensions(family)``; a missing key raises ValueError. ``part_name`` defaults to
-        ``<family>_custom``.
+        ``dimensions`` must carry every key in ``required_dimensions(family, subtype)``; a missing
+        key raises ValueError. ``part_name`` defaults to ``<family>[_<subtype>]_custom``.
         """
-        missing = [k for k in self.required_dimensions(family) if k not in dimensions]
+        required = self.required_dimensions(family, subtype)
+        missing = [k for k in required if k not in dimensions]
         if missing:
             raise ValueError(
-                f"custom {family} needs dimensions {list(self.required_dimensions(family))}; "
-                f"missing {missing}")
-        name = part_name or f"{family}_custom"
-        return self._build_document(family, name, dimensions)
+                f"custom {family} needs dimensions {list(required)}; missing {missing}")
+        name = part_name or self._default_name(family, subtype, "custom")
+        return self._build_document(family, subtype, name, dimensions)
 
-    def provenance(self, family: str) -> dict[str, str]:
-        """The standard/version/source for ``family`` (for a report or sidecar)."""
-        table = self._table(family)
+    def provenance(self, family: str, subtype: str | None = None) -> dict[str, str]:
+        """The standard/version/source for ``family`` (+ ``subtype``), for a report or sidecar."""
+        table = self._table(family, subtype)
         return {"standard": table.standard, "version": table.version, "source": table.source}
 
-    def _build_document(self, family: str, part_name: str, dimensions: dict) -> dict:
-        """Run ``family``'s generator over ``dimensions`` into a part document."""
-        _, generator_factory, _ = self._family(family)
+    def _default_name(self, family: str, subtype: str | None, designation: str) -> str:
+        """The default part name: ``family[_subtype]_designation`` lowercased."""
+        parts = [family, subtype, designation] if subtype else [family, designation]
+        return "_".join(parts).lower()
+
+    def _build_document(self, family: str, subtype: str | None, part_name: str,
+                        dimensions: dict) -> dict:
+        """Run the ``family`` (+ ``subtype``) generator over ``dimensions`` into a part document."""
+        _, generator_factory, _ = self._entry(family, subtype)
         return generator_factory().generate(part_name, dimensions)
 
-    def _family(self, family: str) -> tuple[str, Callable[[], Any], tuple[str, ...]]:
-        """The registry entry for ``family``; raises KeyError listing known keys if absent."""
+    def _entry(self, family: str,
+               subtype: str | None) -> tuple[str, Callable[[], Any], tuple[str, ...]]:
+        """The registry entry for a flat family or a grouped ``family`` + ``subtype``.
+
+        Raises KeyError with the known keys when the family/subtype is unknown, or when a subtype
+        is required but missing (or given for a flat family).
+        """
+        if family in _SUBTYPED_FAMILIES:
+            subtypes = _SUBTYPED_FAMILIES[family]
+            if subtype is None:
+                raise KeyError(
+                    f"{family!r} needs a subtype; known: {sorted(subtypes.keys())}")
+            if subtype not in subtypes:
+                raise KeyError(
+                    f"unknown {family} subtype {subtype!r}; known: {sorted(subtypes.keys())}")
+            return subtypes[subtype]
         if family not in _FAMILIES:
             raise KeyError(
-                f"unknown standard-part family {family!r}; known: {sorted(_FAMILIES.keys())}")
+                f"unknown standard-part family {family!r}; "
+                f"known: {sorted([*_FAMILIES, *_SUBTYPED_FAMILIES])}")
+        if subtype is not None:
+            raise KeyError(f"family {family!r} takes no subtype (got {subtype!r})")
         return _FAMILIES[family]
 
-    def _table(self, family: str) -> StandardTable:
-        """The loaded StandardTable for ``family``."""
-        return StandardTable(self._family(family)[0])
+    def _table(self, family: str, subtype: str | None = None) -> StandardTable:
+        """The loaded StandardTable for ``family`` (+ ``subtype``)."""
+        return StandardTable(self._entry(family, subtype)[0])
