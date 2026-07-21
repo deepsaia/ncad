@@ -1,0 +1,5 @@
+{
+  "config": "petg_0.2mm.ini",
+  "slicers": ["orca", "prusa"],
+  "extra_args": []
+}
