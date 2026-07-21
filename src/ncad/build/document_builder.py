@@ -14,7 +14,10 @@ from typing import Any
 
 from ncad.build.builder import Builder
 from ncad.build.feature_cache import FeatureCache
+from ncad.build.geometry_facts import GeometryFacts
 from ncad.build.hierarchy_builder import HierarchyBuilder
+from ncad.build.mass_calculator import MassCalculator
+from ncad.build.material_error import MaterialError
 from ncad.build.material_resolver import MaterialResolver
 from ncad.build.sketch_status_sidecar import SketchStatusSidecar
 from ncad.diagnostics.checks.disconnected_solid_check import DisconnectedSolidCheck
@@ -33,6 +36,7 @@ logger = logging.getLogger(__name__)
 
 _ELEMENTMAP_SUFFIX = ".elementmap.json"
 _HIERARCHY_SUFFIX = ".hierarchy.json"
+_FACTS_SUFFIX = ".facts.json"
 # Export format -> file extension. glb is the display mesh (viewer); step is the exact
 # B-rep for CAD interchange.
 _FORMAT_EXTENSIONS = {"glb": "glb", "step": "step"}
@@ -61,6 +65,8 @@ class DocumentBuilder:
         self._builder = Builder(kernel, OpRegistry.with_defaults(), cache=self._cache)
         self._validator = DocumentValidator()
         self._disconnected = DisconnectedSolidCheck()
+        self._facts = GeometryFacts(kernel)
+        self._mass = MassCalculator(kernel)
         self._hierarchy = HierarchyBuilder()
         self._loader = SpecLoader()
         self._resolver = ParamResolver(FunctionRegistry.with_defaults())
@@ -158,6 +164,7 @@ class DocumentBuilder:
                 written.append(artifact_path)
             self._write_element_map(element_map, out_dir, stem, bodies, result.shape)
             self._write_hierarchy(part, out_dir, stem, statuses, bodies)
+            self._write_facts(result.shape, part, material_library, out_dir, stem)
             SketchStatusSidecar(out_dir).write(stem, statuses)
             for status in statuses:
                 logger.info("sketch %s: %s-constrained (dof %d)%s", status.feature_id,
@@ -283,6 +290,25 @@ class DocumentBuilder:
         with open(path, "w", encoding="utf-8") as handle:
             json.dump(self._hierarchy.hierarchy(name, part, statuses=statuses, bodies=bodies),
                       handle)
+        return path
+
+    def _write_facts(self, shape: Any, part: dict, material_library: MaterialLibrary,
+                     out_dir: str, name: str) -> str:
+        """Write ``<name>.facts.json`` (the queryable geometry manifest) and return its path.
+
+        Mass properties are BEST-EFFORT: computed and merged in when every body resolves a material
+        with a density, else omitted (a MaterialError leaves a geometry-only manifest). Never
+        raises; the manifest always writes so validation/regression/viewer have a facts source.
+        """
+        try:
+            resolver = MaterialResolver(part, material_library)
+            mass = self._mass.mass_properties(shape, resolver)
+        except MaterialError:
+            mass = None
+        manifest = self._facts.collect(shape, mass_properties=mass)
+        path = os.path.join(out_dir, f"{name}{_FACTS_SUFFIX}")
+        with open(path, "w", encoding="utf-8") as handle:
+            json.dump(manifest, handle)
         return path
 
     def _body_materials(self, shape: Any, part: dict,
