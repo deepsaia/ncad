@@ -16,6 +16,7 @@ from ncad.build.builder import Builder
 from ncad.build.feature_cache import FeatureCache
 from ncad.build.geometry_facts import GeometryFacts
 from ncad.build.hierarchy_builder import HierarchyBuilder
+from ncad.build.inertia_validator import InertiaValidator
 from ncad.build.mass_calculator import MassCalculator
 from ncad.build.material_error import MaterialError
 from ncad.build.material_resolver import MaterialResolver
@@ -67,6 +68,7 @@ class DocumentBuilder:
         self._disconnected = DisconnectedSolidCheck()
         self._facts = GeometryFacts(kernel)
         self._mass = MassCalculator(kernel)
+        self._inertia = InertiaValidator()
         self._hierarchy = HierarchyBuilder()
         self._loader = SpecLoader()
         self._resolver = ParamResolver(FunctionRegistry.with_defaults())
@@ -164,7 +166,8 @@ class DocumentBuilder:
                 written.append(artifact_path)
             self._write_element_map(element_map, out_dir, stem, bodies, result.shape)
             self._write_hierarchy(part, out_dir, stem, statuses, bodies)
-            self._write_facts(result.shape, part, material_library, out_dir, stem)
+            diagnostics.extend(
+                self._write_facts(result.shape, part, material_library, out_dir, stem))
             SketchStatusSidecar(out_dir).write(stem, statuses)
             for status in statuses:
                 logger.info("sketch %s: %s-constrained (dof %d)%s", status.feature_id,
@@ -293,12 +296,14 @@ class DocumentBuilder:
         return path
 
     def _write_facts(self, shape: Any, part: dict, material_library: MaterialLibrary,
-                     out_dir: str, name: str) -> str:
-        """Write ``<name>.facts.json`` (the queryable geometry manifest) and return its path.
+                     out_dir: str, name: str) -> list[Diagnostic]:
+        """Write ``<name>.facts.json`` (the geometry manifest); return any inertia diagnostics.
 
         Mass properties are BEST-EFFORT: computed and merged in when every body resolves a material
         with a density, else omitted (a MaterialError leaves a geometry-only manifest). Never
-        raises; the manifest always writes so validation/regression/viewer have a facts source.
+        raises; the manifest always writes so validation/regression/viewer have a facts source. When
+        mass is available, each body's computed inertia tensor is checked for physical plausibility
+        and any warnings are returned to ride the build's diagnostics.
         """
         try:
             resolver = MaterialResolver(part, material_library)
@@ -309,7 +314,11 @@ class DocumentBuilder:
         path = os.path.join(out_dir, f"{name}{_FACTS_SUFFIX}")
         with open(path, "w", encoding="utf-8") as handle:
             json.dump(manifest, handle)
-        return path
+        diagnostics: list[Diagnostic] = []
+        for body in (mass or {}).get("bodies", []):
+            diagnostics.extend(self._inertia.check(
+                name, body.get("id"), body.get("mass"), body.get("inertia")))
+        return diagnostics
 
     def _body_materials(self, shape: Any, part: dict,
                         material_library: MaterialLibrary) -> list[dict]:
