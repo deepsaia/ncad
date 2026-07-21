@@ -70,8 +70,9 @@ _REF_FIELDS: dict[str, dict[str, str]] = {
 _EDGE_KEYWORDS = ("all", "top", "bottom", "vertical", "horizontal")
 _FACE_KEYWORDS = ("all", "top", "bottom", "vertical", "horizontal")
 # Ops whose output is not a model solid (a sketch produces a face; a datum is reference
-# geometry); the element map tracks the working solid, so these do not rebuild it.
-_NON_SOLID_OPS = frozenset({"sketch", "datum_plane", "datum_axis"})
+# geometry; path3d produces a sweep-path wire); the element map tracks the working solid, so
+# these do not rebuild it.
+_NON_SOLID_OPS = frozenset({"sketch", "datum_plane", "datum_axis", "path3d"})
 
 
 class Builder:

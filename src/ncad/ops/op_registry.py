@@ -25,6 +25,7 @@ from ncad.ops.loft_op import LoftOp
 from ncad.ops.mirror_op import MirrorOp
 from ncad.ops.move_face_op import MoveFaceOp
 from ncad.ops.offset_face_op import OffsetFaceOp
+from ncad.ops.path3d_op import Path3dOp
 from ncad.ops.pattern_op import PatternOp
 from ncad.ops.pocket_op import PocketOp
 from ncad.ops.primitive_op import PrimitiveOp
@@ -84,6 +85,7 @@ class OpRegistry:
         registry.register("revolve", RevolveOp().build)
         registry.register("groove", GrooveOp().build)
         registry.register("sweep", SweepOp().build)
+        registry.register("path3d", Path3dOp().build)
         registry.register("loft", LoftOp().build)
         registry.register("mirror", MirrorOp().build)
         registry.register("pattern", PatternOp().build)
