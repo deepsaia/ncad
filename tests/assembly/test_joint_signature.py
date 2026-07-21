@@ -52,7 +52,8 @@ def test_new_ondsel_joint_kinds_have_signatures() -> None:
 
 
 def test_point_in_line_leaves_slide_plus_free_rotations() -> None:
-    # A bare point on a line slides along the line and is free to rotate (a point has no orientation).
+    # A bare point on a line slides along the line and is free to rotate (a point has no
+    # orientation).
     sig = SIGNATURES["point_in_line"]
     assert FreeAxis("translation", "line") in sig
     assert sum(1 for a in sig if a.motion == "rotation") == 3

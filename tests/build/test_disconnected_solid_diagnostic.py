@@ -1,4 +1,4 @@
-"""Build-stage: a part that fuses into disjoint solids emits the disconnected_solid info diagnostic."""
+"""Build-stage: a part fusing into disjoint solids emits the disconnected_solid info diagnostic."""
 
 import pytest
 

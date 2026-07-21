@@ -95,7 +95,8 @@ parts {
 
 def test_point_in_line_joint_drives_scotch_yoke_natively(tmp_path) -> None:
     # A driven crank whose pin is held on the yoke's slot line by a REAL point_in_line joint (no
-    # coupling law): the crank turns a full revolution and the yoke slides +/-30mm (2x the 30mm pin).
+    # coupling law): the crank turns a full revolution and the yoke slides +/-30mm (2x the 30mm
+    # pin).
     from ncad.assembly.motion_builder import MotionBuilder
     from ncad.kernel.build123d_kernel import Build123dKernel
 
@@ -112,7 +113,8 @@ assembly {{
   ]
   joints = [
     {{ id = crankPin, type = revolute, between = [
-       {{ instance = stand, connector = crankBearing }}, {{ instance = crank, connector = axis }} ] }}
+       {{ instance = stand, connector = crankBearing }},
+       {{ instance = crank, connector = axis }} ] }}
     {{ id = yokeSlide, type = slider, between = [
        {{ instance = stand, connector = guide }}, {{ instance = yoke, connector = slide }} ] }}
     {{ id = pinInSlot, type = point_in_line, between = [
@@ -130,5 +132,6 @@ motion { assembly = "slot.asm.hocon"
     MotionBuilder(Build123dKernel()).build(str(motion), str(out))
     traj = json.loads((out / "slot.motion.json").read_text())
     xs = [fr["placements"]["yoke"][3][0] for fr in traj["frames"]]
-    # yoke travel = 2 * crank pin radius = 0.06 m (metres); a real slot joint, not a scotch_yoke law.
+    # yoke travel = 2 * crank pin radius = 0.06 m (metres); a real slot joint, not a scotch_yoke
+    # law.
     assert round(max(xs) - min(xs), 3) == 0.06
