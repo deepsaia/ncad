@@ -1,0 +1,14 @@
+{
+  "standard": "ASME B16.9 (long-radius 90 elbow, representative)",
+  "title": "Butt-weld 90-degree long-radius pipe elbows",
+  "version": "2026-07-21",
+  "source": "ASME B16.9 long-radius 90-degree elbow: outer diameter + wall matched to the pipe DN, bend_radius = 1.5 x nominal diameter (long-radius). Nominal only; a hollow bent tube, no weld bevel. Keyed by DN.",
+  "unit": "mm",
+  "designations": {
+    "DN25":  {"outer_diameter": 33.7,  "wall_thickness": 3.2, "bend_radius": 38.0,  "angle": 90},
+    "DN40":  {"outer_diameter": 48.3,  "wall_thickness": 3.2, "bend_radius": 57.0,  "angle": 90},
+    "DN50":  {"outer_diameter": 60.3,  "wall_thickness": 3.6, "bend_radius": 76.0,  "angle": 90},
+    "DN80":  {"outer_diameter": 88.9,  "wall_thickness": 4.0, "bend_radius": 114.0, "angle": 90},
+    "DN100": {"outer_diameter": 114.3, "wall_thickness": 4.5, "bend_radius": 152.0, "angle": 90}
+  }
+}

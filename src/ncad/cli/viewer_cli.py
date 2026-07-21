@@ -250,12 +250,13 @@ class ViewerCli:
         return reports
 
     def standard_part(self, family: str, designation: str | None, out: str | None,
-                      dimensions: dict | None = None) -> dict:
+                      dimensions: dict | None = None, subtype: str | None = None) -> dict:
         """Generate a standard part (by designation OR custom dimensions), persist + build it.
 
-        Exactly one of ``designation`` (table lookup) or ``dimensions`` (custom size) is used; the
-        generated document is written as ``<part>.hocon`` beside the artifacts so the standard part
-        is a first-class, editable ncad part, then built to glb. Returns ``{"part", "document",
+        Exactly one of ``designation`` (table lookup) or ``dimensions`` (custom size) is used; a
+        grouped family (e.g. ``pipe_fitting``) takes a ``subtype`` (elbow/tee/reducer). The output
+        document is written as ``<part>.hocon`` beside the artifacts so the standard part is a
+        first-class, editable ncad part, then built to glb. Returns ``{"part", "document",
         "artifacts", "provenance"}``.
         """
         import os
@@ -269,9 +270,9 @@ class ViewerCli:
         logging.getLogger("build123d").setLevel(logging.WARNING)
         library = StandardLibrary()
         if dimensions is not None:
-            document = library.generate_custom(family, dimensions)
+            document = library.generate_custom(family, dimensions, subtype=subtype)
         elif designation is not None:
-            document = library.generate(family, designation)
+            document = library.generate(family, designation, subtype=subtype)
         else:
             raise ValueError("standard_part needs a designation or explicit dimensions")
         part_name = next(iter(document["parts"]))
@@ -280,8 +281,8 @@ class ViewerCli:
         doc_path = os.path.join(str(out_dir), f"{part_name}.hocon")
         SpecWriter().dump(document, doc_path)
         artifacts = DocumentBuilder(Build123dKernel()).build_file(doc_path, str(out_dir))
-        return {"part": part_name, "document": doc_path,
-                "artifacts": artifacts["artifacts"], "provenance": library.provenance(family)}
+        return {"part": part_name, "document": doc_path, "artifacts": artifacts["artifacts"],
+                "provenance": library.provenance(family, subtype=subtype)}
 
 
 app = typer.Typer(
@@ -458,18 +459,29 @@ def dfm(
 
 @app.command()
 def spgen(
-    family: str = typer.Argument(..., help="standard-part family: washer, hex_nut"),
-    designation: str = typer.Argument(
-        None, help="standard designation (e.g. M8); omit when giving --dim"),
+    family: str = typer.Argument(..., help="standard-part family (washer, pipe, pipe_fitting...)"),
+    arg1: str = typer.Argument(
+        None, help="designation (M8, DN50); for a grouped family the subtype (elbow/tee/reducer)"),
+    arg2: str = typer.Argument(
+        None, help="designation for a grouped family (e.g. pipe_fitting elbow DN50)"),
     dim: list[str] = typer.Option(
         [], "--dim", "-d",
         help="custom dimension key=value (mm); repeatable. Replaces the table lookup."),
     out: str = typer.Option(None, help="output directory (default: out/)"),
 ) -> None:
-    """Generate a standard part natively, by designation (M8) or custom --dim values; build it."""
+    """Generate a standard part natively, by designation or custom --dim values; build it.
+
+    Flat family: ``spgen washer M8``. Grouped family: ``spgen pipe_fitting elbow DN50`` (the subtype
+    is the first positional after the family). With --dim, the designation is omitted.
+    """
+    from ncad.standard import StandardLibrary
+
+    grouped = bool(StandardLibrary().subtypes(family))  # a grouped family has subtypes
+    subtype = arg1 if grouped else None
+    designation = arg2 if grouped else arg1
     dimensions = _parse_dimensions(dim) if dim else None
-    result = cli.standard_part(family, designation, out, dimensions=dimensions)
-    label = designation if dimensions is None else "custom"
+    result = cli.standard_part(family, designation, out, dimensions=dimensions, subtype=subtype)
+    label = " ".join(p for p in (subtype, designation if dimensions is None else "custom") if p)
     print(f"\nncad spgen: {family} {label}")
     print(f"  standard: {result['provenance']['standard']} v{result['provenance']['version']}")
     print(f"  document: {result['document']}")

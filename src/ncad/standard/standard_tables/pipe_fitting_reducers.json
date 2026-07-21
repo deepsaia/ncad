@@ -1,0 +1,13 @@
+{
+  "standard": "ASME B16.9 (concentric reducer, representative)",
+  "title": "Butt-weld concentric pipe reducers",
+  "version": "2026-07-21",
+  "source": "ASME B16.9 concentric reducer: large_diameter + small_diameter are the two pipe outside diameters, wall_thickness the larger pipe wall, length the fitting overall length. Nominal only; a lofted cone bored through, no weld bevel. Keyed by the large-to-small DN pair.",
+  "unit": "mm",
+  "designations": {
+    "DN50xDN40":  {"large_diameter": 60.3,  "small_diameter": 48.3,  "wall_thickness": 3.6, "length": 76.0},
+    "DN80xDN50":  {"large_diameter": 88.9,  "small_diameter": 60.3,  "wall_thickness": 4.0, "length": 89.0},
+    "DN100xDN80": {"large_diameter": 114.3, "small_diameter": 88.9,  "wall_thickness": 4.5, "length": 102.0},
+    "DN100xDN50": {"large_diameter": 114.3, "small_diameter": 60.3,  "wall_thickness": 4.5, "length": 102.0}
+  }
+}
