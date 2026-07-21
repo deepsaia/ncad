@@ -1,0 +1,13 @@
+Fabricating a bare board and *populating* it are two different jobs, and automated assembly needs two complementary data products: a **Bill of Materials (BOM)** answering "*what* parts, and how many," and a **pick-and-place file** (also called a centroid, CPL, or XY file) answering "*where* each part goes and *how it is oriented*." Together they let a placement machine be programmed without a human interpreting the design: identity plus geometry.
+
+## The assembly BOM
+
+An assembly BOM is keyed by **reference designator** (R1, C4, U3, ...) and groups identical parts into line items carrying value, footprint/package, and -- critically for procurement -- a specific manufacturer part number (MPN) and quantity. It differs from an engineering BOM in that it must resolve to *orderable, placeable* parts and must mark **Do Not Populate (DNP)** positions so a feeder is not wasted on an unstuffed footprint. Ambiguity here (a package that maps to two possible parts, a missing MPN) stalls the line, so the BOM is as much a manufacturing contract as an engineering artifact.
+
+## Pick-and-place (centroid) data
+
+For each placed component the pick-and-place record gives the reference designator, a **centroid** \((x, y)\), a **rotation** \(\theta\), and the **side** (top or bottom). The machine grabs the part from a reel and rotates its nozzle to \(\theta\) before setting it down at the centroid, so three conventions must be pinned down or the whole board is wrong: the coordinate **origin**, the rotation **zero reference and direction** (typically counter-clockwise positive), and how **pin 1 / polarity** is defined for each package. A subtle but frequent failure is a mirrored or 180-degree-rotated polarized part because two tools disagreed on the zero-rotation orientation. When the board is delivered as a **panel** (an array of copies plus tooling rails), the placement coordinates must be expressed in the panel frame the assembler actually loads.
+
+## Where it matters and how it is packaged
+
+These outputs drive feeder setup, nozzle selection, and the machine program on an SMT line, and they feed automated optical inspection. Historically they are exported as loosely-structured CSV-like text, which pushes convention-reconciliation onto the assembler. Consolidated interchange formats -- notably **IPC-2581** and **ODB++** -- carry BOM, placement centroid, rotation, and package data as first-class, typed fields inside one archive, removing much of the guesswork. In a mechanical-CAD context the placement geometry is a natural byproduct of the component instances already positioned on the board, but authoritative BOM identity (MPN, DNP state) usually belongs to the electrical design tool that owns the schematic.

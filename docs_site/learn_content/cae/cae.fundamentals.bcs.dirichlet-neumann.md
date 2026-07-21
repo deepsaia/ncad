@@ -1,0 +1,17 @@
+A governing PDE has infinitely many solutions until you pin it down on the boundary of the domain. **Boundary conditions (BCs)** supply that missing information, and they are what a user actually authors as *loads and restraints*. Getting them right, and mathematically complete, is the difference between a well-posed model and a solver that diverges or returns nonsense. There are three canonical types.
+
+## The three canonical conditions
+
+- **Dirichlet (essential) conditions** prescribe the value of the primary field on part of the boundary \( \Gamma_D \): \( u = \bar{u} \). In structural terms these are *restraints* (a fixed face, an enforced displacement); in thermal terms, a prescribed temperature. They are called "essential" because they must be built directly into the space of admissible solutions.
+- **Neumann (natural) conditions** prescribe the flux, i.e. the normal derivative, on \( \Gamma_N \): for elasticity the traction \( \sigma_{ij} n_j = \bar{t}_i \) (a *pressure* or *applied force*), for heat transfer the heat flux \( -k\,\partial T/\partial n = \bar{q} \). They are "natural" because they emerge automatically from the boundary integral of the weak form rather than being imposed on the solution space. A traction-free surface is simply the homogeneous Neumann condition \( \bar{t}_i = 0 \).
+- **Robin (mixed) conditions** relate value and flux linearly, \( a\,u + b\,\partial u/\partial n = c \). The archetype is convective cooling, \( -k\,\partial T/\partial n = h\,(T - T_\infty) \), and the structural analog is an elastic foundation or spring restraint.
+
+<svg viewBox="0 0 320 150" width="320" height="150" stroke="currentColor" fill="none" stroke-width="1.5"><rect x="70" y="35" width="170" height="80" rx="4"/><line x1="70" y1="35" x2="70" y2="115" stroke-width="4"/><line x1="58" y1="40" x2="70" y2="48"/><line x1="58" y1="58" x2="70" y2="66"/><line x1="58" y1="76" x2="70" y2="84"/><line x1="58" y1="94" x2="70" y2="102"/><text x="18" y="20" font-size="11" stroke="none" fill="currentColor">Dirichlet: u = 0 (fixed)</text><line x1="260" y1="55" x2="240" y2="55"/><line x1="260" y1="75" x2="240" y2="75"/><line x1="260" y1="95" x2="240" y2="95"/><polygon points="240,55 246,52 246,58" fill="currentColor" stroke="none"/><polygon points="240,75 246,72 246,78" fill="currentColor" stroke="none"/><polygon points="240,95 246,92 246,98" fill="currentColor" stroke="none"/><text x="250" y="20" font-size="11" stroke="none" fill="currentColor">Neumann: traction t</text></svg>
+
+## Well-posedness and the role in FEM
+
+A model must carry enough Dirichlet data to suppress every rigid-body mode; a purely Neumann (all-loads, no-restraints) elasticity problem is singular because any rigid translation or rotation is an admissible extra solution, and the stiffness matrix is singular. This is the origin of the classic "insufficiently constrained" or "singular stiffness matrix" error. In the weak form, the split is elegant: essential conditions constrain the trial and test functions, while natural conditions appear as the boundary integral
+
+\[ \int_{\Omega} \nabla w \cdot (k\,\nabla T)\, d\Omega = \int_{\Omega} w\,\dot{q}\, d\Omega + \int_{\Gamma_N} w\,\bar{q}\, d\Gamma. \]
+
+Because loads and restraints are authored against geometry (faces, edges, vertices) but consumed as nodal equations after meshing, a robust model keeps BCs associated with persistent geometric references so they survive re-meshing and geometry edits. That association, not the numerical imposition, is what the modeling side owns.

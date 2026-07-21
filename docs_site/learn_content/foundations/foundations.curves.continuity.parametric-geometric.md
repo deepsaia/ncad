@@ -1,0 +1,15 @@
+When two curve segments are joined end to end, the smoothness of the join is described by a **continuity order**. Two distinct but related hierarchies are used, and confusing them is a common source of surface-quality problems: **parametric continuity** \(C^n\) and **geometric continuity** \(G^n\).
+
+**Parametric continuity** \(C^n\) requires that the parametric derivatives of both segments agree at the join, up to and including order \(n\). If the segments are \(\mathbf{P}(u)\) and \(\mathbf{Q}(u)\) meeting where \(\mathbf{P}\) ends and \(\mathbf{Q}\) begins, then
+
+\[ C^n: \quad \mathbf{P}^{(k)} = \mathbf{Q}^{(k)} \quad \text{for } k = 0, 1, \dots, n. \]
+
+Thus \(C^0\) means the endpoints coincide (position), \(C^1\) additionally means the full tangent (velocity) **vectors** are equal, including magnitude, and \(C^2\) means the acceleration vectors match as well. Parametric continuity is a statement about the motion \(\mathbf{C}(u)\), the way the parameter traverses the curve, not purely about the shape.
+
+## Geometric continuity relaxes the parameterization
+
+**Geometric continuity** \(G^n\) asks only that the curve be smooth as a geometric object, allowing the two segments to be traversed at different speeds. \(G^0\) is identical to \(C^0\) (shared position). \(G^1\) requires that the **unit** tangents agree, that is, the tangent directions are parallel and identically oriented, while the tangent magnitudes may differ. \(G^2\) requires that the curvature (and the direction of the curvature vector) match across the join, again without demanding equal parametric derivatives. Formally, \(G^n\) holds if some reparameterization of one segment makes it meet the other with \(C^n\) continuity.
+
+The key logical relationship is that **\(C^n\) continuity implies \(G^n\) continuity, but not the reverse**. Two segments whose tangent vectors point the same way but have different lengths are \(G^1\) yet only \(C^0\); they look perfectly smooth but carry a speed discontinuity. A useful degenerate caution: a segment that momentarily stops (\(\mathbf{C}'=\mathbf{0}\), a cusp point) can be \(C^1\) in the trivial sense that derivatives match at zero, while failing \(G^1\) because there is no well-defined tangent direction. Geometry, not the algebra of derivatives, is what the eye and the physical part respond to.
+
+This distinction is decisive in design. For **aesthetic and functional surface quality**, so-called class-A surfaces, \(G^2\) (curvature continuity) is the working standard, because reflection lines and highlight streaks break visibly wherever curvature jumps even if tangents are continuous. Curvature combs are the standard diagnostic. For **motion and path applications**, cam profiles, tool paths, and robot trajectories, parametric \(C^2\) is what matters, because the parameter stands in for time and a derivative discontinuity means a jump in velocity or acceleration (and unbounded jerk). Choosing which hierarchy to enforce is therefore an engineering decision tied to whether the parameter carries physical meaning.

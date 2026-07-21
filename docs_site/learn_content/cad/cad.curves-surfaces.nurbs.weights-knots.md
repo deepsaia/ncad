@@ -1,0 +1,13 @@
+A NURBS curve - Non-Uniform Rational B-Spline - extends the B-spline by attaching a positive scalar *weight* \(w_i\) to each control point. The curve is the weighted, normalized blend
+\[ \mathbf{c}(u) = \frac{\sum_{i=0}^{n} N_{i,p}(u)\,w_i\,\mathbf{P}_i}{\sum_{i=0}^{n} N_{i,p}(u)\,w_i} = \sum_{i=0}^{n} R_{i,p}(u)\,\mathbf{P}_i, \]
+where the *rational basis functions* are
+\[ R_{i,p}(u) = \frac{N_{i,p}(u)\,w_i}{\sum_{j=0}^{n} N_{j,p}(u)\,w_j}. \]
+Setting all weights equal collapses the expression back to an ordinary B-spline, so NURBS is a strict superset. The rational functions still form a partition of unity and retain local support, so the convex-hull, local-control, and variation-diminishing properties carry over.
+
+## The homogeneous-coordinate view
+
+The cleanest way to understand weights is projective. Lift each control point into one higher dimension as a *homogeneous* point \(\mathbf{P}_i^w = (w_i x_i,\, w_i y_i,\, w_i z_i,\, w_i)\), build an *ordinary* (non-rational) B-spline curve in that \((d{+}1)\)-dimensional space, and then perspective-divide by the last coordinate to drop back to \(d\) dimensions. The result is exactly the NURBS curve. This is why NURBS are invariant under *projective* transformations, not merely affine ones: a perspective camera applied to the control points reproduces the perspective image of the curve, a property polynomial curves lack.
+
+The weights give the representation two capabilities that a polynomial B-spline cannot match. First, they add local *tension*: raising \(w_i\) pulls the curve toward control point \(\mathbf{P}_i\), while lowering it relaxes the curve away, without moving any control point. Second, and decisively, they let NURBS represent *conics and circles exactly*. A full circle, for example, is a degree-2 NURBS whose interior weights are \(\cos(\Delta\theta/2)\) for each arc span (\(\sqrt{2}/2\) for quarter-circle spans); no polynomial parametric curve of any degree can do this.
+
+That exactness is the reason NURBS became the *unifying representation* of the modeling and exchange world. Lines, circular arcs, conics, and free-form curves are all expressible in one form, so a kernel needs only one evaluator, one intersector, and one file schema, and standards such as the neutral CAD exchange formats mandate NURBS as the common denominator. The practical cost is that weights must stay positive (a zero or negative weight breaks the convex-combination guarantee and can send the curve to infinity), and that redundant degrees of freedom (a curve can be rescaled by a common weight factor and reparameterized) require care when comparing or hashing geometry.

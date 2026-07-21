@@ -1,0 +1,15 @@
+Every coordinate in an NC program is expressed in some frame, and the machine must know how to map the *program* frame onto the physical machine. Two families of offsets accomplish this: **work offsets** (also called work-coordinate systems or fixture offsets) locate the part origin on the table, and **tool-length offsets** account for how far each tool protrudes from the spindle. Together they let one program run unchanged regardless of where the vise sits or which physical tools are loaded, which is the entire point of separating program geometry from machine setup.
+
+Work offsets are selected by the codes \(G54\) through \(G59\) (with extended banks such as \(G54.1\,Pn\) on many controllers). Each code names a stored vector, the position of the part origin relative to *machine home*, established during setup by touching off a probe or edge finder. When \(G54\) is active, a programmed point \(\mathbf{p}_{prog}\) is realized at machine coordinates
+\[
+\mathbf{p}_{mach} = \mathbf{o}_{G54} + \mathbf{p}_{prog},
+\]
+so the same toolpath can be re-datumed to a second fixture simply by switching to \(G55\). This is how multi-part fixtures and pallet setups run identical code at several table locations. A post-processor typically parameterizes which offset a given operation uses and emits the corresponding code at each setup transition.
+
+## Tool-length offset
+
+Tools of different lengths reach different depths for the same commanded \(Z\). The tool-length offset \(G43\) applies a stored length value \(H\) (indexed by the tool's \(H\) number) to the \(Z\) axis, so the controller adds (or with \(G44\), subtracts) that length; \(G49\) cancels it. The measured length is the distance from the spindle gauge line to the tool tip, and the block that activates it, `G43 H5 Z1.0`, must appear before the first cutting move with that tool. Because the offset is stored in the machine's tool table, a reground or replacement tool is accommodated by editing one number rather than reposting.
+
+The crucial engineering discipline is *when* offsets are applied and cancelled. Work and tool offsets must be established after a tool change and safe positioning, and cutter/length compensation must be cancelled before the next tool change or program end. A common defect is emitting a rapid move while a stale tool-length offset from the previous, longer tool is still active, driving the new tool into the fixture. A robust post therefore brackets each operation: select tool, orient spindle, activate work offset and tool-length offset at a safe height, machine, then retract and cancel compensation before proceeding.
+
+Offsets embody the same layering principle found throughout engineering, keep the abstract description (the part in its own coordinates) independent of the concrete realization (this table, this tool crib). That separation is what makes NC programs portable across setups and machines, and it is precisely why the post-processor, not the geometry engine, owns the responsibility of choosing and sequencing the offset codes for a specific machine.

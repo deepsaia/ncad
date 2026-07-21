@@ -1,0 +1,13 @@
+Within a footprint, the individual copper features that a terminal solders to are **pads** (lands), and they come in two fundamentally different topologies. A **surface-mount (SMD) pad** is copper on a single outer layer with no hole; the component terminal reflows onto it. A **through-hole pad** surrounds a drilled, plated hole and therefore exists on *multiple* layers, forming a barrel that a lead passes through and solders into. This distinction drives everything from stencil generation to drill programs.
+
+The general abstraction that unifies both is the **padstack**: a definition of pad geometry *layer by layer*, optionally paired with a drill. A single padstack can specify a round pad on the top layer, a different shape on inner layers, a **thermal-relief** connection where it meets a plane, and an **antipad** (a clearance void) where it must *not* touch a plane it passes through. SMD pads are simply the degenerate case of a padstack that touches one layer and has no drill. Modeling pads as padstacks rather than flat shapes is what lets the same hole behave correctly as it crosses signal, plane, and outer layers.
+
+Pad **shape** is part of the definition: round, oval/obround, rectangular, rounded-rectangle, chamfered, or arbitrary polygon, each chosen for solder-joint behavior and clearance. The mask opening is typically expanded from the copper by a small **swell**, while the paste aperture is **shrunk** (or split into a window pattern on large thermal pads) to control solder volume. These offsets are stored as rules relative to the copper so they scale consistently.
+
+For through-hole pads the critical geometric quantity is the **annular ring**, the copper collar remaining around the finished hole:
+
+\[ AR = \frac{D_{\text{pad}} - D_{\text{hole}}}{2}. \]
+
+Standards set minimum annular ring so that drill-to-copper registration error does not break out of the pad; when a manufacturer's registration tolerance and the hole tolerance are combined, the nominal ring must leave enough margin. On plane layers the same padstack contributes a thermal relief (spokes) so the pad can still be soldered without the plane wicking away all the heat, and an antipad on planes the net must clear.
+
+In a data model, pads reference **shared padstack definitions** the way stackup layers reference materials: a change to a padstack propagates to every instance, and design-rule checks read the per-layer geometry to verify annular ring, clearance, and plane connections. Keeping padstacks as first-class objects (with layer-indexed geometry and an associated drill) is the difference between a model that can validate manufacturability and one that is merely a picture of copper.

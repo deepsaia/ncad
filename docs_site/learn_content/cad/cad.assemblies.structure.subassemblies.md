@@ -1,0 +1,15 @@
+An assembly is a hierarchical grouping of components rather than a single monolithic body. A **sub-assembly** is any interior node of that hierarchy: a bundle of parts (and possibly other sub-assemblies) that is itself treated as a reusable component. This produces a tree, or more precisely a directed acyclic graph, whose leaves are individual parts and whose internal nodes are sub-assemblies. Modeling a product this way mirrors how it is actually built and procured: a gearbox is designed and validated once, then dropped into three different machines without re-authoring its internals. It also lets mass properties, cost, and bill-of-materials quantities roll up the tree by summation, and it gives design teams natural ownership boundaries.
+
+The key data-model distinction is between a component's **definition** (the reusable prototype, authored once) and its **occurrence** (a specific placement of that definition inside a parent context). One definition may occur many times; each occurrence carries its own placement transform, and the identity of a leaf part in the finished product is the **occurrence path** from the root down to it, not merely the definition it points to. The world pose of a leaf is the ordered product of the placement transforms along that path,
+
+\[ T_{\text{world}} = T_1\, T_2\, \cdots\, T_n, \]
+
+so relocating a sub-assembly moves all of its descendants coherently. Per-occurrence overrides (appearance, suppression, and position) are keyed to the occurrence path so that two instances of the same definition can differ without cloning the underlying geometry.
+
+By default a sub-assembly is **rigid**: once its internal components are positioned, their relative arrangement is frozen and every occurrence of that sub-assembly reproduces the same internal configuration, behaving as one rigid body when placed. This is efficient and unambiguous, but it cannot represent a component that legitimately takes different shapes in different contexts.
+
+A **flexible sub-assembly** relaxes exactly this restriction. The internal joints of the sub-assembly retain their degrees of freedom, and each occurrence is permitted to override the internal configuration independently. A shock absorber modeled once can then appear compressed on one corner of a vehicle and extended on another; a hinged bracket can be shown at several open angles; a pneumatic cylinder can occur at different stroke positions. The definition stays single-sourced, so an edit to the part geometry still propagates everywhere, while the constrained internal state is resolved per occurrence.
+
+## Why it matters
+
+Separating definition from occurrence, and allowing selected sub-assemblies to be flexible, is what makes large assemblies tractable: reuse without duplication, correct roll-ups for BOM and mass, and faithful representation of components whose configuration genuinely varies from one installation to the next. It also underpins later analysis such as interference checking and kinematics, both of which must know each occurrence's true configuration, not just its prototype.

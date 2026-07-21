@@ -1,0 +1,21 @@
+Design intent is the encoded reasoning behind a model's shape: the relationships, constraints, references, and construction order that express *why* the geometry is the way it is, not merely *what* it is. A parametric model stores this intent so that when a driving input changes, dependent geometry updates in a way the author would consider correct. A plate whose hole is dimensioned from a common edge behaves differently from one whose hole is dimensioned from another hole, even though both may look identical at first: the first keeps the hole a fixed distance from the edge as the plate grows, the second keeps a fixed pitch. The two carry different intent, and capturing the right one is the central skill of feature-based modeling.
+
+## History, features, and dependency
+
+A feature-based model is an ordered sequence of operations (sketches, extrudes, fillets, patterns, and so on) that regenerates the solid from scratch on every edit. Logically it forms a directed acyclic graph in which each feature depends on the results of earlier features it references. This is the difference between *history-based* (procedural) modeling and *history-free* (explicit or "dumb") solids: the former replays the recipe and so can propagate a change, while the latter stores only the final boundary representation and has no notion of how it was made. Because the graph is replayed in order, feature ordering is itself part of the intent: a shell taken before versus after a boss produces different walls, and a fillet placed early may vanish or fail when an adjacent face is later removed.
+
+## Constraints and the degrees-of-freedom view
+
+At the sketch level, design intent is expressed through dimensional constraints (lengths, radii, angles) and geometric constraints (coincidence, tangency, parallelism, symmetry). The governing idea is degree-of-freedom counting. A planar sketch of \(n\) points begins with \(2n\) translational degrees of freedom; each constraint removes some of them, and the sketch is *fully constrained* when the remaining count reaches zero (after fixing the sketch's own rigid-body placement):
+
+\[ \text{DOF} = 2n - \sum_i c_i = 0 \]
+
+where \(c_i\) is the number of scalar equations contributed by constraint \(i\). An under-constrained sketch has residual freedom and can flex ambiguously on rebuild; an over-constrained or conflicting sketch has more equations than freedoms and cannot be solved. Well-captured intent leaves exactly one solution while still allowing the intended parameters to drive it. Parameters and equations (for example, making a fillet radius track wall thickness) extend the same idea from a single sketch to the whole part and to families of related parts.
+
+## The persistent-naming problem
+
+Features reference the topology of earlier features: a fillet selects an edge, a hole is placed on a face, a pattern seeds from a set of faces. But the boundary representation is regenerated on every rebuild, and its internal face and edge identifiers are not naturally stable, so an edit that adds or splits a face can silently redirect a downstream reference to the wrong entity. This is the *persistent (topological) naming problem*, one of the hardest robustness issues in parametric CAD. Practical systems attack it by assigning durable names or signatures to topology (based on generating features, neighborhood, and geometric fingerprints) and by re-matching those names after each regeneration, so that "the edge between the boss and the top face" continues to mean the same thing even as surrounding geometry moves.
+
+## Why it matters
+
+Good design intent is what makes a model *editable, reusable, and trustworthy* rather than a one-off shape. It enables configurations and part families driven by a handful of parameters, supports late-stage engineering changes without remodeling, and keeps downstream artifacts (manufacturing setups, analysis meshes, drawings) associative to the master model. Poorly captured intent produces brittle models that fail or deform unexpectedly on the smallest change. The practical guidance follows directly: reference stable, meaningful datums rather than incidental geometry; constrain sketches fully and deliberately; order features so that dependencies flow forward; and prefer explicit relationships over coincidences that happen to hold at the current dimensions.

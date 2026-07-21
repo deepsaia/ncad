@@ -1,0 +1,13 @@
+3+2 positional machining (also called indexed or fixed-axis multi-axis machining) uses a five-axis machine but **not simultaneously**: the two rotary axes are commanded to a fixed orientation, clamped, and then the part is machined with ordinary three-axis linear moves in that tilted frame. The tool orientation is constant throughout each operation; only the three linear axes interpolate. This is distinct from full simultaneous five-axis, where all five axes move together to keep the tool tangent to a surface along a continuous path.
+
+The governing idea is that a fixed rotary orientation defines a **new working coordinate frame**, and any three-axis toolpath (drilling, pocketing, contouring, waterline finishing) is simply expressed in that frame. If the rotary axes place the tool along a unit direction \(\mathbf{t}\), the CAM system builds the path in a local frame whose \(z\)-axis is \(\mathbf{t}\) and transforms it back to machine coordinates through the fixed rotation \(R\):
+
+\[ \mathbf{p}_{\text{machine}} = R\,\mathbf{p}_{\text{local}} + \mathbf{o}. \]
+
+Because \(R\) is constant within the operation, the kinematics, gouge checking, and stock tracking reduce to the well-understood three-axis case; there is no need to solve the moving-frame tool-orientation problem that makes simultaneous five-axis hard. This is precisely why 3+2 is broadly supported while general five-axis requires a specialized kernel.
+
+The practical value of 3+2 is enormous despite its simplicity. Tilting the part to present each face square to the spindle lets a **single setup** reach features on many faces of a prismatic part, eliminating manual re-fixturing and the tolerance stack-up it causes. It also lets a short, rigid tool reach into a pocket at an angle that would otherwise demand a long, chatter-prone overhang, improving finish and tool life. Aerospace, mold, and complex machined-housing work rely on it to consolidate operations and hold true position across faces from one datum.
+
+## Scope and boundary
+
+What 3+2 cannot do is machine a continuously varying surface where the ideal tool axis changes along the path, such as the flank of a turbine blade or an undercut requiring the tool to lean progressively; those need simultaneous motion. 3+2 also depends on collision checking of the **whole assembly** (tool, holder, spindle, part, fixture) at each fixed orientation, since a tilted setup brings the machine structure close to the work. Implementing 3+2 well requires a machine post-processor that resolves the required orientation into the specific machine's rotary configuration and manages the safe index moves between orientations; the toolpath generation itself remains three-axis.

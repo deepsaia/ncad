@@ -1,0 +1,17 @@
+When a robot must touch, insert, deburr, or share space with a human, controlling position alone is dangerous and fragile: a stiff position loop meeting an unexpectedly rigid surface generates enormous contact forces from a millimeter of overtravel. Interaction control instead regulates the dynamic relationship between the manipulator's motion and the force it exchanges with the environment. Impedance control, formalized by Hogan, takes the view that a manipulator in contact should not be commanded to a position or a force but to behave like a prescribed mechanical impedance, a virtual mass-spring-damper connecting the tool to a reference trajectory.
+
+## The target impedance
+
+The controller shapes the closed-loop behavior at the end-effector so that the deviation from a reference motion \(x_d\) and the external contact force \(F_{ext}\) obey a chosen second-order law:
+
+\[ M_d\,(\ddot x - \ddot x_d) + B_d\,(\dot x - \dot x_d) + K_d\,(x - x_d) = -F_{ext}. \]
+
+Here \(M_d\), \(B_d\), and \(K_d\) are the desired inertia, damping, and stiffness matrices. In free space \(F_{ext}=0\) and the tool tracks \(x_d\); on contact, the term \(K_d(x-x_d)\) trades position error for force in a controlled, compliant way. Lowering \(K_d\) makes the robot soft (large motion for a given force), which is safe for assembly and human contact; raising it makes it stiff for accurate positioning. This unifies free-motion and constrained-motion control under one law rather than switching between position and force modes.
+
+## Impedance versus admittance
+
+The distinction is causal, that is, which quantity is the input and which the output. An **impedance** controller senses motion (position/velocity) and commands force or torque, so it renders a relationship \(F = Z(s)\,\Delta x\). It suits torque-controllable, backdrivable robots and is stable against stiff environments. An **admittance** controller senses force and commands a motion correction, \(\Delta x = Y(s)\,F\), typically wrapping a fast inner position loop around a force sensor. Admittance rendering can achieve very low apparent inertia on geared, non-backdrivable arms but tends to go unstable when contacting stiff surfaces, whereas impedance rendering struggles to display very light or very stiff behavior on high-friction hardware. This duality, and the fact that no single controller can render arbitrarily stiff and arbitrarily soft behavior stably against all environments, is a central constraint in interaction control design.
+
+## Force control and the passivity guarantee
+
+Explicit force control (regulating \(F\) to a target \(F_d\) along constrained directions) is often combined with impedance/position control along complementary directions, formalized as hybrid position/force control by decomposing task space with selection matrices into force-controlled and motion-controlled subspaces. The deep justification for impedance methods is passivity: a physical environment cannot inject unbounded energy, so if the controlled robot also behaves as a passive system (its rendered impedance dissipates rather than generates energy), the coupled robot-environment loop is stable regardless of the unknown environment dynamics. This is why interaction controllers favor a positive-definite damping \(B_d\) and why aggressive virtual stiffness combined with discretization delay, which can make the rendered element active, is the classic route to buzzing instability in haptic and contact tasks.

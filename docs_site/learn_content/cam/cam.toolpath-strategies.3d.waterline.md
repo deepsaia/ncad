@@ -1,0 +1,15 @@
+Waterline finishing, also called Z-level or constant-Z finishing, generates a toolpath by slicing the target surface with a stack of horizontal planes and machining the resulting contour at each level. Each plane intersects the part geometry in one or more closed curves; the cutter (typically a ball-nose end mill) follows those curves at that fixed height before stepping down to the next plane. Because the tool stays at a constant Z within each pass, the strategy is ideal for **steep, near-vertical walls**, where projecting a path from above would leave large gaps between passes.
+
+The governing idea is that surface finish on a wall is controlled by the vertical step-down \(\Delta z\) between levels, exactly as horizontal stepover controls finish on a flat. For a ball-nose tool of radius \(r\) machining a surface whose local inclination from vertical is the wall angle, the residual **cusp** (scallop) left between two adjacent Z-levels depends on how much surface the tool advances laterally per step. On a vertical wall the geometry degenerates and any step-down is acceptable; as the wall shallows toward horizontal, a fixed \(\Delta z\) walks the contact point far across the surface and the cusp grows without bound. This is why pure waterline is paired with a steepness threshold and handed off to a planar or 3D projection strategy on shallow regions.
+
+The cusp height for a given surface slope \(\theta\) (measured from horizontal) and step-down \(\Delta z\) can be approximated by the arc the ball leaves between contact points. When cutting along the true surface, the effective stepover across the material is \(s = \Delta z / \sin\theta\), and the scallop follows the ball-nose relation
+
+\[ h \approx r - \sqrt{r^2 - \left(\frac{s}{2}\right)^2} = r - \sqrt{r^2 - \left(\frac{\Delta z}{2\sin\theta}\right)^2}. \]
+
+As \(\theta \to 0\) (a flat), \(s\to\infty\) and the residual explodes, confirming that waterline should be restricted to steep faces.
+
+## Computing the contours
+
+Robust implementations do not intersect analytic surfaces directly; they compute the slice against a **tessellated model or a distance/drop-cutter field**. A common open-source approach evaluates, for each plane, the intersection of the offset (tool-compensated) surface with the plane, then links the fragments into ordered, closed loops with correct inside/outside orientation so that climb or conventional cutting is preserved. Handling multiple disjoint islands, open pockets, and lead-in/lead-out arcs at each level is the bulk of the engineering effort. Adaptive Z-spacing, where levels bunch closer on shallow bands and spread on steep ones, keeps the cusp near-constant and is a precursor to the constant-scallop idea.
+
+Waterline is a workhorse of die, mold, and blade finishing because it produces smooth, predictable witness lines on walls and is trivial to verify: every pass lies in a known plane, feed direction is consistent, and the tool never dwells. Its weakness is the shallow-region degeneration above, so production practice combines it with steep/shallow classification of the surface into a hybrid finishing plan.
