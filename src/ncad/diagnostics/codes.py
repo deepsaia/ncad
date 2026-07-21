@@ -32,3 +32,6 @@ DISCONNECTED_SOLID = "disconnected_solid"
 # a body's mass-moment-of-inertia tensor is not physically realizable (non-positive mass/diagonal,
 # fails the triangle inequality, or is not positive-semidefinite) - flags a bad density/geometry.
 INVALID_INERTIA = "invalid_inertia"
+# a manufacturability (DFM) preflight rule was violated (warning) or could not be evaluated for lack
+# of a fact (info/need-more-info). The Diagnostic message names the cited rule + the process.
+DFM_VIOLATION = "dfm_violation"
