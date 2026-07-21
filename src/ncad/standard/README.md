@@ -22,6 +22,25 @@ Every family is generatable two ways (see `StandardLibrary`):
 | `gasket`  | `asme_b16_21_gaskets.json`     | ASME B16.21 (NPS)         | thin flat full-face ring |
 | `bearing` | `iso_15_bearings.json`         | ISO 15 (6000/6200/6300)   | solid ring envelope, no races/balls |
 | `i_beam`  | `euronorm_ipe_beams.json`      | Euronorm IPE (IPE80..300) | sharp corners, no root fillet |
+| `pipe_fitting` | (grouped, see below)      | ASME B16.9 (DN)           | hollow, no weld bevel |
+
+## Grouped families (subtypes)
+
+Some families group related SUBTYPES that share a domain but differ in geometry. A grouped family is
+addressed with a subtype: `ncad spgen <family> <subtype> <designation>` (the subtype is the first
+positional after the family), or via the library as `generate(family, designation, subtype=...)`.
+
+`pipe_fitting` (pf) collects the pipe fittings:
+
+| Subtype   | Table                            | Recipe |
+|-----------|----------------------------------|--------|
+| `elbow`   | `pipe_fitting_elbows.json`       | hollow section swept along a bend arc (3D sweep) |
+| `tee`     | `pipe_fitting_tees.json`         | bored run cylinder unioned with a bored branch |
+| `reducer` | `pipe_fitting_reducers.json`     | lofted cone bored through |
+
+Examples: `ncad spgen pipe_fitting elbow DN50`, `ncad spgen pipe_fitting reducer DN80xDN50`,
+`ncad spgen pipe_fitting reducer --dim large_diameter=60 --dim small_diameter=48 --dim wall_thickness=4 --dim length=70`.
+New subtypes (cross, wye, cap, coupling) slot in with a table + a generator, no facade change.
 
 ## Data provenance and bulk expansion
 

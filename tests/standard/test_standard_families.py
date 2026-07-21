@@ -8,7 +8,8 @@ from ncad.standard.bolt_circle import bolt_circle_positions
 
 def test_all_families_registered():
     families = set(StandardLibrary().families())
-    assert families == {"washer", "hex_nut", "pipe", "flange", "gasket", "bearing", "i_beam"}
+    assert families == {"washer", "hex_nut", "pipe", "flange", "gasket", "bearing", "i_beam",
+                        "pipe_fitting"}
 
 
 def test_pipe_bore_from_wall():
