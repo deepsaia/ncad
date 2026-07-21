@@ -50,6 +50,17 @@ class _FakeWire:
         self.offset = offset
 
 
+class _FakeWire3d:
+    """A free 3D path through ordered (x, y, z) points, with a segment-summed length."""
+
+    def __init__(self, points: list, kind: str, closed: bool) -> None:
+        self.points3d = [(float(x), float(y), float(z)) for x, y, z in points]
+        if closed and self.points3d:
+            self.points3d = [*self.points3d, self.points3d[0]]
+        self.kind = kind
+        self.length = _polyline3d_length(self.points3d)
+
+
 class _FakeSolid:
     """A face extruded by an effective distance; a wall keeps only a rim area fraction."""
 
@@ -107,6 +118,16 @@ class FakeKernel(Kernel):
 
     def wire(self, edges: list, plane: str, offset: float = 0.0) -> Any:
         return _FakeWire(edges, plane, offset)
+
+    def wire3d(self, points: list, *, kind: str = "polyline", closed: bool = False) -> Any:
+        min_points = 2 if kind == "polyline" else 3
+        n = len(points) + (1 if closed else 0)
+        if kind not in ("polyline", "spline"):
+            raise KernelOpError(f"unknown wire3d kind {kind!r}; expected 'polyline' or 'spline'")
+        if n < min_points:
+            raise KernelOpError(
+                f"wire3d {kind} needs at least {min_points} points; got {len(points)}")
+        return _FakeWire3d(points, kind, closed)
 
     def fill_points(self, face: Any, spacing: float, stagger: bool = False) -> list:
         # Fake model: a grid over the face's 2D point ring bbox (no is_inside clip; the fake
@@ -242,7 +263,13 @@ class FakeKernel(Kernel):
         return _polygon_area(face.points)
 
     def _sweep_bounds(self, path: Any) -> Bounds:
-        """A coarse envelope for a swept solid (the path's own 2D extent)."""
+        """A coarse envelope for a swept solid (the path's own extent, 2D or 3D)."""
+        if hasattr(path, "points3d"):
+            pts3 = path.points3d or [(0.0, 0.0, 0.0)]
+            xs3 = [p[0] for p in pts3]
+            ys3 = [p[1] for p in pts3]
+            zs3 = [p[2] for p in pts3]
+            return ((min(xs3), min(ys3), min(zs3)), (max(xs3), max(ys3), max(zs3)))
         pts = [p for e in path.edges for p in e.get("points", [])] or [(0.0, 0.0)]
         xs = [x for x, _ in pts]
         ys = [y for _, y in pts]
@@ -846,6 +873,15 @@ def _wire_length(edges: list) -> float:
         for i in range(len(pts) - 1):
             (x0, y0), (x1, y1) = pts[i], pts[i + 1]
             total += math.hypot(x1 - x0, y1 - y0)
+    return total
+
+
+def _polyline3d_length(points: list) -> float:
+    """Summed straight-segment length through ordered 3D points (the fake spline == polyline)."""
+    total = 0.0
+    for i in range(len(points) - 1):
+        (x0, y0, z0), (x1, y1, z1) = points[i], points[i + 1]
+        total += math.sqrt((x1 - x0) ** 2 + (y1 - y0) ** 2 + (z1 - z0) ** 2)
     return total
 
 
