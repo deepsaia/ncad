@@ -192,20 +192,27 @@ class ViewerCli:
         from ncad.robotics import RobotModelBuilder
         from ncad.robotics.physics_spec import PhysicsSpec
         from ncad.robotics.robot_format import robot_writer
+        from ncad.robotics.robot_sidecar_builder import RobotSidecarBuilder
         from ncad.spec.spec_loader import SpecLoader
 
         logging.basicConfig(level=logging.INFO, format="%(message)s")
         logging.getLogger("build123d").setLevel(logging.WARNING)
         out_dir = self.resolve_models_dir(out)
+        kernel = Build123dKernel()
         export_format = PhysicsSpec(SpecLoader().load(file)).export_format
-        model, warnings = RobotModelBuilder(Build123dKernel()).build(file, str(out_dir))
+        model, warnings = RobotModelBuilder(kernel).build(file, str(out_dir))
         writer, extension = robot_writer(export_format)
         artifact = out_dir / f"{model.name}.{extension}"
         artifact.write_text(writer.to_xml(model), encoding="utf-8")
+        # Also write the Physics-viewer sidecars (tree + per-actuated-joint sweeps) from the model
+        # already built (no rebuild); the sweeps drive each joint via the motion solver.
+        sidecars = RobotSidecarBuilder(kernel).write(model, file, str(out_dir))
+        warnings += sidecars["warnings"]
         for warning in warnings:
             logging.warning("%s", warning)
         return {"artifact": str(artifact), "meshes_dir": str(out_dir / "meshes"),
-                "format": export_format, "warnings": warnings, "links": len(model.links),
+                "format": export_format, "robot": sidecars["robot"], "sweeps": sidecars["sweeps"],
+                "warnings": warnings, "links": len(model.links),
                 "joints": len(model.tree_joints())}
 
     def slice_model(self, stl: str, profile: str, out: str | None) -> dict:
