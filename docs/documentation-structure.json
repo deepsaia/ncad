@@ -411,37 +411,6 @@
           ]
         },
         {
-          "id": "cad.profiles",
-          "level": "topic",
-          "title": "Domain Profiles",
-          "summary": "Specialized part kinds as feature vocabularies over the shared substrate.",
-          "subtopics": [
-            {"id": "cad.profiles.sheet-metal", "level": "subtopic", "title": "Sheet Metal", "concepts": [
-              {"id": "cad.profiles.sheet-metal.flanges-bends", "level": "concept", "title": "Base/Edge/Miter Flanges, Hem, Jog & Bends", "ncad": {"status": "planned", "notes": "Phase 11.", "refs": [], "phase": "P11", "engine": null}},
-              {"id": "cad.profiles.sheet-metal.unfold", "level": "concept", "title": "Unfold / Flat-Pattern & K-Factor / Bend Tables", "ncad": {"status": "planned", "notes": "Phase 11; flat-pattern DXF export.", "refs": [], "phase": "P11", "engine": null}},
-              {"id": "cad.profiles.sheet-metal.relief", "level": "concept", "title": "Reliefs & Corner Treatments", "ncad": {"status": "planned", "notes": "Phase 11.", "refs": [], "phase": "P11", "engine": null}}
-            ]},
-            {"id": "cad.profiles.mold", "level": "subtopic", "title": "Mold & Tooling", "concepts": [
-              {"id": "cad.profiles.mold.parting", "level": "concept", "title": "Parting Line & Parting/Shutoff Surfaces", "ncad": {"status": "planned", "notes": "Phase 11.", "refs": [], "phase": "P11", "engine": null}},
-              {"id": "cad.profiles.mold.core-cavity", "level": "concept", "title": "Core/Cavity Split, Shrinkage & Draft Analysis", "ncad": {"status": "planned", "notes": "Phase 11.", "refs": [], "phase": "P11", "engine": null}}
-            ]},
-            {"id": "cad.profiles.building", "level": "subtopic", "title": "Building / Architecture", "concepts": [
-              {"id": "cad.profiles.building.storeys-walls", "level": "concept", "title": "Storeys, Walls, Openings & Roof (Lowering to Ops)", "ncad": {"status": "planned", "notes": "Phase 11; high-level schema lowers to sweep+boolean.", "refs": [], "phase": "P11", "engine": null}},
-              {"id": "cad.profiles.building.room-graph-ifc", "level": "concept", "title": "Room-Graph Generator & IFC Exchange", "ncad": {"status": "planned", "notes": "keeps IFC (ifcopenshell) + room-graph generator.", "refs": [], "phase": "P11", "engine": "ifcopenshell"}}
-            ]},
-            {"id": "cad.profiles.process-plant", "level": "subtopic", "title": "Process Plant & Piping", "concepts": [
-              {"id": "cad.profiles.process-plant.pid", "level": "concept", "title": "Flow Diagram (P&ID / PFD, the Logical Model)", "ncad": {"status": "planned", "notes": "Phase 11; schematic linked to the 3D model.", "refs": [], "phase": "P11", "engine": null}},
-              {"id": "cad.profiles.process-plant.route-spec-fittings", "level": "concept", "title": "Route + Pipe Spec & Fitting Catalogue", "ncad": {"status": "planned", "notes": "Phase 11 process-plant profile.", "refs": [], "phase": "P11", "engine": null}, "see_also": ["cae.hydraulics.network.solve"]},
-              {"id": "cad.profiles.process-plant.supports-vessels", "level": "concept", "title": "Pipe Supports & Pressure Vessels/Equipment", "ncad": {"status": "planned", "notes": "Phase 11; vessels, nozzles, supports.", "refs": [], "phase": "P11", "engine": null}}
-            ]},
-            {"id": "cad.profiles.structural", "level": "subtopic", "title": "Structural Framing", "concepts": [
-              {"id": "cad.profiles.structural.sections-members", "level": "concept", "title": "Section Library & Member Model (Skeleton)", "ncad": {"status": "planned", "notes": "Phase 11; standard sections swept along a member skeleton.", "refs": [], "phase": "P11", "engine": null}},
-              {"id": "cad.profiles.structural.connections-foundations", "level": "concept", "title": "Connections, Foundations & Rebar", "ncad": {"status": "planned", "notes": "Phase 11; trimmed joints, plates, footings, rebar.", "refs": [], "phase": "P11", "engine": null}},
-              {"id": "cad.profiles.structural.analytical", "level": "concept", "title": "Analytical Model (Handoff)", "ncad": {"status": "planned", "notes": "analytical line/node model feeds frame3dd/PyNite (the FEA line).", "refs": [], "phase": "P11", "engine": "frame3dd / PyNite"}, "see_also": ["cae.frame.stiffness.direct"]}
-            ]}
-          ]
-        },
-        {
           "id": "cad.drafting",
           "level": "topic",
           "title": "Drafting & Documentation (2D)",
@@ -626,7 +595,7 @@
         ]},
         {"id": "cam.outputs", "level": "topic", "title": "Fabrication Outputs", "summary": "2D and nested outputs for cutting.", "subtopics": [
           {"id": "cam.outputs.dxf-nesting", "level": "subtopic", "title": "DXF, Flat-Pattern & Nesting", "concepts": [
-            {"id": "cam.outputs.dxf-nesting.flat-pattern", "level": "concept", "title": "Flat-Pattern & Profile Export (DXF)", "see_also": ["cad.profiles.sheet-metal.flange-bend-unfold"]},
+            {"id": "cam.outputs.dxf-nesting.flat-pattern", "level": "concept", "title": "Flat-Pattern & Profile Export (DXF)"},
             {"id": "cam.outputs.dxf-nesting.nesting", "level": "concept", "title": "Nesting for Sheet/Plate Cutting"}
           ]}
         ]}
@@ -1034,7 +1003,7 @@
             {"id": "cae.frame.beam-theory.euler-timoshenko", "level": "concept", "title": "Euler-Bernoulli vs Timoshenko Beam Theory"}
           ]},
           {"id": "cae.frame.stiffness", "level": "subtopic", "title": "Truss & Frame Analysis", "concepts": [
-            {"id": "cae.frame.stiffness.direct", "level": "concept", "title": "The Direct Stiffness Method", "ncad": {"status": "planned", "notes": "structural analytical model -> frame3dd/PyNite (light seam).", "refs": [], "phase": "P13", "engine": "frame3dd / PyNite"}, "see_also": ["cad.profiles.structural.members-connections"]},
+            {"id": "cae.frame.stiffness.direct", "level": "concept", "title": "The Direct Stiffness Method", "ncad": {"status": "planned", "notes": "structural analytical model -> frame3dd/PyNite (light seam).", "refs": [], "phase": "P13", "engine": "frame3dd / PyNite"}},
             {"id": "cae.frame.stiffness.results", "level": "concept", "title": "Member Forces, Reactions & Deflections"}
           ]}
         ]},
@@ -1052,7 +1021,7 @@
             {"id": "cae.hydraulics.head-loss.equations", "level": "concept", "title": "Mass/Energy Conservation; Darcy-Weisbach & Hazen-Williams"}
           ]},
           {"id": "cae.hydraulics.network", "level": "subtopic", "title": "Network Solution", "concepts": [
-            {"id": "cae.hydraulics.network.solve", "level": "concept", "title": "Hardy-Cross / Gradient Network Solution (EPANET)", "ncad": {"status": "planned", "notes": "piping network -> EPANET.", "refs": [], "phase": "P13", "engine": "EPANET"}, "see_also": ["cad.profiles.process-plant.route-spec-fittings"]}
+            {"id": "cae.hydraulics.network.solve", "level": "concept", "title": "Hardy-Cross / Gradient Network Solution (EPANET)", "ncad": {"status": "planned", "notes": "piping network -> EPANET.", "refs": [], "phase": "P13", "engine": "EPANET"}}
           ]}
         ]},
         {"id": "cae.fluid-power", "level": "topic", "title": "Fluid Power / 1D System Simulation", "summary": "Lumped-parameter hydraulic/pneumatic circuits that can drive motion.", "subtopics": [
@@ -1130,8 +1099,8 @@
             {"id": "interchange.aec-plant.ifc.buildingsmart", "level": "concept", "title": "IFC (buildingSMART)", "ncad": {"status": "planned", "notes": "IFC via ifcopenshell (building profile, Phase 11).", "refs": [], "phase": "P11", "engine": "ifcopenshell"}}
           ]},
           {"id": "interchange.aec-plant.piping-steel", "level": "subtopic", "title": "Piping & Steel", "concepts": [
-            {"id": "interchange.aec-plant.piping-steel.pcf-iso", "level": "concept", "title": "P&ID / PCF / ISO Piping Exchange", "see_also": ["cad.profiles.process-plant.route-spec-fittings"]},
-            {"id": "interchange.aec-plant.piping-steel.cis2-sdnf", "level": "concept", "title": "CIS/2 & SDNF (Steel Detailing)", "see_also": ["cad.profiles.structural.members-connections"]}
+            {"id": "interchange.aec-plant.piping-steel.pcf-iso", "level": "concept", "title": "P&ID / PCF / ISO Piping Exchange"},
+            {"id": "interchange.aec-plant.piping-steel.cis2-sdnf", "level": "concept", "title": "CIS/2 & SDNF (Steel Detailing)"}
           ]}
         ]},
         {"id": "interchange.analysis", "level": "topic", "title": "Analysis Exchange", "summary": "FEM decks and engine formats.", "subtopics": [
