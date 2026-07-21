@@ -17,7 +17,7 @@ Document shape::
     }
 """
 
-_FORMATS = frozenset({"urdf"})   # MJCF/SDF land as follow-up writers on the same IR
+_FORMATS = frozenset({"urdf", "mjcf", "sdf"})   # all write from the shared RobotModel IR
 
 
 class PhysicsSpecError(Exception):

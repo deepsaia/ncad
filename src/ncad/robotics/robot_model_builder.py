@@ -82,8 +82,8 @@ class RobotModelBuilder:
         joints = self._joints(scene.get("joints") or [], scene["instances"], spanned, spec)
         for closure in spanned["loop_closures"]:
             warnings.append(
-                f"joint {closure!r} closes a kinematic loop; excluded from the URDF tree "
-                "(use an MJCF/SDF export to keep it as a constraint)")
+                f"joint {closure!r} closes a kinematic loop; it is outside the base-rooted tree "
+                "(a tree-only URDF drops it; MJCF keeps it as an equality, SDF as a joint)")
         return RobotModel(name=scene["name"], base_link=base, links=links, joints=joints), warnings
 
     def _mass_props(self, asm_path: Path, file_by_id: dict[str, dict]) -> dict[str, dict]:
