@@ -188,6 +188,21 @@ properties {
         type = array
         items = ${definitions.coupling}
       }
+      # Pairs of instance ids that mesh / touch BY DESIGN (a gear mesh not named by a coupling, a
+      # press fit, a bearing seat). The static interference check reports each as expected_contact
+      # and skips the exact (expensive) distance measurement for it, like a robotics SRDF
+      # disable_collisions allow-list. Pairs named by a joint or coupling are skipped automatically;
+      # this is for contacts declared only in the geometry (e.g. an internal ring gear meshing its
+      # planets). Each entry is a two-element [idA, idB] array.
+      expected_contact {
+        type = array
+        items {
+          type = array
+          items { type = string }
+          minItems = 2
+          maxItems = 2
+        }
+      }
     }
   }
 }

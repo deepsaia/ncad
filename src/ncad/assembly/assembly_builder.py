@@ -609,7 +609,7 @@ class AssemblyBuilder:
                 "color": part_mass[part_key].get("color"),
                 "material": part_mass[part_key].get("material"),
                 "placement": placements_mm[iid]})
-        interference = self._interference.check(placed)
+        interference = self._interference.check(placed, self._expected_contact_pairs(document))
         bom_out = self._bom.compute(inst_meta, part_mass, placements_mm)
         self._kernel.export_assembly(components, os.path.join(out_dir, f"{name}.step"))
         return interference, {"items": bom_out["items"]}, bom_out["mass"]
@@ -631,6 +631,49 @@ class AssemblyBuilder:
             # No density (or no material): counted in BOM quantity, omitted from the mass roll-up.
             return {"mass": None, "material": material, "cog": (0.0, 0.0, 0.0),
                     "color": color, "appearance": appearance}
+
+    def _expected_contact_pairs(self, document: dict) -> set[frozenset]:
+        """Instance-id pairs that mesh by design, so the interference check skips measuring them.
+
+        Two sources, both meaning "these bodies are SUPPOSED to touch, a contact is not a clash":
+
+        - A ``gear`` coupling whose two joints SHARE exactly one instance (the common frame/ground):
+          the two non-shared bodies are the meshing gears (a gear_pair's pinion<>gear on one stand).
+          Restricted to ``gear`` on purpose: a ``belt``/``rack_pinion`` coupling ties bodies that do
+          NOT touch (a belt spans a gap), so it declares no contact. Joints that share no instance
+          (a planet meshing the sun THROUGH a moving carrier) are ambiguous and left to the author.
+        - The explicit ``expected_contact`` block: any mesh/press-fit the couplings do not name,
+          e.g. an internal ring gear meshing its planets, or a sun meshing planets across a carrier.
+
+        A JOINT alone is NOT a source: a revolute/slider means two bodies pivot/slide at a bearing
+        but must NOT interpenetrate, so a clash there is a REAL finding (the clearance_probe gate is
+        a jointed arm swinging into a post). Skipping these avoids the costliest exact-distance
+        calls (the meshing gear pairs) without hiding a genuine collision.
+        """
+        asm = document["assembly"]
+        pairs: set[frozenset] = set()
+        joint_instances: dict[str, set[str]] = {}
+        for joint in asm.get("joints") or []:
+            insts = {b.get("instance") for b in (joint.get("between") or []) if b.get("instance")}
+            joint_instances[joint.get("id")] = insts
+        for coupling in asm.get("couplings") or []:
+            if coupling.get("type") != "gear":
+                continue  # only a gear mesh means the wheels physically touch
+            between = coupling.get("between") or []
+            if len(between) != 2:
+                continue
+            ja = joint_instances.get(between[0], set())
+            jb = joint_instances.get(between[1], set())
+            wheels = ja.symmetric_difference(jb)
+            # Unambiguous only when the joints share exactly one body (the common frame): then two
+            # wheels remain. Otherwise the mesh pair cannot be inferred; the author declares it.
+            if len(ja & jb) == 1 and len(wheels) == 2:
+                a, b = sorted(wheels)
+                pairs.add(frozenset((a, b)))
+        for entry in asm.get("expected_contact") or []:
+            if isinstance(entry, list) and len(entry) == 2:
+                pairs.add(frozenset((entry[0], entry[1])))
+        return pairs
 
     def _lower_joint(self, joint: dict, local_frames: dict, issues: list):
         """Resolve a joint's refs + lower to primitives + signature; None on error."""
