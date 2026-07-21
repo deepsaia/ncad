@@ -1,0 +1,20 @@
+{
+  "standard": "Euronorm 19-57 (IPE I-beams)",
+  "title": "IPE hot-rolled I-section steel beams",
+  "version": "2026-07-21",
+  "source": "Euronorm IPE section dimensions (overall height h, flange width b, web thickness tw, flange thickness tf). Section dimensions are physical facts; the fillet radius between web and flange is omitted (sharp-cornered I). length_default is a convenient stock cut, not a standard value. Keyed by IPE designation.",
+  "unit": "mm",
+  "designations": {
+    "IPE80":  {"height": 80.0,  "flange_width": 46.0,  "web_thickness": 3.8, "flange_thickness": 5.2,  "length_default": 1000},
+    "IPE100": {"height": 100.0, "flange_width": 55.0,  "web_thickness": 4.1, "flange_thickness": 5.7,  "length_default": 1000},
+    "IPE120": {"height": 120.0, "flange_width": 64.0,  "web_thickness": 4.4, "flange_thickness": 6.3,  "length_default": 1000},
+    "IPE140": {"height": 140.0, "flange_width": 73.0,  "web_thickness": 4.7, "flange_thickness": 6.9,  "length_default": 1500},
+    "IPE160": {"height": 160.0, "flange_width": 82.0,  "web_thickness": 5.0, "flange_thickness": 7.4,  "length_default": 1500},
+    "IPE180": {"height": 180.0, "flange_width": 91.0,  "web_thickness": 5.3, "flange_thickness": 8.0,  "length_default": 2000},
+    "IPE200": {"height": 200.0, "flange_width": 100.0, "web_thickness": 5.6, "flange_thickness": 8.5,  "length_default": 2000},
+    "IPE220": {"height": 220.0, "flange_width": 110.0, "web_thickness": 5.9, "flange_thickness": 9.2,  "length_default": 2000},
+    "IPE240": {"height": 240.0, "flange_width": 120.0, "web_thickness": 6.2, "flange_thickness": 9.8,  "length_default": 3000},
+    "IPE270": {"height": 270.0, "flange_width": 135.0, "web_thickness": 6.6, "flange_thickness": 10.2, "length_default": 3000},
+    "IPE300": {"height": 300.0, "flange_width": 150.0, "web_thickness": 7.1, "flange_thickness": 10.7, "length_default": 3000}
+  }
+}

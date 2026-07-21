@@ -1,0 +1,16 @@
+{
+  "standard": "ASME B16.5 (class 150, representative)",
+  "title": "Pipe flanges, weld-neck outline simplified to a bored disk + bolt circle",
+  "version": "2026-07-21",
+  "source": "ASME B16.5 class 150 representative flange dimensions (outer diameter, bolt-circle diameter, bolt count + hole diameter, thickness) with the bore at the matching pipe ID. Simplified: a flat bored disk with a bolt circle, no raised face or weld-neck hub. Nominal only; not a certified pressure-class part. Keyed by NPS.",
+  "unit": "mm",
+  "designations": {
+    "NPS1":    {"outer_diameter": 108.0, "bore_diameter": 26.7,  "thickness": 14.2, "bolt_circle_diameter": 79.4,  "bolt_hole_diameter": 15.9, "bolt_count": 4},
+    "NPS1.5":  {"outer_diameter": 127.0, "bore_diameter": 40.9,  "thickness": 17.5, "bolt_circle_diameter": 98.4,  "bolt_hole_diameter": 15.9, "bolt_count": 4},
+    "NPS2":    {"outer_diameter": 152.4, "bore_diameter": 52.5,  "thickness": 19.1, "bolt_circle_diameter": 120.7, "bolt_hole_diameter": 19.1, "bolt_count": 4},
+    "NPS3":    {"outer_diameter": 190.5, "bore_diameter": 77.9,  "thickness": 23.9, "bolt_circle_diameter": 152.4, "bolt_hole_diameter": 19.1, "bolt_count": 4},
+    "NPS4":    {"outer_diameter": 228.6, "bore_diameter": 102.3, "thickness": 23.9, "bolt_circle_diameter": 190.5, "bolt_hole_diameter": 19.1, "bolt_count": 8},
+    "NPS6":    {"outer_diameter": 279.4, "bore_diameter": 154.1, "thickness": 25.4, "bolt_circle_diameter": 241.3, "bolt_hole_diameter": 22.2, "bolt_count": 8},
+    "NPS8":    {"outer_diameter": 342.9, "bore_diameter": 202.7, "thickness": 28.6, "bolt_circle_diameter": 298.5, "bolt_hole_diameter": 22.2, "bolt_count": 8}
+  }
+}
