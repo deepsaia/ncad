@@ -1,0 +1,12 @@
+Thread milling generates a thread by helical interpolation: a rotating thread mill, whose teeth carry the thread profile, orbits the hole axis on a circular path while advancing along the axis. Over one full orbit of \(360^\circ\) the tool climbs (or descends) exactly one pitch \(P\), so the coordinated circular-plus-linear motion sweeps the thread form as a helix. For an internal thread of nominal radius \(R_h\) cut with a thread mill of radius \(r_t\), the tool center travels on a circle of radius
+\[ R_{path} = R_h - r_t, \]
+and the Z advance per revolution equals the pitch. Large threads may be cut in several radial passes, stepping the tool outward toward the final flank in stages.
+
+The method's strength is flexibility from one tool. A single thread mill of a given pitch can cut a range of diameters (its orbit radius is programmed, not fixed), can produce both internal and external threads, and can cut right-hand or left-hand simply by reversing the helix direction. It reaches close to the bottom of blind holes, and because the tool is much smaller than the hole and is not screwed in, a broken or worn tool leaves no jammed hardware in the part, which is decisive on large, expensive, or nearly finished workpieces.
+
+## Where it is preferred
+Thread milling is favored for hard and tough materials where taps break, for large threads that would demand enormous tapping torque, and for high-value parts where the risk of a tap seizing is unacceptable. It also gives clean thread starts and consistent form because cutting force is light and chips are short. The trade-off is that it needs a machine capable of true helical interpolation (simultaneous circular XY and linear Z), careful lead-in and lead-out arcs so the thread flank is not gouged at entry, and correct compensation for the difference between the tool profile and the finished thread. For very high volumes of small threads, tapping is usually faster, but thread milling wins on versatility and reliability.
+
+<svg viewBox="0 0 140 120" width="140" height="120" stroke="currentColor" fill="none" stroke-width="1.5"><ellipse cx="70" cy="22" rx="40" ry="12"/><ellipse cx="70" cy="98" rx="40" ry="12"/><line x1="30" y1="22" x2="30" y2="98"/><line x1="110" y1="22" x2="110" y2="98"/><path d="M30 92 A40 12 0 0 0 110 92 M110 92 L110 74 M110 74 A40 12 0 0 1 30 74 M30 74 L30 56 M30 56 A40 12 0 0 0 110 56 M110 56 L110 38 M110 38 A40 12 0 0 1 30 38" stroke-dasharray="3 2"/></svg>
+
+*Helical tool path: one pitch of axial rise per orbit around the hole axis.*

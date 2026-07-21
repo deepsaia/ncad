@@ -1,0 +1,13 @@
+Adaptive clearing, the defining strategy of high-speed machining (HSM), is a roughing method that removes bulk stock while holding the **radial engagement of the cutter constant**. Conventional pocketing follows a contour-parallel or zig-zag pattern at a fixed radial stepover; when such a path enters a corner or a slot the arc of contact suddenly jumps toward full immersion, spiking cutting force, deflection, and heat exactly where the tool is least supported. Adaptive clearing reshapes the path, adding looping and trochoidal moves, so that the angle of engagement never exceeds a chosen limit, allowing far more aggressive feeds and axial depths at the same peak load.
+
+The governing quantity is the **radial engagement angle** \(\varphi\), the angular arc over which the cutter of radius \(R\) is in contact with material. For a radial width of cut \(a_e\) in a straight slot,
+
+\[ \varphi = \cos^{-1}\!\left(1 - \frac{a_e}{R}\right), \]
+
+and the instantaneous chip thickness, undeformed, scales with \(\sin\varphi\). Cutting force and the heat partitioned into the tool grow strongly with \(\varphi\); when \(\varphi\) is capped and held steady the tool runs at a nearly constant, predictable load, so its life and the spindle power draw become stable rather than spiking. The freed-up thermal and force headroom is spent on a large axial depth \(a_p\) (often several times the diameter) and a high feed, so the material removal rate rises even though \(a_e\) is small.
+
+Because engagement, not stepover, is the invariant, adaptive paths look distinctive: smooth trochoidal loops in tight regions, tangent arc transitions instead of sharp corners, and a controlled entry (usually a helical ramp) so the tool is never buried. Maintaining constant engagement in arbitrary pocket topology requires the CAM system to track the evolving **remaining-stock boundary** and offset the next engagement front from it, which is computationally the same machinery used for rest machining.
+
+## Why it matters
+
+The payoff is threefold: dramatically higher metal removal rate for a given tool, far longer tool life because peak temperature and force are bounded, and the ability to use the full flute length so wear is distributed rather than concentrated in a narrow band. It is especially valuable in hard materials and deep pockets where a traditional full-slot cut would overheat the corner of the tool. The tradeoff is longer, more complex paths (more total travel and many small moves), so the strategy relies on a machine controller with adequate look-ahead and high feed capability to realize the theoretical gains rather than stalling at every arc.
