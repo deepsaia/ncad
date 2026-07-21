@@ -214,6 +214,21 @@
   #physics-bar-label { font-size: 11px; color: var(--muted); font-weight: 600; }
   #physics-joint { font: inherit; font-size: 12px; color: var(--text); background: var(--panel-2);
     border: 1px solid var(--border); border-radius: 12px; padding: 3px 8px; cursor: pointer; }
+  /* Export control: a rounded icon+label button pinned bottom-left, with a popup format menu. */
+  #export-control { position: absolute; bottom: 16px; left: 16px; z-index: 56; }
+  #export-control[hidden] { display: none; }
+  #export-btn { display: flex; align-items: center; gap: 6px; font: inherit; font-size: 12px;
+    font-weight: 600; color: var(--text); background: var(--panel); border: 1px solid var(--border);
+    border-radius: 20px; padding: 6px 12px; cursor: pointer; backdrop-filter: blur(6px); }
+  #export-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  #export-btn:disabled { opacity: 0.4; cursor: default; }
+  #export-menu { position: absolute; bottom: 42px; left: 0; min-width: 120px; display: flex;
+    flex-direction: column; gap: 2px; padding: 4px; background: var(--panel);
+    border: 1px solid var(--border); border-radius: 10px; backdrop-filter: blur(6px); }
+  #export-menu[hidden] { display: none; }
+  #export-menu button { font: inherit; font-size: 12px; text-align: left; color: var(--text);
+    background: transparent; border: 0; border-radius: 6px; padding: 5px 10px; cursor: pointer; }
+  #export-menu button:hover { background: var(--accent); color: var(--on-accent); }
 
   /* Floating viewport controls (translucent, movable/snapping, icon-first) */
   #viewport-controls { position: absolute; z-index: 40; display: flex;
@@ -684,6 +699,15 @@
     <div id="physics-bar" hidden>
       <span id="physics-bar-label">Joint</span>
       <select id="physics-joint" aria-label="Actuated joint to articulate"></select>
+    </div>
+    <!-- Export control (bottom-left): a download-icon button that opens a context-sensitive format
+         menu. Formats depend on the current tab; picking one re-exports via ncad + downloads. -->
+    <div id="export-control" hidden>
+      <button id="export-btn" title="Export the model" aria-label="Export the model" aria-haspopup="menu">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14"/></svg>
+        <span>Export</span>
+      </button>
+      <div id="export-menu" role="menu" hidden></div>
     </div>
   </main>
 
@@ -2200,6 +2224,7 @@ function refreshModels() {
 
 function selectModel(name) {
   activeModel = name;
+  syncExportControl();
   // Persist the selection so a page refresh restores it (see the boot logic). Keyed by mode
   // so Parts and Assemblies each remember their own last-viewed model independently.
   localStorage.setItem("ncad.active.parts", name);
@@ -2249,6 +2274,7 @@ function renderAssemblyList(names) {
 
 function selectAssembly(name, verbose, timing) {
   activeModel = name;
+  syncExportControl();
   localStorage.setItem("ncad.active.assemblies", name);
   loadAssembly(name, verbose, timing);
   refreshAssemblies();
@@ -2322,6 +2348,7 @@ function removeMotion(name) {
 
 function selectMotion(name, verbose, timing) {
   activeModel = name;
+  syncExportControl();
   localStorage.setItem("ncad.active.motion", name);
   // Pass verbose + timing through so a real motion (re)build logs the same "build + render = total"
   // split as Parts and Assemblies; a plain re-select (no timing) stays quiet.
@@ -2363,10 +2390,13 @@ function renderRobotList(robots) {
   scrollActiveIntoView(list);
 }
 
-function selectRobot(name) {
+function selectRobot(name, verbose, timing) {
   activeModel = name;
+  syncExportControl();
   localStorage.setItem("ncad.active.physics", name);
-  loadAssembly(name);
+  // verbose + timing flow through so a real physics (re)build logs the "build + render = total"
+  // split like Parts/Assemblies/Motion; a plain re-select stays quiet.
+  loadAssembly(name, verbose, timing);
   refreshRobots();
 }
 
@@ -2415,6 +2445,26 @@ function motionBuildSpec(spec) {
       if (d.assembled) selectMotion(d.assembled, true, timing);  // verbose: a real motion (re)build
       const issues = (d.issues || []).length;
       toast("motion built " + d.assembled + (issues ? ` (${issues} issue(s))` : ""));
+    })
+    .catch(e => toast(e.message, true))
+    .finally(() => { spinner.style.display = "none"; });
+}
+
+function physicsBuildSpec(spec) {
+  if (!spec) { toast("select a physics spec first", true); return; }
+  spinner.style.display = "block";
+  const t0 = performance.now();
+  fetch(apiUrl("/physics-build"), { method: "POST", headers: { "Content-Type": "application/json" },
+                               body: JSON.stringify({ spec }) })
+    .then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.error || "physics build failed"); return d; })
+    .then(d => {
+      // Timing: the server's physics build_ms + a render-done split logged by loadAssembly, exactly
+      // as Parts/Assemblies/Motion. No separate solve_ms (the joint sweeps are inside build_ms).
+      const timing = { t0, buildMs: d.build_ms };
+      refreshRobots();
+      if (d.robot) selectRobot(d.robot, true, timing);   // verbose: a real physics (re)build
+      const warns = (d.warnings || []).length;
+      toast("physics built " + d.robot + (warns ? ` (${warns} warning(s))` : ""));
     })
     .catch(e => toast(e.message, true))
     .finally(() => { spinner.style.display = "none"; });
@@ -2865,6 +2915,74 @@ function renderRobotTree(tree) {
   body.innerHTML = rows.join("");
 }
 
+// ---- Export control (context-sensitive download) ----
+// Each tab offers the formats its document kind can produce; picking one re-exports via ncad on the
+// server (from the recorded source, so B-rep/robot formats stay faithful) and downloads the file.
+const EXPORT_FORMATS = {
+  parts: ["glb", "step", "iges", "stl", "3mf", "obj", "ply"],
+  assemblies: ["step", "glb", "stl"],
+  motion: ["step", "glb", "stl"],
+  physics: ["urdf", "mjcf", "sdf"],
+};
+const _MODE_KIND = { parts: "part", assemblies: "assembly", motion: "motion", physics: "physics" };
+const exportControl = document.getElementById("export-control");
+const exportBtn = document.getElementById("export-btn");
+const exportMenu = document.getElementById("export-menu");
+
+function syncExportControl() {
+  // The control shows in any mode that has export formats; it is DISABLED (greyed) until a model is
+  // selected, so the affordance stays discoverable but does nothing without a source to export.
+  const formats = EXPORT_FORMATS[viewMode] || [];
+  exportControl.hidden = !formats.length;
+  exportBtn.disabled = !activeModel;
+  exportBtn.title = activeModel ? "Export the model" : "Select a model to export";
+  exportMenu.hidden = true;
+}
+
+function toggleExportMenu() {
+  if (!activeModel) return;   // disabled: nothing selected to export
+  if (!exportMenu.hidden) { exportMenu.hidden = true; return; }
+  const formats = EXPORT_FORMATS[viewMode] || [];
+  exportMenu.innerHTML = "";
+  for (const fmt of formats) {
+    const item = document.createElement("button");
+    item.type = "button"; item.setAttribute("role", "menuitem");
+    item.textContent = fmt.toUpperCase();
+    item.addEventListener("click", () => { exportMenu.hidden = true; exportModel(fmt); });
+    exportMenu.appendChild(item);
+  }
+  exportMenu.hidden = false;
+}
+
+function exportModel(fmt) {
+  if (!activeModel) { toast("no model to export", true); return; }
+  const kind = _MODE_KIND[viewMode] || "part";
+  spinner.style.display = "block";
+  fetch(apiUrl("/export"), { method: "POST", headers: { "Content-Type": "application/json" },
+                             body: JSON.stringify({ name: activeModel, kind, format: fmt }) })
+    .then(async r => {
+      if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.error || "export failed"); }
+      const disposition = r.headers.get("Content-Disposition") || "";
+      const match = /filename="([^"]+)"/.exec(disposition);
+      const filename = match ? match[1] : `${activeModel}.${fmt}`;
+      return r.blob().then(blob => ({ blob, filename }));
+    })
+    .then(({ blob, filename }) => {
+      // Trigger a browser download to the default location (no out/ write on the server).
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = filename; document.body.appendChild(a); a.click();
+      document.body.removeChild(a); URL.revokeObjectURL(url);
+      log(`exported ${activeModel} to ${filename}`, "info");
+    })
+    .catch(e => toast(e.message, true))
+    .finally(() => { spinner.style.display = "none"; });
+}
+
+exportBtn.addEventListener("click", ev => { ev.stopPropagation(); toggleExportMenu(); });
+// Click anywhere else closes the menu.
+document.addEventListener("click", () => { exportMenu.hidden = true; });
+
 function showMotionFrame(i) {
   if (!motion) return;
   const frames = motion.frames;
@@ -3244,6 +3362,7 @@ function setViewMode(next) {
   syncSpecClear();
   document.getElementById("spec-tree").hidden = true;
   activeModel = null;
+  syncExportControl();   // show the export control for this mode, disabled until a model selects
   // Switching mode restores that mode's saved last-viewed model (falling back to the first
   // available), matching the page-refresh behavior.
   if (next === "assemblies") {
@@ -3335,7 +3454,7 @@ document.getElementById("spec-build").addEventListener("click", () => {
   // Dispatch by mode: Parts builds a part spec; Assemblies composes an .asm.hocon; Motion builds a
   // .motion.hocon study (drives its referenced assembly + writes the trajectory).
   if (viewMode === "motion") motionBuildSpec(selectedSpec);
-  else if (viewMode === "physics") toast("run `ncad physics <doc>` to generate a robot export", true);
+  else if (viewMode === "physics") physicsBuildSpec(selectedSpec);
   else if (viewMode === "assemblies") assembleSpec(selectedSpec);
   else build(selectedSpec);
 });
@@ -3380,6 +3499,7 @@ document.getElementById("mode-assemblies").classList.toggle("active", viewMode =
 document.getElementById("mode-motion").classList.toggle("active", viewMode === "motion");
 document.getElementById("mode-physics").classList.toggle("active", viewMode === "physics");
 syncAssemblyControls();
+syncExportControl();   // show the export control for the boot mode (disabled until a model loads)
 // Pick the model to show on boot for a mode. Priority: an explicit URL-path request >> the
 // saved last-viewed model (page-refresh restore) >> the first available. Returns null when
 // nothing was ever selected and nothing was requested (show nothing, per the refresh spec);
