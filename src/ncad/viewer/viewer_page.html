@@ -2289,10 +2289,12 @@ function removeMotion(name) {
     .catch(() => toast("could not delete " + name, true));
 }
 
-function selectMotion(name) {
+function selectMotion(name, verbose, timing) {
   activeModel = name;
   localStorage.setItem("ncad.active.motion", name);
-  loadAssembly(name, false);
+  // Pass verbose + timing through so a real motion (re)build logs the same "build + render = total"
+  // split as Parts and Assemblies; a plain re-select (no timing) stays quiet.
+  loadAssembly(name, verbose, timing);
   refreshMotions();
 }
 
@@ -2305,14 +2307,15 @@ function assembleSpec(spec) {
     .then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.error || "assemble failed"); return d; })
     .then(d => {
       assemblySources[d.assembled] = spec;  // remember the source for regenerate
-      // Timing (build vs render, a profiling starting point): the server build_ms + a render-done
+      // Timing (build / solve / render, a profiling starting point): the server build_ms (total
+      // server time) + solve_ms (the constraint/motion solve slice within it) + a render-done
       // callback that fires when loadAssembly finishes placing the scene. total = now - t0.
-      const timing = { t0, buildMs: d.build_ms };
+      const timing = { t0, buildMs: d.build_ms, solveMs: d.solve_ms };
       // Motion mode: refresh the motion list + select via motion (reveals the timeline); otherwise
       // the assembly list + selectAssembly.
       if (viewMode === "motion") {
         refreshMotions();
-        if (d.assembled) selectMotion(d.assembled);
+        if (d.assembled) selectMotion(d.assembled, true, timing);  // verbose: a real (re)build
       } else {
         renderAssemblyList(d.assemblies || []);
         if (d.assembled) selectAssembly(d.assembled, true, timing);  // verbose: a real (re)compose
@@ -2333,8 +2336,11 @@ function motionBuildSpec(spec) {
     .then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.error || "motion build failed"); return d; })
     .then(d => {
       motionSources[d.assembled] = spec;  // remember the motion doc for regenerate
+      // Timing (build / solve / render): the server's motion build_ms + solve_ms (the OndselSolver
+      // slice) + a render-done split, logged by loadAssembly, exactly as Assemblies do.
+      const timing = { t0, buildMs: d.build_ms, solveMs: d.solve_ms };
       refreshMotions();
-      if (d.assembled) selectMotion(d.assembled);
+      if (d.assembled) selectMotion(d.assembled, true, timing);  // verbose: a real motion (re)build
       const issues = (d.issues || []).length;
       toast("motion built " + d.assembled + (issues ? ` (${issues} issue(s))` : ""));
     })
@@ -2410,12 +2416,19 @@ function loadAssembly(name, verbose, timing) {
       }
       document.getElementById("i-meshes").textContent = pickParts.length;
       spinner.style.display = "none";
-      // Timing split (build vs render), a profiling starting point. Server build_ms + client render
-      // (total - build) + total (button click to rendered). Shown in a toast + logged.
+      // Timing split, a profiling starting point. The server build_ms is the whole server pass;
+      // solve_ms is the constraint/OndselSolver solve slice WITHIN it, so build-proper = build_ms -
+      // solve_ms. render = total - build_ms (client wall-clock from the button click). When a solve
+      // slice is present (assemblies + motion) it is broken out as a third term; a plain part (no
+      // solve) keeps the two-term "build + render" line.
       if (timing && timing.buildMs != null) {
         const total = performance.now() - timing.t0;
         const render = Math.max(total - timing.buildMs, 0);
-        const line = `build ${fmtDuration(timing.buildMs)} + render ${fmtDuration(render)} = ${fmtDuration(total)}`;
+        const solve = timing.solveMs || 0;
+        const line = solve > 0.05
+          ? `build ${fmtDuration(Math.max(timing.buildMs - solve, 0))} + solve ${fmtDuration(solve)}`
+            + ` + render ${fmtDuration(render)} = ${fmtDuration(total)}`
+          : `build ${fmtDuration(timing.buildMs)} + render ${fmtDuration(render)} = ${fmtDuration(total)}`;
         toast(line);
         log(line, "info");
       }
