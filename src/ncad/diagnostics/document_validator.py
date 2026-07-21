@@ -44,11 +44,42 @@ class DocumentValidator:
 
     def validate(self, document: dict) -> ValidationReport:
         """Detect the kind and return its ValidationReport (never raises for a bad design)."""
+        if "physics" in document:
+            return ValidationReport(self._validate_physics(document))
         if "motion" in document:
             return ValidationReport(self._validate_motion(document))
         if "assembly" in document:
             return ValidationReport(self._validate_assembly(document))
         return ValidationReport(self._validate_part(document))
+
+    def _validate_physics(self, document: dict) -> list[Diagnostic]:
+        """Validate a physics/robotics overlay: the overlay shape + its assembly reference resolves.
+
+        Structural only (no geometry): PhysicsSpec enforces the overlay's own contract, and the
+        referenced assembly must exist + validate as an assembly. A malformed overlay or an
+        unresolvable/invalid assembly is a schema-stage diagnostic.
+        """
+        from ncad.robotics.physics_spec import PhysicsSpec, PhysicsSpecError
+
+        try:
+            spec = PhysicsSpec(document)
+        except PhysicsSpecError as exc:
+            return [Diagnostic(severity="error", code=codes.SCHEMA, location="physics",
+                               message=str(exc), stage="schema")]
+        asm_doc = self._load_relative(spec.assembly)
+        if asm_doc is None:
+            return [Diagnostic(
+                severity="error", code=codes.UNKNOWN_REFERENCE, location="physics.assembly",
+                message=f"physics assembly {spec.assembly!r} did not resolve", stage="semantic")]
+        # The assembly's instance `file` paths are relative to the ASSEMBLY's directory, not the
+        # physics doc's; re-root base_dir there so the connector part files resolve correctly.
+        outer_base = self._base_dir
+        if outer_base:
+            self._base_dir = os.path.dirname(os.path.join(outer_base, spec.assembly))
+        try:
+            return self._validate_assembly(asm_doc)
+        finally:
+            self._base_dir = outer_base
 
     def _validate_part(self, document: dict) -> list[Diagnostic]:
         out = [i.to_diagnostic("schema", codes.SCHEMA) for i in self._schema.validate(document)]
