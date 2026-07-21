@@ -560,12 +560,17 @@ class Kernel(ABC):
         """
 
     @abstractmethod
-    def export(self, solid: Any, path: str, body_colors: dict | None = None) -> None:
+    def export(self, solid: Any, path: str, body_colors: dict | None = None,
+               mesh_tolerance: float | None = None) -> None:
         """Write ``solid`` to ``path``; format inferred from the extension.
 
-        ``body_colors`` (optional) maps a body id to an ``(r, g, b, a)`` color in 0..1; a glTF
-        export writes it as the per-body PBR baseColorFactor so authored appearance colors port
-        to other renderers. Ignored for STEP/STL.
+        Mesh formats (glTF/STL/3MF/OBJ/PLY) tessellate the B-rep; exact formats (STEP/IGES) write
+        the B-rep directly. ``body_colors`` (optional) maps a body id to an ``(r, g, b, a)`` color
+        in 0..1; a glTF export writes it as the per-body PBR baseColorFactor so authored appearance
+        colors port to other renderers. Ignored for the exact and non-glTF mesh formats.
+
+        ``mesh_tolerance`` (optional) is the linear tessellation deflection in mm for the mesh
+        formats; None uses a size-relative default. Ignored for the exact B-rep formats.
         """
 
     @abstractmethod
