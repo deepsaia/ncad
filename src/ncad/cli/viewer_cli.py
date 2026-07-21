@@ -215,6 +215,40 @@ class ViewerCli:
         logging.basicConfig(level=logging.INFO, format="%(message)s")
         return SnapshotRenderer(frames=frames).render(model, out_dir=out)
 
+    def dfm_document(self, document: str, out: str | None, processes: list[str],
+                     rules: str | None = None) -> dict:
+        """Build a document and run the DFM preflight per part; write a .dfm.json per part.
+
+        Returns ``{part: report}``. Each report is the ManufacturabilityChecker report; its
+        diagnostics are logged and the sidecar is written beside the other build artifacts.
+        ``rules`` is an optional path to an external rule file (defaults to the shipped limits).
+        """
+        import os
+
+        from ncad.build.dfm_rule_set import DfmRuleSet
+        from ncad.build.document_builder import DocumentBuilder
+        from ncad.build.manufacturability_checker import ManufacturabilityChecker
+        from ncad.kernel.build123d_kernel import Build123dKernel
+
+        logging.basicConfig(level=logging.INFO, format="%(message)s")
+        logging.getLogger("build123d").setLevel(logging.WARNING)
+        out_dir = self.resolve_models_dir(out)
+        os.makedirs(out_dir, exist_ok=True)
+        kernel = Build123dKernel()
+        checker = ManufacturabilityChecker(kernel, DfmRuleSet(rules))
+        built = DocumentBuilder(kernel).build_file_document(document)
+        reports: dict = {}
+        for name, result in built.items():
+            if result.shape is None:
+                continue
+            report = checker.check(name, result.shape, processes)
+            checker.write_sidecar(report, str(out_dir), name)
+            for diag in checker.diagnostics(report):
+                level = logging.WARNING if diag.severity == "warning" else logging.INFO
+                logging.log(level, "%s [%s] %s", diag.code, diag.location, diag.message)
+            reports[name] = report
+        return reports
+
 
 app = typer.Typer(
     help="ncad: build and view parametric CAD models.",
@@ -364,6 +398,28 @@ def snapshot(
     print(f"\nncad snapshot: {model}")
     print(f"  still: {result['png']}")
     print(f"  orbit: {result['gif']}\n")
+
+
+@app.command()
+def dfm(
+    document: str = typer.Argument(..., help="path to a .hocon/.json feature-tree document"),
+    process: list[str] = typer.Option(
+        ["laser"], "--process", "-p",
+        help="manufacturing process(es) to check: laser, waterjet, cnc_sheet, fdm"),
+    out: str = typer.Option(None, help="output directory for the .dfm.json (default: out/)"),
+    rules: str = typer.Option(None, help="path to an external DFM rule file (default: shipped)"),
+) -> None:
+    """Manufacturability preflight: check each part against a process's DFM rules (tri-state)."""
+    reports = cli.dfm_document(document, out, process, rules=rules)
+    print(f"\nncad dfm: {document}  [{', '.join(process)}]")
+    for name, report in reports.items():
+        counts: dict[str, int] = {"pass": 0, "fail": 0, "need_more_info": 0}
+        for result in report["results"]:
+            counts[result["verdict"]] = counts.get(result["verdict"], 0) + 1
+        print(f"  part {name:12} pass={counts['pass']} fail={counts['fail']} "
+              f"need-info={counts['need_more_info']}  (rules v{report['rule_version']})")
+    if not reports:
+        print("  no parts built\n")
 
 
 def main() -> None:
