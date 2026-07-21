@@ -1,11 +1,15 @@
 {% extends "base.html" %}
 
 {#
-  Inject the Three.js import map + the showcase viewer module. The import map maps the bare
-  specifiers the module uses ("three", "three/addons/...") to pinned CDN URLs; it MUST appear before
-  any module that imports them. The viewer module is loaded once; it re-scans for [data-ncad-model]
-  on every Material instant-navigation page swap (document$ subscription), so viewers appear on any
-  page that drops the div without a full reload.
+  Inject the Three.js import map + the showcase viewer module. Ordering matters:
+  - the import map maps the bare specifiers the module uses ("three", "three/addons/...") to pinned
+    CDN URLs, and MUST appear before any module that imports them -> it goes BEFORE super().
+  - the viewer module subscribes to Material's `document$` (emits on every instant-navigation page
+    swap) so viewers wire up on any page. `document$` is defined by Material's bundle.js, which
+    super() emits, so the module must load AFTER super() -> it goes after it. Loading it before
+    super() (the naive order) left `document$` undefined, the module fell back to DOMContentLoaded,
+    and on an instant-nav page swap the [data-ncad-model] divs never got scanned (models never
+    appeared on the deployed site).
 #}
 {% block scripts %}
   <script type="importmap">
@@ -16,6 +20,6 @@
     }
   }
   </script>
-  <script type="module" src="{{ 'assets/js/showcase-viewer.js' | url }}"></script>
   {{ super() }}
+  <script type="module" src="{{ 'assets/js/showcase-viewer.js' | url }}"></script>
 {% endblock %}
