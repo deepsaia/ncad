@@ -84,3 +84,16 @@ def test_assembly_document_tagged_assembly_kind(tmp_path) -> None:
     assert part["kind"] == "part"
     # It resolves (it is a valid spec path), but as an assembly, not a part build.
     assert catalog.resolve("gearbox.asm.hocon") is not None
+
+
+def test_motion_and_physics_documents_tagged_by_suffix(tmp_path) -> None:
+    # .motion.hocon and .physics.hocon both also end in .hocon; the compound suffixes must win over
+    # the bare part fallthrough so each shows in its own viewer mode's combobox.
+    _make_examples(tmp_path)
+    (tmp_path / "arm.motion.hocon").write_text("x")
+    (tmp_path / "arm.physics.hocon").write_text("x")
+    catalog = SpecCatalog(str(tmp_path))
+
+    specs = {n["name"]: n["kind"] for n in catalog.tree() if n["type"] == "spec"}
+    assert specs["arm.motion.hocon"] == "motion"
+    assert specs["arm.physics.hocon"] == "physics"
