@@ -55,8 +55,10 @@ in MuJoCo (`mujoco.MjModel.from_xml_path`); MJCF preserves closed-loop mechanism
 
 ## Viewer sidecars (Physics mode)
 
-Alongside the export artifact, `ncad physics` writes two sidecars for the viewer's Physics mode
-(`RobotSidecarBuilder`):
+Alongside the export artifact, `ncad physics` can write viewer sidecars for the Physics mode
+(`RobotSidecarBuilder`). These are OPTIONAL: the cheap tree rides on `--sidecars` (default on); the
+expensive per-joint sweeps only on `--sweeps` (a motion solve per actuated joint). `--no-sidecars`
+writes just the export artifact.
 
 - **`<name>.robot.json`**: the tree the inspector reads - base link, links (mesh + computed
   mass/COM/inertia), joints (type/parent/child/origin/axis/limit, `actuated`, `loop_closure`).

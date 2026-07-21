@@ -64,7 +64,7 @@ def test_build_writes_tree_and_sweep_sidecars(tmp_path):
     from ncad.kernel.build123d_kernel import Build123dKernel
 
     result = RobotSidecarBuilder(Build123dKernel()).build(
-        "examples/08-robotics/crank_slider.physics.hocon", str(tmp_path))
+        "examples/08-robotics/crank_slider.physics.hocon", str(tmp_path), with_sweeps=True)
     tree = json.loads((tmp_path / "crank_slider.robot.json").read_text())
     assert tree["base_link"] == "block"
     assert {link["name"] for link in tree["links"]} == {"block", "flywheel", "rod", "piston"}
@@ -75,3 +75,15 @@ def test_build_writes_tree_and_sweep_sidecars(tmp_path):
     assert len(sweeps["mainPin"]["frames"]) > 1
     # the per-joint solve was isolated: no stray .motion.json churned into the output dir.
     assert not (tmp_path / "crank_slider.motion.json").exists()
+
+
+@pytest.mark.slow
+def test_sweeps_are_opt_in(tmp_path):
+    # Default (with_sweeps False): the cheap tree writes, but NOT the expensive sweep sidecar.
+    from ncad.kernel.build123d_kernel import Build123dKernel
+
+    result = RobotSidecarBuilder(Build123dKernel()).build(
+        "examples/08-robotics/crank_slider.physics.hocon", str(tmp_path), with_sweeps=False)
+    assert (tmp_path / "crank_slider.robot.json").is_file()
+    assert result["sweeps"] is None
+    assert not (tmp_path / "crank_slider.robot_sweeps.json").exists()

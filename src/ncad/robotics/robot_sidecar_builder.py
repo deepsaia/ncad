@@ -47,21 +47,34 @@ class RobotSidecarBuilder:
         self._model_builder = RobotModelBuilder(kernel)
         self._assembler = AssemblyBuilder(kernel)
 
-    def build(self, physics_path: str, out_dir: str) -> dict:
-        """Build the model then write both sidecars; return ``{robot, sweeps, warnings}`` paths."""
+    def build(self, physics_path: str, out_dir: str, with_sweeps: bool = True) -> dict:
+        """Build the model then write the sidecars; return ``{robot, sweeps, warnings}`` paths.
+
+        ``with_sweeps`` defaults to True here (the standalone builder's job is the full sidecar set);
+        the CLI passes its own flag. Set False for just the cheap ``.robot.json`` tree.
+        """
         model, warnings = self._model_builder.build(physics_path, out_dir)
-        result = self.write(model, physics_path, out_dir)
+        result = self.write(model, physics_path, out_dir, with_sweeps=with_sweeps)
         result["warnings"] = warnings + result["warnings"]
         return result
 
-    def write(self, model: RobotModel, physics_path: str, out_dir: str) -> dict:
-        """Write both sidecars for an ALREADY-BUILT ``model`` (so a caller does not rebuild it)."""
+    def write(self, model: RobotModel, physics_path: str, out_dir: str,
+              with_sweeps: bool = False) -> dict:
+        """Write the tree sidecar for an ALREADY-BUILT ``model`` (so a caller does not rebuild it).
+
+        Always writes ``.robot.json`` (cheap: no solve). The per-joint ``.robot_sweeps.json`` is
+        written ONLY when ``with_sweeps`` is set, because each sweep is a motion solve per actuated
+        joint (expensive) and is only needed for slider articulation. Returns
+        ``{robot, sweeps, warnings}``; ``sweeps`` is None when not generated.
+        """
         spec = PhysicsSpec(SpecLoader().load(physics_path))
         out = Path(out_dir)
         actuated = self._actuated_names(spec, model)
 
         robot_path = out / f"{model.name}{_ROBOT_SUFFIX}"
         robot_path.write_text(json.dumps(self._tree(model, actuated), indent=2), encoding="utf-8")
+        if not with_sweeps:
+            return {"robot": str(robot_path), "sweeps": None, "warnings": []}
 
         sweeps, sweep_warnings = self._sweeps(physics_path, model, actuated, out_dir)
         sweeps_path = out / f"{model.name}{_SWEEPS_SUFFIX}"
