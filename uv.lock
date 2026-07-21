@@ -1410,6 +1410,7 @@ version = "0.0.1"
 source = { editable = "." }
 dependencies = [
     { name = "build123d" },
+    { name = "imageio" },
     { name = "jsonschema" },
     { name = "lark" },
     { name = "leaf-common" },
@@ -1446,6 +1447,7 @@ requires-dist = [
     { name = "build123d" },
     { name = "ezdxf", marker = "extra == 'interchange'" },
     { name = "ifcopenshell", marker = "extra == 'interchange'" },
+    { name = "imageio" },
     { name = "jsonschema" },
     { name = "lark", specifier = ">=1.3.1" },
     { name = "leaf-common" },
