@@ -29,3 +29,6 @@ MOTION_SOLVE_FAILED = "motion_solve_failed"
 # a part built as multiple DISJOINT solids (floating pieces). Info-only: often the "floating bodies"
 # authoring bug, but legitimate for a multibody part - the diagnostic reports, makes no judgment.
 DISCONNECTED_SOLID = "disconnected_solid"
+# a body's mass-moment-of-inertia tensor is not physically realizable (non-positive mass/diagonal,
+# fails the triangle inequality, or is not positive-semidefinite) - flags a bad density/geometry.
+INVALID_INERTIA = "invalid_inertia"
