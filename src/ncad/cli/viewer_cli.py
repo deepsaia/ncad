@@ -208,6 +208,29 @@ class ViewerCli:
                 "format": export_format, "warnings": warnings, "links": len(model.links),
                 "joints": len(model.tree_joints())}
 
+    def slice_model(self, stl: str, profile: str, out: str | None) -> dict:
+        """Slice an STL to G-code via an installed slicer (delegation); return the slice report.
+
+        ``profile`` is a slice-profile wrapper (JSON) naming the slicer config + slicer preference.
+        Emits ``<stl-stem>.gcode`` in the output dir. Never raises for an absent/failing slicer: the
+        report's ``status`` is generated | skipped (no slicer) | failed.
+        """
+        from pathlib import Path
+
+        from ncad.cam import SlicerProfile, SliceRunner
+        from ncad.spec.spec_loader import SpecLoader
+
+        logging.basicConfig(level=logging.INFO, format="%(message)s")
+        profile_path = Path(profile)
+        spec = SlicerProfile(SpecLoader().load(profile), profile_path.resolve().parent)
+        out_dir = self.resolve_models_dir(out)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        gcode_path = out_dir / f"{Path(stl).stem}.gcode"
+        report = SliceRunner().slice(stl, spec, str(gcode_path))
+        for reason in report["skipped"] + report["reasons"]:
+            logging.warning("slice: %s", reason)
+        return report
+
     def validate_document(self, file: str) -> dict:
         """Statically validate a part/assembly/motion document; return the ValidationReport dict.
 
@@ -443,6 +466,27 @@ def physics(
     print(f"  meshes: {result['meshes_dir']}")
     for warning in result["warnings"]:
         print(f"  WARN {warning}")
+
+
+@app.command("slice")
+def slice_(
+    stl: str = typer.Argument(..., help="path to an STL to slice (from ncad build --format stl)"),
+    profile: str = typer.Option(..., "--profile", "-p",
+                                help="slice-profile wrapper JSON (slicer config + preference)"),
+    out: str = typer.Option(None, help="output directory (default: out/)"),
+) -> None:
+    """Slice an STL to G-code via an installed slicer (delegation; stops at G-code)."""
+    result = cli.slice_model(stl, profile, out)
+    print(f"\nncad slice: {stl}  [{result['status']}]")
+    if result["status"] == "generated":
+        stats = result["stats"]
+        print(f"  slicer: {result['slicer']}")
+        print(f"  gcode:  {result['artifact']}  ({stats.get('layers', 0)} layers, "
+              f"{stats.get('motion_commands', 0)} moves)")
+    for reason in result["skipped"]:
+        print(f"  SKIPPED {reason}")
+    for reason in result["reasons"]:
+        print(f"  FAILED {reason}")
 
 
 @app.command()
