@@ -51,4 +51,12 @@ assembly {
     { id = planetRatio1, type = gear, between = [ sunPin, planetPin1 ], ratio = 0.75 }
     { id = planetRatio2, type = gear, between = [ sunPin, planetPin2 ], ratio = 0.75 }
   ]
+  # The gear meshes touch by design; declare them so the static interference check reports each as
+  # expected_contact and skips the (expensive) exact tooth-to-tooth distance. Each planet meshes both
+  # the SUN (external) and the internal RING gear; those contacts are geometric (z_ring = z_sun +
+  # 2*z_planet) and cross the moving carrier, so no coupling names them unambiguously.
+  expected_contact = [
+    [ sun, planet0 ], [ sun, planet1 ], [ sun, planet2 ]
+    [ ring, planet0 ], [ ring, planet1 ], [ ring, planet2 ]
+  ]
 }
