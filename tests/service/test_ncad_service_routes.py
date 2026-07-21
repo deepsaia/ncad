@@ -27,6 +27,12 @@ class _FakeBuildService:
     def build_motion(self, spec: str) -> dict:
         return {"assembled": "asm", "issues": [], "build_ms": 3.0}
 
+    def build_physics(self, spec: str) -> dict:
+        return {"robot": "arm", "warnings": [], "build_ms": 4.0}
+
+    def export_model(self, name: str, kind: str, fmt: str) -> tuple[str, str, bytes]:
+        return (f"{name}.{fmt}", "application/step", b"ISO-10303-21;\n")
+
     def validate(self, spec: str) -> dict:
         return {"ok": True, "diagnostics": []}
 
@@ -147,6 +153,23 @@ def test_motion_build_post(service):
     payload = json.loads(body)
     assert payload["assembled"] == "asm" and payload["build_ms"] == 3.0
     assert "motions" in payload
+
+
+def test_physics_build_post(service):
+    status, body, _ = _post(f"{service.base_url}/api/v1/physics-build",
+                            {"spec": "x.physics.hocon"})
+    payload = json.loads(body)
+    assert payload["robot"] == "arm" and payload["build_ms"] == 4.0
+    assert "robots" in payload   # the refreshed robot list rides the response
+
+
+def test_export_post_streams_a_download(service):
+    status, body, headers = _post(f"{service.base_url}/api/v1/export",
+                                  {"name": "widget", "kind": "part", "format": "step"})
+    assert status == 200
+    assert headers["Content-Type"] == "application/step"
+    assert 'attachment; filename="widget.step"' in headers["Content-Disposition"]
+    assert body == b"ISO-10303-21;\n"
 
 
 def test_validate_post(service):
