@@ -16,6 +16,7 @@ import logging
 import threading
 from functools import partial
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from urllib.parse import unquote
 
 from ncad.viewer.build_service import BuildError
@@ -36,6 +37,9 @@ _ASSEMBLY_ROUTE = "/api/assembly/"
 _MOTION_ROUTE = "/api/motion/"
 _ROBOT_ROUTE = "/api/robot/"
 _ROBOT_SWEEPS_ROUTE = "/api/robot-sweeps/"
+_JS_ROUTE = "/js/"
+# The viewer's app JS lives beside the page asset (src/ncad/viewer/static/js/), served at /js/.
+_STATIC_JS_DIR = Path(__file__).resolve().parent / "static" / "js"
 _CONTENT_TYPES = {
     ".gltf": "model/gltf+json",
     ".glb": "model/gltf-binary",
@@ -105,6 +109,8 @@ class _ViewerRequestHandler(BaseHTTPRequestHandler):
             self._send_hierarchy(path[len(_HIERARCHY_ROUTE) :])
         elif path.startswith(_STATUS_ROUTE):
             self._send_status(path[len(_STATUS_ROUTE) :])
+        elif path.startswith(_JS_ROUTE):
+            self._send_static_js(path[len(_JS_ROUTE) :])
         elif path.startswith(_MODEL_ROUTE):
             self._send_model(path[len(_MODEL_ROUTE) :])
         elif self._catalog.resolve(unquote(path.lstrip("/"))) is not None:
@@ -116,6 +122,15 @@ class _ViewerRequestHandler(BaseHTTPRequestHandler):
 
     def _send_index(self) -> None:
         self._send_bytes(200, "text/html; charset=utf-8", self._page.render().encode("utf-8"))
+
+    def _send_static_js(self, name: str) -> None:
+        """Serve a viewer JS module from static/js/ (path-traversal safe; .js only)."""
+        candidate = (_STATIC_JS_DIR / unquote(name)).resolve()
+        if (candidate.parent != _STATIC_JS_DIR or candidate.suffix != ".js"
+                or not candidate.is_file()):
+            self.send_error(404, "unknown script")
+            return
+        self._send_bytes(200, "text/javascript; charset=utf-8", candidate.read_bytes())
 
     def do_POST(self) -> None:  # noqa: N802 (name fixed by BaseHTTPRequestHandler)
         path = self.path.split("?", 1)[0]

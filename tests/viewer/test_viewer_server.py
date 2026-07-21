@@ -49,6 +49,28 @@ def test_index_serves_html(server) -> None:
     assert "text/html" in headers["Content-Type"]
 
 
+def test_index_references_external_app_js(server) -> None:
+    # The viewer JS lives in static/js/app.js, loaded as an external module (no inline module).
+    _, body, _ = _get(f"{server.base_url}/")
+    text = body.decode()
+    assert '<script type="module" src="/js/app.js"></script>' in text
+    assert '<script type="module">' not in text   # the big inline module was extracted
+
+
+def test_app_js_module_is_served(server) -> None:
+    status, body, headers = _get(f"{server.base_url}/js/app.js")
+    assert status == 200
+    assert "javascript" in headers["Content-Type"]
+    assert body.startswith(b"import * as THREE")   # the real app module
+
+
+def test_static_js_rejects_traversal_and_non_js(server) -> None:
+    for path in ("/js/..%2fviewer_page.py", "/js/nope.js", "/js/viewer_page.html"):
+        with pytest.raises(urllib.error.HTTPError) as exc:
+            _get(f"{server.base_url}{path}")
+        assert exc.value.code == 404
+
+
 def test_deep_link_to_model_serves_spa(server) -> None:
     # /<model>.glb (a known model) serves the SPA HTML so the viewer can preselect it.
     status, body, headers = _get(f"{server.base_url}/box.gltf")

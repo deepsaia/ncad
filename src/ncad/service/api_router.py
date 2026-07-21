@@ -38,6 +38,7 @@ from ncad.service.sidecar_handlers import (
     StatusHandler,
 )
 from ncad.service.spec_handlers import SpecsHandler
+from ncad.service.static_js_handler import StaticJsHandler
 from ncad.service.swagger_handler import SwaggerHandler
 from ncad.service.validate_handler import ValidateHandler
 from ncad.service.viewer_handler import RootRedirectHandler, ViewerHandler
@@ -56,6 +57,7 @@ class ApiRouter:
             URLSpec(r"/", RootRedirectHandler),
             URLSpec(r"/viewer", ViewerHandler, deps),
             URLSpec(r"/viewer/(.+)", ViewerHandler, deps),
+            URLSpec(r"/js/(.+)", StaticJsHandler),
             URLSpec(r"/docs", SwaggerHandler, deps),
             URLSpec(r"/api/v1/openapi.json", OpenApiHandler, deps),
             # Static collection routes.
