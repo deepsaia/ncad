@@ -180,32 +180,46 @@ class ViewerCli:
         out_dir = self.resolve_models_dir(out)
         return MotionBuilder(Build123dKernel()).build(file, str(out_dir))
 
-    def physics_document(self, file: str, out: str | None) -> dict:
+    def physics_document(self, file: str, out: str | None, sidecars: bool = True,
+                         sweeps: bool = False) -> dict:
         """Export a physics/robotics document to a robot description + per-link meshes.
 
         Derives a format-neutral RobotModel from the referenced assembly (computed inertials + Stage
         0 meshes + assembly joints) plus the .physics overlay (actuation/limits/base/format), then
-        writes the chosen format (urdf/mjcf/sdf). Returns
-        ``{"artifact", "meshes_dir", "format", "warnings", "links", "joints"}``.
+        writes the chosen format (urdf/mjcf/sdf). ``sidecars`` (default True) also writes the cheap
+        ``.robot.json`` viewer tree; ``sweeps`` (default False, opt-in) additionally solves the
+        expensive per-actuated-joint articulation sweeps. Returns
+        ``{"artifact", "meshes_dir", "format", "robot", "sweeps", "warnings", "links", "joints"}``.
         """
         from ncad.kernel.build123d_kernel import Build123dKernel
         from ncad.robotics import RobotModelBuilder
         from ncad.robotics.physics_spec import PhysicsSpec
         from ncad.robotics.robot_format import robot_writer
+        from ncad.robotics.robot_sidecar_builder import RobotSidecarBuilder
         from ncad.spec.spec_loader import SpecLoader
 
         logging.basicConfig(level=logging.INFO, format="%(message)s")
         logging.getLogger("build123d").setLevel(logging.WARNING)
         out_dir = self.resolve_models_dir(out)
+        kernel = Build123dKernel()
         export_format = PhysicsSpec(SpecLoader().load(file)).export_format
-        model, warnings = RobotModelBuilder(Build123dKernel()).build(file, str(out_dir))
+        model, warnings = RobotModelBuilder(kernel).build(file, str(out_dir))
         writer, extension = robot_writer(export_format)
         artifact = out_dir / f"{model.name}.{extension}"
         artifact.write_text(writer.to_xml(model), encoding="utf-8")
+        # Viewer sidecars are OPTIONAL: the cheap tree rides on --sidecars (default on); the
+        # expensive per-joint sweeps (a motion solve each) only on --sweeps.
+        robot_sidecar = None
+        sweeps_sidecar = None
+        if sidecars:
+            result = RobotSidecarBuilder(kernel).write(model, file, str(out_dir), with_sweeps=sweeps)
+            robot_sidecar, sweeps_sidecar = result["robot"], result["sweeps"]
+            warnings += result["warnings"]
         for warning in warnings:
             logging.warning("%s", warning)
         return {"artifact": str(artifact), "meshes_dir": str(out_dir / "meshes"),
-                "format": export_format, "warnings": warnings, "links": len(model.links),
+                "format": export_format, "robot": robot_sidecar, "sweeps": sweeps_sidecar,
+                "warnings": warnings, "links": len(model.links),
                 "joints": len(model.tree_joints())}
 
     def slice_model(self, stl: str, profile: str, out: str | None) -> dict:
@@ -456,14 +470,24 @@ def motion(
 def physics(
     document: str = typer.Argument(..., help="path to a .physics.hocon robotics-export document"),
     out: str = typer.Option(None, help="output directory (default: out/)"),
+    sidecars: bool = typer.Option(
+        True, "--sidecars/--no-sidecars",
+        help="also write the .robot.json viewer tree (cheap; default on)"),
+    sweeps: bool = typer.Option(
+        False, "--sweeps",
+        help="also solve per-actuated-joint articulation sweeps (one motion solve per joint)"),
 ) -> None:
     """Export a robot description (urdf/mjcf/sdf) from an assembly + a physics overlay (computed
     inertia)."""
-    result = cli.physics_document(document, out)
+    result = cli.physics_document(document, out, sidecars=sidecars, sweeps=sweeps)
     print(f"\nncad physics: {document}  [{result['format']}]")
     print(f"  robot: {result['links']} links, {result['joints']} tree joints")
     print(f"  artifact: {result['artifact']}")
     print(f"  meshes: {result['meshes_dir']}")
+    if result["robot"]:
+        print(f"  tree:   {result['robot']}")
+    if result["sweeps"]:
+        print(f"  sweeps: {result['sweeps']}")
     for warning in result["warnings"]:
         print(f"  WARN {warning}")
 

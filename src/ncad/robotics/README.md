@@ -53,5 +53,22 @@ The `export.format` in the overlay selects the writer (`robot_format.robot_write
 All three write from the shared `RobotModel` IR. Emitted URDF and MJCF are validated by loading them
 in MuJoCo (`mujoco.MjModel.from_xml_path`); MJCF preserves closed-loop mechanisms a URDF must drop.
 
-A viewer Physics tab (joint-slider articulation of the exported robot) is deferred to the B12
-viewer-parity work; it can articulate closed-loop mechanisms now that MJCF keeps them.
+## Viewer sidecars (Physics mode)
+
+Alongside the export artifact, `ncad physics` can write viewer sidecars for the Physics mode
+(`RobotSidecarBuilder`). These are OPTIONAL: the cheap tree rides on `--sidecars` (default on); the
+expensive per-joint sweeps only on `--sweeps` (a motion solve per actuated joint). `--no-sidecars`
+writes just the export artifact.
+
+- **`<name>.robot.json`**: the tree the inspector reads - base link, links (mesh + computed
+  mass/COM/inertia), joints (type/parent/child/origin/axis/limit, `actuated`, `loop_closure`).
+- **`<name>.robot_sweeps.json`**: per ACTUATED revolute/slider joint, a precomputed sweep of
+  per-body placements produced by driving that joint across its range with the OndselSolver motion
+  path (so closed loops move correctly). A viewer slider scrubs its joint's frames - one joint at a
+  time (the precompute tradeoff; live multi-joint posing would need browser forward kinematics).
+
+Sweep range: authored `[lower, upper]`; a continuous revolute sweeps one full turn; an unlimited
+prismatic sweeps an auto travel from the model size. Each sweep solves in a throwaway temp dir, so
+the output dir gets only the two robot sidecars (no per-joint churn). Missing pyondsel is handled
+honestly: the tree still writes, sweeps are skipped with a note. The viewer's Physics view mode
+(auto-generated joint sliders + tree/inertial inspector) reads these sidecars.
