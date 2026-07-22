@@ -7,8 +7,7 @@ import { cssVar, cssColor, fmtDuration, escapeHtml, iconButton,
 import { buildAxisGizmo, buildJointGlyph } from "./gizmos.js";
 import { treeNode } from "./tree.js";
 import { MATERIALS, BOM_FIELDS, LIGHT_ORDER, LIGHT_NAMES, LIGHT_ICONS,
-         REGEN_SVG, DELETE_SVG, EXPORT_FORMATS, _MODE_KIND, THEME_ORDER,
-         THEME_ICONS } from "./constants.js";
+         REGEN_SVG, DELETE_SVG, EXPORT_FORMATS, _MODE_KIND } from "./constants.js";
 import { initPanelPlacement } from "./panel_placement.js";
 import { state } from "./viewer_state.js";
 import { initViewCube, renderGizmo, orientCameraTo } from "./view_cube.js";
@@ -17,6 +16,7 @@ import { initMaterials, colorFor, updateByMaterialButton, syncMaterialBlock,
          onElementMapReady } from "./materials.js";
 import { initMotion, resetMotion, setupMotion, showMotionFrame, advanceMotion,
          loadTrajectory, pauseMotion } from "./motion.js";
+import { initTheme } from "./theme.js";
 
 const stage = document.getElementById("stage");
 const spinner = document.getElementById("spinner");
@@ -193,17 +193,8 @@ const worldOrigin = buildAxisGizmo(0.02, { radius: 0.02 * 0.02 });  // thin shaf
 worldOrigin.name = "worldOrigin";
 scene.add(worldOrigin);
 
-// Recolor the 3D scene from the current theme's CSS variables. Called on theme change.
-function applySceneTheme() {
-  const bg = cssColor("--scene-bg");
-  scene.background = bg;
-  if (scene.fog) scene.fog.color = bg;
-  const major = cssColor("--grid-major"), minor = cssColor("--grid-minor");
-  const gm = grid.material;
-  (Array.isArray(gm) ? gm : [gm]).forEach((m, i) => { m.color = i === 0 ? major : minor; });
-  const edgeColor = cssColor("--edge");
-  edges.forEach(e => { e.material.color = edgeColor; });
-}
+// The color-theme toggle + the 3D-scene recolor (applySceneTheme) live in theme.js; it is wired via
+// initTheme near the theme control below (injected the scene + grid + a live edges accessor).
 
 let materialIndex = parseInt(localStorage.getItem("ncad.material") || "0", 10) || 0;
 
@@ -1738,28 +1729,9 @@ document.getElementById("spec-build").addEventListener("click", () => {
 });
 
 // ---- Color theme: one toggle cycling light -> system -> dark (persisted) ----
-const themeBtn = document.getElementById("theme-toggle");
-const themeIcon = document.getElementById("theme-icon");
-const darkMedia = window.matchMedia("(prefers-color-scheme: dark)");
-let themeChoice = localStorage.getItem("ncad.theme") || "system";
-
-function resolvedTheme() {
-  return themeChoice === "system" ? (darkMedia.matches ? "dark" : "light") : themeChoice;
-}
-function applyTheme() {
-  document.documentElement.setAttribute("data-theme", resolvedTheme());
-  themeIcon.innerHTML = THEME_ICONS[themeChoice];
-  themeBtn.title = "Theme: " + themeChoice[0].toUpperCase() + themeChoice.slice(1) + " (click to change)";
-  applySceneTheme();
-}
-themeBtn.addEventListener("click", () => {
-  themeChoice = THEME_ORDER[(THEME_ORDER.indexOf(themeChoice) + 1) % THEME_ORDER.length];
-  localStorage.setItem("ncad.theme", themeChoice);
-  applyTheme();
-});
-// When following the system and the OS theme flips, update live.
-darkMedia.addEventListener("change", () => { if (themeChoice === "system") applyTheme(); });
-applyTheme();
+// The toggle + the 3D-scene recolor live in theme.js. Inject the scene + grid (stable consts) and a
+// live edges accessor (edges is reassigned on model load); initTheme applies the saved theme once.
+initTheme(scene, grid, () => edges);
 
 loadSpecs();
 document.getElementById("mode-parts").addEventListener("click", () => setViewMode("parts"));
