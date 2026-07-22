@@ -238,7 +238,7 @@ class BuildService:
     def _export_source(self, name: str, kind: str) -> str | None:
         """The recorded source spec for a model ``name`` of ``kind``, resolved to an absolute path.
 
-        The recorded source is a spec-relative string (e.g. ``02-solid-features/x.hocon``); it is put
+        The recorded source is a spec-relative string (e.g. ``02-solid-features/x.hocon``); it goes
         through the same allow-resolvers as build/assemble/motion so the returned path is absolute
         AND confirmed to be an allowed spec (never an arbitrary file). None if unknown/disallowed.
         """
