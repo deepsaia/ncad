@@ -44,3 +44,15 @@ class RobotSweepsHandler(BaseApiHandler):
         with open(resolved, "rb") as handle:
             self.set_header("Content-Type", "application/json")
             self.safe_finish(handle.read())
+
+
+class RobotDeleteHandler(BaseApiHandler):
+    """POST /api/v1/robot/<name>/delete -> delete the robot sidecars (tree + sweeps)."""
+
+    def post(self, *args: str, **kwargs: str) -> None:
+        """Delete the robot's tree + sweeps sidecars; return the list, or 404 if unknown."""
+        removed = self._catalog.delete_robot(unquote(args[0]))
+        if removed is None:
+            self.write_error_json(404, "unknown robot")
+            return
+        self.write_json(200, {"robots": self._catalog.robots_with_labels()})

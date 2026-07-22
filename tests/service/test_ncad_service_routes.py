@@ -113,7 +113,7 @@ def test_motions_list_and_trajectory(service):
 def test_robots_list_tree_and_sweeps(service):
     status, body, _ = _get(f"{service.base_url}/api/v1/robots")
     assert status == 200
-    assert json.loads(body)["robots"] == [{"name": "arm", "label": "1j"}]
+    assert json.loads(body)["robots"] == [{"name": "arm", "label": "1j", "source": None}]
     status, body, _ = _get(f"{service.base_url}/api/v1/robot/arm")
     assert status == 200 and "links" in json.loads(body)
     status, body, _ = _get(f"{service.base_url}/api/v1/robot-sweeps/arm")
@@ -203,6 +203,13 @@ def test_assembly_delete_returns_200_not_405(service):
     status, body, _ = _post(f"{service.base_url}/api/v1/assembly/widget/delete", None)
     assert status == 200
     assert json.loads(body)["assemblies"] == []
+
+
+def test_robot_delete_returns_200_not_405(service):
+    # Guards route ordering: POST /robot/<name>/delete must precede the GET /robot/(.+) catch-all.
+    status, body, _ = _post(f"{service.base_url}/api/v1/robot/arm/delete", None)
+    assert status == 200
+    assert json.loads(body)["robots"] == []   # the only robot was just deleted
 
 
 def test_cors_header_on_get(service):

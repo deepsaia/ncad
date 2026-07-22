@@ -795,6 +795,7 @@ function selectModel(name) {
 const partGlbCache = {};  // part_glb filename -> loaded THREE.Object3D (loaded once, instanced)
 const assemblySources = {};  // assembly name -> source .asm.hocon path (for regenerate)
 const motionSources = {};    // assembly name -> source .motion.hocon path (for motion regenerate)
+const robotSources = {};     // robot name -> source .physics.hocon path (for physics regenerate)
 
 function refreshAssemblies() {
   return fetch(apiUrl("/assemblies")).then(r => r.json()).then(data => {
@@ -900,6 +901,22 @@ function removeMotion(name) {
     .catch(() => toast("could not delete " + name, true));
 }
 
+function regenerateRobot(name) {
+  const source = robotSources[name];
+  if (!source) { toast("no physics source recorded for " + name + "; pick it in the Spec box", true); return; }
+  physicsBuildSpec(source);
+}
+
+function removeRobot(name) {
+  // Delete removes only the robot sidecars (.robot.json + .robot_sweeps.json); the composed
+  // assembly scene + shared part glbs are left in place. No confirmation: re-running `ncad physics`
+  // from the spec is cheap, and the toast reports it.
+  fetch(apiUrl("/robot/" + encodeURIComponent(name) + "/delete"), { method: "POST" })
+    .then(r => r.json())
+    .then(() => { if (activeModel === name) { activeModel = null; clearActive("physics"); clearModel(); } refreshRobots(); toast("deleted " + name); })
+    .catch(() => toast("could not delete " + name, true));
+}
+
 function selectMotion(name, verbose, timing) {
   activeModel = name;
   syncExportControl();
@@ -928,6 +945,9 @@ function renderRobotList(robots) {
   }
   for (const robot of robots) {
     const name = robot.name;
+    // Remember the recorded .physics.hocon source so Regenerate works after a page reload (the
+    // list payload carries it, exactly as the assembly/motion scene sidecars record their source).
+    if (robot.source) robotSources[name] = robot.source;
     const row = document.createElement("div");
     row.className = "model-row" + (activeModel === name ? " active" : "");
     const label = document.createElement("div");
@@ -938,6 +958,16 @@ function renderRobotList(robots) {
       label.appendChild(meta);
     }
     row.appendChild(label);
+    // Same row actions as assemblies/motion: regenerate (re-run ncad physics from the recorded
+    // source) + delete (removes the .robot.json + .robot_sweeps.json sidecars).
+    const actions = document.createElement("div");
+    actions.className = "row-actions";
+    const regen = iconButton("Regenerate", REGEN_SVG, "act-regen");
+    regen.addEventListener("click", ev => { ev.stopPropagation(); regenerateRobot(name); });
+    const del = iconButton("Delete", DELETE_SVG, "act-delete");
+    del.addEventListener("click", ev => { ev.stopPropagation(); removeRobot(name); });
+    actions.appendChild(regen); actions.appendChild(del);
+    row.appendChild(actions);
     row.addEventListener("click", () => selectRobot(name));
     list.appendChild(row);
   }
@@ -1015,6 +1045,7 @@ function physicsBuildSpec(spec) {
       // Timing: the server's physics build_ms + a render-done split logged by loadAssembly, exactly
       // as Parts/Assemblies/Motion. No separate solve_ms (the joint sweeps are inside build_ms).
       const timing = { t0, buildMs: d.build_ms };
+      if (d.robot) robotSources[d.robot] = spec;   // remember the source for regenerate
       refreshRobots();
       if (d.robot) selectRobot(d.robot, true, timing);   // verbose: a real physics (re)build
       const warns = (d.warnings || []).length;
