@@ -128,17 +128,28 @@ class RobotSidecarBuilder:
                         "sweepable (only revolute/prismatic); no slider")
                     continue
                 low, high = self._range(joint, model_size)
-                frames, note = self._sweep_joint(assembly_path, joint.name, low, high, scratch)
+                frames, note = self._sweep_joint(
+                    assembly_path, joint.name, joint.joint_type, low, high, scratch)
                 if note:
                     warnings.append(note)
                 if frames is not None:
                     sweeps[joint.name] = {"from": low, "to": high, "frames": frames}
         return sweeps, warnings
 
-    def _sweep_joint(self, assembly_path: str, joint_name: str, low: float, high: float,
-                     scratch: str) -> tuple[list | None, str | None]:
-        """Drive one joint across [low, high] via the motion path (in ``scratch``)."""
-        motion_spec = {"driver": {"joint": joint_name, "from": low, "to": high,
+    def _sweep_joint(self, assembly_path: str, joint_name: str, joint_type: str,
+                     low: float, high: float, scratch: str) -> tuple[list | None, str | None]:
+        """Drive one joint across [low, high] via the motion path (in ``scratch``).
+
+        ``low``/``high`` are the joint's URDF-native units (radians for a revolute, metres for a
+        prismatic), but the motion driver takes a revolute angle in DEGREES and a slider travel in
+        MILLIMETRES (see AsmtExporter). Convert here so a full-turn limit actually sweeps a full
+        turn (a radian range fed as degrees would rotate the mechanism by only a few degrees).
+        """
+        if joint_type == "prismatic":
+            drive_from, drive_to = low * 1000.0, high * 1000.0    # metres -> mm
+        else:
+            drive_from, drive_to = math.degrees(low), math.degrees(high)   # radians -> degrees
+        motion_spec = {"driver": {"joint": joint_name, "from": drive_from, "to": drive_to,
                                   "steps": _SWEEP_STEPS}}
         try:
             result = self._assembler.assemble(assembly_path, scratch, motion_spec=motion_spec)

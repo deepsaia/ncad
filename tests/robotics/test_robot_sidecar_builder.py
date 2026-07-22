@@ -72,7 +72,14 @@ def test_build_writes_tree_and_sweep_sidecars(tmp_path):
     sweeps = json.loads((tmp_path / "crank_slider.robot_sweeps.json").read_text())
     # mainPin is the only actuated joint; its sweep drives the closed loop across the limit.
     assert "mainPin" in sweeps
-    assert len(sweeps["mainPin"]["frames"]) > 1
+    frames = sweeps["mainPin"]["frames"]
+    assert len(frames) > 1
+    # The sweep must actually articulate the FULL range, not a few degrees: mainPin's URDF limit is
+    # [-pi, pi] rad (a full turn), so the flywheel must rotate ~360 degrees. The bug was feeding
+    # those radian limits to the motion driver (which reads revolute values in DEGREES), rotating
+    # the crank ~6 degrees. R[0][0] = cos(rotation) must reach both extremes (~-1 and ~+1).
+    cos_rot = [f["placements"]["flywheel"][0][0] for f in frames]
+    assert min(cos_rot) < -0.9 and max(cos_rot) > 0.9, "sweep did not articulate the full turn"
     # the per-joint solve was isolated: no stray .motion.json churned into the output dir.
     assert not (tmp_path / "crank_slider.motion.json").exists()
 
