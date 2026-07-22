@@ -61,3 +61,31 @@ export function matrixFromRowMajor(m) {
         0, 0, 0, 1);
   return M;
 }
+
+// A stable distinct palette so a fresh multi-material model is legible; the index is chosen by
+// a deterministic hash of the material name, so a material keeps its color between loads.
+export const MAT_PALETTE = ["#c9ccd1", "#b87333", "#9aa6b4", "#b9824f", "#8fd4bf", "#c06a4b",
+                     "#8fb8d8", "#d8c9a3", "#a8533a", "#6a7b8c"];
+export function paletteColor(name) {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  return MAT_PALETTE[h % MAT_PALETTE.length];
+}
+
+// Build a By-Material MeshStandardMaterial from a resolved color + the body/instance `appearance`
+// dict. Honors appearance.opacity (< 1 => transparent, e.g. glass), appearance.metalness, and
+// appearance.roughness; each falls back to a matte-solid default when absent. This is the single
+// place By-Material turns authored appearance into a THREE material, so glass declared in the
+// document (opacity < 1) actually renders see-through in the viewer, for ANY material (not a glass
+// special-case). depthWrite is disabled on transparent materials so panes blend without z-fighting.
+export function byMaterialMat(color, appearance) {
+  const a = appearance || {};
+  const opacity = (typeof a.opacity === "number") ? a.opacity : 1;
+  const params = {
+    color: color,
+    metalness: (typeof a.metalness === "number") ? a.metalness : 0.05,
+    roughness: (typeof a.roughness === "number") ? a.roughness : 0.85,
+  };
+  if (opacity < 1) { params.transparent = true; params.opacity = opacity; params.depthWrite = false; }
+  return new THREE.MeshStandardMaterial(params);
+}
