@@ -10,6 +10,7 @@ import { CUBE_FACES, MATERIALS, TRACE_COLORS, BOM_FIELDS, LIGHT_ORDER, LIGHT_NAM
          REGEN_SVG, DELETE_SVG, PLAY_ICON, PAUSE_ICON, LOOP_ICON, BOUNCE_ICON,
          EXPORT_FORMATS, _MODE_KIND, THEME_ORDER, THEME_ICONS } from "./constants.js";
 import { initPanelPlacement } from "./panel_placement.js";
+import { state } from "./viewer_state.js";
 
 const stage = document.getElementById("stage");
 const spinner = document.getElementById("spinner");
@@ -427,22 +428,11 @@ function meshInfo(i) {
 
 let modelRoot = null, edges = [], mode = "solid", showEdges = true, castShadows = true;
 let pickParts = [], elementMap = null;
-// Assembly origin gizmos + their toggle state, declared here (before bindVcToggle uses them,
-// which runs at load) to avoid a temporal-dead-zone error.
-let originGizmos = [];  // per-instance origin axes helpers (toggled by the Origins control)
-let showOrigins = localStorage.getItem("ncad.origins") === "1";
-// Mate connector triads (bucket 5.1): per-connector frame markers, toggled by the Connectors
-// control. Declared here (before bindVcToggle runs at load) to avoid a temporal-dead-zone error.
-let connectorGizmos = [];
-let showConnectors = localStorage.getItem("ncad.connectors") === "1";
-// Joint-freedom glyphs (bucket 5.5): per-joint free-axis markers + dashed coupling links, toggled
-// by the Joints control. Declared before bindVcToggle runs to avoid a temporal-dead-zone error.
-let jointGizmos = [];
-let showJoints = localStorage.getItem("ncad.joints") === "1";
-// Motion trace curves (bucket 6.1): a THREE.Line per declared trace, added to modelRoot (world
-// path), toggled by the Traces control. Default on (localStorage null -> on).
-let traceLines = [];
-let showTraces = localStorage.getItem("ncad.traces") !== "0";
+// Assembly scene overlays (origin gizmos, connector triads, joint glyphs, trace curves) + their
+// toggle state, and the assembly selection/isolate state, live on the shared ViewerState singleton
+// (state.originGizmos, state.showOrigins, ...) so the controllers that touch them can move out of
+// app.js. They are initialized in ViewerState's constructor (persisted toggles read from
+// localStorage there), before bindVcToggle uses them at load, avoiding a temporal-dead-zone error.
 // Per-instance material {instanceId: {material, appearance_color}} from the sidecar, for the
 // assembly By-Material view (bucket 5.6). Empty in Parts mode (that path uses the element map).
 let assemblyMaterials = {};
@@ -456,26 +446,21 @@ let viewMode = localStorage.getItem("ncad.viewMode") || "parts";
 function isAssemblyScene() {
   return viewMode === "assemblies" || viewMode === "motion" || viewMode === "physics";
 }
-// Assembly selection / highlight / isolate (bucket 5.5). instanceMeshMap: instanceId -> [meshes],
-// published by loadAssembly once all glbs load. Declared before bindVcToggle (isolate) runs.
-let instanceMeshMap = {};
-let selectedInstances = [];
-let isolateOn = localStorage.getItem("ncad.isolate") === "1";
 const loader = new GLTFLoader();
 
 // Select one instance (or none) and re-apply highlight/isolate + tree active styling.
-function selectInstance(id) { selectedInstances = id ? [id] : []; _applySelection(); }
+function selectInstance(id) { state.selectedInstances = id ? [id] : []; _applySelection(); }
 // Select a set (used by a mate/joint/coupling chip highlighting both connected instances).
-function selectInstances(ids) { selectedInstances = (ids || []).filter(Boolean); _applySelection(); }
-function clearSelection() { selectedInstances = []; _applySelection(); }
+function selectInstances(ids) { state.selectedInstances = (ids || []).filter(Boolean); _applySelection(); }
+function clearSelection() { state.selectedInstances = []; _applySelection(); }
 function _applySelection() { refreshInstanceVisuals(); syncTreeActive(); }
 
 // Capture each instance mesh's BASE material (what applyMode assigned). applyMode owns the base and
 // calls this before refreshInstanceVisuals, so highlight/isolate always derive from a clean base
 // rather than a prior clone (which would clone-a-clone or leak a mutated shared material).
 function captureInstanceBases() {
-  for (const id in instanceMeshMap)
-    for (const m of instanceMeshMap[id]) m.userData._baseMat = m.material;
+  for (const id in state.instanceMeshMap)
+    for (const m of state.instanceMeshMap[id]) m.userData._baseMat = m.material;
 }
 
 // The single place that applies per-instance visual state (highlight + isolate). Because applyMode
@@ -483,12 +468,12 @@ function captureInstanceBases() {
 // per-mesh CLONE (mutating the shared material in place would tint/fade the whole assembly). A mesh
 // with no distinct state is reset to its shared base.
 function refreshInstanceVisuals() {
-  const sel = new Set(selectedInstances);
-  const dim = isolateOn && selectedInstances.length > 0;
-  for (const id in instanceMeshMap) {
+  const sel = new Set(state.selectedInstances);
+  const dim = state.isolateOn && state.selectedInstances.length > 0;
+  for (const id in state.instanceMeshMap) {
     const hi = sel.has(id);
     const faded = dim && !hi;
-    for (const m of instanceMeshMap[id]) {
+    for (const m of state.instanceMeshMap[id]) {
       const base = m.userData._baseMat || m.material;
       if (!hi && !faded) { m.material = base; continue; }
       const mm = base.clone();
@@ -500,7 +485,7 @@ function refreshInstanceVisuals() {
 }
 
 function syncTreeActive() {
-  const sel = new Set(selectedInstances);
+  const sel = new Set(state.selectedInstances);
   document.querySelectorAll(".tree-row[data-instance]").forEach(r => {
     r.classList.toggle("tree-row-active", sel.has(r.dataset.instance));
   });
@@ -509,10 +494,10 @@ function syncTreeActive() {
 function clearModel() {
   if (modelRoot) { scene.remove(modelRoot); modelRoot = null; }
   edges.forEach(e => scene.remove(e)); edges = [];
-  originGizmos = [];  // gizmos are children of modelRoot, removed with it above
-  connectorGizmos = [];  // connector triads are children of modelRoot too, removed with it
-  jointGizmos = [];  // joint glyphs + coupling links are children of modelRoot, removed with it
-  instanceMeshMap = {}; selectedInstances = [];  // drop selection state with the old scene
+  state.originGizmos = [];  // gizmos are children of modelRoot, removed with it above
+  state.connectorGizmos = [];  // connector triads are children of modelRoot too, removed with it
+  state.jointGizmos = [];  // joint glyphs + coupling links are children of modelRoot, removed with it
+  state.instanceMeshMap = {}; state.selectedInstances = [];  // drop selection state with the old scene
   assemblyMaterials = {};  // drop per-instance material state with the old scene
   if (typeof resetMotion === "function") resetMotion();  // drop any motion timeline with the scene
   pickParts = []; elementMap = null;
@@ -526,12 +511,12 @@ function applyMode() {
     if (isAssemblyScene()) {
       // Assemblies: color each instance's meshes by that INSTANCE's part material (from the
       // sidecar), since an assembly has no per-part element map. Each instance is one part.
-      for (const id in instanceMeshMap) {
+      for (const id in state.instanceMeshMap) {
         const info = assemblyMaterials[id] || {};
         const col = new THREE.Color(colorFor(info.material, info.appearance_color));
         const transparent = info.appearance && typeof info.appearance.opacity === "number"
           && info.appearance.opacity < 1;
-        for (const mesh of instanceMeshMap[id]) {
+        for (const mesh of state.instanceMeshMap[id]) {
           mesh.material = byMaterialMat(col, info.appearance);
           // A transparent pane should not cast a hard shadow (it would read as opaque on the floor).
           mesh.castShadow = castShadows && !transparent;
@@ -898,16 +883,16 @@ bindVcToggle("rotate", "ncad.rotate", v => {
 });
 bindVcToggle("freelook", "ncad.freelook", v => { setOrientationMode(v ? "free" : "axis"); });
 bindVcToggle("connectors", "ncad.connectors", v => {
-  showConnectors = v;
-  connectorGizmos.forEach(g => { g.visible = v; });
+  state.showConnectors = v;
+  state.connectorGizmos.forEach(g => { g.visible = v; });
 });
 bindVcToggle("origins", "ncad.origins", v => {
-  showOrigins = v;
-  originGizmos.forEach(g => { g.visible = v; });
+  state.showOrigins = v;
+  state.originGizmos.forEach(g => { g.visible = v; });
 });
-bindVcToggle("isolate", "ncad.isolate", v => { isolateOn = v; refreshInstanceVisuals(); });
-bindVcToggle("joints", "ncad.joints", v => { showJoints = v; jointGizmos.forEach(g => { g.visible = v; }); });
-bindVcToggle("traces", "ncad.traces", v => { showTraces = v; traceLines.forEach(l => { l.visible = v; }); });
+bindVcToggle("isolate", "ncad.isolate", v => { state.isolateOn = v; refreshInstanceVisuals(); });
+bindVcToggle("joints", "ncad.joints", v => { state.showJoints = v; state.jointGizmos.forEach(g => { g.visible = v; }); });
+bindVcToggle("traces", "ncad.traces", v => { state.showTraces = v; state.traceLines.forEach(l => { l.visible = v; }); });
 document.getElementById("vc-reset").addEventListener("click", () => { if (modelRoot) frameModel(); });
 
 // The assembly floating controls show in Assemblies AND Motion mode (both render a scene of placed
@@ -1374,7 +1359,7 @@ function loadAssembly(name, verbose, timing) {
       root.updateMatrixWorld(true);
       // All instance meshes are loaded now (glb callbacks done): publish the per-instance mesh map
       // for selection highlight/isolate, and re-apply any active selection.
-      instanceMeshMap = instanceMeshes;
+      state.instanceMeshMap = instanceMeshes;
       assemblyMaterials = {};
       for (const inst of sceneDoc.instances) {
         assemblyMaterials[inst.id] = {material: inst.material || null,
@@ -1434,8 +1419,8 @@ function loadAssembly(name, verbose, timing) {
         // small origin marker, not a scene-spanning axis. No 1-unit floor (that was 1 METRE).
         const axisLen = Math.max(partSz.x, partSz.y, partSz.z, 0.001) * 0.6;
         const gizmo = new THREE.AxesHelper(axisLen);
-        gizmo.visible = showOrigins;
-        originGizmos.push(gizmo);
+        gizmo.visible = state.showOrigins;
+        state.originGizmos.push(gizmo);
         node.add(gizmo);
         root.add(node);
         // Mate connector triads: each `inst.connectors` entry is a world-space frame (metres) in
@@ -1453,8 +1438,8 @@ function loadAssembly(name, verbose, timing) {
             new THREE.Vector3(c.z[0], c.z[1], c.z[2]));
           basis.setPosition(c.origin[0], c.origin[1], c.origin[2]);
           triad.applyMatrix4(restInv.clone().multiply(basis));
-          triad.visible = showConnectors;
-          connectorGizmos.push(triad);
+          triad.visible = state.showConnectors;
+          state.connectorGizmos.push(triad);
           node.add(triad);
         }
         node.updateMatrixWorld(true);
@@ -1594,7 +1579,7 @@ function resetMotion() {
   motionBar.hidden = true;
   motionPlayBtn.innerHTML = PLAY_ICON;
   // Trace lines are children of modelRoot (cleared with the scene in clearModel); just drop refs.
-  traceLines = [];
+  state.traceLines = [];
   renderMeasures(null);
   renderClashMarks([], 0);
   // Physics rides the motion state; drop the joint picker + Robot inspector with the scene too.
@@ -1825,7 +1810,7 @@ function showMotionFrame(i) {
 // clears with the scene and rides the model's framing shift. Colored from the trace palette,
 // visibility follows the Traces toggle. No-op when no traces are declared.
 function buildTraceLines(traces) {
-  traceLines = [];
+  state.traceLines = [];
   traces.forEach((t, i) => {
     const pts = (t.polyline || []).map(p => new THREE.Vector3(p[0], p[1], p[2]));
     if (pts.length < 2) return;
@@ -1833,9 +1818,9 @@ function buildTraceLines(traces) {
       new THREE.BufferGeometry().setFromPoints(pts),
       new THREE.LineBasicMaterial({ color: TRACE_COLORS[i % TRACE_COLORS.length] }));
     line.userData.isGizmo = true;   // excluded from picking/bbox like the other overlays
-    line.visible = showTraces;
+    line.visible = state.showTraces;
     if (modelRoot) modelRoot.add(line);
-    traceLines.push(line);
+    state.traceLines.push(line);
   });
 }
 
@@ -1960,8 +1945,8 @@ function buildJointOverlay(sceneDoc, root, instanceNodes) {
     const frame = a && frameOf[a.instance] ? frameOf[a.instance][a.connector] : null;
     if (!frame) continue;  // unresolved connector: skip gracefully
     const glyph = buildJointGlyph(j, frame, jointSize);
-    glyph.visible = showJoints;
-    jointGizmos.push(glyph);
+    glyph.visible = state.showJoints;
+    state.jointGizmos.push(glyph);
     // Parent to side-A's node in its local frame (rest^-1 . glyph) so it follows the part; fall
     // back to `root` if the node is missing (an unresolved instance).
     const node = a && instanceNodes ? instanceNodes[a.instance] : null;
@@ -1981,8 +1966,8 @@ function buildJointOverlay(sceneDoc, root, instanceNodes) {
       new THREE.LineDashedMaterial({ color: 0xaaaaaa, dashSize: jointSize * 0.3, gapSize: jointSize * 0.3 }));
     line.computeLineDistances();
     line.userData.isGizmo = true;
-    line.visible = showJoints;
-    jointGizmos.push(line);
+    line.visible = state.showJoints;
+    state.jointGizmos.push(line);
     root.add(line);
   }
 }
