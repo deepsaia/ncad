@@ -32,6 +32,26 @@ export class ViewerState {
     this.instanceMeshMap = {};
     this.selectedInstances = [];
     this.isolateOn = localStorage.getItem("ncad.isolate") === "1";
+    // Motion timeline playback (bucket 6.0): the active trajectory + per-frame cursor + play state,
+    // advanced in the animate() loop.
+    this.motion = null;         // {frames, driver} or null when no motion
+    this.motionNodes = {};      // instanceId -> node for the active motion
+    this.motionFrame = 0;       // current frame index
+    this.motionPlaying = false;
+    this.motionAccum = 0;       // ms accumulated toward the next frame
+    // Loop mode: "loop" restarts at frame 0 each cycle (the default); "bounce" ping-pongs forward then
+    // reverse, so a one-way stroke (a rack sliding, a follower rising) reads as a seamless there-and-
+    // back loop in the recorded video. `motionDir` is the current step direction under bounce.
+    this.motionLoopMode = localStorage.getItem("ncad.motionLoop") || "loop";
+    this.motionDir = 1;
+    // Playback-rate ladder index. The real value (ncad.motionSpeed matched against MOTION_SPEEDS) is
+    // resolved in app.js where MOTION_SPEEDS lives; 0 is a safe placeholder until that runs (nothing
+    // reads it before then).
+    this.motionSpeedIdx = 0;
+    // Physics mode rides the motion state: a selected joint's precomputed sweep loads into the motion
+    // fields above, so the scrubber/play controls drive it unchanged.
+    this.physicsSweeps = {};    // {jointName: {from, to, frames}} for the active robot
+    this.physicsNodes = {};     // instanceId -> node for the active robot (same shape as motionNodes)
   }
 }
 

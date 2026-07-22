@@ -1228,16 +1228,11 @@ const motionBar = document.getElementById("motion-bar");
 const motionPlayBtn = document.getElementById("motion-play");
 const motionScrub = document.getElementById("motion-scrub");
 const motionReadout = document.getElementById("motion-readout");
-let motion = null;         // {frames, driver} or null when no motion
-let motionNodes = {};      // instanceId -> node for the active motion
-let motionFrame = 0;       // current frame index
-let motionPlaying = false;
-let motionAccum = 0;       // ms accumulated toward the next frame
-// Loop mode: "loop" restarts at frame 0 each cycle (the default); "bounce" ping-pongs forward then
-// reverse, so a one-way stroke (a rack sliding, a follower rising) reads as a seamless there-and-
-// back loop in the recorded video. `motionDir` is the current step direction under bounce.
-let motionLoopMode = localStorage.getItem("ncad.motionLoop") || "loop";
-let motionDir = 1;
+// The motion timeline playback state (the active trajectory + frame cursor + play/loop/speed state)
+// and the physics-sweep state live on the shared ViewerState singleton (state.motion,
+// state.motionFrame, ...), so the playback controller can move out of app.js. They are initialized
+// in ViewerState's constructor; state.motionSpeedIdx is resolved to the persisted value just below,
+// where MOTION_SPEEDS is defined.
 // PLAYBACK RATE only (how fast you watch the same trajectory); it never re-solves. Solve resolution
 // is the motion document's driver `steps` (or `fps`+`duration`). 1x = 30 fps (a 1/30 s frame
 // interval); the ladder multiplies that rate. Beyond ~2x the ~60 fps render loop advances several
@@ -1248,40 +1243,42 @@ const MOTION_SPEEDS = [0.1, 0.25, 0.5, 1, 2, 4, 8, 16, 32, 64, 128];
 const motionSlowerBtn = document.getElementById("motion-slower");
 const motionFasterBtn = document.getElementById("motion-faster");
 const motionSpeedReadout = document.getElementById("motion-speed-readout");
-let motionSpeedIdx = (() => {
+// Resolve the persisted playback-rate ladder index now that MOTION_SPEEDS exists (ViewerState seeds
+// it to 0 as a placeholder). Nothing reads state.motionSpeedIdx before this runs.
+state.motionSpeedIdx = (() => {
   const saved = parseFloat(localStorage.getItem("ncad.motionSpeed"));
   const i = MOTION_SPEEDS.indexOf(saved);
   return i >= 0 ? i : MOTION_SPEEDS.indexOf(1);   // default 1x
 })();
-function motionSpeed() { return MOTION_SPEEDS[motionSpeedIdx]; }
+function motionSpeed() { return MOTION_SPEEDS[state.motionSpeedIdx]; }
 function motionFrameMs() { return MOTION_BASE_FRAME_MS / motionSpeed(); }
 function renderMotionSpeed() {
   // Only the middle readout shows the number (<n>x); the -/+ buttons stay iconic.
   motionSpeedReadout.textContent = fmtSpeed(motionSpeed());
-  motionSlowerBtn.disabled = motionSpeedIdx === 0;
-  motionFasterBtn.disabled = motionSpeedIdx === MOTION_SPEEDS.length - 1;
+  motionSlowerBtn.disabled = state.motionSpeedIdx === 0;
+  motionFasterBtn.disabled = state.motionSpeedIdx === MOTION_SPEEDS.length - 1;
 }
 function setMotionSpeedIdx(i) {
-  motionSpeedIdx = Math.max(0, Math.min(MOTION_SPEEDS.length - 1, i));
+  state.motionSpeedIdx = Math.max(0, Math.min(MOTION_SPEEDS.length - 1, i));
   localStorage.setItem("ncad.motionSpeed", String(motionSpeed()));
   renderMotionSpeed();
 }
-motionSlowerBtn.addEventListener("click", () => setMotionSpeedIdx(motionSpeedIdx - 1));
-motionFasterBtn.addEventListener("click", () => setMotionSpeedIdx(motionSpeedIdx + 1));
+motionSlowerBtn.addEventListener("click", () => setMotionSpeedIdx(state.motionSpeedIdx - 1));
+motionFasterBtn.addEventListener("click", () => setMotionSpeedIdx(state.motionSpeedIdx + 1));
 renderMotionSpeed();
 
 // Loop-mode toggle (loop <-> bounce). Bounce plays forward then reverse for a seamless video loop.
 const motionLoopBtn = document.getElementById("motion-loop");
 function renderLoopMode() {
-  motionLoopBtn.innerHTML = motionLoopMode === "bounce" ? BOUNCE_ICON : LOOP_ICON;
-  motionLoopBtn.classList.toggle("active", motionLoopMode === "bounce");
-  motionLoopBtn.title = motionLoopMode === "bounce"
+  motionLoopBtn.innerHTML = state.motionLoopMode === "bounce" ? BOUNCE_ICON : LOOP_ICON;
+  motionLoopBtn.classList.toggle("active", state.motionLoopMode === "bounce");
+  motionLoopBtn.title = state.motionLoopMode === "bounce"
     ? "Bounce: forward then reverse ( L )" : "Loop: restart each cycle ( L )";
 }
 function toggleLoopMode() {
-  motionLoopMode = motionLoopMode === "bounce" ? "loop" : "bounce";
-  motionDir = 1;   // restart the direction so a fresh bounce goes forward first
-  localStorage.setItem("ncad.motionLoop", motionLoopMode);
+  state.motionLoopMode = state.motionLoopMode === "bounce" ? "loop" : "bounce";
+  state.motionDir = 1;   // restart the direction so a fresh bounce goes forward first
+  localStorage.setItem("ncad.motionLoop", state.motionLoopMode);
   renderLoopMode();
 }
 motionLoopBtn.addEventListener("click", toggleLoopMode);
@@ -1291,8 +1288,8 @@ document.addEventListener("keydown", ev => {
   if (motionBar.hidden) return;
   const t = ev.target;
   if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT")) return;
-  if (ev.key === "[") { setMotionSpeedIdx(motionSpeedIdx - 1); ev.preventDefault(); }
-  else if (ev.key === "]") { setMotionSpeedIdx(motionSpeedIdx + 1); ev.preventDefault(); }
+  if (ev.key === "[") { setMotionSpeedIdx(state.motionSpeedIdx - 1); ev.preventDefault(); }
+  else if (ev.key === "]") { setMotionSpeedIdx(state.motionSpeedIdx + 1); ev.preventDefault(); }
   // P (and the space bar, the media convention) toggles play/pause, matching the widget's button.
   else if (ev.key === "p" || ev.key === "P" || ev.key === " ") {
     toggleMotionPlay(); ev.preventDefault();
@@ -1301,14 +1298,14 @@ document.addEventListener("keydown", ev => {
   else if (ev.key === "l" || ev.key === "L") { toggleLoopMode(); ev.preventDefault(); }
   // 0 rewinds to the start frame and pauses (a clean reset before recording a fresh loop).
   else if (ev.key === "0") {
-    motionPlaying = false; motionPlayBtn.innerHTML = PLAY_ICON;
-    motionDir = 1; motionAccum = 0; showMotionFrame(0);
+    state.motionPlaying = false; motionPlayBtn.innerHTML = PLAY_ICON;
+    state.motionDir = 1; state.motionAccum = 0; showMotionFrame(0);
     ev.preventDefault();
   }
 });
 
 function resetMotion() {
-  motion = null; motionNodes = {}; motionFrame = 0; motionPlaying = false; motionAccum = 0;
+  state.motion = null; state.motionNodes = {}; state.motionFrame = 0; state.motionPlaying = false; state.motionAccum = 0;
   motionBar.hidden = true;
   motionPlayBtn.innerHTML = PLAY_ICON;
   // Trace lines are children of modelRoot (cleared with the scene in clearModel); just drop refs.
@@ -1353,7 +1350,7 @@ function setupMotion(name, instanceNodes) {
     // The trajectory records its source .motion.hocon, so Regenerate works after a page reload (the
     // in-memory motionSources map alone would be empty on a fresh page).
     if (doc.source) motionSources[name] = doc.source;
-    motion = doc; motionNodes = instanceNodes;
+    state.motion = doc; state.motionNodes = instanceNodes;
     motionScrub.max = String(doc.frames.length - 1);
     motionScrub.value = "0";
     motionBar.hidden = false;
@@ -1363,7 +1360,7 @@ function setupMotion(name, instanceNodes) {
     renderClashMarks(doc.interference || [], doc.frames.length);   // motion-time interference (6.3)
     showMotionFrame(0);
     log(`motion: ${doc.frames.length} frames, driver ${doc.driver ? doc.driver.joint : "?"}`, "info");
-  }).catch(() => { /* motion is optional; a fetch error just means no timeline */ });
+  }).catch(() => { /* state.motion is optional; a fetch error just means no timeline */ });
 }
 
 // ---- Physics (robotics) mode ----
@@ -1374,13 +1371,12 @@ function setupMotion(name, instanceNodes) {
 // and the Robot inspector tab are the only physics-specific UI.
 const physicsBar = document.getElementById("physics-bar");
 const physicsJointSelect = document.getElementById("physics-joint");
-let physicsSweeps = {};    // {jointName: {from, to, frames}} for the active robot
-let physicsNodes = {};     // instanceId -> node for the active robot (same shape as motionNodes)
+// physicsSweeps + physicsNodes live on the shared ViewerState (state.physicsSweeps/physicsNodes).
 
 function setupPhysics(name, instanceNodes) {
   resetMotion();
   physicsBar.hidden = true;
-  physicsSweeps = {};
+  state.physicsSweeps = {};
   if (viewMode !== "physics") return;
   // The tree (.robot.json) drives the Robot inspector; the sweeps (.robot_sweeps.json) drive the
   // joint sliders. Both are optional (sweeps only exist when `ncad physics --sweeps` was run).
@@ -1390,15 +1386,15 @@ function setupPhysics(name, instanceNodes) {
       return fetch(apiUrl(`/robot-sweeps/${encodeURIComponent(name)}`)).then(r => r.ok ? r.json() : {});
     })
     .then(sweeps => {
-      physicsSweeps = sweeps || {};
-      physicsNodes = instanceNodes;
+      state.physicsSweeps = sweeps || {};
+      state.physicsNodes = instanceNodes;
       populateJointSelect();
     })
     .catch(() => { /* physics sidecars are optional */ });
 }
 
 function populateJointSelect() {
-  const joints = Object.keys(physicsSweeps);
+  const joints = Object.keys(state.physicsSweeps);
   physicsJointSelect.innerHTML = "";
   if (!joints.length) {
     // No sweeps: the robot is inspectable (tree tab) but not articulable. Say so in the log.
@@ -1415,12 +1411,12 @@ function populateJointSelect() {
 }
 
 function loadJointSweep(jointName) {
-  const sweep = physicsSweeps[jointName];
+  const sweep = state.physicsSweeps[jointName];
   if (!sweep || !(sweep.frames || []).length) return;
   // Feed the joint sweep into the shared motion-playback state; the scrubber/play controls + the
   // showMotionFrame apply path are then identical to Motion mode.
-  motion = {frames: sweep.frames, driver: {joint: jointName}};
-  motionNodes = physicsNodes;
+  state.motion = {frames: sweep.frames, driver: {joint: jointName}};
+  state.motionNodes = state.physicsNodes;
   motionScrub.max = String(sweep.frames.length - 1);
   motionScrub.value = "0";
   motionBar.hidden = false;
@@ -1522,21 +1518,21 @@ exportBtn.addEventListener("click", ev => { ev.stopPropagation(); toggleExportMe
 document.addEventListener("click", () => { exportMenu.hidden = true; });
 
 function showMotionFrame(i) {
-  if (!motion) return;
-  const frames = motion.frames;
-  motionFrame = ((i % frames.length) + frames.length) % frames.length;
-  const frame = frames[motionFrame];
+  if (!state.motion) return;
+  const frames = state.motion.frames;
+  state.motionFrame = ((i % frames.length) + frames.length) % frames.length;
+  const frame = frames[state.motionFrame];
   for (const id in frame.placements) {
-    const node = motionNodes[id];
+    const node = state.motionNodes[id];
     if (!node) continue;
     node.matrix.copy(matrixFromRowMajor(frame.placements[id]));
     node.matrix.decompose(node.position, node.quaternion, node.scale);
     node.updateMatrixWorld(true);
   }
-  motionScrub.value = String(motionFrame);
+  motionScrub.value = String(state.motionFrame);
   const unit = degreesLikelyDriver() ? "°" : "";
   motionReadout.textContent = `${(+frame.driver_value).toFixed(1)}${unit}`;
-  updateMeasureValues(motionFrame);
+  updateMeasureValues(state.motionFrame);
 }
 
 // Build a THREE.Line for each declared trace polyline (world metres), added to modelRoot so it
@@ -1603,8 +1599,8 @@ function renderMobility(dof) {
 
 // Fill each measure row's live value from the current frame's series entry.
 function updateMeasureValues(frameIdx) {
-  if (!motion || !motion.measures) return;
-  for (const m of motion.measures) {
+  if (!state.motion || !state.motion.measures) return;
+  for (const m of state.motion.measures) {
     const el = document.querySelector(`.measure-val[data-measure="${m.id}"]`);
     if (!el) continue;
     const v = (m.series || [])[frameIdx];
@@ -1615,24 +1611,24 @@ function updateMeasureValues(frameIdx) {
 function degreesLikelyDriver() {
   // A rotation driver reads in degrees; a slider in mm. We do not carry the joint type in the
   // sidecar, so infer: a range that spans a full turn (>= 360 total) is almost certainly degrees.
-  if (!motion || !motion.frames.length) return true;
-  const span = Math.abs(motion.frames[motion.frames.length - 1].driver_value
-                        - motion.frames[0].driver_value);
+  if (!state.motion || !state.motion.frames.length) return true;
+  const span = Math.abs(state.motion.frames[state.motion.frames.length - 1].driver_value
+                        - state.motion.frames[0].driver_value);
   return span >= 180;
 }
 
 function toggleMotionPlay() {
-  if (!motion) return;
-  motionPlaying = !motionPlaying;
-  motionPlayBtn.innerHTML = motionPlaying ? PAUSE_ICON : PLAY_ICON;
+  if (!state.motion) return;
+  state.motionPlaying = !state.motionPlaying;
+  motionPlayBtn.innerHTML = state.motionPlaying ? PAUSE_ICON : PLAY_ICON;
 }
 
 function advanceMotion(dtMs) {
-  if (!motionPlaying || !motion) return;
-  motionAccum += dtMs;
+  if (!state.motionPlaying || !state.motion) return;
+  state.motionAccum += dtMs;
   const frameMs = motionFrameMs();
-  while (motionAccum >= frameMs) {
-    motionAccum -= frameMs;
+  while (state.motionAccum >= frameMs) {
+    state.motionAccum -= frameMs;
     stepMotion();
   }
 }
@@ -1640,18 +1636,18 @@ function advanceMotion(dtMs) {
 function stepMotion() {
   // Loop mode wraps forward (modulo). Bounce mode ping-pongs: step by motionDir and flip direction
   // at either end so the trajectory plays forward then reverse (a there-and-back loop for video).
-  const last = motion.frames.length - 1;
-  if (motionLoopMode !== "bounce") { showMotionFrame(motionFrame + 1); return; }
-  let next = motionFrame + motionDir;
-  if (next > last) { motionDir = -1; next = last - 1; }
-  else if (next < 0) { motionDir = 1; next = 1; }
+  const last = state.motion.frames.length - 1;
+  if (state.motionLoopMode !== "bounce") { showMotionFrame(state.motionFrame + 1); return; }
+  let next = state.motionFrame + state.motionDir;
+  if (next > last) { state.motionDir = -1; next = last - 1; }
+  else if (next < 0) { state.motionDir = 1; next = 1; }
   if (next < 0) next = 0;   // a single-frame trajectory stays put
   showMotionFrame(next);
 }
 
 motionPlayBtn.addEventListener("click", toggleMotionPlay);
 motionScrub.addEventListener("input", () => {
-  motionPlaying = false; motionPlayBtn.innerHTML = PLAY_ICON;
+  state.motionPlaying = false; motionPlayBtn.innerHTML = PLAY_ICON;
   showMotionFrame(parseInt(motionScrub.value, 10) || 0);
 });
 
@@ -2143,18 +2139,18 @@ if (typeof window !== "undefined" && window.NCAD_DEV) {
     },
     fit() { if (modelRoot) frameModel(); },
     seekFrame(indexOrFraction) {
-      if (!motion || !motion.frames.length) return null;
-      const n = motion.frames.length;
+      if (!state.motion || !state.motion.frames.length) return null;
+      const n = state.motion.frames.length;
       const i = Number.isInteger(indexOrFraction) && indexOrFraction >= 1
         ? indexOrFraction : Math.round(indexOrFraction * (n - 1));
-      motionPlaying = false; motionPlayBtn.innerHTML = PLAY_ICON;
+      state.motionPlaying = false; motionPlayBtn.innerHTML = PLAY_ICON;
       showMotionFrame(i);
-      return { frame: motionFrame, driver_value: motion.frames[motionFrame].driver_value };
+      return { frame: state.motionFrame, driver_value: state.motion.frames[state.motionFrame].driver_value };
     },
     state() {
       return {
         viewMode, hasModel: !!modelRoot,
-        frames: motion ? motion.frames.length : 0, frame: motionFrame,
+        frames: state.motion ? state.motion.frames.length : 0, frame: state.motionFrame,
       };
     },
   };
