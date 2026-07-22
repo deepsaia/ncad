@@ -2,19 +2,21 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { TrackballControls } from "three/addons/controls/TrackballControls.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import { cssVar, cssColor, fmtDuration, fmtSpeed, escapeHtml, iconButton,
+import { cssVar, cssColor, fmtDuration, escapeHtml, iconButton,
          scrollActiveIntoView, matrixFromRowMajor, byMaterialMat } from "./utils.js";
 import { buildAxisGizmo, buildJointGlyph } from "./gizmos.js";
 import { treeNode } from "./tree.js";
-import { MATERIALS, TRACE_COLORS, BOM_FIELDS, LIGHT_ORDER, LIGHT_NAMES, LIGHT_ICONS,
-         REGEN_SVG, DELETE_SVG, PLAY_ICON, PAUSE_ICON, LOOP_ICON, BOUNCE_ICON,
-         EXPORT_FORMATS, _MODE_KIND, THEME_ORDER, THEME_ICONS } from "./constants.js";
+import { MATERIALS, BOM_FIELDS, LIGHT_ORDER, LIGHT_NAMES, LIGHT_ICONS,
+         REGEN_SVG, DELETE_SVG, EXPORT_FORMATS, _MODE_KIND, THEME_ORDER,
+         THEME_ICONS } from "./constants.js";
 import { initPanelPlacement } from "./panel_placement.js";
 import { state } from "./viewer_state.js";
 import { initViewCube, renderGizmo, orientCameraTo } from "./view_cube.js";
 import { initLighting, setLighting, fitShadowCameras, setShadowRadius } from "./lighting.js";
 import { initMaterials, colorFor, updateByMaterialButton, syncMaterialBlock,
          onElementMapReady } from "./materials.js";
+import { initMotion, resetMotion, setupMotion, showMotionFrame, advanceMotion,
+         loadTrajectory, pauseMotion } from "./motion.js";
 
 const stage = document.getElementById("stage");
 const spinner = document.getElementById("spinner");
@@ -1221,147 +1223,23 @@ function loadPartGlb(glbName, cb, onErr) {
 
 // ---- Motion timeline playback (bucket 6.0) ----
 // The motion sidecar <name>.motion.json holds per-frame per-instance placements (same row-major
-// metres 4x4 as the static sidecar). We swap each instance node's matrix to the current frame and
-// advance in the animate() loop. Frame 0 is the rest pose, so a motion-less assembly is unchanged
-// and the bar stays hidden.
-const motionBar = document.getElementById("motion-bar");
-const motionPlayBtn = document.getElementById("motion-play");
-const motionScrub = document.getElementById("motion-scrub");
-const motionReadout = document.getElementById("motion-readout");
-// The motion timeline playback state (the active trajectory + frame cursor + play/loop/speed state)
-// and the physics-sweep state live on the shared ViewerState singleton (state.motion,
-// state.motionFrame, ...), so the playback controller can move out of app.js. They are initialized
-// in ViewerState's constructor; state.motionSpeedIdx is resolved to the persisted value just below,
-// where MOTION_SPEEDS is defined.
-// PLAYBACK RATE only (how fast you watch the same trajectory); it never re-solves. Solve resolution
-// is the motion document's driver `steps` (or `fps`+`duration`). 1x = 30 fps (a 1/30 s frame
-// interval); the ladder multiplies that rate. Beyond ~2x the ~60 fps render loop advances several
-// frames per tick (advanceMotion's while-loop handles it), so the high multipliers act as fast
-// preview/scrub. The [-]/[+] buttons + the "[" / "]" keys step along the ladder; choice persists.
-const MOTION_BASE_FRAME_MS = 1000 / 30;   // 1x = 30 fps
-const MOTION_SPEEDS = [0.1, 0.25, 0.5, 1, 2, 4, 8, 16, 32, 64, 128];
-const motionSlowerBtn = document.getElementById("motion-slower");
-const motionFasterBtn = document.getElementById("motion-faster");
-const motionSpeedReadout = document.getElementById("motion-speed-readout");
-// Resolve the persisted playback-rate ladder index now that MOTION_SPEEDS exists (ViewerState seeds
-// it to 0 as a placeholder). Nothing reads state.motionSpeedIdx before this runs.
-state.motionSpeedIdx = (() => {
-  const saved = parseFloat(localStorage.getItem("ncad.motionSpeed"));
-  const i = MOTION_SPEEDS.indexOf(saved);
-  return i >= 0 ? i : MOTION_SPEEDS.indexOf(1);   // default 1x
-})();
-function motionSpeed() { return MOTION_SPEEDS[state.motionSpeedIdx]; }
-function motionFrameMs() { return MOTION_BASE_FRAME_MS / motionSpeed(); }
-function renderMotionSpeed() {
-  // Only the middle readout shows the number (<n>x); the -/+ buttons stay iconic.
-  motionSpeedReadout.textContent = fmtSpeed(motionSpeed());
-  motionSlowerBtn.disabled = state.motionSpeedIdx === 0;
-  motionFasterBtn.disabled = state.motionSpeedIdx === MOTION_SPEEDS.length - 1;
-}
-function setMotionSpeedIdx(i) {
-  state.motionSpeedIdx = Math.max(0, Math.min(MOTION_SPEEDS.length - 1, i));
-  localStorage.setItem("ncad.motionSpeed", String(motionSpeed()));
-  renderMotionSpeed();
-}
-motionSlowerBtn.addEventListener("click", () => setMotionSpeedIdx(state.motionSpeedIdx - 1));
-motionFasterBtn.addEventListener("click", () => setMotionSpeedIdx(state.motionSpeedIdx + 1));
-renderMotionSpeed();
-
-// Loop-mode toggle (loop <-> bounce). Bounce plays forward then reverse for a seamless video loop.
-const motionLoopBtn = document.getElementById("motion-loop");
-function renderLoopMode() {
-  motionLoopBtn.innerHTML = state.motionLoopMode === "bounce" ? BOUNCE_ICON : LOOP_ICON;
-  motionLoopBtn.classList.toggle("active", state.motionLoopMode === "bounce");
-  motionLoopBtn.title = state.motionLoopMode === "bounce"
-    ? "Bounce: forward then reverse ( L )" : "Loop: restart each cycle ( L )";
-}
-function toggleLoopMode() {
-  state.motionLoopMode = state.motionLoopMode === "bounce" ? "loop" : "bounce";
-  state.motionDir = 1;   // restart the direction so a fresh bounce goes forward first
-  localStorage.setItem("ncad.motionLoop", state.motionLoopMode);
-  renderLoopMode();
-}
-motionLoopBtn.addEventListener("click", toggleLoopMode);
-renderLoopMode();
-// "[" slower, "]" faster - only when a motion is loaded and the user is not typing in a field.
-document.addEventListener("keydown", ev => {
-  if (motionBar.hidden) return;
-  const t = ev.target;
-  if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT")) return;
-  if (ev.key === "[") { setMotionSpeedIdx(state.motionSpeedIdx - 1); ev.preventDefault(); }
-  else if (ev.key === "]") { setMotionSpeedIdx(state.motionSpeedIdx + 1); ev.preventDefault(); }
-  // P (and the space bar, the media convention) toggles play/pause, matching the widget's button.
-  else if (ev.key === "p" || ev.key === "P" || ev.key === " ") {
-    toggleMotionPlay(); ev.preventDefault();
-  }
-  // L toggles the loop mode (loop <-> bounce).
-  else if (ev.key === "l" || ev.key === "L") { toggleLoopMode(); ev.preventDefault(); }
-  // 0 rewinds to the start frame and pauses (a clean reset before recording a fresh loop).
-  else if (ev.key === "0") {
-    state.motionPlaying = false; motionPlayBtn.innerHTML = PLAY_ICON;
-    state.motionDir = 1; state.motionAccum = 0; showMotionFrame(0);
-    ev.preventDefault();
-  }
+// metres 4x4 as the static sidecar); the player swaps each instance node's matrix to the current
+// frame and advances in the animate() loop. Frame 0 is the rest pose, so a motion-less assembly is
+// unchanged and the bar stays hidden. The playback STATE lives on ViewerState (state.motion,
+// state.motionFrame, ...); the whole player (speed ladder + loop/bounce + reset + setupMotion + the
+// measures/mobility/clash panels + the motion DOM) lives in motion.js. Wire it with the deps it
+// cannot import: the live view mode, the live modelRoot (trace lines parent to it), renderRobotTree
+// (resetMotion clears the Physics inspector), the shared motionSources map, apiUrl + log. Public
+// surface used below: resetMotion, setupMotion, showMotionFrame, advanceMotion, loadTrajectory (the
+// Physics joint-sweep player), pauseMotion (the dev seekFrame handle).
+initMotion({
+  getViewMode: () => viewMode,
+  getModelRoot: () => modelRoot,
+  renderRobotTree: (tree) => renderRobotTree(tree),
+  motionSources,
+  apiUrl,
+  log,
 });
-
-function resetMotion() {
-  state.motion = null; state.motionNodes = {}; state.motionFrame = 0; state.motionPlaying = false; state.motionAccum = 0;
-  motionBar.hidden = true;
-  motionPlayBtn.innerHTML = PLAY_ICON;
-  // Trace lines are children of modelRoot (cleared with the scene in clearModel); just drop refs.
-  state.traceLines = [];
-  renderMeasures(null);
-  renderClashMarks([], 0);
-  // Physics rides the motion state; drop the joint picker + Robot inspector with the scene too.
-  const pbar = document.getElementById("physics-bar");
-  if (pbar) pbar.hidden = true;
-  if (typeof renderRobotTree === "function") renderRobotTree(null);
-}
-
-function renderClashMarks(events, frameCount) {
-  // Red ticks on the scrubber at interfering frame indices (motion-time interference, 6.3).
-  const host = document.getElementById("motion-clash-marks");
-  if (!host) return;
-  host.innerHTML = "";
-  if (!events.length || frameCount < 2) return;
-  const seen = new Set();
-  for (const ev of events) {
-    if (seen.has(ev.frame)) continue;
-    seen.add(ev.frame);
-    const tick = document.createElement("div");
-    tick.className = "clash-tick";
-    tick.style.left = (100 * ev.frame / (frameCount - 1)) + "%";
-    tick.title = `clash: ${ev.a} <> ${ev.b} (frame ${ev.frame})`;
-    host.appendChild(tick);
-  }
-  log(`motion interference: ${seen.size} frame(s) with contact`, "warn");
-}
-
-function setupMotion(name, instanceNodes) {
-  resetMotion();
-  // The timeline is a Motion-mode feature; in Assemblies mode a driven assembly still loads, just
-  // without playback (that is what the Motion tab is for).
-  if (viewMode !== "motion") return;
-  fetch(apiUrl(`/motion/${encodeURIComponent(name)}`)).then(r => {
-    if (!r.ok) return null;   // 404: this assembly has no motion, leave the bar hidden
-    return r.json();
-  }).then(doc => {
-    if (!doc || !(doc.frames || []).length) return;
-    // The trajectory records its source .motion.hocon, so Regenerate works after a page reload (the
-    // in-memory motionSources map alone would be empty on a fresh page).
-    if (doc.source) motionSources[name] = doc.source;
-    state.motion = doc; state.motionNodes = instanceNodes;
-    motionScrub.max = String(doc.frames.length - 1);
-    motionScrub.value = "0";
-    motionBar.hidden = false;
-    buildTraceLines(doc.traces || []);   // motion outputs (bucket 6.1); no-op if none declared
-    renderMeasures(doc.measures || []);
-    renderMobility(doc.dof || null);
-    renderClashMarks(doc.interference || [], doc.frames.length);   // motion-time interference (6.3)
-    showMotionFrame(0);
-    log(`motion: ${doc.frames.length} frames, driver ${doc.driver ? doc.driver.joint : "?"}`, "info");
-  }).catch(() => { /* state.motion is optional; a fetch error just means no timeline */ });
-}
 
 // ---- Physics (robotics) mode ----
 // Physics mode reuses the assembly scene + the motion playback path: the robot's per-actuated-joint
@@ -1413,14 +1291,9 @@ function populateJointSelect() {
 function loadJointSweep(jointName) {
   const sweep = state.physicsSweeps[jointName];
   if (!sweep || !(sweep.frames || []).length) return;
-  // Feed the joint sweep into the shared motion-playback state; the scrubber/play controls + the
+  // Feed the joint sweep into the shared motion player; the scrubber/play controls + the
   // showMotionFrame apply path are then identical to Motion mode.
-  state.motion = {frames: sweep.frames, driver: {joint: jointName}};
-  state.motionNodes = state.physicsNodes;
-  motionScrub.max = String(sweep.frames.length - 1);
-  motionScrub.value = "0";
-  motionBar.hidden = false;
-  showMotionFrame(0);
+  loadTrajectory({frames: sweep.frames, driver: {joint: jointName}}, state.physicsNodes);
   log(`physics: joint ${jointName}, ${sweep.frames.length} frames`, "info");
 }
 
@@ -1517,139 +1390,10 @@ exportBtn.addEventListener("click", ev => { ev.stopPropagation(); toggleExportMe
 // Click anywhere else closes the menu.
 document.addEventListener("click", () => { exportMenu.hidden = true; });
 
-function showMotionFrame(i) {
-  if (!state.motion) return;
-  const frames = state.motion.frames;
-  state.motionFrame = ((i % frames.length) + frames.length) % frames.length;
-  const frame = frames[state.motionFrame];
-  for (const id in frame.placements) {
-    const node = state.motionNodes[id];
-    if (!node) continue;
-    node.matrix.copy(matrixFromRowMajor(frame.placements[id]));
-    node.matrix.decompose(node.position, node.quaternion, node.scale);
-    node.updateMatrixWorld(true);
-  }
-  motionScrub.value = String(state.motionFrame);
-  const unit = degreesLikelyDriver() ? "°" : "";
-  motionReadout.textContent = `${(+frame.driver_value).toFixed(1)}${unit}`;
-  updateMeasureValues(state.motionFrame);
-}
-
-// Build a THREE.Line for each declared trace polyline (world metres), added to modelRoot so it
-// clears with the scene and rides the model's framing shift. Colored from the trace palette,
-// visibility follows the Traces toggle. No-op when no traces are declared.
-function buildTraceLines(traces) {
-  state.traceLines = [];
-  traces.forEach((t, i) => {
-    const pts = (t.polyline || []).map(p => new THREE.Vector3(p[0], p[1], p[2]));
-    if (pts.length < 2) return;
-    const line = new THREE.Line(
-      new THREE.BufferGeometry().setFromPoints(pts),
-      new THREE.LineBasicMaterial({ color: TRACE_COLORS[i % TRACE_COLORS.length] }));
-    line.userData.isGizmo = true;   // excluded from picking/bbox like the other overlays
-    line.visible = state.showTraces;
-    if (modelRoot) modelRoot.add(line);
-    state.traceLines.push(line);
-  });
-}
-
-// Render the measures panel (a compact numeric readout, one row per measure). Called on load
-// (measures list) and reset (null clears it). The per-frame live value is filled by
-// updateMeasureValues.
-function renderMeasures(measures) {
-  const panel = document.getElementById("measures-body");
-  if (!panel) return;
-  if (!measures || !measures.length) {
-    panel.innerHTML = '<div class="panel-empty">no measures</div>';
-    document.getElementById("tab-measures-btn").hidden = !measures;
-    return;
-  }
-  document.getElementById("tab-measures-btn").hidden = false;
-  panel.innerHTML = "";
-  for (const m of measures) {
-    const row = document.createElement("div");
-    row.className = "measure-row";
-    const extra = m.value != null ? ` &middot; total ${(+m.value).toFixed(2)} ${m.unit}` : "";
-    row.innerHTML =
-      `<span class="measure-id">${m.id}</span>` +
-      `<span class="measure-val" data-measure="${m.id}">-</span>` +
-      `<span class="measure-range">[${(+m.min).toFixed(1)} .. ${(+m.max).toFixed(1)}] ${m.unit}${extra}</span>`;
-    panel.appendChild(row);
-  }
-}
-
-// Add a mobility (DoF) line to the hierarchy panel, next to the static solve-status line: the
-// planar Gruebler mobility + the rest-pose solver DoF. Green when mobile, amber when locked.
-// Prepended to the hierarchy body (which renderInstanceTree filled from the assembly scene).
-function renderMobility(dof) {
-  const existing = document.getElementById("mobility-line");
-  if (existing) existing.remove();
-  if (!dof) return;
-  const body = document.getElementById("hierarchy-body");
-  if (!body) return;
-  const line = document.createElement("div");
-  line.id = "mobility-line";
-  line.className = "mate-status " + (dof.status === "mobile" ? "mate-status-ok" : "mate-status-warn");
-  line.textContent = `mobility: ${dof.gruebler} DoF (planar Gruebler ${dof.gruebler}, ` +
-    `rest solve ${dof.solver})`;
-  line.title = "Mechanism mobility from the joint graph (Gruebler) next to the static rest-pose " +
-    "free DoF (0 for a well-constrained rest).";
-  body.insertBefore(line, body.firstChild);
-}
-
-// Fill each measure row's live value from the current frame's series entry.
-function updateMeasureValues(frameIdx) {
-  if (!state.motion || !state.motion.measures) return;
-  for (const m of state.motion.measures) {
-    const el = document.querySelector(`.measure-val[data-measure="${m.id}"]`);
-    if (!el) continue;
-    const v = (m.series || [])[frameIdx];
-    el.textContent = v == null ? "-" : `${(+v).toFixed(2)} ${m.unit}`;
-  }
-}
-
-function degreesLikelyDriver() {
-  // A rotation driver reads in degrees; a slider in mm. We do not carry the joint type in the
-  // sidecar, so infer: a range that spans a full turn (>= 360 total) is almost certainly degrees.
-  if (!state.motion || !state.motion.frames.length) return true;
-  const span = Math.abs(state.motion.frames[state.motion.frames.length - 1].driver_value
-                        - state.motion.frames[0].driver_value);
-  return span >= 180;
-}
-
-function toggleMotionPlay() {
-  if (!state.motion) return;
-  state.motionPlaying = !state.motionPlaying;
-  motionPlayBtn.innerHTML = state.motionPlaying ? PAUSE_ICON : PLAY_ICON;
-}
-
-function advanceMotion(dtMs) {
-  if (!state.motionPlaying || !state.motion) return;
-  state.motionAccum += dtMs;
-  const frameMs = motionFrameMs();
-  while (state.motionAccum >= frameMs) {
-    state.motionAccum -= frameMs;
-    stepMotion();
-  }
-}
-
-function stepMotion() {
-  // Loop mode wraps forward (modulo). Bounce mode ping-pongs: step by motionDir and flip direction
-  // at either end so the trajectory plays forward then reverse (a there-and-back loop for video).
-  const last = state.motion.frames.length - 1;
-  if (state.motionLoopMode !== "bounce") { showMotionFrame(state.motionFrame + 1); return; }
-  let next = state.motionFrame + state.motionDir;
-  if (next > last) { state.motionDir = -1; next = last - 1; }
-  else if (next < 0) { state.motionDir = 1; next = 1; }
-  if (next < 0) next = 0;   // a single-frame trajectory stays put
-  showMotionFrame(next);
-}
-
-motionPlayBtn.addEventListener("click", toggleMotionPlay);
-motionScrub.addEventListener("input", () => {
-  state.motionPlaying = false; motionPlayBtn.innerHTML = PLAY_ICON;
-  showMotionFrame(parseInt(motionScrub.value, 10) || 0);
-});
+// showMotionFrame / buildTraceLines / renderMeasures / renderMobility / updateMeasureValues /
+// degreesLikelyDriver / toggleMotionPlay / advanceMotion / stepMotion + the play/scrub wiring moved
+// to motion.js (imported above). showMotionFrame + advanceMotion are used below (Physics + the
+// animate loop) via the module's exports.
 
 // Build the 3D joint-freedom overlay (bucket 5.5): a signature-keyed glyph at each joint's side-A
 // connector world frame, plus a dashed line between each coupling's two joints. Each glyph is
@@ -2143,7 +1887,7 @@ if (typeof window !== "undefined" && window.NCAD_DEV) {
       const n = state.motion.frames.length;
       const i = Number.isInteger(indexOrFraction) && indexOrFraction >= 1
         ? indexOrFraction : Math.round(indexOrFraction * (n - 1));
-      state.motionPlaying = false; motionPlayBtn.innerHTML = PLAY_ICON;
+      pauseMotion();
       showMotionFrame(i);
       return { frame: state.motionFrame, driver_value: state.motion.frames[state.motionFrame].driver_value };
     },
