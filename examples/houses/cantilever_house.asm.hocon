@@ -1,0 +1,74 @@
+units = mm
+# "The Cantilever House" assembled from cantilever_house.hocon. Parts are authored in a shared world
+# frame (see the part file's plan): the podium spans z -400..0 (its TOP is the ground floor at z=0,
+# on the viewer grid; its 400 mm depth sits below grade, exactly like the cottage slab), and the
+# living wing + everything above sit from z=0 up. No Z lift. The podium is grounded; static assembly.
+#
+# Signature move: the UPPER volume's front face is at y=-2000, projecting 2 m past the living wing's
+# front (y=0) - a cantilever - carried by a ROW OF PILOTIS along y=-1500 under that projection.
+metadata {
+  description = "The Cantilever House: a Mid-Century modern flat-roof split-level with a cantilevered upper volume on pilotis, floating roof planes + clerestory, a glass curtain wall, timber cladding, carport and planter"
+  tags = [ house, building, modern, flat-roof, cantilever, static-assembly ]
+}
+assembly {
+  instances = [
+    # Base + shell: podium (grounded; top = ground floor at z=0), living wing, its floating roof,
+    # the upper volume, its roof - all seated at z=0.
+    { id = podium, file = "cantilever_house.hocon", part = podium, lock = true,
+      placement = { position = [ 0, 0, 0 ] } }
+    { id = living, file = "cantilever_house.hocon", part = living, placement = { position = [ 0, 0, 0 ] } }
+    { id = living_roof, file = "cantilever_house.hocon", part = living_roof, placement = { position = [ 0, 0, 0 ] } }
+    { id = upper, file = "cantilever_house.hocon", part = upper, placement = { position = [ 0, 0, 0 ] } }
+    { id = upper_roof, file = "cantilever_house.hocon", part = upper_roof, placement = { position = [ 0, 0, 0 ] } }
+
+    # Two timber cladding panels dressing the upper volume's blank end walls (+X at x=9500, -X at
+    # x=2500), centered on the volume's Y span (y=1000) and its wall height (z ~4750). Thin in X, set
+    # just proud of each end face so the warm timber band breaks up the charcoal mass.
+    { id = clad_e, file = "cantilever_house.hocon", part = cladding,
+      placement = { position = [ 9520, 1000, 4750 ] } }
+    { id = clad_w, file = "cantilever_house.hocon", part = cladding,
+      placement = { position = [ 2480, 1000, 4750 ] } }
+
+    # A row of 4 pilotis under the cantilevered front (upper front at y=-2000; columns at y=-1500).
+    { id = piloti, file = "cantilever_house.hocon", part = piloti,
+      pattern = { kind = linear, x = { dir = [ 1, 0, 0 ], spacing = 2000, count = 4 } },
+      placement = { position = [ 3000, -1500, 0 ] } }
+
+    # The glass curtain wall, standing in the living wing's -Y garden opening (opening centered x=6000,
+    # wall face y=0, sill z=300+400). Curtain is authored centered on origin in X/Z, thin in Y.
+    { id = curtain, file = "cantilever_house.hocon", part = curtain_wall, placement = { position = [ 6000, 0, 320 ] } }
+
+    # ENTRY door in the WEST (-X) wall opening (its own home, off the glazed bay). The door leaf is
+    # authored hinged at the origin extending +X; a 90 deg base rotation lays it into the west wall
+    # (thin in X, spanning +Y), then +75 more swings it open into the house. Hinge at the opening's
+    # front jamb (y=850), on the west wall line x=0, base on the podium top z=400.
+    { id = door_entry, file = "cantilever_house.hocon", part = door,
+      placement = { position = [ 0, 850, 0 ], rotation = { axis = [ 0, 0, 1 ], angle = 165 } } }
+    # SECOND door in the EAST (+X) wall opening (its own home in the solid wall, NOT the glazed bay - a
+    # leaf in the bay would overlap the full-width glass pane). Leaf authored hinged at origin extending
+    # +X; base-rotated to lie in the east wall (thin in X) and swung open into the house. Hinge at the
+    # opening's jamb (x=12000, y=5050), base on podium top z=400.
+    { id = door_side, file = "cantilever_house.hocon", part = door,
+      placement = { position = [ 12000, 5050, 0 ], rotation = { axis = [ 0, 0, 1 ], angle = 15 } } }
+
+    # Carport ATTACHED to the west (-X) end: its roof (local x -2750..2750) is placed so it overlaps
+    # the west wall line (x=0) by ~150 mm, connecting it to the house and sheltering the entry, rather
+    # than floating as a detached structure. Roof at z 3000..3180 (below the living roof). 4 corner posts.
+    { id = carport, file = "cantilever_house.hocon", part = carport, placement = { position = [ -2750, 2500, 0 ] } }
+
+    # A planter on the garden terrace (-Y), at the front-right corner clear of the pilotis row.
+    { id = planter, file = "cantilever_house.hocon", part = planter, placement = { position = [ 9500, -3000, 0 ] } }
+
+    # Punched-window glass: two on the living east wall (x=12000, faces +X -> rotate 90 about Z), two
+    # on the upper street (+Y) face. Living east windows centered y=2300/4700 at z=1500+400; upper
+    # street windows centered x=4200/7400 at z=5000+400.
+    { id = ew1, file = "cantilever_house.hocon", part = window,
+      placement = { position = [ 12000, 2000, 1500 ], rotation = { axis = [ 0, 0, 1 ], angle = 90 } } }
+    { id = ew2, file = "cantilever_house.hocon", part = window,
+      placement = { position = [ 12000, 3600, 1500 ], rotation = { axis = [ 0, 0, 1 ], angle = 90 } } }
+    { id = uw1, file = "cantilever_house.hocon", part = window, placement = { position = [ 4200, 4000, 5000 ] } }
+    { id = uw2, file = "cantilever_house.hocon", part = window, placement = { position = [ 7400, 4000, 5000 ] } }
+  ]
+  # A static building: no joints. Grounding the podium + placement composes the whole house.
+  constraints = [ ]
+}

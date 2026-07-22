@@ -1,0 +1,240 @@
+units = mm
+# Parts of a multi-dome house, authored in a shared world frame and composed by an assembly
+# (dome_house.asm.hocon). Pure generic-op modeling, no building profile. The design follows real
+# monolithic/bubble dome homes (Monolithic Dome Institute oblate domes, the Xanadu Houses' clustered
+# foamed bubbles, CalEarth SuperAdobe): a 4-dome "clover" where one big living dome connects to two
+# bedroom domes and an entry dome via short arched link tunnels. Each dome is an OBLATE cap (a
+# hemisphere squashed to ~0.7-0.85 of its radius, the recommended residential profile, NOT a full
+# half-sphere) sitting on a short cylindrical stem wall (straight walls at ground level).
+#
+# Z is up; the entry faces -Y. Dome centers (mm) and radii (from the research clover layout, put on
+# orthogonal spokes so tunnels are axis-aligned):
+#   A main living dome : center (0, 0),        R 5500, stem 1000, oblate 0.70 -> apex z 4850
+#   D entry dome       : center (0, -10750),   R 2750, stem 800,  oblate 0.85 -> apex z 3138
+#   B bedroom (right)  : center (11500, 0),    R 3500, stem 1000, oblate 0.75 -> apex z 3625
+#   C bedroom (left)   : center (-11500, 0),   R 3500, stem 1000, oblate 0.75 -> apex z 3625
+# Link tunnels (barrel vaults, inner ~2400 wide x ~2100 tall) bridge the ~2500 mm gaps between shells;
+# each is extended ~250 mm into both shells so the whole thing fuses into ONE monolithic shell (as a
+# sprayed-foam bubble house really is). The shell is then hollowed (shell op) and openings are cut:
+# a front door in the entry dome, round porthole windows, and an apex oculus on the main dome.
+metadata {
+  description = "Multi-dome house: a big oblate living dome linked by arched tunnels to two bedroom domes and an entry dome, one monolithic hollow shell with a door, porthole windows and an apex oculus; generic ops, no building profile"
+  tags = [ house, building, dome, monolithic, cluster, generic-ops ]
+}
+# Materials, inline. `shell` is the rendered concrete/adobe of the domes; glass carries opacity so the
+# By-Material view renders the portholes as clear glass.
+materials {
+  shell    { physical { density = 2200 }, appearance { color = [ 0.92, 0.89, 0.83 ] } }
+  concrete { physical { density = 2400 }, appearance { color = [ 0.70, 0.70, 0.68 ] } }
+  wood     { physical { density = 650 },  appearance { color = [ 0.40, 0.26, 0.15 ] } }
+  glass    { physical { density = 2500 },
+             appearance { color = [ 0.58, 0.76, 0.85 ], opacity = 0.32, metalness = 0.1, roughness = 0.05 } }
+}
+parts {
+  # The monolithic dome shell: union of the four domes (each = stem cylinder + oblate cap) and the
+  # three link tunnels, hollowed to a 250 mm wall, then a front door + porthole windows + apex oculus
+  # cut through. Built as ONE connected solid, so there are no inter-part clashes to resolve.
+  shell { profile = solid, material = shell,
+    connectors = [ { id = base, at_point = [ 0, 0, 0 ], axis = [ 0, 0, 1 ] } ],
+    features = [
+      # --- Main dome A (center 0,0): stem + oblate cap. Cap = hemisphere at origin, scaled z*0.70,
+      #     lifted onto the stem top (z=1000). ---
+      { id = a_stem, op = primitive, kind = cylinder, d = 11000, h = 1000, plane = XY, at = [ 0, 0 ] }
+      { id = a_ball, op = primitive, kind = sphere, d = 11000, plane = XY, plane_offset = 0, at = [ 0, 0 ] }
+      { id = a_box, op = primitive, kind = box, w = 12000, d = 12000, h = 6000, plane = XY, plane_offset = 0, at = [ -6000, -6000 ] }
+      { id = a_hemi, op = boolean, operation = intersect, target = a_ball, tool = a_box }
+      { id = a_cap, op = transform, scale = [ 1, 1, 0.70 ], move = [ 0, 0, 1000 ], target = a_hemi }
+      { id = a_dome, op = boolean, operation = union, target = a_stem, tool = a_cap }
+      # --- Entry dome D (center 0,-10750): R2750, stem 800, oblate 0.85. ---
+      { id = d_stem, op = primitive, kind = cylinder, d = 5500, h = 800, plane = XY, at = [ 0, -10750 ] }
+      { id = d_ball, op = primitive, kind = sphere, d = 5500, plane = XY, plane_offset = 0, at = [ 0, -10750 ] }
+      { id = d_box, op = primitive, kind = box, w = 6000, d = 6000, h = 3200, plane = XY, plane_offset = 0, at = [ -3000, -13750 ] }
+      { id = d_hemi, op = boolean, operation = intersect, target = d_ball, tool = d_box }
+      { id = d_cap, op = transform, scale = [ 1, 1, 0.85 ], move = [ 0, 0, 800 ], target = d_hemi }
+      { id = d_dome, op = boolean, operation = union, target = d_stem, tool = d_cap }
+      { id = ad, op = boolean, operation = union, target = a_dome, tool = d_dome }
+      # --- Bedroom dome B (center 11500,0): R3500, stem 1000, oblate 0.75. ---
+      { id = b_stem, op = primitive, kind = cylinder, d = 7000, h = 1000, plane = XY, at = [ 11500, 0 ] }
+      { id = b_ball, op = primitive, kind = sphere, d = 7000, plane = XY, plane_offset = 0, at = [ 11500, 0 ] }
+      { id = b_box, op = primitive, kind = box, w = 8000, d = 8000, h = 4000, plane = XY, plane_offset = 0, at = [ 7500, -4000 ] }
+      { id = b_hemi, op = boolean, operation = intersect, target = b_ball, tool = b_box }
+      { id = b_cap, op = transform, scale = [ 1, 1, 0.75 ], move = [ 0, 0, 1000 ], target = b_hemi }
+      { id = b_dome, op = boolean, operation = union, target = b_stem, tool = b_cap }
+      { id = adb, op = boolean, operation = union, target = ad, tool = b_dome }
+      # --- Bedroom dome C (center -11500,0): mirror of B. ---
+      { id = c_stem, op = primitive, kind = cylinder, d = 7000, h = 1000, plane = XY, at = [ -11500, 0 ] }
+      { id = c_ball, op = primitive, kind = sphere, d = 7000, plane = XY, plane_offset = 0, at = [ -11500, 0 ] }
+      { id = c_box, op = primitive, kind = box, w = 8000, d = 8000, h = 4000, plane = XY, plane_offset = 0, at = [ -15500, -4000 ] }
+      { id = c_hemi, op = boolean, operation = intersect, target = c_ball, tool = c_box }
+      { id = c_cap, op = transform, scale = [ 1, 1, 0.75 ], move = [ 0, 0, 1000 ], target = c_hemi }
+      { id = c_dome, op = boolean, operation = union, target = c_stem, tool = c_cap }
+      { id = domes, op = boolean, operation = union, target = adb, tool = c_dome }
+      # --- Link tunnel A-D (along Y, x centered 0): box walls + half-cylinder vault, spanning the gap
+      #     y -8200..-5300 (extended into both shells so it fuses). ---
+      # The corridor runs y -8200..-5000, its inner (dome) end pushed DEEP to y=-5000 so it penetrates
+      # the main dome's CURVED surface at every height (the dome surface at the vault crown z~2100 is
+      # y~-5271, so a shallower -5300 end left a gap slot near the top). d=3200 spans -8200..-5000.
+      { id = ad_walls, op = primitive, kind = box, w = 2400, d = 3200, h = 900, plane = XY, at = [ -1200, -8200 ] }
+      # Vault: XZ cylinder's axis is Y and it extends in -Y from its plane, so to roof the corridor to
+      # its deep inner end y=-5000 the plane sits at y=-5000 (plane_offset = +5000). (A -8200 offset
+      # put the vault on the +Y back of the main dome, leaving this corridor roofless.)
+      { id = ad_vault, op = primitive, kind = cylinder, d = 2400, h = 3200, plane = XZ, plane_offset = 5000, at = [ 0, 900 ] }
+      { id = ad_t0, op = boolean, operation = union, target = ad_walls, tool = ad_vault }
+      { id = t1, op = boolean, operation = union, target = domes, tool = ad_t0 }
+      # --- Link tunnel A-B (along X, y centered 0): spanning x 5300..8200. ---
+      { id = ab_walls, op = primitive, kind = box, w = 2900, d = 2400, h = 900, plane = XY, at = [ 5300, -1200 ] }
+      { id = ab_vault, op = primitive, kind = cylinder, d = 2400, h = 2900, plane = YZ, plane_offset = 5300, at = [ 0, 900 ] }
+      { id = ab_t0, op = boolean, operation = union, target = ab_walls, tool = ab_vault }
+      { id = t2, op = boolean, operation = union, target = t1, tool = ab_t0 }
+      # --- Link tunnel A-C (along X, y centered 0): spanning x -8200..-5300. ---
+      { id = ac_walls, op = primitive, kind = box, w = 2900, d = 2400, h = 900, plane = XY, at = [ -8200, -1200 ] }
+      { id = ac_vault, op = primitive, kind = cylinder, d = 2400, h = 2900, plane = YZ, plane_offset = -8200, at = [ 0, 900 ] }
+      { id = ac_t0, op = boolean, operation = union, target = ac_walls, tool = ac_vault }
+      { id = monolith, op = boolean, operation = union, target = t2, tool = ac_t0 }
+      # --- Hollow the monolith by CUTTING an inner copy (the shell op fails on this many-body union
+      #     with tangent stem/cap edges - OCCT MakeThickSolid errors - so we hollow by boolean: build
+      #     the same cluster 250 mm smaller in radius with its floor raised to z=200, and subtract it.
+      #     This leaves a 250 mm wall + a 200 mm floor slab, robustly. Inner domes/tunnels mirror the
+      #     outer ones with radius -250 and stem/vault shrunk to match. ---
+      # inner A (R5250, floor z200, apex scaled to match .70)
+      { id = ia_stem, op = primitive, kind = cylinder, d = 10500, h = 1000, plane = XY, plane_offset = 200, at = [ 0, 0 ] }
+      { id = ia_ball, op = primitive, kind = sphere, d = 10500, plane = XY, at = [ 0, 0 ] }
+      { id = ia_box, op = primitive, kind = box, w = 12000, d = 12000, h = 6000, plane = XY, at = [ -6000, -6000 ] }
+      { id = ia_hemi, op = boolean, operation = intersect, target = ia_ball, tool = ia_box }
+      # Inner cap scale is LOWER than the outer (0.6476 vs 0.70) so the inner apex sits ~250 mm BELOW
+      # the outer apex - otherwise the taller inner void would punch through the roof crown.
+      { id = ia_cap, op = transform, scale = [ 1, 1, 0.6476 ], move = [ 0, 0, 1200 ], target = ia_hemi }
+      { id = ia_dome, op = boolean, operation = union, target = ia_stem, tool = ia_cap }
+      # inner D (R2500)
+      { id = id_stem, op = primitive, kind = cylinder, d = 5000, h = 800, plane = XY, plane_offset = 200, at = [ 0, -10750 ] }
+      { id = id_ball, op = primitive, kind = sphere, d = 5000, plane = XY, at = [ 0, -10750 ] }
+      { id = id_box, op = primitive, kind = box, w = 6000, d = 6000, h = 3200, plane = XY, at = [ -3000, -13750 ] }
+      { id = id_hemi, op = boolean, operation = intersect, target = id_ball, tool = id_box }
+      { id = id_cap, op = transform, scale = [ 1, 1, 0.7550 ], move = [ 0, 0, 1000 ], target = id_hemi }
+      { id = id_dome, op = boolean, operation = union, target = id_stem, tool = id_cap }
+      { id = iad, op = boolean, operation = union, target = ia_dome, tool = id_dome }
+      # inner B (R3250)
+      { id = ib_stem, op = primitive, kind = cylinder, d = 6500, h = 1000, plane = XY, plane_offset = 200, at = [ 11500, 0 ] }
+      { id = ib_ball, op = primitive, kind = sphere, d = 6500, plane = XY, at = [ 11500, 0 ] }
+      { id = ib_box, op = primitive, kind = box, w = 8000, d = 8000, h = 4000, plane = XY, at = [ 7500, -4000 ] }
+      { id = ib_hemi, op = boolean, operation = intersect, target = ib_ball, tool = ib_box }
+      { id = ib_cap, op = transform, scale = [ 1, 1, 0.6692 ], move = [ 0, 0, 1200 ], target = ib_hemi }
+      { id = ib_dome, op = boolean, operation = union, target = ib_stem, tool = ib_cap }
+      { id = iadb, op = boolean, operation = union, target = iad, tool = ib_dome }
+      # inner C (R3250)
+      { id = ic_stem, op = primitive, kind = cylinder, d = 6500, h = 1000, plane = XY, plane_offset = 200, at = [ -11500, 0 ] }
+      { id = ic_ball, op = primitive, kind = sphere, d = 6500, plane = XY, at = [ -11500, 0 ] }
+      { id = ic_box, op = primitive, kind = box, w = 8000, d = 8000, h = 4000, plane = XY, at = [ -15500, -4000 ] }
+      { id = ic_hemi, op = boolean, operation = intersect, target = ic_ball, tool = ic_box }
+      { id = ic_cap, op = transform, scale = [ 1, 1, 0.6692 ], move = [ 0, 0, 1200 ], target = ic_hemi }
+      { id = ic_dome, op = boolean, operation = union, target = ic_stem, tool = ic_cap }
+      { id = idomes, op = boolean, operation = union, target = iadb, tool = ic_dome }
+      # inner tunnels (width -250 each side -> 1900 wide, floor z200, vault radius 950)
+      # Inner A-D corridor void, matching the deeper outer end (y -8450..-4800, d=3650).
+      { id = iad_walls, op = primitive, kind = box, w = 1900, d = 3650, h = 700, plane = XY, plane_offset = 200, at = [ -950, -8450 ] }
+      # Inner A-D vault: same -Y-normal correction; inner walls span y -8450..-4800, so plane at
+      # y=-4800 (plane_offset = +4800).
+      { id = iad_vault, op = primitive, kind = cylinder, d = 1900, h = 3650, plane = XZ, plane_offset = 4800, at = [ 0, 900 ] }
+      { id = iad_t0, op = boolean, operation = union, target = iad_walls, tool = iad_vault }
+      { id = it1, op = boolean, operation = union, target = idomes, tool = iad_t0 }
+      { id = iab_walls, op = primitive, kind = box, w = 3400, d = 1900, h = 700, plane = XY, plane_offset = 200, at = [ 5050, -950 ] }
+      { id = iab_vault, op = primitive, kind = cylinder, d = 1900, h = 3400, plane = YZ, plane_offset = 5050, at = [ 0, 900 ] }
+      { id = iab_t0, op = boolean, operation = union, target = iab_walls, tool = iab_vault }
+      { id = it2, op = boolean, operation = union, target = it1, tool = iab_t0 }
+      { id = iac_walls, op = primitive, kind = box, w = 3400, d = 1900, h = 700, plane = XY, plane_offset = 200, at = [ -8450, -950 ] }
+      { id = iac_vault, op = primitive, kind = cylinder, d = 1900, h = 3400, plane = YZ, plane_offset = -8450, at = [ 0, 900 ] }
+      { id = iac_t0, op = boolean, operation = union, target = iac_walls, tool = iac_vault }
+      { id = inner, op = boolean, operation = union, target = it2, tool = iac_t0 }
+      # Subtract the inner cluster from the outer to leave a hollow monolithic shell.
+      { id = hollow, op = boolean, operation = cut, target = monolith, tool = inner }
+      # --- Openings via PROTRUDING FLAT FRAMES (dormer surrounds), like a real monolithic dome: at
+      #     each opening we UNION a flat frame box that sticks out past the curved shell (giving a flat
+      #     vertical face the flat glass/door can rest against + connecting it solidly to the shell),
+      #     then CUT the opening through both frame and shell. Each frame's inner end is buried well
+      #     inside the wall and its outer end protrudes ~200 mm beyond the local dome surface. ---
+      #
+      # Each frame protrudes ~250 mm beyond the local dome surface AND is buried DEEP into the shell
+      # (its inner end pushed ~900 mm past the surface) so that, even though the dome wall is curved
+      # and bulges within the frame's width, the flat frame fully engulfs that curved band with no
+      # gap - the frame reads as solidly grown out of the shell.
+      #
+      # DOOR frame on the entry dome (-Y), front surface at y~-13500: protrudes to y=-13750, buried
+      # deep to y=-12550 (d1200). Arched opening cut after.
+      { id = df_frame, op = primitive, kind = box, w = 1500, d = 1200, h = 2600, plane = XY,
+        plane_offset = 0, at = [ -750, -13750 ] }
+      { id = h1, op = boolean, operation = union, target = hollow, tool = df_frame }
+      # PORTHOLE frame B (+X, bedroom B, outer surface x~14613): protrudes to x=14850, buried deep to
+      # x=13650 (d1200). Frame 1800 sq around the d1400 window.
+      { id = pb_frame, op = primitive, kind = box, w = 1200, d = 1800, h = 1800, plane = XY,
+        plane_offset = 1300, at = [ 13650, -900 ] }
+      { id = h2, op = boolean, operation = union, target = h1, tool = pb_frame }
+      # PORTHOLE frame C (-X, bedroom C): protrudes to x=-14850, buried deep to x=-13650.
+      { id = pc_frame, op = primitive, kind = box, w = 1200, d = 1800, h = 1800, plane = XY,
+        plane_offset = 1300, at = [ -14850, -900 ] }
+      { id = h3, op = boolean, operation = union, target = h2, tool = pc_frame }
+      # PORTHOLE frame A on the main dome's +Y BACK face (outer surface y~+5226). This face is used
+      # because -Y/+X/-X are occupied by the three link tunnels; +Y is the only clear main-dome wall.
+      # Protrudes to y=+5450, buried deep to y=+4250.
+      { id = pa_frame, op = primitive, kind = box, w = 1800, d = 1200, h = 1800, plane = XY,
+        plane_offset = 1300, at = [ -900, 4250 ] }
+      { id = frames, op = boolean, operation = union, target = h3, tool = pa_frame }
+      # --- Now CUT the openings ALL THE WAY through the fused shell+frames and into the room. Each
+      #     cutter must span from OUTSIDE the protruding frame face to PAST the frame's deep inner end
+      #     (frames are buried ~1200 mm), or solid frame is left behind the opening and blocks it. ---
+      # Door: arch-topped opening (1100 wide rectangle to z=2000 + semicircle head r550) through the
+      # entry frame along -Y. Frame spans y -13750..-12550, so cut y -14100..-11900 (d2200).
+      { id = door_r, op = primitive, kind = box, w = 1100, d = 2200, h = 2000, plane = XY,
+        plane_offset = 0, at = [ -550, -14100 ] }
+      { id = door_a, op = primitive, kind = cylinder, d = 1100, h = 2200, plane = XZ, plane_offset = -14100, at = [ 0, 2000 ] }
+      { id = doorcut, op = boolean, operation = union, target = door_r, tool = door_a }
+      { id = s1, op = boolean, operation = cut, target = frames, tool = doorcut }
+      # Portholes: d1400 round holes through each frame + wall into the room, axis normal to the wall,
+      # z=2200. Frames buried ~1200, so each cutter is 2500 long spanning outside face -> into room.
+      # B frame x 13650..14850 -> cut x 13400..15900.
+      { id = ph_b, op = primitive, kind = cylinder, d = 1400, h = 2500, plane = YZ, plane_offset = 13400, at = [ 0, 2200 ] }
+      { id = s2, op = boolean, operation = cut, target = s1, tool = ph_b }
+      # C frame x -14850..-13650 -> cut x -15900..-13400.
+      { id = ph_c, op = primitive, kind = cylinder, d = 1400, h = 2500, plane = YZ, plane_offset = -15900, at = [ 0, 2200 ] }
+      { id = s3, op = boolean, operation = cut, target = s2, tool = ph_c }
+      # A frame (+Y back) y 4250..5450 -> cut y 3200..5700. NOTE the XZ plane normal is -Y, so an XZ
+      # cylinder extends in -Y from its plane; to place the cutter at model y +3200..+5700 the plane
+      # must sit at y=+5700 (plane_offset = -5700, since the offset is measured along the -Y normal).
+      { id = ph_a, op = primitive, kind = cylinder, d = 1400, h = 2500, plane = XZ, plane_offset = -5700, at = [ 0, 2200 ] }
+      { id = s4, op = boolean, operation = cut, target = s3, tool = ph_a }
+      # --- Apex oculus on the main dome: a d1300 vertical hole at the very top (skylight). The main
+      #     apex is z~4850, so a short cutter from z=4400 up clears only the crown ring (a real oculus),
+      #     leaving the rest of the roof intact. The hole is a touch WIDER than the cupola drum (d1200)
+      #     so the cupola drops through it cleanly (drum wall clear of the roof cone). ---
+      { id = oculus, op = primitive, kind = cylinder, d = 1300, h = 1200, plane = XY, plane_offset = 4400, at = [ 0, 0 ] }
+      { id = shell, op = boolean, operation = cut, target = s4, tool = oculus }
+    ] }
+  # A round PORTHOLE window pane (d1500 disc, 40 thick), authored centered on the origin, thin in Y.
+  # LARGER than the d1400 bore so it fully CAPS the opening (no see-through ring around it - the
+  # porthole reads as a closed, glazed round window, not an open pipe). It seats flush on the flat
+  # protruding frame face. The assembly places one at each porthole and rotates it to face out.
+  porthole { profile = solid, material = glass,
+    connectors = [ { id = center, at_point = [ 0, 0, 0 ], axis = [ 0, 1, 0 ] } ],
+    features = [
+      { id = pane, op = primitive, kind = cylinder, d = 1500, h = 40, plane = XZ, plane_offset = -20, at = [ 0, 0 ] }
+    ] }
+  # A cupola/lantern capping the apex oculus: a little dome (R600 cap) on a short drum (d1200 x 600).
+  cupola { profile = solid, material = shell,
+    connectors = [ { id = base, at_point = [ 0, 0, 0 ], axis = [ 0, 0, 1 ] } ],
+    features = [
+      { id = drum, op = primitive, kind = cylinder, d = 1200, h = 600, plane = XY, at = [ 0, 0 ] }
+      { id = ball, op = primitive, kind = sphere, d = 1200, plane = XY, plane_offset = 600, at = [ 0, 0 ] }
+      { id = box, op = primitive, kind = box, w = 1400, d = 1400, h = 800, plane = XY, plane_offset = 600, at = [ -700, -700 ] }
+      { id = cap, op = boolean, operation = intersect, target = ball, tool = box }
+      { id = cupola, op = boolean, operation = union, target = drum, tool = cap }
+    ] }
+  # A wood front door leaf with a CURVED (arched) top edge, hanging in the frame: a rectangular body
+  # 1080 wide x 1980 tall + a semicircular head (radius 540), 60 thick. Hinge edge at the part origin
+  # (x=0), leaf extends +X, so the assembly can swing it open about Z. Crown ~z2520.
+  door { profile = solid, material = wood,
+    connectors = [ { id = hinge, at_point = [ 0, 0, 0 ], axis = [ 0, 0, 1 ] } ],
+    features = [
+      { id = body, op = primitive, kind = box, w = 1080, d = 60, h = 1980, plane = XY, plane_offset = 10, at = [ 0, -30 ] }
+      { id = head, op = primitive, kind = cylinder, d = 1080, h = 60, plane = XZ, plane_offset = -30, at = [ 540, 1980 ] }
+      { id = door, op = boolean, operation = union, target = body, tool = head }
+    ] }
+}
