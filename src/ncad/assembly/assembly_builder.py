@@ -817,8 +817,29 @@ class AssemblyBuilder:
                            "message": f"part {part_name!r} not in {instance['file']!r}"})
             return None
         glb = os.path.basename(artifacts[part_name])
+        # Record how this member glb was built (its source part file + the specific part name) so
+        # the viewer can re-export it on its own from the Parts tab. Written as <member>.meta.json
+        # to match the viewer's ModelMetadata schema, with an extra `part` field naming which part
+        # of a (possibly multi-part) source document this glb is.
+        self._write_member_meta(out_dir, os.path.splitext(glb)[0], key[0], part_name)
         built_glbs[key] = glb
         return glb
+
+    def _write_member_meta(self, out_dir: str, stem: str, part_file: str, part_name: str) -> None:
+        """Write ``<stem>.meta.json`` recording an assembly member's source part file + part name.
+
+        Best-effort provenance (a build byproduct, like the element-map sidecar): the source is
+        the absolute part file path (the viewer's allow-gate resolves it back under examples), and
+        `part` names which part of that document this glb is. A write failure is logged, not fatal.
+        """
+        payload = {"source": os.path.abspath(part_file), "part": part_name,
+                   "built_at": "", "ncad_version": "", "kernel_version": ""}
+        path = os.path.join(out_dir, f"{stem}.meta.json")
+        try:
+            with open(path, "w", encoding="utf-8") as handle:
+                json.dump(payload, handle, indent=2)
+        except OSError as exc:
+            logger.warning("could not write member meta %s: %s", path, exc)
 
 
 def _role(tag: str | None) -> str | None:
