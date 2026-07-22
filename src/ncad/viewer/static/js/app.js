@@ -4,13 +4,14 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { cssVar, cssColor, fmtDuration, fmtSpeed, escapeHtml, iconButton,
          scrollActiveIntoView, matrixFromRowMajor, paletteColor, byMaterialMat } from "./utils.js";
-import { cubeLabelTexture, buildAxisGizmo, buildJointGlyph } from "./gizmos.js";
+import { buildAxisGizmo, buildJointGlyph } from "./gizmos.js";
 import { treeNode } from "./tree.js";
-import { CUBE_FACES, MATERIALS, TRACE_COLORS, BOM_FIELDS, LIGHT_ORDER, LIGHT_NAMES, LIGHT_ICONS,
+import { MATERIALS, TRACE_COLORS, BOM_FIELDS, LIGHT_ORDER, LIGHT_NAMES, LIGHT_ICONS,
          REGEN_SVG, DELETE_SVG, PLAY_ICON, PAUSE_ICON, LOOP_ICON, BOUNCE_ICON,
          EXPORT_FORMATS, _MODE_KIND, THEME_ORDER, THEME_ICONS } from "./constants.js";
 import { initPanelPlacement } from "./panel_placement.js";
 import { state } from "./viewer_state.js";
+import { initViewCube, renderGizmo, orientCameraTo } from "./view_cube.js";
 
 const stage = document.getElementById("stage");
 const spinner = document.getElementById("spinner");
@@ -109,119 +110,11 @@ function setOrientationMode(mode) {
 setOrientationMode("axis");
 
 // --- Orientation ViewCube (Creo/NX/Fusion/Blender style), labeled in CAD Z-up ---
-// An interactive cube in its own overlay canvas: 26 pickable cells (6 faces + 12 edges + 8
-// corners) laid out as a 3x3x3 grid minus the center. Each cell carries a world-space direction;
-// clicking it tweens the main camera to look FROM that direction (a face -> orthographic view,
-// an edge -> edge-on, a corner -> isometric). Faces are labeled in the Z-up CAD convention:
-// +Z TOP, -Z BOTTOM, +X RIGHT, -X LEFT, -Y FRONT, +Y BACK. The cube is axis-aligned and static;
-// the gizmo camera mirrors the main view so the cube tumbles exactly with the model.
-const gizmoDiv = document.getElementById("gizmo");
-const gizmoRenderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
-gizmoRenderer.setPixelRatio(window.devicePixelRatio);
-gizmoRenderer.setSize(128, 128);
-gizmoRenderer.setClearColor(0x000000, 0);
-gizmoDiv.appendChild(gizmoRenderer.domElement);
-const cubeScene = new THREE.Scene();
-const cubeCam = new THREE.OrthographicCamera(-1.7, 1.7, 1.7, -1.7, 0.1, 20);
-cubeScene.add(new THREE.HemisphereLight(0xffffff, 0x888c94, 1.1));
-const cubeKey = new THREE.DirectionalLight(0xffffff, 0.55); cubeKey.position.set(3, 5, 8);
-cubeScene.add(cubeKey);
-
-const _cubePlain = () => new THREE.MeshStandardMaterial({ color: 0xcfd6de, metalness: 0.0,
-  roughness: 0.9 });
-const cubeCells = [];   // pickable meshes, each userData.dir (world direction) + .baseMats
-const CUBE_STEP = 0.68, CUBE_CELL = 0.6;
-for (let i = -1; i <= 1; i++) {
-  for (let j = -1; j <= 1; j++) {
-    for (let k = -1; k <= 1; k++) {
-      if (i === 0 && j === 0 && k === 0) continue;   // no center cell
-      const mats = [0, 1, 2, 3, 4, 5].map(_cubePlain);
-      // Label a FACE cell (exactly one axis nonzero) on its outward group.
-      const nonzero = [i, j, k].filter(v => v !== 0).length;
-      if (nonzero === 1) {
-        const face = CUBE_FACES.find(f => f.dir[0] === i && f.dir[1] === j && f.dir[2] === k);
-        mats[face.group] = new THREE.MeshStandardMaterial({ map: cubeLabelTexture(face.label),
-          metalness: 0.0, roughness: 0.85 });
-      }
-      const cell = new THREE.Mesh(new THREE.BoxGeometry(CUBE_CELL, CUBE_CELL, CUBE_CELL), mats);
-      cell.position.set(i * CUBE_STEP, j * CUBE_STEP, k * CUBE_STEP);
-      cell.userData.dir = new THREE.Vector3(i, j, k).normalize();
-      cell.userData.baseMats = mats;
-      cubeScene.add(cell);
-      cubeCells.push(cell);
-    }
-  }
-}
-
-function renderGizmo() {
-  // Mirror the main camera: look at the cube's origin from the same direction + up as the main
-  // view, so the cube's orientation always matches the model on screen.
-  const dir = camera.position.clone().sub(controls.target);
-  if (dir.lengthSq() < 1e-9) dir.set(0, -1, 0);
-  cubeCam.position.copy(dir).setLength(8);
-  cubeCam.up.copy(camera.up);
-  cubeCam.lookAt(0, 0, 0);
-  gizmoRenderer.render(cubeScene, cubeCam);
-}
-
-// Hover highlight + click-to-orient on the cube canvas.
-const cubeRay = new THREE.Raycaster();
-let cubeHovered = null;
-function cubeCellAt(ev) {
-  const rect = gizmoRenderer.domElement.getBoundingClientRect();
-  const p = new THREE.Vector2(((ev.clientX - rect.left) / rect.width) * 2 - 1,
-                              -((ev.clientY - rect.top) / rect.height) * 2 + 1);
-  cubeRay.setFromCamera(p, cubeCam);
-  const hits = cubeRay.intersectObjects(cubeCells, false);
-  return hits.length ? hits[0].object : null;
-}
-function setCubeHover(cell) {
-  if (cubeHovered === cell) return;
-  if (cubeHovered) cubeHovered.material = cubeHovered.userData.baseMats;
-  cubeHovered = cell;
-  gizmoRenderer.domElement.style.cursor = cell ? "pointer" : "default";
-  if (cell) {
-    // A translucent blue overlay material on all 6 sides signals the hovered cell.
-    cell.material = cell.userData.baseMats.map(() => new THREE.MeshStandardMaterial({
-      color: 0x5aa0ff, metalness: 0.0, roughness: 0.6, emissive: 0x1b3c66 }));
-  }
-}
-gizmoRenderer.domElement.addEventListener("pointermove", ev => setCubeHover(cubeCellAt(ev)));
-gizmoRenderer.domElement.addEventListener("pointerleave", () => setCubeHover(null));
-gizmoRenderer.domElement.addEventListener("click", ev => {
-  const cell = cubeCellAt(ev);
-  if (cell) orientCameraTo(cell.userData.dir);
-});
-
-// Tween the main camera to look FROM `dir` (world), keeping the current orbit distance + target.
-// Spherical interpolation around the target so the camera arcs smoothly. Up is Z, except a
-// top/bottom view (dir ~ +/-Z) uses Y so the view is not gimbal-degenerate.
-let _orientToken = 0;
-function orientCameraTo(dir) {
-  const target = controls.target.clone();
-  const dist = camera.position.distanceTo(target);
-  const endDir = dir.clone().normalize();
-  const startDir = camera.position.clone().sub(target).normalize();
-  const up = Math.abs(endDir.z) > 0.9 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(0, 0, 1);
-  // Axis mode locks world-up; free mode (Trackball) tumbles camera.up, so snapping should restore
-  // a sane up too. Set it up front so OrbitControls' math is consistent through the tween.
-  camera.up.copy(up);
-  const q = new THREE.Quaternion().setFromUnitVectors(startDir, endDir);
-  const ident = new THREE.Quaternion();
-  const token = ++_orientToken;
-  const start = performance.now(), DUR = 320;
-  (function step(now) {
-    if (token !== _orientToken) return;   // superseded by a newer click
-    const t = Math.min((now - start) / DUR, 1);
-    const e = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;  // easeInOutCubic
-    const partial = new THREE.Quaternion().slerpQuaternions(ident, q, e);
-    const d = startDir.clone().applyQuaternion(partial).multiplyScalar(dist);
-    camera.position.copy(target).add(d);
-    camera.up.copy(up);
-    controls.update();
-    if (t < 1) requestAnimationFrame(step);
-  })(start);
-}
+// The cube lives in view_cube.js (its own scene/camera/renderer). It reads the main camera (a
+// stable const) and the current main controls (swapped between Orbit/Trackball, so passed as a live
+// accessor). renderGizmo (called each frame by the render loop) + orientCameraTo (reused by the dev
+// debug handle) are its public surface.
+initViewCube(camera, () => controls);
 
 // Face picking: raycast against the model's mesh parts. build123d exports one glTF
 // primitive per face in face order, so a part's index into `pickParts` is its index
