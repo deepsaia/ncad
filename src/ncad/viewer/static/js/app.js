@@ -4,7 +4,7 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { cssVar, cssColor, fmtDuration, escapeHtml, iconButton,
          scrollActiveIntoView, matrixFromRowMajor, byMaterialMat } from "./utils.js";
-import { buildAxisGizmo, buildJointGlyph } from "./gizmos.js";
+import { buildJointGlyph } from "./gizmos.js";
 import { treeNode } from "./tree.js";
 import { MATERIALS, BOM_FIELDS, LIGHT_ORDER, LIGHT_NAMES, LIGHT_ICONS,
          REGEN_SVG, DELETE_SVG, EXPORT_FORMATS, _MODE_KIND } from "./constants.js";
@@ -17,6 +17,7 @@ import { initMaterials, colorFor, updateByMaterialButton, syncMaterialBlock,
 import { initMotion, resetMotion, setupMotion, showMotionFrame, advanceMotion,
          loadTrajectory, pauseMotion } from "./motion.js";
 import { initTheme } from "./theme.js";
+import { initSceneFurniture } from "./scene_furniture.js";
 
 const stage = document.getElementById("stage");
 const spinner = document.getElementById("spinner");
@@ -173,25 +174,10 @@ initMaterials({
   setMode: (m) => setMode(m),
 });
 
-const ground = new THREE.Mesh(
-  new THREE.PlaneGeometry(400, 400),
-  new THREE.ShadowMaterial({ opacity: 0.32 })
-);
-// Z-up world: PlaneGeometry lies in XY by default, which is already the floor, so no
-// rotation is needed (the old -90deg-about-X tilt was for a Y-up scene).
-ground.receiveShadow = true; scene.add(ground);
-
-// GridHelper is built in the XZ plane (Y-up); rotate it into XY for the Z-up floor.
-let grid = new THREE.GridHelper(80, 80, cssColor("--grid-major"), cssColor("--grid-minor"));
-grid.rotation.x = Math.PI / 2;
-scene.add(grid);
-
-// A small poly gizmo fixed at the WORLD origin (X=red, Y=green, Z=blue), always visible as a
-// reference. A poly gizmo (not an AxesHelper) because GL LINES are 1px-capped and z-fight the grid,
-// causing a stutter. Its size is refreshed to the current model in frameModel (scaled from 0.02).
-const worldOrigin = buildAxisGizmo(0.02, { radius: 0.02 * 0.02 });  // thin shafts (2% of length)
-worldOrigin.name = "worldOrigin";
-scene.add(worldOrigin);
+// Static scene furniture (ground plane + floor grid + world-origin gizmo) lives in
+// scene_furniture.js; it returns the grid, which the Grid toggle + the theme recolor still use.
+// frameModel finds the world-origin marker via scene.getObjectByName("worldOrigin").
+const grid = initSceneFurniture(scene);
 
 // The color-theme toggle + the 3D-scene recolor (applySceneTheme) live in theme.js; it is wired via
 // initTheme near the theme control below (injected the scene + grid + a live edges accessor).
