@@ -1,0 +1,43 @@
+units = mm
+# A multi-dome house, assembled from dome_house.hocon. The monolithic hollow shell (four oblate domes
+# + three arched link tunnels, fused into one solid) is grounded; a cupola caps the apex oculus, a
+# wood door is shown ajar at the entry, and glass discs glaze the three porthole openings. Pure
+# generic-op composition (no building profile), following real bubble/monolithic dome homes.
+#
+# Dome centers (mm): A main (0,0) R5500; D entry (0,-10750) R2750; B bedroom (11500,0) R3500;
+# C bedroom (-11500,0) R3500. Porthole openings: +X on B (wall x~15000), -X on C (x~-15000), -Y on
+# A front (y~-5500), all at z=2200. Apex oculus at (0,0,~4392).
+metadata {
+  description = "Multi-dome house: a monolithic four-dome shell with arched link tunnels, an apex cupola, an ajar entry door, and glazed porthole windows; generic ops, no building profile"
+  tags = [ house, building, dome, cluster, static-assembly ]
+}
+assembly {
+  instances = [
+    # The monolithic dome shell, grounded (the fixed reference for the whole house).
+    { id = shell, file = "dome_house.hocon", part = shell, lock = true }
+
+    # Cupola/lantern capping the main-dome apex oculus (seated over the d1000 hole; main apex z~4850,
+    # oculus rim ~z4700, so the cupola drum base sits at z~4650 and its little dome caps the skylight).
+    { id = cupola, file = "dome_house.hocon", part = cupola, placement = { position = [ 0, 0, 4720 ] } }
+
+    # The door + porthole FRAMES are part of the shell (protruding flat surrounds unioned into it), so
+    # the flat door and flat glass discs rest on those flat frame faces (no separate frame instance).
+    #
+    # Front door (curved-top leaf), swung open 60 deg: hinge set just inside the left jamb (x=-500)
+    # on the entry frame's outer face (y~-13740), rotated about Z so the leaf swings into the entry.
+    { id = door, file = "dome_house.hocon", part = door,
+      placement = { position = [ -500, -13785, 0 ], rotation = { axis = [ 0, 0, 1 ], angle = 60 } } }
+
+    # Porthole glass discs (d1500 caps > the d1400 bore), seated flush on each protruding frame's flat
+    # outer face so they fully close the opening (frame outer faces: A y=+5450, B x=+14850,
+    # C x=-14850; glass is 40 thick so centered ~25 outside the face). The pane is authored thin in Y
+    # (faces +/-Y); the two side portholes rotate 90 deg about Z to face +/-X.
+    { id = glass_a, file = "dome_house.hocon", part = porthole, placement = { position = [ 0, 5500, 2200 ] } }
+    { id = glass_b, file = "dome_house.hocon", part = porthole,
+      placement = { position = [ 14980, 0, 2200 ], rotation = { axis = [ 0, 0, 1 ], angle = 90 } } }
+    { id = glass_c, file = "dome_house.hocon", part = porthole,
+      placement = { position = [ -14980, 0, 2200 ], rotation = { axis = [ 0, 0, 1 ], angle = 90 } } }
+  ]
+  # A static building: no joints. Grounding the shell and placing the fittings composes the house.
+  constraints = [ ]
+}

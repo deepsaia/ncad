@@ -1,0 +1,191 @@
+units = mm
+# Parts of "The Cantilever House" - a modern Mid-Century / Case-Study style split-level home with a
+# flat roof, authored in a shared world frame and composed by an assembly (cantilever_house.asm.hocon).
+# Pure generic-op modeling, no building profile. The design language (benchmarked against real
+# Mid-Century modern houses: Neutra / Koenig Case Study, Fallingwater's cantilever idiom):
+#   - a low single-storey LIVING WING (long, glazed) running along +X;
+#   - an UPPER BEDROOM VOLUME crossing it and CANTILEVERING 2 m past the ground floor, carried on a
+#     row of slender PILOTIS (columns) so it appears to float;
+#   - FLOATING FLAT ROOF PLANES: thin slabs with deep cantilevered eaves, separated from the walls by
+#     a CLERESTORY glazing ribbon;
+#   - a full-height GLASS CURTAIN WALL (mullion grid) on the living wing's -Y (garden) face;
+#   - a detached CARPORT (a roof plane on two posts) and a raised PLANTER for warmth.
+# Z is up; the garden face is -Y. Palette: charcoal render, warm timber accent, pale stone, glass.
+#
+# Coordinate plan (mm). Living wing footprint x 0..12000, y 0..7000; upper volume x 2000..9000,
+# y -2000..5000 (projects to y=-2000, 2 m past the ground floor front at y=0... see parts).
+metadata {
+  description = "The Cantilever House: a Mid-Century modern flat-roof split-level - low glazed living wing, a cantilevered upper bedroom volume on pilotis, floating roof planes with clerestory ribbons, a glass curtain wall, carport and planter; generic ops, no building profile"
+  tags = [ house, building, modern, flat-roof, cantilever, mid-century, generic-ops ]
+}
+materials {
+  render   { physical { density = 1600 }, appearance { color = [ 0.24, 0.25, 0.27 ] } }
+  timber   { physical { density = 700 },  appearance { color = [ 0.55, 0.36, 0.19 ] } }
+  stone    { physical { density = 2600 }, appearance { color = [ 0.80, 0.78, 0.72 ] } }
+  concrete { physical { density = 2400 }, appearance { color = [ 0.68, 0.68, 0.66 ] } }
+  steel    { physical { density = 7850 }, appearance { color = [ 0.28, 0.29, 0.32 ] } }
+  soil     { physical { density = 1500 }, appearance { color = [ 0.20, 0.15, 0.10 ] } }
+  glass    { physical { density = 2500 },
+             appearance { color = [ 0.55, 0.74, 0.84 ], opacity = 0.28, metalness = 0.1, roughness = 0.05 } }
+}
+parts {
+  # Pale stone base podium the whole house sits on: a low plinth, footprint + a garden terrace to -Y.
+  # x -500..12500 (13000), y -3500..7500 (11000), z -400..0. The terrace half (y<0) reads as paving.
+  podium { profile = solid, material = stone,
+    connectors = [ { id = top, at_point = [ 0, 0, 0 ], axis = [ 0, 0, 1 ] } ],
+    features = [
+      { id = slab, op = primitive, kind = box, w = 13000, d = 11000, h = 400, plane = XY,
+        plane_offset = -400, at = [ -500, -3500 ] }
+    ] }
+  # Living wing (ground floor): a shelled charcoal-render box, footprint x 0..12000, y 0..7000, walls
+  # z 0..3000. The -Y (garden) face is left OPEN (a big opening cut) for the glass curtain wall; the
+  # front-left also gets the entry. Shell to a 200 wall, remove horizontal faces (no floor/ceiling).
+  living { profile = solid, material = render,
+    connectors = [ { id = base, at_point = [ 0, 0, 0 ], axis = [ 0, 0, 1 ] } ],
+    features = [
+      { id = sk, op = sketch, plane = XY, elements = [ { id = r, type = rectangle, w = 12000, h = 7000, at = [ 6000, 3500 ] } ] }
+      { id = mass, op = extrude, profile = sk, distance = 3000 }
+      { id = ring, op = shell, thickness = 200, openings = horizontal }
+      # Curtain-wall opening in the -Y (garden) wall: a big 9000 x 2400 hole (sill 300), centered.
+      { id = cwcut, op = primitive, kind = box, w = 9000, d = 400, h = 2400, plane = XY,
+        plane_offset = 300, at = [ 1500, -100 ] }
+      { id = l1, op = boolean, operation = cut, target = ring, tool = cwcut }
+      # Two east-wall (wall x 11800..12000) windows, kept LOW on the wall (centers y=2000 and y=3600)
+      # so they clear the side-door opening higher up (y 5000..6100). Cutter x 11700..12100 spans the
+      # FULL 200 mm wall thickness (a shallower cutter would leave an inner skin that hides the glass).
+      { id = ew, op = primitive, kind = box, w = 400, d = 1400, h = 1400, plane = XY, plane_offset = 800, at = [ 11700, 1300 ] }
+      { id = l2, op = boolean, operation = cut, target = l1, tool = ew }
+      { id = ew2, op = primitive, kind = box, w = 400, d = 1400, h = 1400, plane = XY, plane_offset = 800, at = [ 11700, 2900 ] }
+      { id = l3, op = boolean, operation = cut, target = l2, tool = ew2 }
+      # ENTRY door opening in the WEST (-X) wall (x=0): 1100 wide x 2200 tall, near the front, so the
+      # front door has its own home in the solid wall (not sharing the glazed garden bay). Cutter
+      # straddles the 200 wall at x=0 (x -100..300), y 800..1900.
+      { id = dcut, op = primitive, kind = box, w = 400, d = 1100, h = 2200, plane = XY,
+        plane_offset = 0, at = [ -100, 800 ] }
+      { id = l4, op = boolean, operation = cut, target = l3, tool = dcut }
+      # A SECOND door opening in the EAST (+X) wall (x=12000): a side/garden door with its own home in
+      # the solid wall (so it does not sit in the glazed bay). Cutter straddles the wall at x=12000
+      # (x 11800..12200), y 5000..6100.
+      { id = dcut2, op = primitive, kind = box, w = 400, d = 1100, h = 2200, plane = XY,
+        plane_offset = 0, at = [ 11800, 5000 ] }
+      { id = living, op = boolean, operation = cut, target = l4, tool = dcut2 }
+    ] }
+  # A floating flat roof plane over the living wing: a thin slab with deep eaves all round (overhang
+  # 800), set ABOVE the walls (z 3150..3350) so a clerestory gap (z 3000..3150) shows between them.
+  living_roof { profile = solid, material = concrete,
+    connectors = [ { id = base, at_point = [ 0, 0, 3150 ], axis = [ 0, 0, 1 ] } ],
+    features = [
+      { id = slab, op = primitive, kind = box, w = 13600, d = 8600, h = 200, plane = XY,
+        plane_offset = 3150, at = [ -800, -800 ] }
+    ] }
+  # The upper bedroom volume: a render box that CROSSES the living wing and CANTILEVERS to the garden.
+  # Footprint x 2500..9500 (7000), y -2000..4000 (6000) so its front face at y=-2000 projects 2 m past
+  # the ground floor front (y=0) - the signature cantilever. Walls z 3350..6150 (sits above the living
+  # roof). Shelled; a big glazed strip on its -Y face + a timber-clad feel via material on the ends.
+  upper { profile = solid, material = render,
+    connectors = [ { id = base, at_point = [ 0, 0, 3350 ], axis = [ 0, 0, 1 ] } ],
+    features = [
+      { id = sk, op = sketch, plane = XY, plane_offset = 3350, elements = [ { id = r, type = rectangle, w = 7000, h = 6000, at = [ 6000, 1000 ] } ] }
+      { id = mass, op = extrude, profile = sk, distance = 2800 }
+      { id = ring, op = shell, thickness = 200, openings = horizontal }
+      # Ribbon window along the cantilevered -Y face: 5600 x 1500 (sill 900 above the upper floor).
+      { id = rc, op = primitive, kind = box, w = 5600, d = 400, h = 1500, plane = XY,
+        plane_offset = 4250, at = [ 3200, -2200 ] }
+      { id = u1, op = boolean, operation = cut, target = ring, tool = rc }
+      # Two windows on the +Y (street) face.
+      { id = nw, op = primitive, kind = box, w = 1600, d = 400, h = 1400, plane = XY, plane_offset = 4300, at = [ 3400, 3800 ] }
+      { id = u2, op = boolean, operation = cut, target = u1, tool = nw }
+      { id = nw2, op = primitive, kind = box, w = 1600, d = 400, h = 1400, plane = XY, plane_offset = 4300, at = [ 6600, 3800 ] }
+      { id = upper, op = boolean, operation = cut, target = u2, tool = nw2 }
+    ] }
+  # The floating roof plane over the upper volume (thin slab, deep eaves, overhang 700). z 6150..6350.
+  upper_roof { profile = solid, material = concrete,
+    connectors = [ { id = base, at_point = [ 0, 0, 6150 ], axis = [ 0, 0, 1 ] } ],
+    features = [
+      { id = slab, op = primitive, kind = box, w = 8400, d = 7400, h = 200, plane = XY,
+        plane_offset = 6150, at = [ 1800, -2700 ] }
+    ] }
+  # A slender PILOTIS column carrying the cantilevered upper volume where it projects past the ground
+  # floor. Authored at the origin (steel, 200 dia round column, z 0..3350 up to the underside of the
+  # upper box). Instanced in a row under the cantilever front by the assembly.
+  piloti { profile = solid, material = steel,
+    connectors = [ { id = base, at_point = [ 0, 0, 0 ], axis = [ 0, 0, 1 ] } ],
+    features = [
+      { id = col, op = primitive, kind = cylinder, d = 200, h = 3350, plane = XY, at = [ 0, 0 ] }
+    ] }
+  # The glass curtain wall for the living-wing garden face: a big glass pane + a crossed mullion grid
+  # (vertical + horizontal steel members via linear patterns). Authored in the XZ plane sense: built
+  # in XY then the assembly stands it in the -Y wall. Pane 9000 x 2400, mullions every 1500 / 800.
+  # NOTE the whole part is GLASS: it fuses to ONE body, and an assembly instance carries a single
+  # material (the sidecar colors by the body's material), so a mixed glass-pane + steel-mullion part
+  # would render entirely as its default. Making the default GLASS means the pane AND the (thin)
+  # mullion grid all read as transparent glazing - the correct dominant look for a curtain wall.
+  curtain_wall { profile = solid, material = glass,
+    connectors = [ { id = center, at_point = [ 0, 0, 0 ], axis = [ 0, 1, 0 ] } ],
+    features = [
+      # Glass pane (thin in Y), 8960 x 2360, centered on origin in X/Z.
+      { id = pane, op = primitive, kind = box, w = 8960, d = 30, h = 2360, plane = XY, plane_offset = 0, at = [ -4480, -15 ] }
+      # Vertical mullions sized to fit INSIDE the 9000 x 2400 opening (mullion grid spans 8880 x 2340,
+      # ~60 mm margin each side so nothing overhangs the jambs). One at x=-4440, patterned +X every 1480.
+      { id = vm, op = primitive, kind = box, w = 60, d = 90, h = 2340, plane = XY, plane_offset = -10, at = [ -4440, -45 ] }
+      { id = vmill, op = pattern, kind = linear, merge = true, x = { dir = [ 1, 0, 0 ], spacing = 1480, count = 7 } }
+      { id = wall1, op = boolean, operation = union, target = pane, tool = vmill }
+      # Horizontal transoms: one at z=-10 (base), patterned +Z every 760 (4 -> spans 2280).
+      { id = hm, op = primitive, kind = box, w = 8880, d = 90, h = 60, plane = XY, plane_offset = -10, at = [ -4440, -45 ] }
+      { id = hmill, op = pattern, kind = linear, merge = true, x = { dir = [ 0, 0, 1 ], spacing = 760, count = 4 } }
+      { id = curtain_wall, op = boolean, operation = union, target = wall1, tool = hmill }
+    ] }
+  # A raised concrete PLANTER by the entry, with soil fill (a second body) - a warm landscape touch.
+  planter { profile = solid, material = concrete,
+    connectors = [ { id = base, at_point = [ 0, 0, 0 ], axis = [ 0, 0, 1 ] } ],
+    features = [
+      { id = box, op = primitive, kind = box, w = 3000, d = 1000, h = 700, plane = XY, plane_offset = 0, at = [ 0, 0 ] }
+      { id = hollow, op = shell, thickness = 150, openings = top }
+      # Soil fill (a separate body, different material) sitting in the planter.
+      { id = fill, op = primitive, kind = box, w = 2700, d = 700, h = 400, plane = XY, plane_offset = 150, at = [ 150, 150 ], material = soil,
+        mat_data = { physical { density = 1500 }, appearance { color = [ 0.20, 0.15, 0.10 ] } } }
+      { id = planter, op = boolean, operation = union, target = hollow, tool = fill }
+    ] }
+  # A carport: a thin flat roof plane on FOUR slender columns at its corners, detached, to the -X side
+  # of the house. (Two collinear posts read as a single central leg from the front - a floating table -
+  # so the posts spread to the roof corners, x = +/-2350, y = -350 / +4850.)
+  carport { profile = solid, material = concrete,
+    connectors = [ { id = base, at_point = [ 0, 0, 0 ], axis = [ 0, 0, 1 ] } ],
+    features = [
+      { id = post1, op = primitive, kind = cylinder, d = 160, h = 2600, plane = XY, at = [ -2350, -350 ], material = steel,
+        mat_data = { physical { density = 7850 }, appearance { color = [ 0.28, 0.29, 0.32 ] } } }
+      { id = post2, op = primitive, kind = cylinder, d = 160, h = 2600, plane = XY, at = [ 2350, -350 ], material = steel,
+        mat_data = { physical { density = 7850 }, appearance { color = [ 0.28, 0.29, 0.32 ] } } }
+      { id = post3, op = primitive, kind = cylinder, d = 160, h = 2600, plane = XY, at = [ -2350, 4850 ], material = steel,
+        mat_data = { physical { density = 7850 }, appearance { color = [ 0.28, 0.29, 0.32 ] } } }
+      { id = post4, op = primitive, kind = cylinder, d = 160, h = 2600, plane = XY, at = [ 2350, 4850 ], material = steel,
+        mat_data = { physical { density = 7850 }, appearance { color = [ 0.28, 0.29, 0.32 ] } } }
+      { id = c1, op = boolean, operation = union, target = post1, tool = post2 }
+      { id = c2, op = boolean, operation = union, target = c1, tool = post3 }
+      { id = c3, op = boolean, operation = union, target = c2, tool = post4 }
+      { id = roof, op = primitive, kind = box, w = 5500, d = 6000, h = 180, plane = XY, plane_offset = 2600, at = [ -2750, -750 ] }
+      { id = carport, op = boolean, operation = union, target = c3, tool = roof }
+    ] }
+  # A warm TIMBER CLADDING panel: a thin (40 mm) board-textured slab that dresses a blank render face
+  # to break up the charcoal mass (a classic Mid-Century move). Authored as a 6000 (Y) x 2600 (Z)
+  # panel, thin in X, centered on the origin in Y/Z; the assembly seats one on each blank end wall of
+  # the upper volume (and could dress others). Board lines are implied by the material, not modeled.
+  cladding { profile = solid, material = timber,
+    connectors = [ { id = face, at_point = [ 0, 0, 0 ], axis = [ 1, 0, 0 ] } ],
+    features = [
+      { id = panel, op = primitive, kind = box, w = 40, d = 6000, h = 2600, plane = XY, plane_offset = -1300, at = [ -20, -3000 ] }
+    ] }
+  # A timber-clad entry door leaf (1000 x 2200 x 60), hinge edge at the origin so the assembly swings it.
+  door { profile = solid, material = timber,
+    connectors = [ { id = hinge, at_point = [ 0, 0, 0 ], axis = [ 0, 0, 1 ] } ],
+    features = [
+      { id = leaf, op = primitive, kind = box, w = 1000, d = 60, h = 2200, plane = XY, plane_offset = 0, at = [ 0, -30 ] }
+    ] }
+  # A window pane for the punched windows (1380 x 1380 disc-less flat pane, thin in Y). Reused for the
+  # living east windows + upper street windows via placement (side windows rotate 90 about Z).
+  window { profile = solid, material = glass,
+    connectors = [ { id = center, at_point = [ 0, 0, 0 ], axis = [ 0, 1, 0 ] } ],
+    features = [
+      { id = pane, op = primitive, kind = box, w = 1360, d = 30, h = 1360, plane = XY, plane_offset = -680, at = [ -680, -15 ] }
+    ] }
+}
