@@ -3,7 +3,7 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { TrackballControls } from "three/addons/controls/TrackballControls.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { cssVar, cssColor, fmtDuration, fmtSpeed, escapeHtml, iconButton,
-         scrollActiveIntoView, matrixFromRowMajor, paletteColor, byMaterialMat } from "./utils.js";
+         scrollActiveIntoView, matrixFromRowMajor, byMaterialMat } from "./utils.js";
 import { buildAxisGizmo, buildJointGlyph } from "./gizmos.js";
 import { treeNode } from "./tree.js";
 import { MATERIALS, TRACE_COLORS, BOM_FIELDS, LIGHT_ORDER, LIGHT_NAMES, LIGHT_ICONS,
@@ -13,6 +13,8 @@ import { initPanelPlacement } from "./panel_placement.js";
 import { state } from "./viewer_state.js";
 import { initViewCube, renderGizmo, orientCameraTo } from "./view_cube.js";
 import { initLighting, setLighting, fitShadowCameras, setShadowRadius } from "./lighting.js";
+import { initMaterials, colorFor, updateByMaterialButton, syncMaterialBlock,
+         onElementMapReady } from "./materials.js";
 
 const stage = document.getElementById("stage");
 const spinner = document.getElementById("spinner");
@@ -158,6 +160,17 @@ renderer.domElement.addEventListener("click", ev => {
 // by frameModel) are its public surface.
 initLighting(scene, () => modelRoot);
 
+// Wire the By-Material color feature (materials.js) to the scene-side state it needs: the view-mode
+// predicate + the live assemblyMaterials/elementMap/mode reads + the applyMode/setMode callbacks.
+initMaterials({
+  isAssemblyScene,
+  getAssemblyMaterials: () => assemblyMaterials,
+  getElementMap: () => elementMap,
+  getMode: () => mode,
+  applyMode: () => applyMode(),
+  setMode: (m) => setMode(m),
+});
+
 const ground = new THREE.Mesh(
   new THREE.PlaneGeometry(400, 400),
   new THREE.ShadowMaterial({ opacity: 0.32 })
@@ -205,23 +218,11 @@ function materialMat() {
 }
 
 // ---- By-material coloring (color each body by its document material) ----
-// The mapping is GLOBAL by material name and lives in localStorage, so a material means the
-// same color across every model. "__none__" is the reserved bucket for bodies with no material.
-const MAT_COLORS_KEY = "ncad.materialColors";
-const NO_MATERIAL = "__none__";
-let matColors = (() => {
-  try { return JSON.parse(localStorage.getItem(MAT_COLORS_KEY)) || {}; }
-  catch (e) { return {}; }
-})();
-// Resolution order: user-assigned (localStorage) > authored appearance color > stable palette.
-// Unassigned bodies default to the neutral solid gray until the user colors the "(no material)".
-function colorFor(name, appearanceColor) {
-  const key = name || NO_MATERIAL;
-  if (matColors[key]) return matColors[key];
-  if (name && appearanceColor) return appearanceColor;
-  if (!name) return "#c6d3e2";
-  return paletteColor(name);
-}
+// The global material->color model + the "what materials exist" queries + the per-material color
+// panel + the By-Material button glue live in materials.js. colorFor (resolve a material name to a
+// color) is exported from there; applyMode's By-Material branch below uses it. The scene-side deps
+// (isAssemblyScene, the live assemblyMaterials/elementMap/mode, applyMode/setMode) are injected via
+// initMaterials near the render setup.
 
 // Per-exported-mesh body/material, from the sidecar `meshes` list (one entry per glTF mesh, in
 // export order). pickParts is collected in that same glb mesh order, so meshInfo(i) maps mesh i
@@ -353,82 +354,8 @@ function applyMode() {
   captureInstanceBases(); refreshInstanceVisuals();
 }
 
-function hasMaterials() {
-  if (isAssemblyScene()) {
-    return Object.values(assemblyMaterials).some(m => m.material);
-  }
-  const els = (elementMap && elementMap.elements) || [];
-  return els.some(e => e.material);
-}
-
-// Materials present in the loaded model, first-seen order, plus a trailing "(no material)"
-// entry when any face/instance is unassigned. Each entry carries the appearance color (if any).
-// In Assemblies mode the source is the per-instance materials; in Parts mode the element map.
-function distinctMaterials() {
-  const seen = new Map();
-  let hasNone = false;
-  const entries = isAssemblyScene()
-    ? Object.values(assemblyMaterials).map(m => ({material: m.material,
-                                                  appearance_color: m.appearance_color}))
-    : ((elementMap && elementMap.elements) || []);
-  entries.forEach(e => {
-    if (e.material) { if (!seen.has(e.material)) seen.set(e.material, e.appearance_color); }
-    else hasNone = true;
-  });
-  const out = [...seen.entries()].map(([name, appearance]) => ({ name, appearance }));
-  if (hasNone) out.push({ name: null, appearance: null });
-  return out;
-}
-
-// Show/hide the By-Material mode button by whether the current model (part OR assembly) has
-// materials; drop out of the mode if it no longer applies. Shared by the part + assembly paths.
-function updateByMaterialButton() {
-  const byBtn = document.querySelector('#vc-modes .vc-btn[data-mode="bymaterial"]');
-  if (byBtn) byBtn.hidden = !hasMaterials();
-  if (mode === "bymaterial" && !hasMaterials()) { setMode("solid"); return; }
-  syncMaterialBlock();
-  applyMode();
-}
-
-function renderMaterialColors() {
-  const wrap = document.getElementById("material-colors");
-  wrap.innerHTML = "";
-  distinctMaterials().forEach(m => {
-    const key = m.name || NO_MATERIAL;
-    const row = document.createElement("label");
-    row.className = "matrow";
-    const dot = document.createElement("span");
-    dot.className = "dot"; dot.style.background = colorFor(m.name, m.appearance);
-    const label = document.createElement("span");
-    label.className = "mname"; label.textContent = m.name || "(no material)";
-    const input = document.createElement("input");
-    input.type = "color"; input.value = colorFor(m.name, m.appearance);
-    input.addEventListener("input", () => {
-      matColors[key] = input.value;
-      localStorage.setItem(MAT_COLORS_KEY, JSON.stringify(matColors));
-      dot.style.background = input.value;
-      if (mode === "bymaterial") applyMode();   // live recolor
-    });
-    row.appendChild(dot); row.appendChild(label); row.appendChild(input);
-    wrap.appendChild(row);
-  });
-}
-
-function syncMaterialBlock() {
-  // The 16-preset appearance panel shows in "material" mode; the per-material color panel
-  // shows in "bymaterial" mode.
-  document.getElementById("vc-material").hidden = mode !== "material";
-  const byPanel = document.getElementById("vc-bymaterial");
-  byPanel.hidden = mode !== "bymaterial";
-  if (mode === "bymaterial") renderMaterialColors();
-}
-
-// Called when the element map arrives (a separate promise from the glb): reveal the
-// By-material mode only if this model has materials, re-render the panel, and re-apply the
-// mode so a by-material recolor now has both the meshes and the material data.
-function onElementMapReady() {
-  updateByMaterialButton();
-}
+// hasMaterials / distinctMaterials / updateByMaterialButton / renderMaterialColors /
+// syncMaterialBlock / onElementMapReady moved to materials.js (imported above).
 
 // The bounding box of the real GEOMETRY only (the picked meshes), excluding helper gizmos. Origin
 // axes + connector triads are AxesHelpers sized to a fraction of their part's extent, so a large
