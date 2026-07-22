@@ -230,10 +230,23 @@ class BuildService:
         # The download stem drops any .glb extension a part name carries (revolved_washer.glb ->
         # revolved_washer), so the file is <stem>.<fmt>, not <stem>.glb.<fmt>.
         base_name = os.path.splitext(name)[0]
+        # A part built as an assembly member records WHICH part of its (multi-part) source document
+        # it is (crank_slider__block.glb -> part "block" of crank_slider.hocon), so the exporter
+        # builds that one part, not the first or all. None for a plain single-part source.
+        part = self._export_part_name(name) if kind == "part" else None
         try:
-            return ModelExporter(Build123dKernel()).export(source, kind, fmt, base_name)
+            return ModelExporter(Build123dKernel()).export(source, kind, fmt, base_name, part)
         except (ValueError, OSError, RuntimeError) as exc:
             raise BuildError(str(exc)) from exc
+
+    def _export_part_name(self, name: str) -> str | None:
+        """The ``part`` field recorded in a part model's meta sidecar (an assembly member), or None.
+
+        Assembly composition records the specific part name for each member glb; a plain single-part
+        build records no ``part`` (the source has one part). None keeps the single-part path.
+        """
+        meta = self._meta.read(name)
+        return meta.get("part") if meta else None
 
     def _export_source(self, name: str, kind: str) -> str | None:
         """The recorded source spec for a model ``name`` of ``kind``, resolved to an absolute path.

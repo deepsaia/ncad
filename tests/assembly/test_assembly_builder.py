@@ -43,6 +43,35 @@ assembly {{ instances = [
     assert p2["placement"][3][0] == pytest.approx(0.020)  # 20mm baked to metres (glb unit)
 
 
+def test_assemble_writes_member_part_meta(tmp_path) -> None:
+    # Each composed member glb gets a <member>.meta.json recording its source part file + the
+    # specific part name, so the viewer can re-export that part on its own from the Parts tab.
+    from ncad.assembly.assembly_builder import AssemblyBuilder
+    from ncad.kernel.build123d_kernel import Build123dKernel
+
+    part = tmp_path / "widget.hocon"
+    _write(part, """
+units = mm
+parts { peg { profile = solid, features = [
+  { id = sk, op = sketch, plane = XY, elements = [ { id = c, type = circle, d = 8 } ] }
+  { id = ext, op = extrude, profile = sk, distance = 20 }
+] } }
+""")
+    asm = tmp_path / "widgets.asm.hocon"
+    _write(asm, f"""
+units = mm
+assembly {{ instances = [ {{ id = p1, file = "{part.name}", part = peg }} ] }}
+""")
+    out = tmp_path / "out"
+    result = AssemblyBuilder(Build123dKernel()).assemble(str(asm), str(out))
+    assert not result["issues"], result["issues"]
+    # The member glb is namespaced <doc>__<part>.glb -> widget__peg.glb; its meta names the part.
+    meta = json.loads((out / "widget__peg.meta.json").read_text())
+    assert meta["part"] == "peg"
+    assert Path(meta["source"]).name == "widget.hocon"
+    assert Path(meta["source"]).is_file()
+
+
 def test_assemble_reports_bad_instance_ref(tmp_path) -> None:
     from ncad.assembly.assembly_builder import AssemblyBuilder
     from ncad.kernel.build123d_kernel import Build123dKernel
