@@ -150,6 +150,9 @@ class _ViewerRequestHandler(BaseHTTPRequestHandler):
         elif path.startswith(_ASSEMBLY_ROUTE) and path.endswith("/delete"):
             name = path[len(_ASSEMBLY_ROUTE) : -len("/delete")]
             self._handle_delete_assembly(unquote(name))
+        elif path.startswith(_ROBOT_ROUTE) and path.endswith("/delete"):
+            name = path[len(_ROBOT_ROUTE) : -len("/delete")]
+            self._handle_delete_robot(unquote(name))
         else:
             self.send_error(404, "not found")
 
@@ -276,6 +279,15 @@ class _ViewerRequestHandler(BaseHTTPRequestHandler):
             return
         logger.info("deleted assembly %s", name)
         self._send_json(200, {"assemblies": self._catalog.assembly_names()})
+
+    def _handle_delete_robot(self, name: str) -> None:
+        removed = self._catalog.delete_robot(name)
+        if removed is None:
+            logger.warning("delete rejected: unknown robot %r", name)
+            self.send_error(404, "unknown robot")
+            return
+        logger.info("deleted robot %s", name)
+        self._send_json(200, {"robots": self._catalog.robots_with_labels()})
 
     def _send_model_list(self) -> None:
         self._send_json(200, {"models": self._catalog.models_with_sources()})

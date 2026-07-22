@@ -98,6 +98,8 @@ class OpenApiSpec:
             "/api/v1/models/{name}/delete": _post_delete("Delete a model and its sidecars."),
             "/api/v1/assembly/{name}/delete": _post_delete(
                 "Delete an assembly scene and its motion sidecar."),
+            "/api/v1/robot/{name}/delete": _post_delete(
+                "Delete a robot's tree + sweeps sidecars."),
             "/api/v1/assembly/{name}": _get_by_name(
                 "Get an assembly scene.", "unknown assembly"),
             "/api/v1/models/{name}": _get_bytes(

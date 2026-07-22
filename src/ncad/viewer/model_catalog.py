@@ -142,11 +142,28 @@ class ModelCatalog:
                       and os.path.isfile(os.path.join(self._directory, entry)))
 
     def robots_with_labels(self) -> list[dict]:
-        """Robot names each with a short label for the picker (joint count, best-effort)."""
+        """Robot names each with a short label + recorded source for the picker.
+
+        ``source`` is the ``.physics.hocon`` the robot was built from (recorded in the tree), so the
+        viewer can Regenerate after a page reload, exactly as the assembly/motion lists do.
+        """
         result: list[dict] = []
         for name in self.robot_names():
-            result.append({"name": name, "label": self._robot_label(name)})
+            result.append({"name": name, "label": self._robot_label(name),
+                           "source": self._robot_source(name)})
         return result
+
+    def _robot_source(self, name: str) -> str | None:
+        """The ``source`` field recorded in a robot's ``.robot.json`` tree, or None."""
+        path = self.resolve_robot(name)
+        if path is None:
+            return None
+        try:
+            with open(path, encoding="utf-8") as handle:
+                return json.load(handle).get("source")
+        except (OSError, ValueError) as exc:
+            logger.warning("could not read robot source for %s: %s", name, exc)
+            return None
 
     def _robot_label(self, name: str) -> str | None:
         """A short label for one robot (its joint count), or None if the tree can't be read."""
@@ -192,6 +209,22 @@ class ModelCatalog:
                           self.resolve_robot_sweeps(name)):
             if companion is not None:
                 os.remove(companion)
+        return name
+
+    def delete_robot(self, name: str) -> str | None:
+        """Delete a robot's Physics-viewer sidecars (``.robot.json`` + ``.robot_sweeps.json``).
+
+        Returns the name, or None if the robot is unknown. Only the two robot sidecars are removed:
+        the composed assembly scene + the shared part glbs are ordinary build output left in place
+        (the Assemblies view or another robot may use them), mirroring ``delete_assembly``.
+        """
+        resolved = self.resolve_robot(name)
+        if resolved is None:
+            return None
+        os.remove(resolved)
+        sweeps = self.resolve_robot_sweeps(name)
+        if sweeps is not None:
+            os.remove(sweeps)
         return name
 
     def resolve_bom(self, model_name: str) -> str | None:
