@@ -48,10 +48,12 @@ export class ViewerState {
     // resolved in app.js where MOTION_SPEEDS lives; 0 is a safe placeholder until that runs (nothing
     // reads it before then).
     this.motionSpeedIdx = 0;
-    // Physics mode rides the motion state: a selected joint's precomputed sweep loads into the motion
-    // fields above, so the scrubber/play controls drive it unchanged.
-    this.physicsSweeps = {};    // {jointName: {from, to, frames}} for the active robot
-    this.physicsNodes = {};     // instanceId -> node for the active robot (same shape as motionNodes)
+    // Physics mode poses the robot by live FORWARD KINEMATICS: the arm's actuated joints each get a
+    // slider, and moving any slider re-solves the whole chain (link nodes below) so descendants stay
+    // rigidly attached and each joint is clamped to its limit. Replaces the old per-joint sweep.
+    this.robotChain = null;     // the FK chain (buildFkChain output) for the active robot, or null
+    this.robotPose = {};        // {jointName: value} radians (revolute) / metres (prismatic)
+    this.robotNodes = {};       // instanceId (== link) -> THREE.Group node to place via FK
   }
 }
 
