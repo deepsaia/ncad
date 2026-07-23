@@ -2,7 +2,21 @@ import os
 
 import pytest
 
-from ncad.fea.analysis_document import AnalysisDocument
+from ncad.fea.analysis_document import AnalysisDocument, _step_families
+
+
+def test_step_families_separate_thermal_from_structural():
+    steps = [{"name": "s", "procedure": "static"},
+             {"name": "m", "procedure": "frequency"},
+             {"name": "h", "procedure": "heat_transfer"}]
+    families = _step_families(steps)
+    assert [s["name"] for s in families["structural"]] == ["s", "m"]
+    assert [s["name"] for s in families["thermal"]] == ["h"]
+
+
+def test_step_families_omits_absent_family():
+    families = _step_families([{"name": "s", "procedure": "static"}])
+    assert set(families) == {"structural"}
 
 _BRACKET = os.path.join(os.path.dirname(__file__), "..", "..",
                         "examples", "10-fea", "bracket.analysis.hocon")

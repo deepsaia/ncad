@@ -18,6 +18,7 @@ from ncad.fea.ccx_runner import CcxRunner
 from ncad.fea.deck_writer import DeckWriter
 from ncad.fea.frd_reader import FrdReader
 from ncad.fea.gmsh_mesher import GmshMesher
+from ncad.fea.surface_extractor import SurfaceExtractor
 from ncad.spec.material_library import MaterialLibrary
 from ncad.spec.spec_loader import SpecLoader
 from ncad.spec.spec_reference import SpecReference
@@ -55,31 +56,85 @@ class AnalysisDocument:
             return _skipped(f"gmsh not installed; install ncad[fea] ({exc})")
 
         material = _resolve_material(part_path, stem)
-        deck_path = os.path.join(out_dir, f"{stem}.inp")
-        deck = DeckWriter().write(open(mesh_inp, encoding="utf-8").read(), spec, material,
-                                  element_set=_ELEMENT_SET)
-        with open(deck_path, "w", encoding="utf-8") as handle:
-            handle.write(deck)
+        # gmsh writes surface groups as 2D CPS6 elements ccx rejects; rewrite them into element
+        # *SURFACEs (for pressure/flux) and strip the 2D elements before decking.
+        with open(mesh_inp, encoding="utf-8") as handle:
+            mesh_text = handle.read()
+        rewritten = SurfaceExtractor().rewrite(mesh_text, list(groups))
 
-        solve = CcxRunner().solve(deck_path, out_dir)
-        result = {"status": solve["status"], "artifact": deck_path, "sidecars": {},
-                  "summary": {}, "mesh": mesh_report,
-                  "warnings": mesh_report.get("warnings", []) + solve["skipped"] + solve["reasons"]}
-        if solve["status"] == "generated":
-            result.update(self._read_back(solve["artifact"], material, mesh_inp, out_dir, stem))
+        # One deck per procedure FAMILY: CalculiX aborts when a structural step and a thermal step
+        # are chained in a single deck (an analysis-type switch). Structural steps (static +
+        # frequency) chain fine together; thermal steps go in their own deck.
+        families = _step_families(spec.steps)
+        artifacts, warnings, family_results = [], list(mesh_report.get("warnings", [])), []
+        overall = "generated" if families else "skipped"
+        for family, steps in families.items():
+            deck_path = os.path.join(out_dir, f"{stem}.{family}.inp")
+            deck = DeckWriter().write(rewritten["text"], spec, material, element_set=_ELEMENT_SET,
+                                      surfaces=rewritten["surfaces"], faces=rewritten["faces"],
+                                      steps=steps)
+            with open(deck_path, "w", encoding="utf-8") as handle:
+                handle.write(deck)
+            artifacts.append(deck_path)
+            solve = CcxRunner().solve(deck_path, out_dir)
+            warnings += solve["skipped"] + solve["reasons"]
+            if solve["status"] == "generated":
+                family_results.append((family, solve["artifact"]))
+            elif solve["status"] != "generated" and overall == "generated":
+                overall = solve["status"]
+
+        result = {"status": overall, "artifact": artifacts[0] if artifacts else None,
+                  "artifacts": artifacts, "sidecars": {}, "summary": {}, "mesh": mesh_report,
+                  "warnings": warnings}
+        if family_results:
+            result.update(self._read_back(family_results, material, mesh_inp, out_dir, stem))
         return result
 
-    def _read_back(self, frd_path: str, material: dict, mesh_inp: str, out_dir: str,
+    def _read_back(self, family_results: list, material: dict, mesh_inp: str, out_dir: str,
                    stem: str) -> dict:
-        """Parse the .frd and write the summary + field-mesh sidecars; return paths + summary."""
+        """Merge each family's .frd into one summary + field mesh; return the paths + summary."""
         reader = FrdReader()
-        parsed = reader.read(frd_path, material)
+        merged: dict = {"max_von_mises": 0.0, "max_displacement": 0.0, "frequencies": [],
+                        "safety_factor": None}
+        primary = None
+        for _family, frd in family_results:
+            parsed = reader.read(frd, material)
+            _merge_summary(merged, parsed["summary"])
+            if primary is None and parsed["fields"].get("STRESS"):
+                primary = parsed          # color the viewer by the structural (stress) result
+        primary = primary or reader.read(family_results[0][1], material)
         json_path = os.path.join(out_dir, f"{stem}.analysis.json")
         with open(json_path, "w", encoding="utf-8") as handle:
-            json.dump({"summary": parsed["summary"]}, handle, indent=2)
+            json.dump({"summary": merged}, handle, indent=2)
         vtk_path = os.path.join(out_dir, f"{stem}.analysis.vtk")
-        reader.write_vtk(parsed, _read_elements(mesh_inp), vtk_path)
-        return {"summary": parsed["summary"], "sidecars": {"json": json_path, "vtk": vtk_path}}
+        reader.write_vtk(primary, _read_elements(mesh_inp), vtk_path)
+        return {"summary": merged, "sidecars": {"json": json_path, "vtk": vtk_path}}
+
+
+def _step_families(steps: list) -> dict:
+    """Partition steps into procedure FAMILIES that can share one deck.
+
+    ``structural`` (static + frequency) chain safely together; ``thermal`` (heat_transfer) must be
+    its own deck (CalculiX aborts when a structural and a thermal step are chained). Preserves
+    authored order within each family; families with no steps are omitted.
+    """
+    families: dict = {}
+    for step in steps:
+        family = "thermal" if step["procedure"] == "heat_transfer" else "structural"
+        families.setdefault(family, []).append(step)
+    return families
+
+
+def _merge_summary(merged: dict, summary: dict) -> None:
+    """Accumulate a family's summary into the merged scalars (max stress/disp, freqs, SF)."""
+    merged["max_von_mises"] = max(merged["max_von_mises"], summary.get("max_von_mises", 0.0))
+    merged["max_displacement"] = max(merged["max_displacement"],
+                                     summary.get("max_displacement", 0.0))
+    merged["frequencies"] = merged["frequencies"] or summary.get("frequencies", [])
+    if summary.get("safety_factor") is not None:
+        existing = merged["safety_factor"]
+        merged["safety_factor"] = (summary["safety_factor"] if existing is None
+                                   else min(existing, summary["safety_factor"]))
 
 
 def _build_part(part_path: str, stem: str):
@@ -114,13 +169,22 @@ def _resolve_material(part_path: str, stem: str) -> dict:
 
 
 def _groups(spec: AnalysisSpec) -> dict:
-    """Map each constraint + top-level load name to its ``where`` selector (gravity has none)."""
+    """Map every constraint + load name (top-level and step-nested) to its ``where`` selector.
+
+    Every BC/load that targets a face needs a named surface group in the mesh; gravity (a body
+    force) and a step's own nested thermal loads are all covered so the deck never references an
+    undefined set. Gravity carries no ``where`` and is skipped.
+    """
     groups: dict = {}
     for constraint in spec.constraints:
         groups[constraint["name"]] = constraint["where"]
     for load in spec.loads:
         if "where" in load:
             groups[load["name"]] = load["where"]
+    for step in spec.steps:
+        for load in step.get("loads", []):
+            if "where" in load:
+                groups[load["name"]] = load["where"]
     return groups
 
 

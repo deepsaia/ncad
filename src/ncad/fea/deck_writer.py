@@ -21,20 +21,32 @@ _FORCE_DOF = (1, 2, 3)
 class DeckWriter:
     """Builds a complete CalculiX .inp deck from a meshed .inp and an AnalysisSpec load case."""
 
-    def write(self, mesh_inp_text: str, spec, material: dict, element_set: str = "all") -> str:
+    def write(self, mesh_inp_text: str, spec, material: dict, element_set: str = "all",
+              surfaces: dict | None = None, faces: dict | None = None,
+              steps: list | None = None) -> str:
         """Return the full deck: the mesh .inp with material + section + steps appended.
 
         :param spec: an AnalysisSpec (part, constraints, loads, steps).
         :param material: a resolved mat_data dict (structural/physical/thermal groups).
         :param element_set: the volume ELSET name GmshMesher wrote (default ``all``).
+        :param surfaces: map of a load's group name -> its derived ``*SURFACE`` name (from
+            SurfaceExtractor); pressure (*DSLOAD) and flux (*DFLUX) reference the surface.
+        :param faces: map of a load's group name -> its ``(element_id, face_label)`` pairs; film
+            (*FILM) and radiation (*RADIATE) take element+face lines, not a surface, per CalculiX.
+        :param steps: the step subset to write (defaults to all of ``spec.steps``). Callers write
+            one deck per procedure FAMILY (structural vs thermal), since CalculiX aborts when an
+            analysis-type switch is chained in a single deck.
         :raises AnalysisError: if a heat_transfer step is present but the material has no
             thermal.conductivity (the load case needs a property the material does not carry).
         """
-        needs_thermal = any(s["procedure"] == "heat_transfer" for s in spec.steps)
+        surfaces = surfaces or {}
+        faces = faces or {}
+        steps = spec.steps if steps is None else steps
+        needs_thermal = any(s["procedure"] == "heat_transfer" for s in steps)
         blocks = [mesh_inp_text.rstrip(),
                   _material_block(material, needs_thermal),
                   _section_block(element_set),
-                  *[_step_block(step, spec, element_set) for step in spec.steps]]
+                  *[_step_block(step, spec, element_set, surfaces, faces) for step in steps]]
         return "\n".join(blocks) + "\n"
 
 
@@ -63,23 +75,23 @@ def _section_block(element_set: str) -> str:
     return f"*SOLID SECTION, ELSET={element_set}, MATERIAL={_MATERIAL_NAME}"
 
 
-def _step_block(step: dict, spec, element_set: str) -> str:
+def _step_block(step: dict, spec, element_set: str, surfaces: dict, faces: dict) -> str:
     """One CalculiX *STEP for an analysis step, dispatched by procedure."""
     procedure = step["procedure"]
     if procedure == "static":
-        return _static_step(step, spec, element_set)
+        return _static_step(step, spec, element_set, surfaces)
     if procedure == "frequency":
         return _frequency_step(step, spec)
-    return _heat_transfer_step(step, spec)
+    return _heat_transfer_step(step, spec, surfaces, faces)
 
 
-def _static_step(step: dict, spec, element_set: str) -> str:
+def _static_step(step: dict, spec, element_set: str, surfaces: dict) -> str:
     """A *STATIC step: fixed BCs + structural loads -> displacement + stress output."""
     nlgeom = ", NLGEOM" if step.get("nlgeom") else ""
     output = step.get("output") or {"node": ["U", "RF"], "element": ["S", "E"]}
     lines = [f"*STEP{nlgeom}", "*STATIC",
              _boundary_block(spec.constraints),
-             *[_load_card(load, element_set) for load in spec.loads],
+             *[_load_card(load, element_set, surfaces) for load in spec.loads],
              "*NODE FILE", ", ".join(output.get("node", ["U"])),
              "*EL FILE", ", ".join(output.get("element", ["S"])),
              "*END STEP"]
@@ -94,11 +106,15 @@ def _frequency_step(step: dict, spec) -> str:
     return "\n".join(x for x in lines if x)
 
 
-def _heat_transfer_step(step: dict, spec) -> str:
-    """A *HEAT TRANSFER, STEADY STATE step: the step's thermal loads -> a temperature field."""
+def _heat_transfer_step(step: dict, spec, surfaces: dict, faces: dict) -> str:
+    """A *HEAT TRANSFER, STEADY STATE step: the step's thermal loads -> a temperature field.
+
+    Structural constraints (dof 1-6) are NOT emitted here: a thermal step only has the temperature
+    dof (11), and mixing structural dofs makes CalculiX treat it as a nonlinear structural run.
+    Only the step's own thermal loads (flux/film/radiation and any prescribed temperature) apply.
+    """
     lines = ["*STEP", "*HEAT TRANSFER, STEADY STATE",
-             _boundary_block(spec.constraints),
-             *[_thermal_load_card(load) for load in step.get("loads", [])],
+             *[_thermal_load_card(load, surfaces, faces) for load in step.get("loads", [])],
              "*NODE FILE", "NT", "*END STEP"]
     return "\n".join(x for x in lines if x)
 
@@ -117,18 +133,19 @@ def _boundary_block(constraints: list[dict]) -> str:
     return "\n".join(lines)
 
 
-def _load_card(load: dict, element_set: str) -> str:
-    """A structural load card: force (*CLOAD), pressure (*DLOAD P), or gravity (*DLOAD GRAV).
+def _load_card(load: dict, element_set: str, surfaces: dict) -> str:
+    """A structural load card: force (*CLOAD), pressure (*DSLOAD P), or gravity (*DLOAD GRAV).
 
-    Pressure is applied over the load's named surface element set (GmshMesher writes one ELSET per
-    load, named after the load); gravity is a body force over the whole volume element set.
+    Pressure applies over the load's derived element *SURFACE (SurfaceExtractor maps the surface
+    triangles to tet faces); force uses the node set; gravity is a body force over the volume.
     """
     ltype = load["type"]
     if ltype == "force":
         return _cload_card(load)
     if ltype == "pressure":
-        # A uniform pressure over the load's named surface element set (CalculiX *DLOAD label P).
-        return f"*DLOAD\n{load['name']}, P, {load['magnitude']:.6g}"
+        # A uniform pressure over the load's element surface (CalculiX *DSLOAD, distributed P).
+        surface = surfaces.get(load["name"]) or load["name"]
+        return f"*DSLOAD\n{surface}, P, {load['magnitude']:.6g}"
     if ltype == "gravity":
         dx, dy, dz = load["direction"]
         return (f"*DLOAD\n{element_set}, GRAV, {load['g']:.6g}, "
@@ -145,19 +162,34 @@ def _cload_card(load: dict) -> str:
     return "\n".join(lines)
 
 
-def _thermal_load_card(load: dict) -> str:
-    """A thermal load card: flux (*DFLUX), film (*FILM), radiation (*RADIATE), temp (*BOUNDARY)."""
+def _thermal_load_card(load: dict, surfaces: dict, faces: dict) -> str:
+    """A thermal load card: flux (*DFLUX), film (*FILM), radiation (*RADIATE), temp (*BOUNDARY).
+
+    Flux applies over the load's derived element *SURFACE. Film and radiation take element+face
+    lines (CalculiX does not accept a surface for these), so they use the face list. A prescribed
+    temperature applies on the load's node set (dof 11).
+    """
     ltype = load["type"]
     name = load["name"]
     if ltype == "flux":
-        return f"*DFLUX\n{name}, S, {load['magnitude']:.6g}"
+        surface = surfaces.get(name) or name
+        return f"*DFLUX\n{surface}, S, {load['magnitude']:.6g}"
     if ltype == "film":
-        return f"*FILM\n{name}, F, {load['sink']:.6g}, {load['coefficient']:.6g}"
+        trailer = f"{load['sink']:.6g}, {load['coefficient']:.6g}"
+        rows = _face_load_rows(faces.get(name, []), trailer)
+        return f"*FILM\n{rows}" if rows else ""
     if ltype == "radiation":
-        return f"*RADIATE\n{name}, R, {load['ambient']:.6g}, {load['emissivity']:.6g}"
+        rows = _face_load_rows(faces.get(name, []),
+                               f"{load['ambient']:.6g}, {load['emissivity']:.6g}")
+        return f"*RADIATE\n{rows}" if rows else ""
     if ltype == "temperature":
         return f"*BOUNDARY\n{name}, 11, 11, {load['value']:.6g}"
     return ""
+
+
+def _face_load_rows(face_pairs: list, trailer: str) -> str:
+    """One ``<elem>, F<n>, <trailer>`` line per (element, S-face) pair (film/radiation form)."""
+    return "\n".join(f"{elem}, F{face[1:]}, {trailer}" for elem, face in face_pairs)
 
 
 def _contiguous_runs(dof: list[int]) -> list[tuple[int, int]]:

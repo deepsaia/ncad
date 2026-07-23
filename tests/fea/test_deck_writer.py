@@ -72,3 +72,13 @@ def test_heat_transfer_writes_conductivity_and_flux():
                               "type": "flux", "magnitude": 500}]}])
     deck = DeckWriter().write(_MESH_INP, spec, _STEEL).upper()
     assert "*CONDUCTIVITY" in deck and "*HEAT TRANSFER" in deck and "*DFLUX" in deck
+
+
+def test_pressure_uses_derived_surface_name():
+    # A pressure load references its derived *SURFACE (from SurfaceExtractor), not the raw group.
+    spec = _spec([{"name": "stress", "procedure": "static"}],
+                 loads=[{"name": "tip", "where": {"face": "top"}, "type": "pressure",
+                         "magnitude": 2.5e5}])
+    deck = DeckWriter().write(_MESH_INP, spec, _STEEL, surfaces={"tip": "Stip"})
+    assert "*DSLOAD" in deck.upper()
+    assert "Stip, P" in deck
