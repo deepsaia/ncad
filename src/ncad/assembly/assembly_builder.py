@@ -45,6 +45,7 @@ from ncad.build.mass_calculator import MassCalculator
 from ncad.build.material_error import MaterialError
 from ncad.spec.assembly_schema_validator import AssemblySchemaValidator
 from ncad.spec.spec_loader import SpecLoader
+from ncad.spec.spec_reference import SpecReference
 
 logger = logging.getLogger(__name__)
 
@@ -222,7 +223,7 @@ class AssemblyBuilder:
         the recursive assemble and is turned into an id-attributed issue here.
         """
         iid = instance["id"]
-        child_path = os.path.join(asm_dir, instance["assembly"])
+        child_path = SpecReference().resolve(instance["assembly"], asm_dir)
         try:
             child = self.assemble(child_path, out_dir, visited)
         except ValueError as exc:
@@ -493,9 +494,9 @@ class AssemblyBuilder:
             iid = inst.get("id")
             if iid not in placements_mm or not inst.get("file"):
                 continue
-            file_key = os.path.abspath(os.path.join(asm_dir, inst["file"]))
+            file_key = SpecReference().resolve(inst["file"], asm_dir)
             builder = builders.setdefault(file_key, DocumentBuilder(self._kernel))
-            builds = builder.resolve_part_builds(os.path.join(asm_dir, inst["file"]))
+            builds = builder.resolve_part_builds(file_key)
             shape, _ = builds.get(inst["part"], (None, None))
             if shape is not None:
                 shapes_by_id[iid] = shape
@@ -535,11 +536,11 @@ class AssemblyBuilder:
             iid = inst["id"]
             if iid not in placements_mm or "file" not in inst:
                 continue
-            file_key = os.path.abspath(os.path.join(asm_dir, inst["file"]))
+            file_key = SpecReference().resolve(inst["file"], asm_dir)
             builds = file_builds.get(file_key)
             if builds is None:
                 builder = builders.setdefault(file_key, DocumentBuilder(self._kernel))
-                builds = builder.resolve_part_builds(os.path.join(asm_dir, inst["file"]))
+                builds = builder.resolve_part_builds(file_key)
                 file_builds[file_key] = builds
             shape, resolver = builds.get(inst["part"], (None, None))
             if shape is None:
@@ -581,11 +582,11 @@ class AssemblyBuilder:
             iid = inst["id"]
             if iid not in placements_mm:
                 continue  # a bad instance skipped upstream; not placed
-            file_key = os.path.abspath(os.path.join(asm_dir, inst["file"]))
+            file_key = SpecReference().resolve(inst["file"], asm_dir)
             builds = file_builds.get(file_key)
             if builds is None:
                 builder = builders.setdefault(file_key, DocumentBuilder(self._kernel))
-                builds = builder.resolve_part_builds(os.path.join(asm_dir, inst["file"]))
+                builds = builder.resolve_part_builds(file_key)
                 file_builds[file_key] = builds
             shape, resolver = builds.get(inst["part"], (None, None))
             if shape is None:
@@ -756,7 +757,7 @@ class AssemblyBuilder:
     def _resolve_connectors(self, instance: dict, asm_dir: str, builders: dict,
                             resolved_files: dict, issues: list) -> dict[str, ConnectorFrame]:
         """Resolve a part's declared connectors to local-space frames (empty on any failure)."""
-        part_file = os.path.join(asm_dir, instance["file"])
+        part_file = SpecReference().resolve(instance["file"], asm_dir)
         key = os.path.abspath(part_file)
         # resolve_part_elements returns EVERY part in the file, so resolve each file once and cache;
         # subsequent instances of any part in that file reuse it (no redundant load + build).
@@ -786,7 +787,7 @@ class AssemblyBuilder:
                          builders: dict, built_glbs: dict, issues: list) -> str | None:
         """Build or reuse the glb for one instance's {file, part}; return its glb basename."""
         instance_id = instance["id"]
-        part_file = os.path.join(asm_dir, instance["file"])
+        part_file = SpecReference().resolve(instance["file"], asm_dir)
         part_name = instance["part"]
         key = (os.path.abspath(part_file), part_name)
         if key in built_glbs:

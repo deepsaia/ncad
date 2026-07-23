@@ -27,6 +27,7 @@ from ncad.robotics.physics_spec import PhysicsSpec
 from ncad.robotics.robot_model import RobotModel
 from ncad.robotics.robot_model_builder import RobotModelBuilder
 from ncad.spec.spec_loader import SpecLoader
+from ncad.spec.spec_reference import SpecReference
 
 logger = logging.getLogger(__name__)
 
@@ -114,7 +115,7 @@ class RobotSidecarBuilder:
         (no per-joint sidecar churn, no stray last-joint .motion.json).
         """
         spec = PhysicsSpec(SpecLoader().load(physics_path))
-        assembly_path = str(Path(physics_path).resolve().parent / spec.assembly)
+        assembly_path = SpecReference().for_doc(spec.assembly, physics_path)
         model_size = self._model_size(model)
         sweeps: dict[str, dict] = {}
         warnings: list[str] = []
