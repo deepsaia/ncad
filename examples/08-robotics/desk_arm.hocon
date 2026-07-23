@@ -4,159 +4,174 @@ units = mm
 # arm is an OPEN serial chain (base -> turret -> upper arm -> forearm -> hand -> sliding jaw) with
 # five INDEPENDENT actuated joints, so the Physics panel gets five live forward-kinematics sliders.
 #
-# The joints are REAL clevis-and-pin joints, not glued solids:
-#   base_yaw : a vertical shaft in the base hub (a rotary bearing about +Z).
-#   shoulder / elbow / wrist : a FORK of two coaxial discs on the parent + a round EYE on the child,
-#       swinging in the gap between the discs, with a visible PIN cylinder through both (axis +Y).
-#       The discs are coaxial with the pin, so they never block the swing plane - the child eye + bar
-#       rotate freely in the gap (the built-in relief), limited only where the child bar would meet
-#       the parent bar. That is where each joint's limit is set.
-#   grip : the jaw rides a visible RAIL rod on the hand (a captured prismatic slide along +X), so the
-#       jaw is guided by the rod, not floating.
+# The joints are REAL clevis-and-pin joints with visible relief:
+#   base_yaw : a slim shaft in the base hub bore (a rotary bearing about +Z).
+#   shoulder / elbow / wrist : a YOKE (two thin plates with an open GROOVE between them) on the
+#       parent + a round-nosed TONGUE on the child that swings in the groove, with a thin PIN through
+#       both (axis +Y). The open groove is the visible relief: the tongue's round nose lets it swing
+#       far into the groove without its corners fouling, so the joint reads as a real hinge.
+#   grip : the jaw's collar bore rides a visible RAIL rod on the hand (a captured slide along +X).
 #
 # Rest pose (all joint angles 0): the arm stands straight UP along +Z. Joint Z-stations (on the arm
 # centreline at rest): base top / yaw 16, shoulder 64, elbow 184, wrist 284, jaw rail 316.
 #
 # Primitive placement (verified against the kernel): a `cylinder` CENTRES on its `at` (x,y) and grows
-# +Z by `h` from `plane_offset`; on the XZ plane a cylinder's axis is +Y (centre it with
-# plane_offset = -h/2). A `box` grows from `at` as its -x,-y CORNER, so a box is centred by setting
-# at = [-w/2, -d/2]. Every primitive below follows this.
+# +Z by `h` from `plane_offset`; on the XZ plane its axis is +Y (centre with plane_offset = -h/2);
+# on the YZ plane its axis is +X. A `box` grows from `at` as its -x,-y CORNER, so it is centred by
+# at = [-w/2, -d/2]. Hardware is slim (desktop scale): ~3.5 mm pins, 4 mm yoke plates.
 metadata {
-  description = "5-DoF desktop robot arm blockout: clevis-and-pin joints, base/turret/arm/forearm/hand/jaw"
+  description = "5-DoF desktop robot arm blockout: yoke-and-pin clevis joints with open groove relief"
   tags = [ desk_arm, robot, arm, blockout ]
 }
 parts {
   # Base: a pedestal disc + a hub bore that seats the turret shaft (the base_yaw rotary bearing).
-  # `top` (axis Z) is the base_yaw axis at z=16.
   base { profile = solid, material = steel_4140,
     connectors = [
       { id = top, at_point = [ 0, 0, 16 ], axis = [ 0, 0, 1 ] }
     ],
     features = [
-      { id = pad, op = primitive, kind = cylinder, d = 96, h = 10, plane = XY, plane_offset = 0 }
-      { id = hub, op = primitive, kind = cylinder, d = 46, h = 16, plane = XY, plane_offset = 10 }
+      { id = pad, op = primitive, kind = cylinder, d = 82, h = 9, plane = XY, plane_offset = 0 }
+      { id = hub, op = primitive, kind = cylinder, d = 34, h = 14, plane = XY, plane_offset = 9 }
       { id = body, op = boolean, operation = union, target = pad, tool = hub }
-      { id = bore, op = primitive, kind = cylinder, d = 20, h = 14, plane = XY, plane_offset = 12,
+      { id = bore, op = primitive, kind = cylinder, d = 12, h = 12, plane = XY, plane_offset = 11,
         at = [ 0, 0 ] }
       { id = whole, op = boolean, operation = cut, target = body, tool = bore }
     ] }
-  # Turret: a shaft that drops into the base bore (base_yaw about +Z) + a clevis fork (two coaxial
-  # discs on +/-Y) rising to the shoulder pin at z=64. `foot` (axis Z) seats on the base top;
-  # `shoulder` (axis Y) is the shoulder pitch axis. The fork discs straddle the upper-arm eye in Y.
+  # Turret: a slim shaft into the base bore (base_yaw about +Z) + a yoke (two thin plates with an
+  # open groove between them) rising to the shoulder pin at z=64. `foot` (axis Z) seats on the base
+  # top; `shoulder` (axis Y) is the shoulder pitch axis. The plates straddle the upper-arm tongue.
   turret { profile = solid, material = aluminium_6061,
     connectors = [
       { id = foot, at_point = [ 0, 0, 16 ], axis = [ 0, 0, 1 ] }
       { id = shoulder, at_point = [ 0, 0, 64 ], axis = [ 0, 1, 0 ] }
     ],
     features = [
-      { id = shaft, op = primitive, kind = cylinder, d = 19, h = 20, plane = XY, plane_offset = 2 }
-      { id = neck, op = primitive, kind = cylinder, d = 34, h = 30, plane = XY, plane_offset = 22 }
+      { id = shaft, op = primitive, kind = cylinder, d = 11, h = 18, plane = XY, plane_offset = 4 }
+      { id = neck, op = primitive, kind = cylinder, d = 24, h = 26, plane = XY, plane_offset = 22 }
       { id = s1, op = boolean, operation = union, target = shaft, tool = neck }
-      # Fork: two coaxial discs (axis Y) at y=+/-16, centred on the shoulder pin at z=64.
-      { id = earR, op = primitive, kind = cylinder, d = 34, h = 7, plane = XZ, plane_offset = 13,
+      # Yoke: two thin plates at y = +/-7 (a 10 mm open groove between), each rising to the shoulder
+      # pin at z=64 with a rounded top disc so the tongue can swing far.
+      { id = plateR, op = primitive, kind = box, w = 16, d = 4, h = 24, plane = XY,
+        plane_offset = 46, at = [ -8, 5 ] }
+      { id = plateL, op = primitive, kind = box, w = 16, d = 4, h = 24, plane = XY,
+        plane_offset = 46, at = [ -8, -9 ] }
+      { id = capR, op = primitive, kind = cylinder, d = 16, h = 4, plane = XZ, plane_offset = 5,
         at = [ 0, 64 ] }
-      { id = earL, op = primitive, kind = cylinder, d = 34, h = 7, plane = XZ, plane_offset = -20,
+      { id = capL, op = primitive, kind = cylinder, d = 16, h = 4, plane = XZ, plane_offset = -9,
         at = [ 0, 64 ] }
-      { id = s2, op = boolean, operation = union, target = s1, tool = earR }
-      { id = fork, op = boolean, operation = union, target = s2, tool = earL }
-      # Pin through the fork (axis Y), protruding past both discs so it reads as a real pin.
-      { id = pin, op = primitive, kind = cylinder, d = 7, h = 46, plane = XZ, plane_offset = -23,
+      { id = s2, op = boolean, operation = union, target = s1, tool = plateR }
+      { id = s3, op = boolean, operation = union, target = s2, tool = plateL }
+      { id = s4, op = boolean, operation = union, target = s3, tool = capR }
+      { id = yoke, op = boolean, operation = union, target = s4, tool = capL }
+      # Thin pin through the yoke (axis Y), protruding ~2 mm past each plate.
+      { id = pin, op = primitive, kind = cylinder, d = 3.5, h = 22, plane = XZ, plane_offset = -11,
         at = [ 0, 64 ] }
-      { id = whole, op = boolean, operation = union, target = fork, tool = pin }
+      { id = whole, op = boolean, operation = union, target = yoke, tool = pin }
     ] }
-  # Upper arm: a round EYE at the shoulder (z=64) swinging in the turret fork, a bar up to a fork at
-  # the elbow (z=184). The eye (d=24) sits in the 26mm fork gap; the bar is 18 wide so it swings in
-  # the gap too. `p_shoulder` + `p_elbow` share the +Y pitch axis.
+  # Upper arm: a round-nosed TONGUE at the shoulder (z=64) swinging in the turret groove, a slim bar
+  # to a yoke at the elbow (z=184). The tongue (a disc, thickness 8) fits the 10 mm groove; the round
+  # nose lets it swing far without corners fouling. `p_shoulder` + `p_elbow` share the +Y pitch axis.
   upperarm { profile = solid, material = aluminium_6061,
     connectors = [
       { id = p_shoulder, at_point = [ 0, 0, 64 ], axis = [ 0, 1, 0 ] }
       { id = p_elbow, at_point = [ 0, 0, 184 ], axis = [ 0, 1, 0 ] }
     ],
     features = [
-      { id = eyeS, op = primitive, kind = cylinder, d = 24, h = 24, plane = XZ, plane_offset = -12,
+      { id = tongueS, op = primitive, kind = cylinder, d = 15, h = 8, plane = XZ, plane_offset = -4,
         at = [ 0, 64 ] }
-      { id = bar, op = primitive, kind = box, w = 18, d = 22, h = 108, plane = XY,
-        plane_offset = 70, at = [ -9, -11 ] }
-      { id = a1, op = boolean, operation = union, target = eyeS, tool = bar }
-      # Elbow fork: two coaxial discs (axis Y) at y=+/-13, centred on the elbow pin at z=184.
-      { id = earR, op = primitive, kind = cylinder, d = 30, h = 6, plane = XZ, plane_offset = 11,
+      { id = bar, op = primitive, kind = box, w = 13, d = 8, h = 112, plane = XY,
+        plane_offset = 66, at = [ -6.5, -4 ] }
+      { id = a1, op = boolean, operation = union, target = tongueS, tool = bar }
+      # Elbow yoke: two thin plates (7 mm groove) rising to the elbow pin at z=184, rounded tops.
+      { id = plateR, op = primitive, kind = box, w = 13, d = 4, h = 22, plane = XY,
+        plane_offset = 168, at = [ -6.5, 3.5 ] }
+      { id = plateL, op = primitive, kind = box, w = 13, d = 4, h = 22, plane = XY,
+        plane_offset = 168, at = [ -6.5, -7.5 ] }
+      { id = capR, op = primitive, kind = cylinder, d = 13, h = 4, plane = XZ, plane_offset = 3.5,
         at = [ 0, 184 ] }
-      { id = earL, op = primitive, kind = cylinder, d = 30, h = 6, plane = XZ, plane_offset = -17,
+      { id = capL, op = primitive, kind = cylinder, d = 13, h = 4, plane = XZ, plane_offset = -7.5,
         at = [ 0, 184 ] }
-      { id = a2, op = boolean, operation = union, target = a1, tool = earR }
-      { id = fork, op = boolean, operation = union, target = a2, tool = earL }
-      { id = pin, op = primitive, kind = cylinder, d = 6, h = 40, plane = XZ, plane_offset = -20,
+      { id = a2, op = boolean, operation = union, target = a1, tool = plateR }
+      { id = a3, op = boolean, operation = union, target = a2, tool = plateL }
+      { id = a4, op = boolean, operation = union, target = a3, tool = capR }
+      { id = yoke, op = boolean, operation = union, target = a4, tool = capL }
+      { id = pin, op = primitive, kind = cylinder, d = 3.5, h = 18, plane = XZ, plane_offset = -9,
         at = [ 0, 184 ] }
-      { id = whole, op = boolean, operation = union, target = fork, tool = pin }
+      { id = whole, op = boolean, operation = union, target = yoke, tool = pin }
     ] }
-  # Forearm: an EYE at the elbow (z=184) swinging in the upper-arm fork, a bar up to a fork at the
-  # wrist (z=284). Eye d=20 in the 22mm gap; bar 14 wide.
+  # Forearm: a round-nosed TONGUE at the elbow (z=184) swinging in the upper-arm groove, a slim bar
+  # to a yoke at the wrist (z=284). Tongue thickness 6 in the 7 mm groove; bar 11 wide.
   forearm { profile = solid, material = aluminium_6061,
     connectors = [
       { id = p_elbow, at_point = [ 0, 0, 184 ], axis = [ 0, 1, 0 ] }
       { id = p_wrist, at_point = [ 0, 0, 284 ], axis = [ 0, 1, 0 ] }
     ],
     features = [
-      { id = eyeE, op = primitive, kind = cylinder, d = 20, h = 20, plane = XZ, plane_offset = -10,
+      { id = tongueE, op = primitive, kind = cylinder, d = 12, h = 6, plane = XZ, plane_offset = -3,
         at = [ 0, 184 ] }
-      { id = bar, op = primitive, kind = box, w = 14, d = 18, h = 88, plane = XY,
-        plane_offset = 190, at = [ -7, -9 ] }
-      { id = f1, op = boolean, operation = union, target = eyeE, tool = bar }
-      # Wrist fork: coaxial discs at y=+/-11, centred on the wrist pin at z=284.
-      { id = earR, op = primitive, kind = cylinder, d = 26, h = 6, plane = XZ, plane_offset = 9,
+      { id = bar, op = primitive, kind = box, w = 11, d = 6, h = 94, plane = XY,
+        plane_offset = 186, at = [ -5.5, -3 ] }
+      { id = f1, op = boolean, operation = union, target = tongueE, tool = bar }
+      # Wrist yoke: two thin plates (6 mm groove) rising to the wrist pin at z=284, rounded tops.
+      { id = plateR, op = primitive, kind = box, w = 11, d = 3.5, h = 20, plane = XY,
+        plane_offset = 270, at = [ -5.5, 3 ] }
+      { id = plateL, op = primitive, kind = box, w = 11, d = 3.5, h = 20, plane = XY,
+        plane_offset = 270, at = [ -5.5, -6.5 ] }
+      { id = capR, op = primitive, kind = cylinder, d = 11, h = 3.5, plane = XZ, plane_offset = 3,
         at = [ 0, 284 ] }
-      { id = earL, op = primitive, kind = cylinder, d = 26, h = 6, plane = XZ, plane_offset = -15,
+      { id = capL, op = primitive, kind = cylinder, d = 11, h = 3.5, plane = XZ, plane_offset = -6.5,
         at = [ 0, 284 ] }
-      { id = f2, op = boolean, operation = union, target = f1, tool = earR }
-      { id = fork, op = boolean, operation = union, target = f2, tool = earL }
-      { id = pin, op = primitive, kind = cylinder, d = 6, h = 36, plane = XZ, plane_offset = -18,
+      { id = f2, op = boolean, operation = union, target = f1, tool = plateR }
+      { id = f3, op = boolean, operation = union, target = f2, tool = plateL }
+      { id = f4, op = boolean, operation = union, target = f3, tool = capR }
+      { id = yoke, op = boolean, operation = union, target = f4, tool = capL }
+      { id = pin, op = primitive, kind = cylinder, d = 3, h = 16, plane = XZ, plane_offset = -8,
         at = [ 0, 284 ] }
-      { id = whole, op = boolean, operation = union, target = fork, tool = pin }
+      { id = whole, op = boolean, operation = union, target = yoke, tool = pin }
     ] }
-  # Hand: an EYE at the wrist (z=284) swinging in the forearm fork, a palm, a FIXED jaw on -X, and a
-  # RAIL rod (axis X) the sliding jaw rides. `p_wrist` (axis Y) is the wrist pitch; `jawRail`
-  # (axis X, z=316) is the gripper slide direction. The rail rod is the captured slide guide.
+  # Hand: a round-nosed TONGUE at the wrist (z=284) swinging in the forearm groove, a short palm, a
+  # FIXED jaw on -X, and a RAIL rod (axis X) the sliding jaw rides. Kept SHORT so it clears the
+  # forearm at wide wrist angles. `p_wrist` (axis Y) is the wrist pitch; `jawRail` (axis X, z=316).
   hand { profile = solid, material = abs,
     connectors = [
       { id = p_wrist, at_point = [ 0, 0, 284 ], axis = [ 0, 1, 0 ] }
       { id = jawRail, at_point = [ 0, 0, 316 ], axis = [ 1, 0, 0 ] }
     ],
     features = [
-      { id = eyeW, op = primitive, kind = cylinder, d = 18, h = 18, plane = XZ, plane_offset = -9,
+      { id = tongueW, op = primitive, kind = cylinder, d = 10, h = 5.5, plane = XZ, plane_offset = -2.75,
         at = [ 0, 284 ] }
-      { id = neck, op = primitive, kind = box, w = 14, d = 16, h = 22, plane = XY,
-        plane_offset = 286, at = [ -7, -8 ] }
-      { id = palm, op = primitive, kind = box, w = 40, d = 26, h = 12, plane = XY,
-        plane_offset = 305, at = [ -20, -13 ] }
-      { id = h1, op = boolean, operation = union, target = eyeW, tool = neck }
+      { id = neck, op = primitive, kind = box, w = 10, d = 12, h = 26, plane = XY,
+        plane_offset = 282, at = [ -5, -6 ] }
+      { id = palm, op = primitive, kind = box, w = 30, d = 20, h = 10, plane = XY,
+        plane_offset = 306, at = [ -15, -10 ] }
+      { id = h1, op = boolean, operation = union, target = tongueW, tool = neck }
       { id = h2, op = boolean, operation = union, target = h1, tool = palm }
-      { id = fixedjaw, op = primitive, kind = box, w = 6, d = 22, h = 28, plane = XY,
-        plane_offset = 305, at = [ -22, -11 ] }
+      { id = fixedjaw, op = primitive, kind = box, w = 5, d = 16, h = 22, plane = XY,
+        plane_offset = 306, at = [ -16, -8 ] }
       { id = h3, op = boolean, operation = union, target = h2, tool = fixedjaw }
-      # Rail rod (axis X) through the fixed jaw at the jawRail height (z=316); the sliding jaw's
-      # channel rides it. On the YZ plane a cylinder's axis is +X; plane_offset shifts along +X, so
-      # -22 centres the 44mm rod on x=0. at = (y, z) = (0, 316) places it on the gripper centreline.
-      { id = rail, op = primitive, kind = cylinder, d = 6, h = 44, plane = YZ, plane_offset = -22,
+      # Rail rod (axis X) through the jaw region at z=316; the sliding jaw's collar bore rides it.
+      # Spans the WHOLE travel: from past the fixed jaw (x=-26, where the collar bore sits when the
+      # grip is fully closed) to well past the open-jaw position (x=+30), so the jaw stays threaded
+      # on the rod through its entire stroke AND the rod protrudes at the open end - it reads as the
+      # jaw sliding along a guide rail, not sitting flush at a stub.
+      { id = rail, op = primitive, kind = cylinder, d = 5, h = 56, plane = YZ, plane_offset = -26,
         at = [ 0, 316 ] }
       { id = whole, op = boolean, operation = union, target = h3, tool = rail }
     ] }
-  # Sliding jaw: the moving gripper finger, guided by a channel that wraps the hand's rail rod (a
+  # Sliding jaw: the moving gripper finger, guided by a collar bore that wraps the hand rail rod (a
   # captured slide, not floating). At rest it sits open on +X; `rail` (axis X) mates the hand rod.
-  # It slides along +X toward the fixed jaw (grip = close).
   jaw { profile = solid, material = abs,
     connectors = [
-      { id = rail, at_point = [ 19, 0, 316 ], axis = [ 1, 0, 0 ] }
+      { id = rail, at_point = [ 15, 0, 316 ], axis = [ 1, 0, 0 ] }
     ],
     features = [
-      { id = finger, op = primitive, kind = box, w = 6, d = 22, h = 28, plane = XY,
-        plane_offset = 305, at = [ 16, -11 ] }
-      { id = collar, op = primitive, kind = box, w = 14, d = 14, h = 14, plane = XY,
-        plane_offset = 309, at = [ 12, -7 ] }
+      { id = finger, op = primitive, kind = box, w = 5, d = 16, h = 22, plane = XY,
+        plane_offset = 306, at = [ 13, -8 ] }
+      { id = collar, op = primitive, kind = box, w = 12, d = 11, h = 11, plane = XY,
+        plane_offset = 310, at = [ 10, -5.5 ] }
       { id = block, op = boolean, operation = union, target = finger, tool = collar }
-      # The channel bore (axis X) through the collar that rides the hand rail rod (z=316); a touch
-      # larger than the 6mm rod so the jaw is guided by the rod, not floating.
-      { id = channel, op = primitive, kind = cylinder, d = 7.5, h = 20, plane = YZ,
-        plane_offset = 9, at = [ 0, 316 ] }
+      { id = channel, op = primitive, kind = cylinder, d = 6.5, h = 16, plane = YZ,
+        plane_offset = 8, at = [ 0, 316 ] }
       { id = whole, op = boolean, operation = cut, target = block, tool = channel }
     ] }
 }

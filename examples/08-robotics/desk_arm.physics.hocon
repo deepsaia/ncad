@@ -12,21 +12,24 @@ metadata {
 physics {
   assembly = "desk_arm.asm.hocon"
   base = base
-  # Limits are the physically believable ranges of the clevis-and-pin joints (radians for revolute,
-  # metres for prismatic). base_yaw is a full-turn bearing; shoulder is +/-95 deg (beyond that the
-  # upper arm would foul the turret drum); elbow + wrist swing wide symmetric +/-150 deg (the child
-  # eye rotates freely in the coaxial-disc fork gap, so nothing interpenetrates); grip is the jaw's
-  # 32 mm travel along the rail.
+  # Limits are the MEASURED single-joint clear ranges of the yoke-and-pin joints (verified against
+  # the kernel: no non-adjacent self-interference at any single joint's extreme). radians for
+  # revolute, metres for prismatic. base_yaw is a full-turn bearing; shoulder +/-95 deg (a sensible
+  # shoulder throw, collision-clear on its own); elbow +/-120 deg (beyond, the forearm bar bites into
+  # the upper-arm groove root); wrist +/-120 deg (beyond, the short hand's jaw swings into the
+  # forearm); grip closes 24 mm toward the fixed jaw. COMBINED poses (e.g. shoulder + elbow folded)
+  # can still fold the arm into its base - that is caught live by the viewer's self-collision check,
+  # not by clamping the workspace (real arms rely on collision checking for combinations too).
   joints {
     base_yaw { actuated = true, limit = [ -3.14159, 3.14159 ], effort = 40, velocity = 3.14,
                damping = 0.1 }
     shoulder { actuated = true, limit = [ -1.65806, 1.65806 ], effort = 60, velocity = 2.0,
                damping = 0.2 }
-    elbow    { actuated = true, limit = [ -2.61799, 2.61799 ], effort = 40, velocity = 2.5,
+    elbow    { actuated = true, limit = [ -2.09439, 2.09439 ], effort = 40, velocity = 2.5,
                damping = 0.15 }
-    wrist    { actuated = true, limit = [ -2.61799, 2.61799 ], effort = 15, velocity = 3.0,
+    wrist    { actuated = true, limit = [ -2.09439, 2.09439 ], effort = 15, velocity = 3.0,
                damping = 0.05 }
-    grip     { actuated = true, limit = [ 0.0, 0.032 ], effort = 20, velocity = 0.1,
+    grip     { actuated = true, limit = [ -0.024, 0.0 ], effort = 20, velocity = 0.1,
                damping = 0.05 }
   }
   export { format = urdf, mesh = stl }
