@@ -39,7 +39,6 @@ _NEUTRAL_TYPE = {
     "ball": "floating", "cylindrical": "floating", "planar": "floating",
     "universal": "floating", "screw": "revolute",
 }
-_AXIS_VECTORS = {"X": (1.0, 0.0, 0.0), "Y": (0.0, 1.0, 0.0), "Z": (0.0, 0.0, 1.0)}
 
 
 class RobotModelBuilder:
@@ -144,20 +143,49 @@ class RobotModelBuilder:
 
     def _joints(self, joints: list[dict], instances: list[dict], spanned: dict,
                 spec: PhysicsSpec) -> list[RobotJoint]:
-        """One RobotJoint per assembly joint, oriented by the spanning tree + overlay semantics."""
+        """One RobotJoint per assembly joint, oriented by the spanning tree + overlay semantics.
+
+        The joint origin is PARENT-relative (the URDF contract): each tree joint's world frame minus
+        its parent link's world frame origin. A link's frame origin is the world position of the
+        joint that mounts it (the root link is at the world origin), so origins CHAIN down the tree
+        the way URDF replays them - e.g. the elbow origin is the upper-arm length, not the elbow's
+        absolute height. Solved from the scene connector frames (world, metres, with a triad).
+        """
         orient = {o["joint"]: o for o in spanned["oriented"]}
         loop = set(spanned["loop_closures"])
-        connectors = self._connector_origins(instances)
+        frames = self._connector_frames(instances)
+        # link_origin[link] = the world origin of that link's frame. The base is at world 0; every
+        # other tree link's frame is the world position of the joint that mounts it (its child
+        # connector origin). Built as the tree joints are visited parent-before-child (the spanner
+        # emits `oriented` in tree order).
+        link_origin: dict[str, tuple[float, float, float]] = {}
         out: list[RobotJoint] = []
         for joint in joints:
             jid = joint.get("id")
             oriented = orient.get(jid)
             parent, child = self._parent_child(joint, oriented)
-            out.append(self._joint(joint, parent, child, connectors, spec, jid in loop))
+            world_origin, axis = self._joint_world_frame(joint, child, frames)
+            parent_origin = link_origin.get(parent, (0.0, 0.0, 0.0))
+            rel_origin = tuple(w - p for w, p in zip(world_origin, parent_origin))
+            if jid not in loop:
+                link_origin[child] = world_origin   # the child link's frame sits at this joint
+            out.append(self._joint(joint, parent, child, rel_origin, axis, spec, jid in loop))
         return out
 
-    def _joint(self, joint: dict, parent: str, child: str, connectors: dict,
-               spec: PhysicsSpec, is_loop: bool) -> RobotJoint:
+    def _joint_world_frame(self, joint: dict, child: str,
+                           frames: dict) -> tuple[tuple, tuple]:
+        """The joint's world origin (m) + axis (unit) from the child-side connector frame.
+
+        The connector triad's Z basis is the joint's free axis (revolute rotation / prismatic
+        slide), so a joint authored to pitch about world +Y exports axis (0,1,0), not a hardcoded Z.
+        """
+        frame = frames.get((child, self._child_connector(joint)))
+        if frame is None:
+            return (0.0, 0.0, 0.0), (0.0, 0.0, 1.0)
+        return frame["origin"], frame["z"]
+
+    def _joint(self, joint: dict, parent: str, child: str,
+               origin_xyz: tuple, axis: tuple, spec: PhysicsSpec, is_loop: bool) -> RobotJoint:
         """Assemble one RobotJoint: derived kinematics + overlay limits/dynamics."""
         overlay = spec.joint_overlay(joint.get("id", ""))
         limit = overlay.get("limit") or [None, None]
@@ -165,10 +193,9 @@ class RobotModelBuilder:
         neutral = _NEUTRAL_TYPE.get(ncad_type, "fixed")
         if neutral == "revolute" and limit[0] is None and limit[1] is None:
             neutral = "continuous"   # an unbounded revolute is a URDF continuous joint
-        origin = connectors.get((child, self._child_connector(joint)), (0.0, 0.0, 0.0))
         return RobotJoint(
             name=joint.get("id", "joint"), joint_type=neutral, parent=parent, child=child,
-            origin_xyz=tuple(o * _MM_TO_M for o in origin), axis=self._axis(joint),
+            origin_xyz=origin_xyz, axis=axis,
             limit_lower=limit[0], limit_upper=limit[1],
             effort=overlay.get("effort"), velocity=overlay.get("velocity"),
             damping=overlay.get("damping"), friction=overlay.get("friction"),
@@ -186,20 +213,21 @@ class RobotModelBuilder:
         between = joint.get("between") or [{}, {}]
         return between[1].get("connector", "")
 
-    def _axis(self, joint: dict) -> tuple[float, float, float]:
-        """The joint axis from its motion signature (falls back to +Z)."""
-        signature = joint.get("signature") or []
-        if signature and signature[0].get("axis") in _AXIS_VECTORS:
-            return _AXIS_VECTORS[signature[0]["axis"]]
-        return (0.0, 0.0, 1.0)
+    def _connector_frames(self, instances: list[dict]) -> dict[tuple[str, str], dict]:
+        """Map (instance id, connector id) -> the connector's world frame {origin, z}.
 
-    def _connector_origins(self, instances: list[dict]) -> dict[tuple[str, str], tuple]:
-        """Map (instance id, connector id) -> the connector's local origin (mm)."""
-        origins: dict[tuple[str, str], tuple] = {}
+        The scene sidecar's connector origin is already WORLD-frame metres, and each connector
+        carries its triad (x/y/z basis vectors); the Z basis is the joint's free axis. (Contrast the
+        raw assembly document, whose connector origin is local mm - that source drove the old
+        double-unit-conversion + hardcoded-Z-axis bugs.)
+        """
+        frames: dict[tuple[str, str], dict] = {}
         for inst in instances:
             for connector in inst.get("connectors", []):
-                origins[(inst["id"], connector["id"])] = tuple(connector.get("origin", (0, 0, 0)))
-        return origins
+                origin = tuple(float(v) for v in connector.get("origin", (0.0, 0.0, 0.0)))
+                z = tuple(float(v) for v in connector.get("z", (0.0, 0.0, 1.0)))
+                frames[(inst["id"], connector["id"])] = {"origin": origin, "z": z}
+        return frames
 
     def _default_base(self, scene: dict, links: list[RobotLink]) -> str:
         """The base link: the first locked/grounded instance, else the first link."""

@@ -1,0 +1,28 @@
+units = mm
+# A physics/robotics overlay on the 5-DoF desktop arm: exports a URDF robot whose link inertials are
+# COMPUTED from the parts (never authored) and whose five joints carry authored actuation limits.
+# The arm is an OPEN serial chain rooted at the base, so every joint sits in the base-rooted tree
+# (no loop closure to drop) - a clean URDF. All five joints are actuated, so the Physics viewer
+# shows five live sliders: four revolute (base yaw + shoulder/elbow/wrist pitch) + one prismatic
+# gripper. Limits are in URDF-native units (radians for revolute, metres for prismatic).
+metadata {
+  description = "Desktop 5-DoF arm as a URDF robot: computed inertials, five actuated joints"
+  tags = [ robotics, physics, urdf, arm ]
+}
+physics {
+  assembly = "desk_arm.asm.hocon"
+  base = base
+  joints {
+    base_yaw { actuated = true, limit = [ -3.14159, 3.14159 ], effort = 40, velocity = 3.14,
+               damping = 0.1 }
+    shoulder { actuated = true, limit = [ -1.919, 1.919 ], effort = 60, velocity = 2.0,
+               damping = 0.2 }
+    elbow    { actuated = true, limit = [ -2.618, 2.618 ], effort = 40, velocity = 2.5,
+               damping = 0.15 }
+    wrist    { actuated = true, limit = [ -2.094, 2.094 ], effort = 15, velocity = 3.0,
+               damping = 0.05 }
+    grip     { actuated = true, limit = [ 0.0, 0.032 ], effort = 20, velocity = 0.1,
+               damping = 0.05 }
+  }
+  export { format = urdf, mesh = stl }
+}

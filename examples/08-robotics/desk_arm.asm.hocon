@@ -1,0 +1,32 @@
+units = mm
+# The 5-DoF desktop arm assembled as an OPEN serial kinematic chain (no closed loop): base is
+# grounded, then five joints stack up the arm - base_yaw (turret spins about Z), shoulder / elbow /
+# wrist (pitch about Y), and a prismatic grip (the jaw slides along X). Each link is authored in its
+# rest pose (arm straight up), so the joints connect coincident coordinate frames without a snap.
+# This is the articulation showcase: five INDEPENDENT actuated joints -> five live Physics sliders.
+metadata {
+  description = "5-DoF desktop arm: base + turret + upper arm + forearm + hand + jaw, serial chain"
+  tags = [ desk_arm, robot, arm, assembly, serial ]
+}
+assembly {
+  instances = [
+    { id = base, file = "desk_arm.hocon", part = base, lock = true }
+    { id = turret, file = "desk_arm.hocon", part = turret }
+    { id = upperarm, file = "desk_arm.hocon", part = upperarm }
+    { id = forearm, file = "desk_arm.hocon", part = forearm }
+    { id = hand, file = "desk_arm.hocon", part = hand }
+    { id = jaw, file = "desk_arm.hocon", part = jaw }
+  ]
+  joints = [
+    { id = base_yaw, type = revolute, between = [
+      { instance = base, connector = top }, { instance = turret, connector = foot } ] }
+    { id = shoulder, type = revolute, between = [
+      { instance = turret, connector = shoulder }, { instance = upperarm, connector = p_shoulder } ] }
+    { id = elbow, type = revolute, between = [
+      { instance = upperarm, connector = p_elbow }, { instance = forearm, connector = p_elbow } ] }
+    { id = wrist, type = revolute, between = [
+      { instance = forearm, connector = p_wrist }, { instance = hand, connector = p_wrist } ] }
+    { id = grip, type = slider, between = [
+      { instance = hand, connector = jawRail }, { instance = jaw, connector = rail } ] }
+  ]
+}
