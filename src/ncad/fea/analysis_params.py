@@ -49,3 +49,65 @@ def _constraint_dof(constraint: dict, name: str) -> list[int]:
         raise AnalysisParamError(
             f"constraint {name!r} needs 'type' ({sorted(_CONSTRAINT_TYPES)}) or an explicit 'dof'")
     return list(_CONSTRAINT_TYPES[ctype])
+
+
+# type -> the extra required field(s) beyond name/where. gravity is special (no where).
+_LOAD_REQUIRED = {
+    "force": ("vector",),
+    "pressure": ("magnitude",),
+    "flux": ("magnitude",),
+    "film": ("sink", "coefficient"),
+    "radiation": ("ambient", "emissivity"),
+    "temperature": ("value",),
+}
+
+
+def validate_load(load: dict) -> dict:
+    """Normalize one load to a typed dict carrying exactly the fields its CalculiX card needs.
+
+    Structural: force (*CLOAD), pressure (*DLOAD), gravity (*DLOAD GRAV). Thermal: flux
+    (*DFLUX), film (*FILM), radiation (*RADIATE), temperature (*BOUNDARY dof 11). Every type
+    except gravity requires a ``where`` selector; gravity is a body force over the whole part.
+    :raises AnalysisParamError: on a missing name, missing where (non-gravity), unknown type,
+        or a missing type-specific field.
+    """
+    name = load.get("name")
+    if not name:
+        raise AnalysisParamError("load needs a 'name'")
+    ltype = str(load.get("type", ""))
+    if ltype == "gravity":
+        return _validate_gravity(load, str(name))
+    if ltype not in _LOAD_REQUIRED:
+        raise AnalysisParamError(
+            f"load {name!r} has unknown type {ltype!r}; valid: "
+            f"{sorted(('gravity', *_LOAD_REQUIRED))}")
+    where = load.get("where")
+    if not isinstance(where, dict) or not where:
+        raise AnalysisParamError(f"load {name!r} ({ltype}) needs a 'where' selector")
+    result: dict = {"name": str(name), "type": ltype, "where": dict(where)}
+    for field in _LOAD_REQUIRED[ltype]:
+        if field not in load:
+            raise AnalysisParamError(f"load {name!r} ({ltype}) needs '{field}'")
+        result[field] = _coerce_load_field(field, load[field])
+    return result
+
+
+def _validate_gravity(load: dict, name: str) -> dict:
+    """Normalize a gravity body force to ``{name, type, g, direction}`` (no where)."""
+    if "g" not in load or "direction" not in load:
+        raise AnalysisParamError(f"gravity load {name!r} needs 'g' and 'direction'")
+    direction = [float(v) for v in load["direction"]]
+    if len(direction) != 3:
+        raise AnalysisParamError(f"gravity load {name!r} 'direction' must be [x, y, z]")
+    return {"name": name, "type": "gravity", "g": float(load["g"]), "direction": direction}
+
+
+def _coerce_load_field(field: str, value: object) -> float | list[float]:
+    """Coerce a load field: ``vector``/``direction`` -> a 3-float list, any other field -> float."""
+    if field in ("vector", "direction"):
+        if not isinstance(value, (list, tuple)) or len(value) != 3:
+            raise AnalysisParamError(f"'{field}' must be [x, y, z]")
+        return [float(v) for v in value]
+    if not isinstance(value, (int, float)):
+        raise AnalysisParamError(f"'{field}' must be a number; got {value!r}")
+    return float(value)
