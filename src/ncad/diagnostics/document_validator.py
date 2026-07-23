@@ -110,11 +110,18 @@ class DocumentValidator:
             return [Diagnostic(
                 severity="error", code=codes.UNKNOWN_REFERENCE, location="analysis.part",
                 message=f"analysis part {spec.part!r} did not resolve", stage="semantic")]
+        # The referenced part is validated through the full part schema, so its parameter
+        # expressions (distance = "${t}") must be resolved to numbers first, exactly as the CLI
+        # resolves a top-level document before validating it.
+        from ncad.params.function_registry import FunctionRegistry
+        from ncad.params.param_resolver import ParamResolver
+
+        resolved_part = ParamResolver(FunctionRegistry.with_defaults()).resolve_document(part_doc)
         outer_base = self._base_dir
         if outer_base:
             self._base_dir = os.path.dirname(os.path.join(outer_base, spec.part))
         try:
-            return self._validate_part(part_doc)
+            return self._validate_part(resolved_part)
         finally:
             self._base_dir = outer_base
 
