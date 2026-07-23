@@ -23,6 +23,7 @@ from ncad.service.build_handlers import (
     BuildHandler,
     MotionBuildHandler,
     PhysicsBuildHandler,
+    RobotCollideHandler,
 )
 from ncad.service.export_handler import ExportHandler
 from ncad.service.livereload_handler import LiveReloadHandler
@@ -89,6 +90,7 @@ class ApiRouter:
             URLSpec(r"/api/v1/assemble", AssembleHandler, deps),
             URLSpec(r"/api/v1/motion-build", MotionBuildHandler, deps),
             URLSpec(r"/api/v1/physics-build", PhysicsBuildHandler, deps),
+            URLSpec(r"/api/v1/robot-collide", RobotCollideHandler, deps),
             URLSpec(r"/api/v1/export", ExportHandler, deps),
             URLSpec(r"/api/v1/validate", ValidateHandler, deps),
             # CRITICAL ORDER: Tornado matches by URL pattern only (method-agnostic, `$`-anchored,

@@ -142,6 +142,8 @@ class _ViewerRequestHandler(BaseHTTPRequestHandler):
             self._handle_motion_build()
         elif path == "/api/physics-build":
             self._handle_physics_build()
+        elif path == "/api/robot-collide":
+            self._handle_robot_collide()
         elif path == "/api/export":
             self._handle_export()
         elif path.startswith(_API_MODELS_ROUTE) and path.endswith("/delete"):
@@ -235,6 +237,26 @@ class _ViewerRequestHandler(BaseHTTPRequestHandler):
             self._send_json(500, {"error": "internal physics-build error"})
             return
         self._send_json(200, {"robots": self._catalog.robots_with_labels(), **result})
+
+    def _handle_robot_collide(self) -> None:
+        length = int(self.headers.get("Content-Length", 0))
+        try:
+            body = json.loads(self.rfile.read(length) or b"{}")
+            name, pose = body["name"], body.get("pose", {})
+        except (ValueError, KeyError):
+            self._send_json(400, {"error": "request must be JSON with 'name' + 'pose'"})
+            return
+        try:
+            result = self._build_service.check_robot_collision(name, pose)
+        except BuildError as exc:
+            logger.warning("robot-collide rejected for %s: %s", name, exc)
+            self._send_json(400, {"error": str(exc)})
+            return
+        except Exception:  # noqa: BLE001 - never raise to the socket; log and 500
+            logger.exception("unexpected robot-collide failure for %s", name)
+            self._send_json(500, {"error": "internal robot-collide error"})
+            return
+        self._send_json(200, result)
 
     def _handle_export(self) -> None:
         length = int(self.headers.get("Content-Length", 0))

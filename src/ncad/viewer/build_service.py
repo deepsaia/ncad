@@ -12,6 +12,7 @@ import logging
 import os
 import time
 from collections.abc import Callable
+from typing import Any
 
 from ncad.viewer.model_catalog import ModelCatalog
 from ncad.viewer.model_metadata import ModelMetadata
@@ -53,6 +54,10 @@ class BuildService:
         self._meta = meta or ModelMetadata(models_dir)
         self._clock = clock
         self._versions = versions or {"ncad": "unknown", "kernel": "unknown"}
+        # Lazily created + reused so its per-robot link-shape cache survives across pose checks (the
+        # geometry is pose-invariant; only the placement changes), keeping a live check to place +
+        # measure, no rebuild. Typed loosely to avoid importing the kernel-backed checker at import.
+        self._collision_checker: Any = None
 
     def build(self, spec: str) -> dict:
         """Build ``spec`` (a relative example path or a recorded meta source).
@@ -211,6 +216,37 @@ class BuildService:
     def _allowed_physics_path(self, spec: str) -> str | None:
         """Resolve a physics ``spec`` if under examples, else None (mirrors the motion rule)."""
         return self._spec_catalog.resolve(spec)
+
+    def check_robot_collision(self, name: str, pose: dict) -> dict:
+        """Check the robot ``name`` at ``pose`` for non-adjacent self-collision.
+
+        ``pose`` maps joint -> value (radians for revolute, metres for prismatic); the SOURCE
+        physics doc + tree are resolved server-side by name (the client never supplies a path). Pose
+        values are clamped to numbers, so an arbitrary payload cannot drive the geometry astray.
+
+        :return: ``{"collisions": [{"a", "b", "volume"}, ...]}`` (empty when the pose is clear).
+        :raises BuildError: If the robot or its recorded source is unknown.
+        """
+        from ncad.kernel.build123d_kernel import Build123dKernel
+        from ncad.robotics.robot_collision_checker import RobotCollisionChecker
+
+        source = self._export_source(name, "physics")
+        if source is None:
+            raise BuildError(f"no recorded source for robot {name!r}; rebuild it first")
+        tree_path = self._model_catalog.resolve_robot(name)
+        if tree_path is None or not os.path.isfile(tree_path):
+            raise BuildError(f"no robot tree for {name!r}; rebuild it first")
+        with open(tree_path, encoding="utf-8") as handle:
+            tree = json.load(handle)
+        clean_pose = {str(k): float(v) for k, v in (pose or {}).items()
+                      if isinstance(v, (int, float))}
+        if self._collision_checker is None:
+            self._collision_checker = RobotCollisionChecker(Build123dKernel())
+        try:
+            collisions = self._collision_checker.check(source, tree, clean_pose)
+        except (ValueError, OSError, RuntimeError) as exc:
+            raise BuildError(str(exc)) from exc
+        return {"collisions": collisions}
 
     def export_model(self, name: str, kind: str, fmt: str) -> tuple[str, str, bytes]:
         """Re-export the model ``name`` (of ``kind``) to ``fmt``; return download bytes (no out/).
