@@ -9,6 +9,7 @@ side-effect-free. Referenced part connector sets and a motion's assembly are res
 
 import logging
 import os
+from pathlib import Path
 
 from ncad.build.material_error import MaterialError
 from ncad.diagnostics import codes
@@ -36,6 +37,8 @@ class DocumentValidator:
         self._loader = SpecLoader()
         self._schema = SchemaValidator()
         self._asm_schema = AssemblySchemaValidator()
+        analysis_schema = Path(__file__).resolve().parents[3] / "schema" / "analysis_schema.hocon"
+        self._analysis_schema = SchemaValidator(analysis_schema)
         self._ids = FeatureIdValidator()
         self._deps = DependencyValidator()
         self._asm_refs = AssemblyReferenceCheck()
@@ -50,6 +53,8 @@ class DocumentValidator:
             return ValidationReport(self._validate_motion(document))
         if "assembly" in document:
             return ValidationReport(self._validate_assembly(document))
+        if "analysis" in document:
+            return ValidationReport(self._validate_analysis(document))
         return ValidationReport(self._validate_part(document))
 
     def _validate_physics(self, document: dict) -> list[Diagnostic]:
@@ -78,6 +83,45 @@ class DocumentValidator:
             self._base_dir = os.path.dirname(os.path.join(outer_base, spec.assembly))
         try:
             return self._validate_assembly(asm_doc)
+        finally:
+            self._base_dir = outer_base
+
+    def _validate_analysis(self, document: dict) -> list[Diagnostic]:
+        """Validate an analysis load case: the document shape + that its part reference resolves.
+
+        The .analysis.hocon overlays a part with a structural load case. A malformed load case
+        (bad shape or bad constraint/load/step vocabulary) or an unresolvable/invalid part is a
+        schema- or semantic-stage diagnostic; the referenced part is validated as a part document.
+        """
+        from ncad.fea.analysis_params import AnalysisParamError
+        from ncad.fea.analysis_spec import AnalysisSpec, AnalysisSpecError
+
+        shape = [i.to_diagnostic("schema", codes.SCHEMA)
+                 for i in self._analysis_schema.validate(document)]
+        if shape:
+            return shape
+        try:
+            spec = AnalysisSpec(document)
+        except (AnalysisSpecError, AnalysisParamError) as exc:
+            return [Diagnostic(severity="error", code=codes.SCHEMA, location="analysis",
+                               message=str(exc), stage="schema")]
+        part_doc = self._load_relative(spec.part)
+        if part_doc is None:
+            return [Diagnostic(
+                severity="error", code=codes.UNKNOWN_REFERENCE, location="analysis.part",
+                message=f"analysis part {spec.part!r} did not resolve", stage="semantic")]
+        # The referenced part is validated through the full part schema, so its parameter
+        # expressions (distance = "${t}") must be resolved to numbers first, exactly as the CLI
+        # resolves a top-level document before validating it.
+        from ncad.params.function_registry import FunctionRegistry
+        from ncad.params.param_resolver import ParamResolver
+
+        resolved_part = ParamResolver(FunctionRegistry.with_defaults()).resolve_document(part_doc)
+        outer_base = self._base_dir
+        if outer_base:
+            self._base_dir = os.path.dirname(os.path.join(outer_base, spec.part))
+        try:
+            return self._validate_part(resolved_part)
         finally:
             self._base_dir = outer_base
 

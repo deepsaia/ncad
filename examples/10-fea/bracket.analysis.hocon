@@ -1,0 +1,24 @@
+# A structural load case for the L-bracket: static stress under a tip pressure with a fixed
+# base, its first modes, and a steady-state thermal step. Demonstrates the .analysis.hocon
+# vocabulary end to end (validates without any external tool; a real solve needs ncad[fea] +
+# an installed CalculiX).
+analysis {
+  part = "bracket.hocon"
+  mesh { element_size = 3.0, order = 2 }
+  constraints = [
+    { name = "base", where = {face = "bottom"}, type = "encastre" }
+  ]
+  loads = [
+    { name = "tip", where = {face = "top"}, type = "pressure", magnitude = 2.5e5 }
+    { name = "weight", type = "gravity", g = 9.81, direction = [0, 0, -1] }
+  ]
+  steps = [
+    { name = "stress", procedure = "static", output = {node = ["U", "RF"], element = ["S", "E"]} }
+    { name = "modes",  procedure = "frequency", eigenvalues = 6 }
+    { name = "heat",   procedure = "heat_transfer", state = "steady",
+      loads = [
+        { name = "in",   where = {face = "top"},    type = "flux", magnitude = 500 }
+        { name = "conv", where = {face = "all"},    type = "film", sink = 20, coefficient = 15 }
+      ] }
+  ]
+}

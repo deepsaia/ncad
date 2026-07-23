@@ -1,0 +1,29 @@
+units = mm
+metadata {
+  description = "L-bracket (mounting bracket)"
+  tags = [ fea, part, bracket ]
+}
+# A mounting L-bracket: a base plate bolted down at the bottom face, with an upstand wall
+# rising from one edge that carries the load at its top. A classic structural-FEA specimen
+# (fixed root, tip load, a clear stress concentration at the inner corner). The base + wall
+# are unioned into one solid (an L touches, it does not overlap, so the union is explicit).
+# Referenced by bracket.analysis.hocon.
+parameters { plate_t = 6, base_len = 80, base_wid = 50, wall_h = 60 }
+parts {
+  bracket {
+    profile = solid
+    material = steel_1018
+    features = [
+      # Base plate lying in XY (80 long, 50 wide, 6 thick).
+      { id = base_sk, op = sketch, plane = XY,
+        elements = [ { id = r, type = rectangle, w = "${base_len}", h = "${base_wid}" } ] }
+      { id = base, op = extrude, profile = base_sk, end = blind, distance = "${plate_t}" }
+      # Upstand wall rising in the YZ region at one end (50 wide, 60 tall, 6 thick).
+      { id = wall_sk, op = sketch, plane = YZ,
+        elements = [ { id = w, type = rectangle, w = "${base_wid}", h = "${wall_h}" } ] }
+      { id = wall, op = extrude, profile = wall_sk, end = blind, distance = "${plate_t}" }
+      # Join base + wall into the single L-shaped solid.
+      { id = ell, op = boolean, operation = union, target = base, tool = wall }
+    ]
+  }
+}
