@@ -11,9 +11,7 @@
 // motionSources map (setupMotion records a trajectory's source doc), and apiUrl/log.
 //
 // Public surface: resetMotion / setupMotion / advanceMotion (animate loop) / showMotionFrame, plus
-// loadTrajectory (Physics feeds a joint sweep into the player) and pauseMotion (the dev seekFrame
-// handle). Physics reuses this path because a joint sweep has the same {frames:[{driver_value,
-// placements}]} shape as a motion trajectory.
+// pauseMotion (the dev seekFrame handle).
 import * as THREE from "three";
 import { state } from "./viewer_state.js";
 import { fmtSpeed, matrixFromRowMajor } from "./utils.js";
@@ -122,18 +120,6 @@ export function setupMotion(name, instanceNodes) {
     showMotionFrame(0);
     log(`motion: ${doc.frames.length} frames, driver ${doc.driver ? doc.driver.joint : "?"}`, "info");
   }).catch(() => { /* state.motion is optional; a fetch error just means no timeline */ });
-}
-
-// Load a ready trajectory ({frames, driver}) into the player + reveal the bar. Physics mode feeds a
-// selected joint's precomputed sweep here so the scrubber/play controls drive it exactly like a
-// motion trajectory (same frame shape). The caller supplies the per-instance placement nodes.
-export function loadTrajectory(trajectory, instanceNodes) {
-  state.motion = trajectory;
-  state.motionNodes = instanceNodes;
-  motionScrub.max = String(trajectory.frames.length - 1);
-  motionScrub.value = "0";
-  motionBar.hidden = false;
-  showMotionFrame(0);
 }
 
 export function showMotionFrame(i) {

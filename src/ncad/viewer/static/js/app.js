@@ -15,9 +15,10 @@ import { initLighting, setLighting, fitShadowCameras, setShadowRadius } from "./
 import { initMaterials, colorFor, updateByMaterialButton, syncMaterialBlock,
          onElementMapReady } from "./materials.js";
 import { initMotion, resetMotion, setupMotion, showMotionFrame, advanceMotion,
-         loadTrajectory, pauseMotion } from "./motion.js";
+         pauseMotion } from "./motion.js";
 import { initTheme } from "./theme.js";
 import { initSceneFurniture } from "./scene_furniture.js";
+import { buildFkChain, actuatedJoints, solveFk } from "./robot_fk.js";
 
 const stage = document.getElementById("stage");
 const spinner = document.getElementById("spinner");
@@ -1250,62 +1251,101 @@ initMotion({
 });
 
 // ---- Physics (robotics) mode ----
-// Physics mode reuses the assembly scene + the motion playback path: the robot's per-actuated-joint
-// sweep has the same {frames:[{driver_value, placements:{id:4x4}}]} shape as a motion trajectory, so
-// selecting a joint just loads its sweep into the motion state and the scrubber/play controls drive
-// it unchanged. One joint at a time (the precomputed-sweep tradeoff). The physics-bar joint picker
-// and the Robot inspector tab are the only physics-specific UI.
+// Physics mode poses the robot by LIVE FORWARD KINEMATICS: each actuated joint gets a slider, and
+// moving any slider re-solves the whole open chain (T_world(child) = T_world(parent) . origin .
+// motion(q)) so descendants stay rigidly attached (a gripper jaw never drifts off the hand) and each
+// joint is clamped to its own limit. This replaces the old per-joint mechanism sweep, which drove
+// one joint while the rest of the chain floated. The tree (.robot.json) also feeds the Robot
+// inspector tab. FK math is in robot_fk.js; this owns the sliders + applies the result to the nodes.
 const physicsBar = document.getElementById("physics-bar");
-const physicsJointSelect = document.getElementById("physics-joint");
-// physicsSweeps + physicsNodes live on the shared ViewerState (state.physicsSweeps/physicsNodes).
+const physicsJoints = document.getElementById("physics-joints");
+const physicsReset = document.getElementById("physics-reset");
 
 function setupPhysics(name, instanceNodes) {
   resetMotion();
   physicsBar.hidden = true;
-  state.physicsSweeps = {};
+  state.robotChain = null; state.robotPose = {}; state.robotNodes = {};
   if (viewMode !== "physics") return;
-  // The tree (.robot.json) drives the Robot inspector; the sweeps (.robot_sweeps.json) drive the
-  // joint sliders. Both are optional (sweeps only exist when `ncad physics --sweeps` was run).
+  // The tree (.robot.json) drives both the Robot inspector and the FK posing sliders.
   fetch(apiUrl(`/robot/${encodeURIComponent(name)}`)).then(r => r.ok ? r.json() : null)
     .then(tree => {
       renderRobotTree(tree);
-      return fetch(apiUrl(`/robot-sweeps/${encodeURIComponent(name)}`)).then(r => r.ok ? r.json() : {});
-    })
-    .then(sweeps => {
-      state.physicsSweeps = sweeps || {};
-      state.physicsNodes = instanceNodes;
-      populateJointSelect();
+      if (!tree) return;
+      state.robotChain = buildFkChain(tree);
+      state.robotNodes = instanceNodes;
+      buildJointSliders(tree);
     })
     .catch(() => { /* physics sidecars are optional */ });
 }
 
-function populateJointSelect() {
-  const joints = Object.keys(state.physicsSweeps);
-  physicsJointSelect.innerHTML = "";
+function buildJointSliders(tree) {
+  const joints = actuatedJoints(tree);
+  physicsJoints.innerHTML = "";
+  state.robotPose = {};
   if (!joints.length) {
-    // No sweeps: the robot is inspectable (tree tab) but not articulable. Say so in the log.
-    log("physics: no joint sweeps (run `ncad physics --sweeps` to enable sliders)", "info");
+    // No actuated joints: the robot is inspectable (tree tab) but not posable. Say so in the log.
+    log("physics: no actuated joints to pose", "info");
     return;
   }
   for (const j of joints) {
-    const opt = document.createElement("option");
-    opt.value = j; opt.textContent = j;
-    physicsJointSelect.appendChild(opt);
+    state.robotPose[j.name] = 0;   // rest pose
+    physicsJoints.appendChild(jointSliderRow(j));
   }
   physicsBar.hidden = false;
-  loadJointSweep(joints[0]);
+  applyRobotPose();   // seat the rest pose (identity) so the nodes are FK-driven from the start
+  log(`physics: ${joints.length} actuated joint(s) posable`, "info");
 }
 
-function loadJointSweep(jointName) {
-  const sweep = state.physicsSweeps[jointName];
-  if (!sweep || !(sweep.frames || []).length) return;
-  // Feed the joint sweep into the shared motion player; the scrubber/play controls + the
-  // showMotionFrame apply path are then identical to Motion mode.
-  loadTrajectory({frames: sweep.frames, driver: {joint: jointName}}, state.physicsNodes);
-  log(`physics: joint ${jointName}, ${sweep.frames.length} frames`, "info");
+// One slider row for a joint: name, a range input over its limit, and a live value readout. A
+// revolute reads/edits in DEGREES (limit stored in radians); a prismatic in MILLIMETRES (metres).
+function jointSliderRow(joint) {
+  const revolute = joint.type !== "prismatic";
+  const toDisplay = v => revolute ? v * 180 / Math.PI : v * 1000;
+  const fromDisplay = d => revolute ? d * Math.PI / 180 : d / 1000;
+  const unit = revolute ? "°" : "mm";
+  const row = document.createElement("div");
+  row.className = "pj-row";
+  const label = document.createElement("span");
+  label.className = "pj-name"; label.textContent = joint.name; label.title = joint.name;
+  const slider = document.createElement("input");
+  slider.type = "range"; slider.className = "pj-slider";
+  slider.min = String(toDisplay(joint.lower)); slider.max = String(toDisplay(joint.upper));
+  slider.step = revolute ? "1" : "0.5"; slider.value = "0";
+  const val = document.createElement("span");
+  val.className = "pj-val";
+  const showVal = d => { val.textContent = `${(+d).toFixed(revolute ? 0 : 1)}${unit}`; };
+  showVal(0);
+  slider.addEventListener("input", () => {
+    state.robotPose[joint.name] = fromDisplay(parseFloat(slider.value));
+    showVal(slider.value);
+    applyRobotPose();
+  });
+  slider.dataset.joint = joint.name;   // so Reset can restore it
+  row.appendChild(label); row.appendChild(slider); row.appendChild(val);
+  return row;
 }
 
-physicsJointSelect.addEventListener("change", () => loadJointSweep(physicsJointSelect.value));
+// Solve FK for the current pose and place each link's node (identity at rest). The node matrix is
+// the same slot motion playback uses, so posing and the motion timeline never fight (Physics has no
+// timeline). Robot links that are not in the scene nodes are simply skipped.
+function applyRobotPose() {
+  if (!state.robotChain) return;
+  const nodes = solveFk(state.robotChain, state.robotPose);
+  for (const link in nodes) {
+    const node = state.robotNodes[link];
+    if (!node) continue;
+    node.matrix.copy(nodes[link]);
+    node.matrix.decompose(node.position, node.quaternion, node.scale);
+    node.updateMatrixWorld(true);
+  }
+}
+
+physicsReset.addEventListener("click", () => {
+  for (const name in state.robotPose) state.robotPose[name] = 0;
+  physicsJoints.querySelectorAll(".pj-slider").forEach(s => {
+    s.value = "0"; s.dispatchEvent(new Event("input"));
+  });
+});
 
 // The Robot inspector tab: the kinematic tree (base -> links) + per-link computed mass/inertia and
 // per-joint type/limits from .robot.json. Read-only; surfaces the computed inertia visually.

@@ -205,15 +205,25 @@
     background: #e74c3c; transform: translateX(-1px); }
   #motion-readout { font-size: 12px; color: var(--muted); min-width: 50px;
     text-align: right; font-variant-numeric: tabular-nums; }
-  /* Physics joint picker: a small pill above the motion bar, shown only in Physics mode. */
-  #physics-bar { position: absolute; bottom: 92px; left: 50%; transform: translateX(-50%);
-    display: flex; align-items: center; gap: 8px; z-index: 55;
-    background: var(--panel); border: 1px solid var(--border); border-radius: 20px;
-    padding: 5px 12px; backdrop-filter: blur(6px); }
+  /* Physics joint sliders: a panel above the viewport, one live forward-kinematics slider per
+     actuated joint, shown only in Physics mode. Moving a slider re-poses the whole robot. */
+  #physics-bar { position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%);
+    display: flex; flex-direction: column; gap: 6px; z-index: 55; min-width: 300px;
+    max-width: 380px; background: var(--panel); border: 1px solid var(--border);
+    border-radius: 14px; padding: 10px 14px; backdrop-filter: blur(6px); }
   #physics-bar[hidden] { display: none; }
-  #physics-bar-label { font-size: 11px; color: var(--muted); font-weight: 600; }
-  #physics-joint { font: inherit; font-size: 12px; color: var(--text); background: var(--panel-2);
-    border: 1px solid var(--border); border-radius: 12px; padding: 3px 8px; cursor: pointer; }
+  #physics-bar-head { display: flex; align-items: center; justify-content: space-between; }
+  #physics-bar-label { font-size: 11px; color: var(--muted); font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.04em; }
+  #physics-reset { font: inherit; font-size: 11px; color: var(--text); background: var(--panel-2);
+    border: 1px solid var(--border); border-radius: 10px; padding: 2px 8px; cursor: pointer; }
+  #physics-reset:hover { border-color: var(--accent); }
+  #physics-joints { display: flex; flex-direction: column; gap: 5px; }
+  .pj-row { display: grid; grid-template-columns: 74px 1fr 62px; align-items: center; gap: 8px; }
+  .pj-name { font-size: 11px; color: var(--text); font-weight: 600; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap; }
+  .pj-slider { width: 100%; accent-color: var(--accent); cursor: pointer; }
+  .pj-val { font-size: 11px; color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
   /* Export control: a rounded icon+label button pinned bottom-left, with a popup format menu. */
   #export-control { position: absolute; bottom: 16px; left: 16px; z-index: 56; }
   #export-control[hidden] { display: none; }
@@ -697,8 +707,11 @@
     <!-- Physics (robotics) joint picker: shown only in Physics mode. Selecting a joint loads its
          precomputed sweep into the motion-playback path (the scrubber/play controls above). -->
     <div id="physics-bar" hidden>
-      <span id="physics-bar-label">Joint</span>
-      <select id="physics-joint" aria-label="Actuated joint to articulate"></select>
+      <div id="physics-bar-head">
+        <span id="physics-bar-label">Joints</span>
+        <button id="physics-reset" title="Reset all joints to their rest pose">Reset pose</button>
+      </div>
+      <div id="physics-joints" aria-label="Actuated joint sliders"></div>
     </div>
     <!-- Export control (bottom-left): a download-icon button that opens a context-sensitive format
          menu. Formats depend on the current tab; picking one re-exports via ncad + downloads. -->
