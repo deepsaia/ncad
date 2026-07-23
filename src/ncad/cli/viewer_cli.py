@@ -246,6 +246,22 @@ class ViewerCli:
             logging.warning("slice: %s", reason)
         return report
 
+    def analyze_document(self, document: str, out: str | None) -> dict:
+        """Run the structural-FEA seam for an .analysis.hocon load case; return the run report.
+
+        Builds the referenced part, meshes it (gmsh), composes the CalculiX deck, delegates the
+        solve to an installed ccx, and reads the .frd back into summary + field-mesh sidecars.
+        Never raises for a missing external tool: the report's ``status`` is generated | skipped
+        (no gmsh or no ccx) | failed. Returns
+        ``{status, artifact, sidecars, summary, mesh, warnings}``.
+        """
+        from ncad.fea.analysis_document import AnalysisDocument
+
+        logging.basicConfig(level=logging.INFO, format="%(message)s")
+        logging.getLogger("build123d").setLevel(logging.WARNING)
+        out_dir = self.resolve_models_dir(out)
+        return AnalysisDocument().run(document, str(out_dir))
+
     def validate_document(self, file: str) -> dict:
         """Statically validate a part/assembly/motion document; return the ValidationReport dict.
 
@@ -512,6 +528,30 @@ def slice_(
         print(f"  SKIPPED {reason}")
     for reason in result["reasons"]:
         print(f"  FAILED {reason}")
+
+
+@app.command()
+def analyze(
+    document: str = typer.Argument(..., help="path to a .analysis.hocon structural load case"),
+    out: str = typer.Option(None, help="output directory (default: out/)"),
+) -> None:
+    """Run a structural FEA load case: mesh (gmsh) + solve (delegated CalculiX) + read results."""
+    result = cli.analyze_document(document, out)
+    print(f"\nncad analyze: {document}  [{result['status']}]")
+    if result.get("artifact"):
+        print(f"  deck:   {result['artifact']}")
+    mesh = result.get("mesh") or {}
+    if mesh:
+        print(f"  mesh:   {mesh.get('nodes', 0)} nodes, {mesh.get('elements', 0)} "
+              f"{mesh.get('element_type', '')} elements")
+    summary = result.get("summary") or {}
+    if summary:
+        print(f"  stress: max von Mises {summary.get('max_von_mises', 0.0):.4g} Pa")
+        print(f"  displ:  max {summary.get('max_displacement', 0.0):.4g} m")
+        if summary.get("safety_factor") is not None:
+            print(f"  safety: {summary['safety_factor']:.2f} (yield / max von Mises)")
+    for warning in result.get("warnings", []):
+        print(f"  NOTE {warning}")
 
 
 @app.command()
