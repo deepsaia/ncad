@@ -42,6 +42,12 @@ interchange = [
     "ezdxf",
     "ifcopenshell",
 ]
+# Structural FEA (S7 CAE): gmsh meshes an exported STEP; meshio reads the CalculiX .frd
+# results. The CalculiX solver (ccx) itself is a delegated external binary, never bundled.
+fea = [
+    "gmsh",
+    "meshio",
+]
 # Multi-agent orchestration (future roadmap)
 agents = [
     "neuro-san",
