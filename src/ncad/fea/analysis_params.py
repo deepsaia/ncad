@@ -111,3 +111,62 @@ def _coerce_load_field(field: str, value: object) -> float | list[float]:
     if not isinstance(value, (int, float)):
         raise AnalysisParamError(f"'{field}' must be a number; got {value!r}")
     return float(value)
+
+
+_PROCEDURES = frozenset({"static", "frequency", "heat_transfer"})
+_THERMAL_LOAD_TYPES = frozenset({"flux", "film", "radiation", "temperature"})
+_DEFAULT_OUTPUT = {"node": ["U", "RF"], "element": ["S", "E"]}
+
+
+def validate_step(step: dict) -> dict:
+    """Normalize one analysis step (a CalculiX *STEP) by procedure.
+
+    static -> *STATIC (+ optional nlgeom, field output); frequency -> *FREQUENCY (needs
+    eigenvalues); heat_transfer -> *HEAT TRANSFER (default steady; nested loads must be thermal).
+    :raises AnalysisParamError: on a missing name, unknown procedure, missing eigenvalues, or a
+        non-thermal load nested in a heat_transfer step.
+    """
+    name = step.get("name")
+    if not name:
+        raise AnalysisParamError("step needs a 'name'")
+    procedure = str(step.get("procedure", ""))
+    if procedure not in _PROCEDURES:
+        raise AnalysisParamError(
+            f"step {name!r} has unknown procedure {procedure!r}; valid: {sorted(_PROCEDURES)}")
+    if procedure == "static":
+        return _validate_static(step, str(name))
+    if procedure == "frequency":
+        return _validate_frequency(step, str(name))
+    return _validate_heat_transfer(step, str(name))
+
+
+def _validate_static(step: dict, name: str) -> dict:
+    """A *STATIC step: optional geometric nonlinearity + requested field output."""
+    output = step.get("output") or _DEFAULT_OUTPUT
+    return {"name": name, "procedure": "static", "nlgeom": bool(step.get("nlgeom", False)),
+            "output": {"node": list(output.get("node", _DEFAULT_OUTPUT["node"])),
+                       "element": list(output.get("element", _DEFAULT_OUTPUT["element"]))}}
+
+
+def _validate_frequency(step: dict, name: str) -> dict:
+    """A *FREQUENCY step: extract ``eigenvalues`` (mode count), which must be a positive int."""
+    if "eigenvalues" not in step:
+        raise AnalysisParamError(f"frequency step {name!r} needs 'eigenvalues' (mode count)")
+    count = int(step["eigenvalues"])
+    if count < 1:
+        raise AnalysisParamError(f"frequency step {name!r} 'eigenvalues' must be >= 1")
+    return {"name": name, "procedure": "frequency", "eigenvalues": count}
+
+
+def _validate_heat_transfer(step: dict, name: str) -> dict:
+    """A *HEAT TRANSFER step: state (default steady) + nested thermal-only loads."""
+    loads = []
+    for load in step.get("loads", []) or []:
+        normalized = validate_load(load)
+        if normalized["type"] not in _THERMAL_LOAD_TYPES:
+            raise AnalysisParamError(
+                f"heat_transfer step {name!r} load {normalized['name']!r} is "
+                f"{normalized['type']!r}; only thermal loads {sorted(_THERMAL_LOAD_TYPES)} allowed")
+        loads.append(normalized)
+    return {"name": name, "procedure": "heat_transfer",
+            "state": str(step.get("state", "steady")), "loads": loads}

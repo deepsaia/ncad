@@ -1,6 +1,11 @@
 import pytest
 
-from ncad.fea.analysis_params import AnalysisParamError, validate_constraint, validate_load
+from ncad.fea.analysis_params import (
+    AnalysisParamError,
+    validate_constraint,
+    validate_load,
+    validate_step,
+)
 
 
 def test_encastre_fixes_all_six_dof():
@@ -86,3 +91,39 @@ def test_pressure_without_where_raises():
 def test_unknown_load_type_raises():
     with pytest.raises(AnalysisParamError):
         validate_load({"name": "x", "where": {"face": "top"}, "type": "torque"})
+
+
+def test_static_step_defaults_output():
+    s = validate_step({"name": "stress", "procedure": "static"})
+    assert s["procedure"] == "static" and s["nlgeom"] is False
+    assert "U" in s["output"]["node"]
+
+
+def test_frequency_step_needs_eigenvalues():
+    s = validate_step({"name": "modes", "procedure": "frequency", "eigenvalues": 6})
+    assert s["eigenvalues"] == 6
+
+
+def test_frequency_without_eigenvalues_raises():
+    with pytest.raises(AnalysisParamError):
+        validate_step({"name": "m", "procedure": "frequency"})
+
+
+def test_heat_transfer_defaults_steady_and_validates_nested_loads():
+    s = validate_step({"name": "heat", "procedure": "heat_transfer",
+                       "loads": [{"name": "in", "where": {"face": "top"},
+                                  "type": "flux", "magnitude": 500}]})
+    assert s["state"] == "steady"
+    assert s["loads"][0]["type"] == "flux"
+
+
+def test_heat_transfer_rejects_structural_load():
+    with pytest.raises(AnalysisParamError):
+        validate_step({"name": "heat", "procedure": "heat_transfer",
+                       "loads": [{"name": "p", "where": {"face": "top"},
+                                  "type": "pressure", "magnitude": 1.0}]})
+
+
+def test_unknown_procedure_raises():
+    with pytest.raises(AnalysisParamError):
+        validate_step({"name": "x", "procedure": "buckling"})
