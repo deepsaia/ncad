@@ -48,7 +48,7 @@ def test_arm_joint_origins_are_parent_relative_and_axes_derived(tmp_path):
     assert joints["shoulder"].origin_xyz == pytest.approx((0.0, 0.0, 0.048), abs=1e-6)
     assert joints["elbow"].origin_xyz == pytest.approx((0.0, 0.0, 0.120), abs=1e-6)
     assert joints["wrist"].origin_xyz == pytest.approx((0.0, 0.0, 0.100), abs=1e-6)
-    assert joints["grip"].origin_xyz == pytest.approx((0.019, 0.0, 0.032), abs=1e-6)
+    assert joints["grip"].origin_xyz == pytest.approx((0.015, 0.0, 0.032), abs=1e-6)
     # Axes are per-joint: base_yaw about Z, the arm pitches about Y, the grip slides along X.
     assert joints["base_yaw"].axis == pytest.approx((0.0, 0.0, 1.0), abs=1e-6)
     assert joints["shoulder"].axis == pytest.approx((0.0, 1.0, 0.0), abs=1e-6)
