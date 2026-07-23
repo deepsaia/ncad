@@ -205,16 +205,21 @@
     background: #e74c3c; transform: translateX(-1px); }
   #motion-readout { font-size: 12px; color: var(--muted); min-width: 50px;
     text-align: right; font-variant-numeric: tabular-nums; }
-  /* Physics joint sliders: a panel above the viewport, one live forward-kinematics slider per
-     actuated joint, shown only in Physics mode. Moving a slider re-poses the whole robot. */
-  #physics-bar { position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%);
-    display: flex; flex-direction: column; gap: 6px; z-index: 55; min-width: 300px;
-    max-width: 380px; background: var(--panel); border: 1px solid var(--border);
-    border-radius: 14px; padding: 10px 14px; backdrop-filter: blur(6px); }
-  #physics-bar[hidden] { display: none; }
-  #physics-bar-head { display: flex; align-items: center; justify-content: space-between; }
-  #physics-bar-label { font-size: 11px; color: var(--muted); font-weight: 600;
-    text-transform: uppercase; letter-spacing: 0.04em; }
+  /* Joints dock: a persistent section in the LOWER half of the right sidebar (under whichever
+     tab-panel is active), holding one live forward-kinematics slider per actuated joint. Shown only
+     when a posable robot is loaded; its height is drag-adjustable via #joints-divider + persisted.
+     Because it sits inside the sidebar flex column, it stays visible on any tab. */
+  #joints-divider { flex: none; height: 4px; cursor: row-resize; background: var(--border);
+    border-top: 1px solid var(--border); }
+  #joints-divider:hover, #joints-divider.dragging { background: #7cc4ff; }
+  #joints-divider[hidden], #joints-dock[hidden] { display: none; }
+  #joints-dock { flex: none; height: var(--joints-h, 200px); min-height: 80px; overflow: auto;
+    display: flex; flex-direction: column; gap: 6px; padding: 10px 14px;
+    background: var(--bg-2); }
+  #joints-dock-head { display: flex; align-items: center; justify-content: space-between;
+    flex: none; }
+  #joints-dock-label { font-size: 11px; color: var(--muted); font-weight: 600;
+    text-transform: uppercase; letter-spacing: .6px; }
   #physics-reset { font: inherit; font-size: 11px; color: var(--text); background: var(--panel-2);
     border: 1px solid var(--border); border-radius: 10px; padding: 2px 8px; cursor: pointer; }
   #physics-reset:hover { border-color: var(--accent); }
@@ -354,9 +359,6 @@
     border: none; border-bottom: 2px solid transparent; padding: 11px 4px; cursor: pointer; }
   #right-sidebar .tab:hover { color: var(--text); }
   #right-sidebar .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
-  #right-sidebar .tab-head { display: flex; align-items: center; gap: 8px; padding: 8px 12px;
-    flex: none; border-bottom: 1px solid var(--border); }
-  #right-sidebar .tab-head .grow { flex: 1; }
   .rs-icon-btn { width: 26px; height: 24px; display: inline-flex; align-items: center;
     justify-content: center; color: var(--muted); background: var(--panel-2);
     border: 1px solid var(--border); border-radius: 7px; cursor: pointer; }
@@ -440,7 +442,6 @@
   .tree-dof { color: var(--muted); font-size: 10px; margin-left: 5px; opacity: 0;
     transition: opacity .12s; font-variant-numeric: tabular-nums; }
   .tree-row:hover .tree-dof { opacity: 1; }
-  #tab-hierarchy.hide-text .tree-dof { display: none; }
   /* material chip: pushed to the row's end, muted pill */
   .tree-mat { margin-left: auto; padding: 0 6px; border-radius: 8px; font-size: 10px;
     color: var(--muted); background: var(--panel-2); border: 1px solid var(--border);
@@ -448,8 +449,6 @@
   .tree-children { margin-left: 12px; border-left: 1px solid var(--border);
     padding-left: 4px; }
   .tree-collapsed > .tree-children { display: none; }
-  #tab-hierarchy.hide-text .tree-name, #tab-hierarchy.hide-text .tree-op,
-  #tab-hierarchy.hide-text .tree-mat { display: none; }
 
   /* --- Assembly mate status + chips (bucket 5.2) --- */
   .mate-status { font-size: 11.5px; padding: 3px 6px; margin-bottom: 5px; border-radius: 5px;
@@ -704,15 +703,6 @@
       </div>
       <span id="motion-readout">0&deg;</span>
     </div>
-    <!-- Physics (robotics) joint picker: shown only in Physics mode. Selecting a joint loads its
-         precomputed sweep into the motion-playback path (the scrubber/play controls above). -->
-    <div id="physics-bar" hidden>
-      <div id="physics-bar-head">
-        <span id="physics-bar-label">Joints</span>
-        <button id="physics-reset" title="Reset all joints to their rest pose">Reset pose</button>
-      </div>
-      <div id="physics-joints" aria-label="Actuated joint sliders"></div>
-    </div>
     <!-- Export control (bottom-left): a download-icon button that opens a context-sensitive format
          menu. Formats depend on the current tab; picking one re-exports via ncad + downloads. -->
     <div id="export-control" hidden>
@@ -734,12 +724,6 @@
       <button class="tab" id="tab-robot-btn" data-tab="robot" role="tab" hidden>Robot</button>
       <button class="tab" data-tab="logs" role="tab">Logs</button>
     </div>
-    <div class="tab-head">
-      <span class="grow"></span>
-      <button id="tree-text-toggle" class="rs-icon-btn active" title="Toggle labels" hidden>
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V5h16v2M9 5v14M7 19h4"/></svg>
-      </button>
-    </div>
     <div class="tab-panel active" id="tab-hierarchy" role="tabpanel">
       <div id="hierarchy-body"><div class="panel-empty">select a model</div></div>
     </div>
@@ -754,6 +738,17 @@
     </div>
     <div class="tab-panel" id="tab-logs" role="tabpanel">
       <div id="logs-body"><div class="panel-empty">no log entries yet</div></div>
+    </div>
+    <!-- Joints dock: a persistent lower section (under whichever tab-panel is active) that holds the
+         robot's forward-kinematics sliders. Shown only when a posable robot is loaded (Physics
+         mode); its height is drag-adjustable via the divider and persisted. -->
+    <div id="joints-divider" title="Drag to resize the Joints panel" role="separator" hidden></div>
+    <div id="joints-dock" hidden>
+      <div id="joints-dock-head">
+        <span id="joints-dock-label">Joints</span>
+        <button id="physics-reset" title="Reset all joints to their rest pose">Reset pose</button>
+      </div>
+      <div id="physics-joints" aria-label="Actuated joint sliders"></div>
     </div>
   </aside>
 

@@ -451,14 +451,12 @@ function loadHierarchy(name) {
   }).catch(() => { body.innerHTML = '<div class="panel-empty">no hierarchy for this model</div>'; });
 }
 
-// ---- Right sidebar: tabs, collapse (two toggles), label toggle, drag separator ----
+// ---- Right sidebar: tabs, collapse (two toggles), drag separator ----
 const rightTabs = document.querySelectorAll("#right-sidebar .tab");
-const treeTextToggle = document.getElementById("tree-text-toggle");
 function setTab(name) {
   rightTabs.forEach(t => t.classList.toggle("active", t.dataset.tab === name));
   document.querySelectorAll(".tab-panel").forEach(p =>
     p.classList.toggle("active", p.id === "tab-" + name));
-  treeTextToggle.hidden = name !== "hierarchy";
   localStorage.setItem("ncad.rs.tab", name);
 }
 rightTabs.forEach(t => t.addEventListener("click", () => setTab(t.dataset.tab)));
@@ -467,16 +465,6 @@ rightTabs.forEach(t => t.addEventListener("click", () => setTab(t.dataset.tab)))
 const savedTab = localStorage.getItem("ncad.rs.tab");
 const savedTabExists = [...rightTabs].some(t => t.dataset.tab === savedTab);
 setTab(savedTabExists ? savedTab : "hierarchy");
-
-// Label toggle for the hierarchy (icons-only when off), persisted.
-function setTreeText(on) {
-  document.getElementById("tab-hierarchy").classList.toggle("hide-text", !on);
-  treeTextToggle.classList.toggle("active", on);
-  localStorage.setItem("ncad.rs.treetext", on ? "1" : "0");
-}
-treeTextToggle.addEventListener("click", () =>
-  setTreeText(!treeTextToggle.classList.contains("active")));
-setTreeText(localStorage.getItem("ncad.rs.treetext") !== "0");
 
 // Collapse/expand: the floating toggle flips state; the rail and header buttons are
 // explicit open/close. State persists.
@@ -1257,13 +1245,22 @@ initMotion({
 // joint is clamped to its own limit. This replaces the old per-joint mechanism sweep, which drove
 // one joint while the rest of the chain floated. The tree (.robot.json) also feeds the Robot
 // inspector tab. FK math is in robot_fk.js; this owns the sliders + applies the result to the nodes.
-const physicsBar = document.getElementById("physics-bar");
+// The Joints dock lives in the lower half of the right sidebar (persistent, resizable via the
+// divider), not a floating bar - so it stays visible on any tab. showJointsDock toggles the dock +
+// its divider together.
+const jointsDock = document.getElementById("joints-dock");
+const jointsDivider = document.getElementById("joints-divider");
 const physicsJoints = document.getElementById("physics-joints");
 const physicsReset = document.getElementById("physics-reset");
 
+function showJointsDock(on) {
+  jointsDock.hidden = !on;
+  jointsDivider.hidden = !on;
+}
+
 function setupPhysics(name, instanceNodes) {
   resetMotion();
-  physicsBar.hidden = true;
+  showJointsDock(false);
   state.robotChain = null; state.robotPose = {}; state.robotNodes = {};
   if (viewMode !== "physics") return;
   // The tree (.robot.json) drives both the Robot inspector and the FK posing sliders.
@@ -1291,7 +1288,7 @@ function buildJointSliders(tree) {
     state.robotPose[j.name] = 0;   // rest pose
     physicsJoints.appendChild(jointSliderRow(j));
   }
-  physicsBar.hidden = false;
+  showJointsDock(true);
   applyRobotPose();   // seat the rest pose (identity) so the nodes are FK-driven from the start
   log(`physics: ${joints.length} actuated joint(s) posable`, "info");
 }
@@ -1345,6 +1342,33 @@ physicsReset.addEventListener("click", () => {
   physicsJoints.querySelectorAll(".pj-slider").forEach(s => {
     s.value = "0"; s.dispatchEvent(new Event("input"));
   });
+});
+
+// Joints-dock height: drag the divider to resize (the dock is anchored to the sidebar bottom, so
+// the height grows as the pointer moves UP). Persisted in --joints-h, mirroring the width resizer.
+const JOINTS_H_KEY = "ncad.joints.height";
+let jointsHeight = 200;
+function applyJointsHeight(px) {
+  jointsHeight = Math.max(80, Math.min(window.innerHeight * 0.6, px));
+  document.documentElement.style.setProperty("--joints-h", jointsHeight + "px");
+}
+const savedJointsHeight = localStorage.getItem(JOINTS_H_KEY);
+if (savedJointsHeight) applyJointsHeight(parseFloat(savedJointsHeight));
+jointsDivider.addEventListener("pointerdown", ev => {
+  ev.preventDefault();
+  jointsDivider.classList.add("dragging");
+  const onMove = e => {
+    // Dock bottom is the sidebar bottom (viewport bottom); height grows as the pointer moves up.
+    applyJointsHeight(window.innerHeight - e.clientY);
+  };
+  const onUp = () => {
+    jointsDivider.classList.remove("dragging");
+    localStorage.setItem(JOINTS_H_KEY, jointsHeight);
+    window.removeEventListener("pointermove", onMove);
+    window.removeEventListener("pointerup", onUp);
+  };
+  window.addEventListener("pointermove", onMove);
+  window.addEventListener("pointerup", onUp);
 });
 
 // The Robot inspector tab: the kinematic tree (base -> links) + per-link computed mass/inertia and
@@ -1678,8 +1702,8 @@ function setViewMode(next) {
   document.getElementById("mode-assemblies").classList.toggle("active", next === "assemblies");
   document.getElementById("mode-motion").classList.toggle("active", next === "motion");
   document.getElementById("mode-physics").classList.toggle("active", next === "physics");
-  // The physics joint picker belongs to Physics mode only; leaving physics hides it.
-  if (next !== "physics") document.getElementById("physics-bar").hidden = true;
+  // The Joints dock belongs to Physics mode only; leaving physics hides it (+ its divider).
+  if (next !== "physics") showJointsDock(false);
   syncAssemblyControls();
   // Switching mode must NOT open the spec dropdown (renderSpecTree un-hides it); clear the
   // search and keep the tree hidden. It re-renders (mode-filtered) on the input's focus/input.
