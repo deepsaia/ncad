@@ -91,6 +91,8 @@ class OpenApiSpec:
                 "Run a motion study. Returns {motions, assembled, issues, build_ms}."),
             "/api/v1/physics-build": _post_build(
                 "Export a robot + sidecars. Returns {robots, robot, warnings, build_ms}."),
+            "/api/v1/robot-collide": _post_build(
+                "Check a robot's self-collision at a pose. Returns {collisions}."),
             "/api/v1/export": _post_build(
                 "Re-export a model to a format; streams the file as a download."),
             "/api/v1/validate": _post_build(

@@ -30,6 +30,9 @@ class _FakeBuildService:
     def build_physics(self, spec: str) -> dict:
         return {"robot": "arm", "warnings": [], "build_ms": 4.0}
 
+    def check_robot_collision(self, name: str, pose: dict) -> dict:
+        return {"collisions": [{"a": "forearm", "b": "base", "volume": 123.4}]}
+
     def export_model(self, name: str, kind: str, fmt: str) -> tuple[str, str, bytes]:
         return (f"{name}.{fmt}", "application/step", b"ISO-10303-21;\n")
 
@@ -161,6 +164,14 @@ def test_physics_build_post(service):
     payload = json.loads(body)
     assert payload["robot"] == "arm" and payload["build_ms"] == 4.0
     assert "robots" in payload   # the refreshed robot list rides the response
+
+
+def test_robot_collide_post(service):
+    status, body, _ = _post(f"{service.base_url}/api/v1/robot-collide",
+                            {"name": "arm", "pose": {"elbow": 3.14}})
+    assert status == 200
+    collisions = json.loads(body)["collisions"]
+    assert collisions and collisions[0]["a"] == "forearm" and collisions[0]["b"] == "base"
 
 
 def test_export_post_streams_a_download(service):

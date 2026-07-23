@@ -6,6 +6,7 @@ malformed body or missing ``spec`` is 400, a disallowed/failed build (``BuildErr
 an unexpected failure is 500 (logged, never leaked). Mirrors the stdlib server's handlers.
 """
 
+import json
 import logging
 
 from ncad.service.base_handler import BaseApiHandler
@@ -100,3 +101,27 @@ class PhysicsBuildHandler(BaseApiHandler):
             self.write_error_json(500, "internal physics-build error")
             return
         self.write_json(200, {"robots": self._catalog.robots_with_labels(), **result})
+
+
+class RobotCollideHandler(BaseApiHandler):
+    """POST /api/v1/robot-collide -> non-adjacent self-collisions of a robot at a posed config."""
+
+    def post(self, *args: str, **kwargs: str) -> None:
+        """Check the posted robot ``name`` at ``pose``; 400 on bad request/BuildError, 500 else."""
+        try:
+            body = json.loads(self.request.body or b"{}")
+            name, pose = body["name"], body.get("pose", {})
+        except (ValueError, KeyError, TypeError):
+            self.write_error_json(400, "request must be JSON with 'name' + 'pose'")
+            return
+        try:
+            result = self._build_service.check_robot_collision(name, pose)
+        except BuildError as exc:
+            logger.warning("robot-collide rejected for %s: %s", name, exc)
+            self.write_error_json(400, str(exc))
+            return
+        except Exception:  # noqa: BLE001 - never raise to the socket; log and 500
+            logger.exception("unexpected robot-collide failure for %s", name)
+            self.write_error_json(500, "internal robot-collide error")
+            return
+        self.write_json(200, result)

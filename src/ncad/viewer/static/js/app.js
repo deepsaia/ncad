@@ -1335,6 +1335,48 @@ function applyRobotPose() {
     node.matrix.decompose(node.position, node.quaternion, node.scale);
     node.updateMatrixWorld(true);
   }
+  scheduleCollisionCheck();   // debounced: pose live at 60fps, check self-collision on drag-idle
+}
+
+// Live self-collision: the FK pose is instant, but the exact interference check (place + measure on
+// the server) costs ~50ms, so it runs DEBOUNCED after the sliders go idle. Colliding links glow red
+// + a warning logs; a clear pose restores the base material. Combined joint poses can fold the arm
+// into itself (real arms too) - shown, not silently prevented.
+let _collideTimer = null;
+function scheduleCollisionCheck() {
+  if (_collideTimer) clearTimeout(_collideTimer);
+  _collideTimer = setTimeout(runCollisionCheck, 180);
+}
+
+function runCollisionCheck() {
+  if (viewMode !== "physics" || !activeModel) return;
+  fetch(apiUrl("/robot-collide"), { method: "POST", headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({ name: activeModel, pose: state.robotPose }) })
+    .then(r => r.ok ? r.json() : { collisions: [] })
+    .then(d => highlightCollisions(d.collisions || []))
+    .catch(() => { /* a collision check failure is non-fatal; leave the pose unmarked */ });
+}
+
+// Tint the meshes of every colliding link red (a cloned material, like the selection highlight so
+// the shared base material is never mutated); links not colliding are reset to their base.
+function highlightCollisions(collisions) {
+  const hit = new Set();
+  collisions.forEach(c => { hit.add(c.a); hit.add(c.b); });
+  for (const id in state.instanceMeshMap) {
+    const colliding = hit.has(id);
+    for (const m of state.instanceMeshMap[id]) {
+      const base = m.userData._baseMat || m.material;
+      if (!colliding) { m.material = base; continue; }
+      const mm = base.clone();
+      if (mm.color) mm.color.setHex(0xff4444);
+      if (mm.emissive) mm.emissive.setHex(0x551111);
+      m.material = mm;
+    }
+  }
+  if (collisions.length) {
+    const pairs = collisions.map(c => `${c.a}<>${c.b}`).join(", ");
+    log(`self-collision: ${pairs}`, "warn");
+  }
 }
 
 physicsReset.addEventListener("click", () => {
