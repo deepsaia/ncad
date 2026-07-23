@@ -1,0 +1,112 @@
+units = mm
+# A 5-DoF desktop robot arm authored as a coarse PRIMITIVE BLOCKOUT (the motion/robotics authoring
+# lane, like the crank-slider): each link is a few primitives, and its joint frames are named by
+# COORDINATE (at_point/axis), not by hunting faces. The arm is an OPEN serial chain (base -> turret
+# -> upper arm -> forearm -> hand -> sliding jaw), the opposite of the closed-loop mechanisms: five
+# INDEPENDENT actuated joints, so the Physics panel gets five live sliders.
+#
+# Rest pose (all joint angles 0): the arm stands straight UP along +Z, so each joint's motion is
+# easy to read. Layout (Z-up, mm), joint axes chosen so the motion is legible:
+#   base_yaw : turret spins about +Z          (the whole arm slews left/right)
+#   shoulder : upper arm pitches about +Y     (arm leans fore/aft)
+#   elbow    : forearm pitches about +Y       (forearm folds)
+#   wrist    : hand pitches about +Y          (hand tilts)
+#   grip     : one jaw slides along +X        (a prismatic gripper, a mixed joint type)
+#
+# Z stations of the joint frames (all on the arm centreline x=0,y=0 at rest):
+#   base top / yaw z=16   shoulder z=64   elbow z=184   wrist z=284   jaw rail z=316
+#
+# Primitive placement convention (verified against the kernel): a `cylinder` centres on its `at`
+# (x,y) and grows +Z by `h` from `plane_offset`; a `box` grows from `at` as the -x,-y CORNER, so a
+# box is centred by setting at = [-w/2, -d/2]. Every box below is centred that way.
+metadata {
+  description = "5-DoF desktop robot arm blockout: base, turret, upper arm, forearm, hand + jaw"
+  tags = [ desk_arm, robot, arm, blockout ]
+}
+parts {
+  # Base: a grounded pedestal disc + hub the turret sits on. `top` (axis Z) is the base_yaw axis.
+  base { profile = solid, material = steel_4140,
+    connectors = [
+      { id = top, at_point = [ 0, 0, 16 ], axis = [ 0, 0, 1 ] }
+    ],
+    features = [
+      { id = pad, op = primitive, kind = cylinder, d = 90, h = 12, plane = XY, plane_offset = 0 }
+      { id = hub, op = primitive, kind = cylinder, d = 54, h = 8, plane = XY, plane_offset = 12 }
+      { id = whole, op = boolean, operation = union, target = pad, tool = hub }
+    ] }
+  # Turret: the slewing body carrying the shoulder. A drum on the base + two clevis ears rising to
+  # the shoulder pin. `foot` (axis Z) seats on the base top; `shoulder` (axis Y) is the shoulder
+  # pitch axis at z=64. The ears straddle the upper arm's shoulder eye in Y (ears at y +/-12).
+  turret { profile = solid, material = aluminium_6061,
+    connectors = [
+      { id = foot, at_point = [ 0, 0, 16 ], axis = [ 0, 0, 1 ] }
+      { id = shoulder, at_point = [ 0, 0, 64 ], axis = [ 0, 1, 0 ] }
+    ],
+    features = [
+      { id = drum, op = primitive, kind = cylinder, d = 60, h = 34, plane = XY, plane_offset = 16 }
+      { id = earR, op = primitive, kind = box, w = 20, d = 10, h = 30, plane = XY,
+        plane_offset = 46, at = [ -10, 6 ] }
+      { id = earL, op = primitive, kind = box, w = 20, d = 10, h = 30, plane = XY,
+        plane_offset = 46, at = [ -10, -16 ] }
+      { id = u1, op = boolean, operation = union, target = drum, tool = earR }
+      { id = whole, op = boolean, operation = union, target = u1, tool = earL }
+    ] }
+  # Upper arm: a bar from the shoulder (z=64) to the elbow (z=184), length 120. A pin eye (axis Y)
+  # at each end wraps its pin. `p_shoulder` + `p_elbow` share the +Y pitch axis.
+  upperarm { profile = solid, material = aluminium_6061,
+    connectors = [
+      { id = p_shoulder, at_point = [ 0, 0, 64 ], axis = [ 0, 1, 0 ] }
+      { id = p_elbow, at_point = [ 0, 0, 184 ], axis = [ 0, 1, 0 ] }
+    ],
+    features = [
+      { id = bar, op = primitive, kind = box, w = 22, d = 22, h = 120, plane = XY,
+        plane_offset = 64, at = [ -11, -11 ] }
+      { id = eyeS, op = primitive, kind = cylinder, d = 26, h = 22, plane = XZ, plane_offset = -11,
+        at = [ 0, 64 ] }
+      { id = eyeE, op = primitive, kind = cylinder, d = 26, h = 22, plane = XZ, plane_offset = -11,
+        at = [ 0, 184 ] }
+      { id = u1, op = boolean, operation = union, target = bar, tool = eyeS }
+      { id = whole, op = boolean, operation = union, target = u1, tool = eyeE }
+    ] }
+  # Forearm: a bar from the elbow (z=184) to the wrist (z=284), length 100.
+  forearm { profile = solid, material = aluminium_6061,
+    connectors = [
+      { id = p_elbow, at_point = [ 0, 0, 184 ], axis = [ 0, 1, 0 ] }
+      { id = p_wrist, at_point = [ 0, 0, 284 ], axis = [ 0, 1, 0 ] }
+    ],
+    features = [
+      { id = bar, op = primitive, kind = box, w = 18, d = 18, h = 100, plane = XY,
+        plane_offset = 184, at = [ -9, -9 ] }
+      { id = eyeE, op = primitive, kind = cylinder, d = 22, h = 18, plane = XZ, plane_offset = -9,
+        at = [ 0, 184 ] }
+      { id = eyeW, op = primitive, kind = cylinder, d = 22, h = 18, plane = XZ, plane_offset = -9,
+        at = [ 0, 284 ] }
+      { id = u1, op = boolean, operation = union, target = bar, tool = eyeE }
+      { id = whole, op = boolean, operation = union, target = u1, tool = eyeW }
+    ] }
+  # Hand: the palm at the wrist (z=284) carrying a FIXED jaw on -X and a rail for the sliding jaw on
+  # +X. `p_wrist` (axis Y) is the wrist pitch; `jawRail` (axis X) is the gripper slide direction.
+  # palm z 286..306; fixed jaw z 306..332 rises above, overlapping the palm top so they union.
+  hand { profile = solid, material = abs,
+    connectors = [
+      { id = p_wrist, at_point = [ 0, 0, 284 ], axis = [ 0, 1, 0 ] }
+      { id = jawRail, at_point = [ 0, 0, 316 ], axis = [ 1, 0, 0 ] }
+    ],
+    features = [
+      { id = palm, op = primitive, kind = box, w = 44, d = 28, h = 22, plane = XY,
+        plane_offset = 286, at = [ -22, -14 ] }
+      { id = fixedjaw, op = primitive, kind = box, w = 6, d = 24, h = 30, plane = XY,
+        plane_offset = 302, at = [ -22, -12 ] }
+      { id = whole, op = boolean, operation = union, target = palm, tool = fixedjaw }
+    ] }
+  # Sliding jaw: the moving gripper finger. It slides along +X toward the fixed jaw (grip = close).
+  # At rest it sits open on +X; `rail` (axis X) mates the hand's jawRail. Jaw z 302..332.
+  jaw { profile = solid, material = abs,
+    connectors = [
+      { id = rail, at_point = [ 19, 0, 316 ], axis = [ 1, 0, 0 ] }
+    ],
+    features = [
+      { id = finger, op = primitive, kind = box, w = 6, d = 24, h = 30, plane = XY,
+        plane_offset = 302, at = [ 16, -12 ] }
+    ] }
+}
