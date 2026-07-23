@@ -14,7 +14,12 @@ import math
 
 logger = logging.getLogger(__name__)
 
-_MAX_PER_LINE = 6
+# Real ccx .frd records are FIXED-WIDTH, not whitespace-separated: after the leading marker
+# (" -1"/" -2", 3 chars) the node number is 10 chars and each value is 12 chars, and CalculiX packs
+# negatives with no separating space (e.g. "1-4.00000E+01"). So we slice columns, never split().
+_MARKER_WIDTH = 3
+_NODE_WIDTH = 10
+_VALUE_WIDTH = 12
 
 
 class FrdReader:
@@ -67,10 +72,11 @@ def _read_nodes(lines: list[str]) -> dict:
             continue
         if not in_block:
             continue
-        marker = line[:3].strip()
+        marker = line[:_MARKER_WIDTH].strip()
         if marker == "-1":
-            parts = line.split()
-            nodes[int(parts[1])] = (float(parts[2]), float(parts[3]), float(parts[4]))
+            node = int(line[_MARKER_WIDTH:_MARKER_WIDTH + _NODE_WIDTH])
+            coords = _fixed_floats(line[_MARKER_WIDTH + _NODE_WIDTH:], 3)
+            nodes[node] = (coords[0], coords[1], coords[2])
         elif marker == "-3":
             in_block = False
     return nodes
@@ -101,15 +107,32 @@ def _read_result_fields(lines: list[str]) -> dict:
 
 
 def _read_data_record(lines: list[str], index: int, ncomps: int) -> tuple[int, list[float], int]:
-    """Read one ``-1`` record (plus any ``-2`` continuation); return (node, values, next_index)."""
-    parts = lines[index].split()
-    node = int(parts[1])
-    values = [float(v) for v in parts[2:2 + ncomps]]
+    """Read one ``-1`` record (plus any ``-2`` continuation); return (node, values, next_index).
+
+    Fixed-width: node number is 10 chars after the marker, then 12-char value fields (up to 6 per
+    line, continued on ``-2`` lines). ccx packs negatives with no space, so columns are sliced.
+    """
+    line = lines[index]
+    node = int(line[_MARKER_WIDTH:_MARKER_WIDTH + _NODE_WIDTH])
+    values = _fixed_floats(line[_MARKER_WIDTH + _NODE_WIDTH:], min(6, ncomps))
     index += 1
-    while len(values) < ncomps and index < len(lines) and lines[index][:3].strip() == "-2":
-        values += [float(v) for v in lines[index].split()[1:]]
+    while (len(values) < ncomps and index < len(lines)
+           and lines[index][:_MARKER_WIDTH].strip() == "-2"):
+        remaining = min(6, ncomps - len(values))
+        values += _fixed_floats(lines[index][_MARKER_WIDTH:], remaining)
         index += 1
     return node, values[:ncomps], index
+
+
+def _fixed_floats(segment: str, count: int) -> list[float]:
+    """Parse ``count`` fixed-width (12-char) float fields from ``segment`` (trailing empties ok)."""
+    values = []
+    for i in range(count):
+        field = segment[i * _VALUE_WIDTH:(i + 1) * _VALUE_WIDTH].strip()
+        if not field:
+            break
+        values.append(float(field))
+    return values
 
 
 def _summarize(fields: dict, material: dict) -> dict:

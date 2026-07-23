@@ -3,6 +3,7 @@ import os
 from ncad.fea.frd_reader import FrdReader
 
 _FRD = os.path.join(os.path.dirname(__file__), "fixtures", "mini.frd")
+_REAL_FRD = os.path.join(os.path.dirname(__file__), "fixtures", "bracket_real.frd")
 _STEEL = {"structural": {"yield": 370e6}}
 
 
@@ -29,6 +30,17 @@ def test_max_displacement_is_largest_magnitude():
     # Node 4 has displacement (0, 0, 3e-3) -> magnitude 3e-3, the largest in the fixture.
     result = FrdReader().read(_FRD, _STEEL)
     assert abs(result["summary"]["max_displacement"] - 3e-3) < 1e-9
+
+
+def test_reads_real_frd_with_run_together_columns():
+    # Real ccx .frd packs negative values with no separating space (e.g. '1-4.00000E+01'), so the
+    # reader must parse fixed 12-char columns, not split on whitespace. This fixture is real-format.
+    result = FrdReader().read(_REAL_FRD, _STEEL)
+    assert len(result["nodes"]) == 3
+    # Node 1 sits at x=-40 (run-together with the node number in the coord block).
+    assert result["nodes"][1][0] == -40.0
+    # Node 1 has SXX=100e6, rest 0 -> von Mises = 100e6 (the max in the fixture).
+    assert abs(result["summary"]["max_von_mises"] - 100e6) < 1.0
 
 
 def test_write_vtk_emits_a_field_mesh(tmp_path):
