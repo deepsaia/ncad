@@ -19,6 +19,7 @@ from ncad.build.document_builder import DocumentBuilder
 from ncad.robotics.physics_spec import PhysicsSpec
 from ncad.robotics.robot_forward_kinematics import RobotForwardKinematics
 from ncad.spec.spec_loader import SpecLoader
+from ncad.spec.spec_reference import SpecReference
 
 # Metres -> millimetres: the robot tree (origins) + poses are metres; the base link shapes + the
 # kernel placement/distance work in millimetres, so FK node matrices' translation is scaled up.
@@ -74,12 +75,12 @@ class RobotCollisionChecker:
     def _build(self, physics_path: str, tree: dict) -> dict:
         """Build the per-link shapes (by instance id) + the adjacent-pair set from the tree."""
         spec = PhysicsSpec(SpecLoader().load(physics_path))
-        asm_path = Path(physics_path).resolve().parent / spec.assembly
+        asm_path = Path(SpecReference().for_doc(spec.assembly, physics_path))
         source = SpecLoader().load(str(asm_path))["assembly"]["instances"]
         file_by_id = {inst["id"]: inst for inst in source if "file" in inst}
         shapes: dict[str, Any] = {}
         for iid, inst in file_by_id.items():
-            part_file = str((asm_path.parent / inst["file"]).resolve())
+            part_file = SpecReference().resolve(inst["file"], str(asm_path.parent))
             builds = DocumentBuilder(self._kernel).resolve_part_builds(part_file)
             if inst["part"] in builds:
                 shapes[iid] = builds[inst["part"]][0]

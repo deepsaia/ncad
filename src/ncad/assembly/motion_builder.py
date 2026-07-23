@@ -13,6 +13,7 @@ from typing import Any
 
 from ncad.assembly.assembly_builder import AssemblyBuilder
 from ncad.spec.spec_loader import SpecLoader
+from ncad.spec.spec_reference import SpecReference
 
 logger = logging.getLogger(__name__)
 
@@ -37,8 +38,7 @@ class MotionBuilder:
         assembly_ref = motion.get("assembly")
         if not isinstance(assembly_ref, str) or not assembly_ref:
             raise ValueError("a motion document's 'motion' block needs an 'assembly' reference")
-        motion_dir = os.path.dirname(os.path.abspath(motion_path))
-        assembly_path = os.path.join(motion_dir, assembly_ref)
+        assembly_path = SpecReference().for_doc(assembly_ref, motion_path)
         if not os.path.isfile(assembly_path):
             raise ValueError(f"motion references a missing assembly: {assembly_ref!r}")
         # The motion spec passed to the assembler is the driver block plus the optional `outputs`

@@ -28,6 +28,7 @@ from ncad.robotics.physics_spec import PhysicsSpec
 from ncad.robotics.robot_joint import RobotJoint
 from ncad.robotics.robot_link import RobotLink
 from ncad.robotics.robot_model import RobotModel
+from ncad.spec.spec_reference import SpecReference
 
 # mm^2 -> m^2 for the inertia tensor (MassCalculator reports kg*mm^2; URDF/SI want kg*m^2).
 _MM2_TO_M2 = 1e-6
@@ -59,7 +60,7 @@ class RobotModelBuilder:
 
         document = SpecLoader().load(physics_path)
         spec = PhysicsSpec(document)
-        asm_path = Path(physics_path).resolve().parent / spec.assembly
+        asm_path = Path(SpecReference().for_doc(spec.assembly, physics_path))
         out_path = Path(out_dir)
 
         out_path.mkdir(parents=True, exist_ok=True)
@@ -111,15 +112,14 @@ class RobotModelBuilder:
     def _part_builds(self, asm_path: Path,
                      file_by_id: dict[str, dict]) -> dict[str, tuple]:
         """Map instance id -> (shape, resolver) by building each instance's referenced part file."""
-        asm_dir = asm_path.parent
+        asm_dir = str(asm_path.parent)
         builds_by_file: dict[str, dict] = {}
         out: dict[str, tuple] = {}
         for iid, inst in file_by_id.items():
-            file_path = asm_dir / inst["file"]
-            file_key = str(file_path.resolve())
+            file_key = SpecReference().resolve(inst["file"], asm_dir)
             builds = builds_by_file.get(file_key)
             if builds is None:
-                builds = DocumentBuilder(self._kernel).resolve_part_builds(str(file_path))
+                builds = DocumentBuilder(self._kernel).resolve_part_builds(file_key)
                 builds_by_file[file_key] = builds
             shape, resolver = builds.get(inst["part"], (None, None))
             if shape is not None:
