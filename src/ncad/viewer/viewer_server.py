@@ -37,6 +37,7 @@ _ASSEMBLY_ROUTE = "/api/assembly/"
 _MOTION_ROUTE = "/api/motion/"
 _ROBOT_ROUTE = "/api/robot/"
 _ROBOT_SWEEPS_ROUTE = "/api/robot-sweeps/"
+_ROBOT_KEYFRAMES_ROUTE = "/api/robot-keyframes/"
 _JS_ROUTE = "/js/"
 # The viewer's app JS lives beside the page asset (src/ncad/viewer/static/js/), served at /js/.
 _STATIC_JS_DIR = Path(__file__).resolve().parent / "static" / "js"
@@ -93,6 +94,9 @@ class _ViewerRequestHandler(BaseHTTPRequestHandler):
             self._send_json(200, {"robots": self._catalog.robots_with_labels()})
         elif path.startswith(_ROBOT_SWEEPS_ROUTE):
             self._send_robot_sweeps(path[len(_ROBOT_SWEEPS_ROUTE) :])
+        elif path.startswith(_ROBOT_KEYFRAMES_ROUTE):
+            self._send_json(200, self._build_service.read_robot_keyframes(
+                unquote(path[len(_ROBOT_KEYFRAMES_ROUTE) :])))
         elif path.startswith(_ROBOT_ROUTE):
             self._send_robot(path[len(_ROBOT_ROUTE) :])
         elif path.startswith(_MOTION_ROUTE):
@@ -144,6 +148,8 @@ class _ViewerRequestHandler(BaseHTTPRequestHandler):
             self._handle_physics_build()
         elif path == "/api/robot-collide":
             self._handle_robot_collide()
+        elif path.startswith(_ROBOT_KEYFRAMES_ROUTE):
+            self._handle_save_keyframes(unquote(path[len(_ROBOT_KEYFRAMES_ROUTE) :]))
         elif path == "/api/export":
             self._handle_export()
         elif path.startswith(_API_MODELS_ROUTE) and path.endswith("/delete"):
@@ -255,6 +261,26 @@ class _ViewerRequestHandler(BaseHTTPRequestHandler):
         except Exception:  # noqa: BLE001 - never raise to the socket; log and 500
             logger.exception("unexpected robot-collide failure for %s", name)
             self._send_json(500, {"error": "internal robot-collide error"})
+            return
+        self._send_json(200, result)
+
+    def _handle_save_keyframes(self, name: str) -> None:
+        length = int(self.headers.get("Content-Length", 0))
+        try:
+            body = json.loads(self.rfile.read(length) or b"{}")
+            set_name, keyframes = body.get("set", "default"), body["keyframes"]
+        except (ValueError, KeyError):
+            self._send_json(400, {"error": "request needs JSON with 'keyframes' (+ 'set')"})
+            return
+        try:
+            result = self._build_service.save_robot_keyframes(name, set_name, keyframes)
+        except BuildError as exc:
+            logger.warning("save-keyframes rejected for %s: %s", name, exc)
+            self._send_json(400, {"error": str(exc)})
+            return
+        except Exception:  # noqa: BLE001 - never raise to the socket; log and 500
+            logger.exception("unexpected save-keyframes failure for %s", name)
+            self._send_json(500, {"error": "internal save-keyframes error"})
             return
         self._send_json(200, result)
 

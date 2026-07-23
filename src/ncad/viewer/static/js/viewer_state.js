@@ -54,6 +54,10 @@ export class ViewerState {
     this.robotChain = null;     // the FK chain (buildFkChain output) for the active robot, or null
     this.robotPose = {};        // {jointName: value} radians (revolute) / metres (prismatic)
     this.robotNodes = {};       // instanceId (== link) -> THREE.Group node to place via FK
+    // Keyframe animation (bucket: robot poses). Each keyframe is {time (s), pose {joint: value}} - a
+    // full pose snapshot captured from the FK sliders. They compile into a motion-shaped trajectory
+    // the Motion widget plays; persisted to out/<robot>.keyframes.json.
+    this.robotKeyframes = [];
   }
 }
 

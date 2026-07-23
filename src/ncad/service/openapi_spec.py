@@ -74,6 +74,12 @@ class OpenApiSpec:
                 "Get a robot's tree (links + joints + computed inertia).", "unknown robot"),
             "/api/v1/robot-sweeps/{name}": _get_by_name(
                 "Get a robot's per-joint articulation sweeps.", "no sweeps for robot"),
+            "/api/v1/robot-keyframes/{name}": {
+                "get": {"summary": "Get a robot's saved keyframe sets. Returns {sets}.",
+                        "parameters": _NAME_PARAM, "responses": {"200": _JSON_OK}},
+                "post": {"summary": "Save (upsert) a named keyframe set. Returns {sets}.",
+                         "parameters": _NAME_PARAM, "requestBody": _SPEC_BODY,
+                         "responses": {"200": _JSON_OK, "400": _ERROR, "500": _ERROR}}},
             "/api/v1/bom/{name}": _get_by_name("Get a model's BOM.", "no BOM for model"),
             "/api/v1/plan/{name}": _get_bytes(
                 "Get a model's plan SVG.", "image/svg+xml", "no plan for model"),

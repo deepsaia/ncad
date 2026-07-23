@@ -217,6 +217,64 @@ class BuildService:
         """Resolve a physics ``spec`` if under examples, else None (mirrors the motion rule)."""
         return self._spec_catalog.resolve(spec)
 
+    def read_robot_keyframes(self, name: str) -> dict:
+        """Read the robot's saved keyframe sets from ``out/<name>.keyframes.json``.
+
+        The sidecar is viewer-authored (like the robot tree/sweeps), PER robot, holding named sets:
+        ``{"sets": {set_name: [{time, pose}], ...}}``. Returns ``{"sets": {}}`` if none saved.
+        """
+        path = self._keyframes_path(name)
+        if path is None or not os.path.isfile(path):
+            return {"sets": {}}
+        try:
+            with open(path, encoding="utf-8") as handle:
+                data = json.load(handle)
+            return {"sets": data.get("sets", {}) if isinstance(data, dict) else {}}
+        except (OSError, ValueError):
+            logger.warning("could not read keyframes for %s", name)
+            return {"sets": {}}
+
+    def save_robot_keyframes(self, name: str, set_name: str, keyframes: list) -> dict:
+        """Save (upsert) a named keyframe set for the robot; return the updated set list.
+
+        Merges into the existing per-robot sidecar so other saved sets are preserved. ``keyframes``
+        is ``[{time, pose {joint: value}}]``; values are sanitized to numbers. Empty ``keyframes``
+        DELETES the set (a clear + save removes it).
+
+        :return: ``{"sets": [set_name, ...]}`` (the names available after the save).
+        :raises BuildError: If the robot is unknown (no built tree to key the sidecar to).
+        """
+        path = self._keyframes_path(name)
+        if path is None:
+            raise BuildError(f"unknown robot {name!r}; rebuild it first")
+        clean = self._clean_keyframes(keyframes)
+        existing = self.read_robot_keyframes(name)["sets"]
+        if clean:
+            existing[set_name] = clean
+        else:
+            existing.pop(set_name, None)
+        with open(path, "w", encoding="utf-8") as handle:
+            json.dump({"sets": existing}, handle, indent=2)
+        logger.info("saved keyframe set %r (%d frame(s)) for %s", set_name, len(clean), name)
+        return {"sets": sorted(existing)}
+
+    def _keyframes_path(self, name: str) -> str | None:
+        """The ``out/<name>.keyframes.json`` path, or None if the robot has no built tree."""
+        if self._model_catalog.resolve_robot(name) is None:
+            return None
+        return os.path.join(self._models_dir, name + ".keyframes.json")
+
+    def _clean_keyframes(self, keyframes: list) -> list:
+        """Sanitize a keyframe list to ``[{time: float, pose: {str: float}}]`` (bad ones drop)."""
+        out: list[dict] = []
+        for kf in keyframes or []:
+            if not isinstance(kf, dict) or not isinstance(kf.get("pose"), dict):
+                continue
+            pose = {str(k): float(v) for k, v in kf["pose"].items()
+                    if isinstance(v, (int, float))}
+            out.append({"time": float(kf.get("time", 0.0)), "pose": pose})
+        return out
+
     def check_robot_collision(self, name: str, pose: dict) -> dict:
         """Check the robot ``name`` at ``pose`` for non-adjacent self-collision.
 

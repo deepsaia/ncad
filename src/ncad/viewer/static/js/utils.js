@@ -62,6 +62,19 @@ export function matrixFromRowMajor(m) {
   return M;
 }
 
+// The inverse of matrixFromRowMajor: a THREE.Matrix4 -> the ncad ROW-VECTOR row-major 4x4 (rotation
+// block transposed back, translation in the last row). Used to serialize an FK-solved pose into the
+// motion trajectory shape (frames[i].placements[id]) the motion player consumes, so keyframe
+// playback reuses the existing scrub/play/loop widget.
+export function matrixToRowMajor(M) {
+  const e = M.elements;   // THREE stores column-major: e[col*4 + row]
+  // Rotation: m[i][j] = M[j][i] (undo the transpose). Translation row = M's last column (e[12..14]).
+  return [[e[0], e[1], e[2], 0],
+          [e[4], e[5], e[6], 0],
+          [e[8], e[9], e[10], 0],
+          [e[12], e[13], e[14], 1]];
+}
+
 // A stable distinct palette so a fresh multi-material model is legible; the index is chosen by
 // a deterministic hash of the material name, so a material keeps its color between loads.
 export const MAT_PALETTE = ["#c9ccd1", "#b87333", "#9aa6b4", "#b9824f", "#8fd4bf", "#c06a4b",

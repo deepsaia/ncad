@@ -33,6 +33,12 @@ class _FakeBuildService:
     def check_robot_collision(self, name: str, pose: dict) -> dict:
         return {"collisions": [{"a": "forearm", "b": "base", "volume": 123.4}]}
 
+    def read_robot_keyframes(self, name: str) -> dict:
+        return {"sets": {"wave": [{"time": 0, "pose": {}}, {"time": 1, "pose": {}}]}}
+
+    def save_robot_keyframes(self, name: str, set_name: str, keyframes: list) -> dict:
+        return {"sets": [set_name]}
+
     def export_model(self, name: str, kind: str, fmt: str) -> tuple[str, str, bytes]:
         return (f"{name}.{fmt}", "application/step", b"ISO-10303-21;\n")
 
@@ -172,6 +178,19 @@ def test_robot_collide_post(service):
     assert status == 200
     collisions = json.loads(body)["collisions"]
     assert collisions and collisions[0]["a"] == "forearm" and collisions[0]["b"] == "base"
+
+
+def test_robot_keyframes_get(service):
+    status, body, _ = _get(f"{service.base_url}/api/v1/robot-keyframes/arm")
+    assert status == 200
+    assert "wave" in json.loads(body)["sets"]
+
+
+def test_robot_keyframes_post_saves_a_named_set(service):
+    status, body, _ = _post(f"{service.base_url}/api/v1/robot-keyframes/arm",
+                            {"set": "wave", "keyframes": [{"time": 0, "pose": {}}]})
+    assert status == 200
+    assert json.loads(body)["sets"] == ["wave"]
 
 
 def test_export_post_streams_a_download(service):

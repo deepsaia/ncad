@@ -122,6 +122,19 @@ export function setupMotion(name, instanceNodes) {
   }).catch(() => { /* state.motion is optional; a fetch error just means no timeline */ });
 }
 
+// Load a ready trajectory ({frames:[{driver_value, placements}], driver}) into the player + reveal
+// the motion bar, so the full transport (play/pause, scrub, speed ladder, loop, hotkeys) drives it
+// unchanged. Physics keyframe playback compiles its poses into this shape and calls this - there is
+// no separate play control in the Joints dock; the Motion widget IS the transport.
+export function loadTrajectory(trajectory, instanceNodes) {
+  state.motion = trajectory;
+  state.motionNodes = instanceNodes;
+  motionScrub.max = String(trajectory.frames.length - 1);
+  motionScrub.value = "0";
+  motionBar.hidden = false;
+  showMotionFrame(0);
+}
+
 export function showMotionFrame(i) {
   if (!state.motion) return;
   const frames = state.motion.frames;
