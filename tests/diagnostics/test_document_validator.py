@@ -85,6 +85,46 @@ def test_unresolvable_external_library_skips_material_check(tmp_path):
     assert not any(d.code == codes.UNKNOWN_REFERENCE for d in report.diagnostics)
 
 
+def test_validates_analysis_document_ok(tmp_path):
+    # An analysis doc overlays a part with a load case; the referenced part must resolve + validate.
+    (tmp_path / "bracket.hocon").write_text(textwrap.dedent('''
+        units = mm
+        parts { p {
+          profile = solid
+          features = [ { id = b, op = primitive, kind = box, w = 20, d = 20, h = 5 } ]
+        } }
+    '''))
+    doc = {"analysis": {"part": "bracket.hocon",
+                        "mesh": {"element_size": 3.0, "order": 2},
+                        "constraints": [{"name": "root", "where": {"face": "bottom"},
+                                         "type": "encastre"}],
+                        "loads": [{"name": "tip", "where": {"face": "top"},
+                                   "type": "pressure", "magnitude": 2.5e5}],
+                        "steps": [{"name": "stress", "procedure": "static"}]}}
+    assert DocumentValidator(base_dir=str(tmp_path)).validate(doc).ok is True
+
+
+def test_analysis_missing_part_is_error():
+    report = DocumentValidator(base_dir=".").validate({"analysis": {"steps": []}})
+    assert report.ok is False
+    assert any(d.location.startswith("analysis") for d in report.diagnostics)
+
+
+def test_analysis_bad_constraint_is_error():
+    doc = {"analysis": {"part": "p.hocon",
+                        "constraints": [{"where": {"face": "top"}, "type": "encastre"}],
+                        "steps": []}}
+    report = DocumentValidator(base_dir=".").validate(doc)
+    assert report.ok is False
+
+
+def test_analysis_unresolvable_part_is_error(tmp_path):
+    doc = {"analysis": {"part": "ghost.hocon", "steps": []}}
+    report = DocumentValidator(base_dir=str(tmp_path)).validate(doc)
+    assert report.ok is False
+    assert any(d.code == codes.UNKNOWN_REFERENCE for d in report.diagnostics)
+
+
 def test_assembly_bad_connector(tmp_path):
     # write a part file with a known connector, then reference a wrong connector in an assembly.
     (tmp_path / "p.hocon").write_text(textwrap.dedent('''

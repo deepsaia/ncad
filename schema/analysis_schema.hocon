@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+  type = object
+  # The .analysis.hocon load case. Vocabulary maps to CalculiX cards; AnalysisSpec/analysis_params
+  # own the semantic checks (dof ranges, per-type required fields). This schema is the shape gate.
+  additionalProperties = true
+  required = [ "analysis" ]
+  properties {
+    analysis {
+      type = object
+      additionalProperties = true
+      required = [ "part" ]
+      properties {
+        part { type = string }
+        mesh {
+          type = object
+          additionalProperties = true
+          properties {
+            element_size { type = number, exclusiveMinimum = 0 }
+            order { type = integer, enum = [ 1, 2 ] }
+            min_quality { type = number, minimum = 0 }
+          }
+        }
+        constraints { type = array }
+        loads { type = array }
+        steps { type = array }
+        material { type = object, additionalProperties = true }
+      }
+    }
+  }
+}
