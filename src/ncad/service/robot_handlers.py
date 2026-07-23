@@ -5,9 +5,11 @@ tree; `RobotSweepsHandler` serves the `<name>.robot_sweeps.json` articulation sw
 injected ModelCatalog verbatim (mirrors the motion handlers).
 """
 
+import json
 from urllib.parse import unquote
 
 from ncad.service.base_handler import BaseApiHandler
+from ncad.viewer.build_service import BuildError
 
 
 class RobotsHandler(BaseApiHandler):
@@ -56,3 +58,26 @@ class RobotDeleteHandler(BaseApiHandler):
             self.write_error_json(404, "unknown robot")
             return
         self.write_json(200, {"robots": self._catalog.robots_with_labels()})
+
+
+class RobotKeyframesHandler(BaseApiHandler):
+    """GET/POST /api/v1/robot-keyframes/<name> -> read a robot's saved keyframe sets or save one."""
+
+    def get(self, *args: str, **kwargs: str) -> None:
+        """Return ``{"sets": {name: [{time, pose}], ...}}`` (empty when none saved)."""
+        self.write_json(200, self._build_service.read_robot_keyframes(unquote(args[0])))
+
+    def post(self, *args: str, **kwargs: str) -> None:
+        """Save (upsert) a named keyframe set; body ``{keyframes: [...], set?: name}``."""
+        try:
+            body = json.loads(self.request.body or b"{}")
+            set_name, keyframes = body.get("set", "default"), body["keyframes"]
+        except (ValueError, KeyError, TypeError):
+            self.write_error_json(400, "request must be JSON with 'keyframes' (+ optional 'set')")
+            return
+        try:
+            result = self._build_service.save_robot_keyframes(unquote(args[0]), set_name, keyframes)
+        except BuildError as exc:
+            self.write_error_json(400, str(exc))
+            return
+        self.write_json(200, result)

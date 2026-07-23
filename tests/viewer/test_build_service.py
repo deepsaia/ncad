@@ -122,3 +122,46 @@ def test_motion_regenerate_rejects_unrecorded_external_source(tmp_path) -> None:
     external.write_text("x")
     # No trajectory records this source, and it is outside examples: not allowed.
     assert service._allowed_motion_path(str(external)) is None
+
+
+def test_save_and_read_robot_keyframes_round_trip(tmp_path) -> None:
+    # The sidecar keys off a built robot tree, so plant one; then save + read back a named set.
+    service, _, out = _service(tmp_path)
+    (out / "arm.robot.json").write_text('{"base_link": "b", "links": [], "joints": []}')
+    frames = [{"time": 0.0, "pose": {"elbow": 0.0}}, {"time": 1.5, "pose": {"elbow": 1.2}}]
+
+    result = service.save_robot_keyframes("arm", "kfmotion_01", frames)
+
+    assert result == {"sets": ["kfmotion_01"]}
+    assert service.read_robot_keyframes("arm")["sets"]["kfmotion_01"] == frames
+
+
+def test_save_robot_keyframes_upserts_and_deletes_named_sets(tmp_path) -> None:
+    service, _, out = _service(tmp_path)
+    (out / "arm.robot.json").write_text('{"base_link": "b", "links": [], "joints": []}')
+    service.save_robot_keyframes("arm", "a", [{"time": 0, "pose": {"j": 0.0}}])
+    service.save_robot_keyframes("arm", "b", [{"time": 0, "pose": {"j": 1.0}}])
+    assert service.read_robot_keyframes("arm")["sets"].keys() == {"a", "b"}
+
+    # Saving an empty list deletes that set; the other set survives.
+    assert service.save_robot_keyframes("arm", "a", []) == {"sets": ["b"]}
+    assert set(service.read_robot_keyframes("arm")["sets"]) == {"b"}
+
+
+def test_save_robot_keyframes_unknown_robot_raises(tmp_path) -> None:
+    service, _, _ = _service(tmp_path)
+    with pytest.raises(BuildError):
+        service.save_robot_keyframes("ghost", "s", [{"time": 0, "pose": {}}])
+
+
+def test_clean_keyframes_sanitizes_bad_entries(tmp_path) -> None:
+    service, _, out = _service(tmp_path)
+    (out / "arm.robot.json").write_text('{"base_link": "b", "links": [], "joints": []}')
+    dirty = [
+        {"time": 2, "pose": {"j": 3, "bad": "x"}},   # non-numeric pose value dropped
+        {"time": "nope"},                            # no pose -> whole frame dropped
+        "not-a-dict",                                # dropped
+    ]
+    service.save_robot_keyframes("arm", "s", dirty)
+    saved = service.read_robot_keyframes("arm")["sets"]["s"]
+    assert saved == [{"time": 2.0, "pose": {"j": 3.0}}]

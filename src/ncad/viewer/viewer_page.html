@@ -216,19 +216,42 @@
   #joints-dock { flex: none; height: var(--joints-h, 200px); min-height: 80px; overflow: auto;
     display: flex; flex-direction: column; gap: 6px; padding: 10px 14px;
     background: var(--bg-2); }
-  #joints-dock-head { display: flex; align-items: center; justify-content: space-between;
-    flex: none; }
+  #joints-dock-head { display: flex; align-items: center; gap: 6px; flex: none; }
+  #joints-dock-head .grow { flex: 1; }
   #joints-dock-label { font-size: 11px; color: var(--muted); font-weight: 600;
     text-transform: uppercase; letter-spacing: .6px; }
-  #physics-reset { font: inherit; font-size: 11px; color: var(--text); background: var(--panel-2);
-    border: 1px solid var(--border); border-radius: 10px; padding: 2px 8px; cursor: pointer; }
-  #physics-reset:hover { border-color: var(--accent); }
+  #joints-dock-head button { font: inherit; font-size: 11px; color: var(--text);
+    background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 2px 8px; cursor: pointer; }
+  #joints-dock-head button:hover { border-color: var(--accent); }
+  #kf-set { font: inherit; font-size: 11px; color: var(--text); background: var(--panel-2);
+    border: 1px solid var(--border); border-radius: 10px; padding: 2px 6px; cursor: pointer;
+    max-width: 120px; }
+  #kf-set:hover { border-color: var(--accent); }
+  #kf-set[hidden] { display: none; }
   #physics-joints { display: flex; flex-direction: column; gap: 5px; }
-  .pj-row { display: grid; grid-template-columns: 74px 1fr 62px; align-items: center; gap: 8px; }
+  /* A joint row: [name | live slider | live value] then one cell per captured keyframe column. The
+     live block is fixed width; keyframe cells flow to the right (the dock scrolls if many). */
+  .pj-row { display: flex; align-items: center; gap: 8px; }
+  .pj-live { display: grid; grid-template-columns: 92px 92px 52px; align-items: center; gap: 8px;
+    flex: none; }
   .pj-name { font-size: 11px; color: var(--text); font-weight: 600; overflow: hidden;
     text-overflow: ellipsis; white-space: nowrap; }
   .pj-slider { width: 100%; accent-color: var(--accent); cursor: pointer; }
   .pj-val { font-size: 11px; color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+  /* Keyframe column cells: a compact editable value per (joint, keyframe). The header row carries
+     each column's Kn label + its time field + a delete control. */
+  .pj-kf { width: 46px; font: inherit; font-size: 11px; text-align: right; color: var(--text);
+    background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 1px 4px;
+    font-variant-numeric: tabular-nums; }
+  .pj-kf-head { display: flex; flex-direction: column; align-items: center; width: 46px; gap: 1px; }
+  .pj-kf-title { font-size: 10px; color: var(--muted); font-weight: 700; }
+  .pj-kf-time { width: 44px; font: inherit; font-size: 10px; text-align: center; color: var(--text);
+    background: var(--panel); border: 1px solid var(--border); border-radius: 5px; padding: 0 2px; }
+  .pj-kf-del { font: inherit; font-size: 10px; line-height: 1; color: var(--muted);
+    background: none; border: none; cursor: pointer; padding: 0; }
+  .pj-kf-del:hover { color: #ff6b6b; }
+  .pj-head-spacer { flex: none; width: 252px; }   /* aligns kf headers over their value cells */
   /* Export control: a rounded icon+label button pinned bottom-left, with a popup format menu. */
   #export-control { position: absolute; bottom: 16px; left: 16px; z-index: 56; }
   #export-control[hidden] { display: none; }
@@ -739,16 +762,22 @@
     <div class="tab-panel" id="tab-logs" role="tabpanel">
       <div id="logs-body"><div class="panel-empty">no log entries yet</div></div>
     </div>
-    <!-- Joints dock: a persistent lower section (under whichever tab-panel is active) that holds the
-         robot's forward-kinematics sliders. Shown only when a posable robot is loaded (Physics
-         mode); its height is drag-adjustable via the divider and persisted. -->
+    <!-- Joints dock: a persistent lower section (under whichever tab-panel is active) holding the
+         robot's forward-kinematics joint TABLE - joints are rows, with a live-slider column plus a
+         column per captured keyframe. Shown only when a posable robot is loaded (Physics mode);
+         drag-adjustable height (persisted). Keyframes play through the Motion widget (no play button
+         here); "Add keyframe" snapshots the current pose as a new column. -->
     <div id="joints-divider" title="Drag to resize the Joints panel" role="separator" hidden></div>
     <div id="joints-dock" hidden>
       <div id="joints-dock-head">
         <span id="joints-dock-label">Joints</span>
-        <button id="physics-reset" title="Reset all joints to their rest pose">Reset pose</button>
+        <select id="kf-set" title="Load a saved keyframe set" aria-label="Keyframe set"></select>
+        <span class="grow"></span>
+        <button id="kf-add" title="Capture the current pose as a keyframe">+ Keyframe</button>
+        <button id="kf-save" title="Save the current keyframes as a named set">Save</button>
+        <button id="physics-reset" title="Reset all joints to their rest pose">Reset</button>
       </div>
-      <div id="physics-joints" aria-label="Actuated joint sliders"></div>
+      <div id="physics-joints" aria-label="Actuated joint table"></div>
     </div>
   </aside>
 

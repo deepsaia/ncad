@@ -15,10 +15,11 @@ import { initLighting, setLighting, fitShadowCameras, setShadowRadius } from "./
 import { initMaterials, colorFor, updateByMaterialButton, syncMaterialBlock,
          onElementMapReady } from "./materials.js";
 import { initMotion, resetMotion, setupMotion, showMotionFrame, advanceMotion,
-         pauseMotion } from "./motion.js";
+         pauseMotion, loadTrajectory } from "./motion.js";
 import { initTheme } from "./theme.js";
 import { initSceneFurniture } from "./scene_furniture.js";
 import { buildFkChain, actuatedJoints, solveFk } from "./robot_fk.js";
+import { compileKeyframes } from "./robot_keyframes.js";
 
 const stage = document.getElementById("stage");
 const spinner = document.getElementById("spinner");
@@ -1249,6 +1250,12 @@ initMotion({
 // divider), not a floating bar - so it stays visible on any tab. showJointsDock toggles the dock +
 // its divider together.
 const jointsDock = document.getElementById("joints-dock");
+const kfAddBtn = document.getElementById("kf-add");
+const kfSaveBtn = document.getElementById("kf-save");
+const kfSetSelect = document.getElementById("kf-set");
+// Saved keyframe sets for the active robot: {setName: [{time, pose}]}. Populated from the sidecar
+// on robot select; the dropdown reloads a set for instant replay.
+let _keyframeSets = {};
 const jointsDivider = document.getElementById("joints-divider");
 const physicsJoints = document.getElementById("physics-joints");
 const physicsReset = document.getElementById("physics-reset");
@@ -1271,54 +1278,106 @@ function setupPhysics(name, instanceNodes) {
       state.robotChain = buildFkChain(tree);
       state.robotNodes = instanceNodes;
       buildJointSliders(tree);
+      loadRobotKeyframes(name);   // restore any saved keyframe animation for this robot
     })
     .catch(() => { /* physics sidecars are optional */ });
 }
 
+// The actuated joints of the current robot (kept so the table can re-render with keyframe columns).
+let _actuatedJoints = [];
+
 function buildJointSliders(tree) {
-  const joints = actuatedJoints(tree);
-  physicsJoints.innerHTML = "";
+  _actuatedJoints = actuatedJoints(tree);
   state.robotPose = {};
-  if (!joints.length) {
+  state.robotKeyframes = [];
+  if (!_actuatedJoints.length) {
     // No actuated joints: the robot is inspectable (tree tab) but not posable. Say so in the log.
+    physicsJoints.innerHTML = "";
     log("physics: no actuated joints to pose", "info");
     return;
   }
-  for (const j of joints) {
-    state.robotPose[j.name] = 0;   // rest pose
-    physicsJoints.appendChild(jointSliderRow(j));
-  }
+  for (const j of _actuatedJoints) state.robotPose[j.name] = 0;   // rest pose
+  renderJointTable();
   showJointsDock(true);
   applyRobotPose();   // seat the rest pose (identity) so the nodes are FK-driven from the start
-  log(`physics: ${joints.length} actuated joint(s) posable`, "info");
+  log(`physics: ${_actuatedJoints.length} actuated joint(s) posable`, "info");
 }
 
-// One slider row for a joint: name, a range input over its limit, and a live value readout. A
-// revolute reads/edits in DEGREES (limit stored in radians); a prismatic in MILLIMETRES (metres).
-function jointSliderRow(joint) {
-  const revolute = joint.type !== "prismatic";
-  const toDisplay = v => revolute ? v * 180 / Math.PI : v * 1000;
-  const fromDisplay = d => revolute ? d * Math.PI / 180 : d / 1000;
-  const unit = revolute ? "°" : "mm";
+// Revolute reads/edits in DEGREES (limits stored in radians); prismatic in MILLIMETRES (metres).
+function _jointIsRevolute(joint) { return joint.type !== "prismatic"; }
+function _toDisplay(joint, v) { return _jointIsRevolute(joint) ? v * 180 / Math.PI : v * 1000; }
+function _fromDisplay(joint, d) { return _jointIsRevolute(joint) ? d * Math.PI / 180 : d / 1000; }
+function _jointUnit(joint) { return _jointIsRevolute(joint) ? "°" : "mm"; }
+
+// Render the joint TABLE: a header row (spacer + one Kn column header with time + delete per
+// keyframe), then one row per joint (live slider + a value cell per keyframe). Rebuilt whenever a
+// keyframe is added/removed so the columns track state.robotKeyframes.
+function renderJointTable() {
+  physicsJoints.innerHTML = "";
+  physicsJoints.appendChild(_keyframeHeaderRow());
+  for (const joint of _actuatedJoints) physicsJoints.appendChild(_jointRow(joint));
+}
+
+function _keyframeHeaderRow() {
   const row = document.createElement("div");
   row.className = "pj-row";
+  const spacer = document.createElement("span");
+  spacer.className = "pj-head-spacer";
+  row.appendChild(spacer);
+  state.robotKeyframes.forEach((kf, i) => {
+    const head = document.createElement("div");
+    head.className = "pj-kf-head";
+    const title = document.createElement("span");
+    title.className = "pj-kf-title"; title.textContent = `K${i + 1}`;
+    const time = document.createElement("input");
+    time.className = "pj-kf-time"; time.type = "number"; time.step = "0.1"; time.min = "0";
+    time.value = String(kf.time); time.title = "keyframe time (s)";
+    time.addEventListener("change", () => { kf.time = Math.max(0, parseFloat(time.value) || 0); });
+    const del = document.createElement("button");
+    del.className = "pj-kf-del"; del.textContent = "×"; del.title = "delete keyframe";
+    del.addEventListener("click", () => { state.robotKeyframes.splice(i, 1); renderJointTable(); });
+    head.appendChild(title); head.appendChild(time); head.appendChild(del);
+    row.appendChild(head);
+  });
+  return row;
+}
+
+function _jointRow(joint) {
+  const revolute = _jointIsRevolute(joint);
+  const row = document.createElement("div");
+  row.className = "pj-row";
+  const live = document.createElement("div");
+  live.className = "pj-live";
   const label = document.createElement("span");
   label.className = "pj-name"; label.textContent = joint.name; label.title = joint.name;
   const slider = document.createElement("input");
   slider.type = "range"; slider.className = "pj-slider";
-  slider.min = String(toDisplay(joint.lower)); slider.max = String(toDisplay(joint.upper));
-  slider.step = revolute ? "1" : "0.5"; slider.value = "0";
+  slider.min = String(_toDisplay(joint, joint.lower)); slider.max = String(_toDisplay(joint, joint.upper));
+  slider.step = revolute ? "1" : "0.5";
+  slider.value = String(_toDisplay(joint, state.robotPose[joint.name] || 0));
   const val = document.createElement("span");
   val.className = "pj-val";
-  const showVal = d => { val.textContent = `${(+d).toFixed(revolute ? 0 : 1)}${unit}`; };
-  showVal(0);
+  const showVal = d => { val.textContent = `${(+d).toFixed(revolute ? 0 : 1)}${_jointUnit(joint)}`; };
+  showVal(slider.value);
   slider.addEventListener("input", () => {
-    state.robotPose[joint.name] = fromDisplay(parseFloat(slider.value));
+    state.robotPose[joint.name] = _fromDisplay(joint, parseFloat(slider.value));
     showVal(slider.value);
     applyRobotPose();
   });
   slider.dataset.joint = joint.name;   // so Reset can restore it
-  row.appendChild(label); row.appendChild(slider); row.appendChild(val);
+  live.appendChild(label); live.appendChild(slider); live.appendChild(val);
+  row.appendChild(live);
+  // One editable value cell per keyframe (this joint's captured value in that keyframe).
+  state.robotKeyframes.forEach(kf => {
+    const cell = document.createElement("input");
+    cell.className = "pj-kf"; cell.type = "number";
+    cell.step = revolute ? "1" : "0.5";
+    cell.value = String(Math.round(_toDisplay(joint, kf.pose[joint.name] || 0) * 10) / 10);
+    cell.addEventListener("change", () => {
+      kf.pose[joint.name] = _fromDisplay(joint, parseFloat(cell.value) || 0);
+    });
+    row.appendChild(cell);
+  });
   return row;
 }
 
@@ -1385,6 +1444,97 @@ physicsReset.addEventListener("click", () => {
     s.value = "0"; s.dispatchEvent(new Event("input"));
   });
 });
+
+// Capture the current slider pose as a new keyframe COLUMN. Time defaults to 1s after the last
+// keyframe (0 for the first), so a fresh sequence has sensible spacing; edit the time in the header.
+kfAddBtn.addEventListener("click", () => {
+  if (!state.robotChain) return;
+  const last = state.robotKeyframes[state.robotKeyframes.length - 1];
+  const time = last ? Math.round((last.time + 1) * 10) / 10 : 0;
+  state.robotKeyframes.push({ time, pose: { ...state.robotPose } });
+  renderJointTable();
+  playKeyframes();   // compile + load into the Motion widget so it is immediately playable
+});
+
+// Compile the captured keyframes into a motion-shaped trajectory and hand it to the Motion widget
+// (its play/pause/scrub/speed/loop transport drives it). Needs >= 2 keyframes to interpolate.
+function playKeyframes() {
+  if (!state.robotChain || state.robotKeyframes.length < 2) return;
+  const trajectory = compileKeyframes(state.robotKeyframes, state.robotChain);
+  if (trajectory) loadTrajectory(trajectory, state.robotNodes);
+}
+
+// Save the current keyframes as a NAMED set in out/<robot>.keyframes.json (per-robot sidecar). The
+// name defaults to the currently selected set (so re-saving overwrites it) or prompts for a new one.
+kfSaveBtn.addEventListener("click", () => {
+  if (!activeModel) return;
+  if (!state.robotKeyframes.length) { toast("no keyframes to save", true); return; }
+  const suggested = kfSetSelect.value && kfSetSelect.value !== "__new__" ? kfSetSelect.value : "";
+  const setName = (window.prompt("Save keyframe set as:", suggested || nextKeyframeSetName()) || "").trim();
+  if (!setName) return;
+  fetch(apiUrl("/robot-keyframes/" + encodeURIComponent(activeModel)), {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ set: setName, keyframes: state.robotKeyframes }),
+  })
+    .then(r => r.ok ? r.json() : Promise.reject())
+    .then(d => {
+      _keyframeSets[setName] = [...state.robotKeyframes];
+      renderKeyframeSetOptions(d.sets || Object.keys(_keyframeSets), setName);
+      toast(`saved set '${setName}' (${state.robotKeyframes.length} keyframe(s))`);
+    })
+    .catch(() => toast("could not save keyframes", true));
+});
+
+// A sanitized default set name: kfmotion_01, kfmotion_02, ... (first slot not already taken).
+function nextKeyframeSetName() {
+  for (let i = 1; i < 100; i += 1) {
+    const name = "kfmotion_" + String(i).padStart(2, "0");
+    if (!_keyframeSets[name]) return name;
+  }
+  return "kfmotion_01";
+}
+
+// Pick a saved set from the dropdown -> load it into the table + make it playable.
+kfSetSelect.addEventListener("change", () => {
+  const name = kfSetSelect.value;
+  if (name === "__new__") { state.robotKeyframes = []; renderJointTable(); return; }
+  const set = _keyframeSets[name];
+  if (!set) return;
+  state.robotKeyframes = set.map(kf => ({ time: kf.time, pose: { ...kf.pose } }));
+  renderJointTable();
+  playKeyframes();
+});
+
+// Load the active robot's saved keyframe SETS into the dropdown (called after the sliders build).
+// Does not auto-load a set - the user picks one; a fresh robot starts with an empty "new" table.
+function loadRobotKeyframes(name) {
+  _keyframeSets = {};
+  renderKeyframeSetOptions([], "__new__");
+  fetch(apiUrl("/robot-keyframes/" + encodeURIComponent(name)))
+    .then(r => r.ok ? r.json() : null)
+    .then(d => {
+      const sets = (d && d.sets) || {};
+      _keyframeSets = sets;
+      const names = Object.keys(sets);
+      renderKeyframeSetOptions(names, "__new__");
+      if (names.length) log(`physics: ${names.length} saved keyframe set(s)`, "info");
+    })
+    .catch(() => { /* no saved sets is fine */ });
+}
+
+// Fill the set dropdown: a "(new)" entry + one option per saved set; select `selected`.
+function renderKeyframeSetOptions(names, selected) {
+  kfSetSelect.innerHTML = "";
+  const fresh = document.createElement("option");
+  fresh.value = "__new__"; fresh.textContent = "(new set)";
+  kfSetSelect.appendChild(fresh);
+  for (const n of names) {
+    const opt = document.createElement("option");
+    opt.value = n; opt.textContent = n;
+    kfSetSelect.appendChild(opt);
+  }
+  kfSetSelect.value = selected;
+}
 
 // Joints-dock height: drag the divider to resize (the dock is anchored to the sidebar bottom, so
 // the height grows as the pointer moves UP). Persisted in --joints-h, mirroring the width resizer.

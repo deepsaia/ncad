@@ -33,6 +33,7 @@ from ncad.service.openapi_handler import OpenApiHandler
 from ncad.service.robot_handlers import (
     RobotDeleteHandler,
     RobotHandler,
+    RobotKeyframesHandler,
     RobotsHandler,
     RobotSweepsHandler,
 )
@@ -76,6 +77,7 @@ class ApiRouter:
             URLSpec(r"/api/v1/motion/(.+)", MotionHandler, deps),
             # robot-sweeps before robot: different prefixes, but keep the more specific first.
             URLSpec(r"/api/v1/robot-sweeps/(.+)", RobotSweepsHandler, deps),
+            URLSpec(r"/api/v1/robot-keyframes/(.+)", RobotKeyframesHandler, deps),
             # The delete POST must precede the robot GET catch-all (Tornado matches method-agnostic,
             # so POST /robot/foo/delete would otherwise resolve to the GET-only RobotHandler).
             URLSpec(r"/api/v1/robot/(.+)/delete", RobotDeleteHandler, deps),
