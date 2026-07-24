@@ -48,3 +48,15 @@ def test_empty_match_raises():
     verticals_only = [s for s in _SURFACES if s["tag"] in (3, 4, 5)]
     with pytest.raises(FaceGroupError):
         FaceGroupMapper().select(verticals_only, {"face": "top"})
+
+
+def test_near_vertical_skin_classifies_as_vertical():
+    # A lofted/tapered skin (an F1 wing) has a normal tilted a few degrees off horizontal; within
+    # the ~10 degree tolerance it must read as vertical, not horizontal (regression for the wing).
+    skin = [
+        {"tag": 10, "com": (0, 0, 350), "normal": (-0.96, 0.27, 0.027), "zmin": 0, "zmax": 700,
+         "area": 5000.0},
+        {"tag": 11, "com": (0, 0, 0), "normal": (0, 0, -1), "zmin": 0, "zmax": 0, "area": 800.0},
+    ]
+    assert FaceGroupMapper().select(skin, {"face": "vertical"}) == [10]
+    assert FaceGroupMapper().select(skin, {"face": "horizontal"}) == [11]

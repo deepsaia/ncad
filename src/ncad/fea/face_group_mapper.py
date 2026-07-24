@@ -13,7 +13,11 @@ import logging
 logger = logging.getLogger(__name__)
 
 _KEYWORDS = ("all", "top", "bottom", "vertical", "horizontal")
-_VERTICAL_NORMAL_Z = 1e-6
+# A face is "vertical" (a wall) when its normal is within ~10 degrees of horizontal, i.e. the
+# normal's z-component is small. This is an angular tolerance, not an exact zero: a lofted/tapered
+# skin (an F1 wing, a draft-angled wall) has a normal that tilts a few degrees off pure horizontal,
+# and must still read as vertical. cos(80 deg) ~= 0.17, so |normal.z| < 0.17 is "vertical".
+_VERTICAL_NORMAL_Z = 0.17
 _Z_TOL = 1e-6
 
 
