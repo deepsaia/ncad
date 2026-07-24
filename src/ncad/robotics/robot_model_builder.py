@@ -72,8 +72,12 @@ class RobotModelBuilder:
         # document keeps `file` + `part`, needed to rebuild each part for mass + mesh. Map by id.
         source = SpecLoader().load(str(asm_path))["assembly"]["instances"]
         file_by_id = {inst["id"]: inst for inst in source if "file" in inst}
-        mass_props = self._mass_props(asm_path, file_by_id)
-        meshes = self._export_meshes(asm_path, file_by_id, out_path, spec.mesh_format)
+        # Build each instance's part ONCE and feed both mass props and mesh export: they used to
+        # call _part_builds separately, each spinning up fresh DocumentBuilders that re-read and
+        # re-built every part file a second time.
+        part_builds = self._part_builds(asm_path, file_by_id)
+        mass_props = self._mass_props(part_builds)
+        meshes = self._export_meshes(part_builds, out_path, spec.mesh_format)
         links = [self._link(inst, mass_props.get(inst["id"]), meshes.get(inst["id"]))
                  for inst in scene["instances"]]
 
@@ -86,11 +90,10 @@ class RobotModelBuilder:
                 "(a tree-only URDF drops it; MJCF keeps it as an equality, SDF as a joint)")
         return RobotModel(name=scene["name"], base_link=base, links=links, joints=joints), warnings
 
-    def _mass_props(self, asm_path: Path, file_by_id: dict[str, dict]) -> dict[str, dict]:
-        """Per-instance mass properties (mass/cog/inertia) via the per-file part build."""
+    def _mass_props(self, part_builds: dict[str, tuple]) -> dict[str, dict]:
+        """Per-instance mass properties (mass/cog/inertia) from the per-instance part builds."""
         props: dict[str, dict] = {}
-        for iid, shape_resolver in self._part_builds(asm_path, file_by_id).items():
-            shape, resolver = shape_resolver
+        for iid, (shape, resolver) in part_builds.items():
             try:
                 mp = self._mass.mass_properties(shape, resolver)
                 props[iid] = mp["bodies"][0] if mp.get("bodies") else {}
@@ -98,12 +101,12 @@ class RobotModelBuilder:
                 continue  # no density; the link falls back to a unit mass
         return props
 
-    def _export_meshes(self, asm_path: Path, file_by_id: dict[str, dict], out_path: Path,
+    def _export_meshes(self, part_builds: dict[str, tuple], out_path: Path,
                        mesh_format: str) -> dict[str, str]:
         """Export each instance's shape to ``meshes/<id>.<fmt>``; return id -> relative path."""
         (out_path / "meshes").mkdir(parents=True, exist_ok=True)
         out: dict[str, str] = {}
-        for iid, (shape, _) in self._part_builds(asm_path, file_by_id).items():
+        for iid, (shape, _) in part_builds.items():
             rel = Path("meshes") / f"{iid}.{mesh_format}"
             self._kernel.export(shape, str(out_path / rel))
             out[iid] = str(rel)
