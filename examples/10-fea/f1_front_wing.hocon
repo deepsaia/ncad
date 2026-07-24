@@ -1,0 +1,24 @@
+units = mm
+metadata {
+  description = "F1 front-wing element"
+  tags = [ fea, part, airfoil, wing ]
+}
+# A single F1 front-wing element: a NACA 2412 root section (chord 300) blended to a smaller-chord
+# tip (180) on an offset plane, lofted into one solid, mounted at the root (z=0). A real
+# high-downforce aerofoil the FEA bucket loads with aero pressure + a g-load and checks for fatigue
+# over a race. aluminium_6061 carries the S-N data the fatigue step needs (a real wing is carbon;
+# ncad has no composite S-N yet, so a metal wing stands in). Referenced by
+# f1_front_wing.analysis.hocon.
+parts {
+  f1_front_wing {
+    profile = solid
+    material = aluminium_6061
+    features = [
+      { id = root_sk, op = sketch, plane = XY, plane_offset = 0,
+        entities = [ { id = root, type = airfoil, naca = "2412", chord = 300, samples = 60 } ] }
+      { id = tip_sk, op = sketch, plane = XY, plane_offset = 700,
+        entities = [ { id = tip, type = airfoil, naca = "2412", chord = 180, samples = 60 } ] }
+      { id = wing, op = loft, sections = [ root_sk, tip_sk ] }
+    ]
+  }
+}

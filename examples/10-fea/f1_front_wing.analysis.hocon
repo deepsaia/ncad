@@ -1,0 +1,25 @@
+# F1 front-wing load case: mounted at the root, loaded by aero downforce + a vertical g-load, then
+# checked for fatigue over a race. The root cap (z=0, the "bottom" face) is the fixed mount; the
+# aero pressure acts on the wing skin (the "vertical" surface); a gravity body-load stands in for
+# the car's vertical acceleration. Fatigue uses R=0 (zero-to-max): each lap the aero load cycles
+# from ~0 in the slow corners to peak at top speed. Needs ncad[fea] + an installed CalculiX.
+analysis {
+  part = "f1_front_wing.hocon"
+  mesh { element_size = 8.0, order = 2 }
+  constraints = [
+    { name = "mount", where = {face = "bottom"}, type = "encastre" }
+  ]
+  loads = [
+    # Peak aero downforce as a pressure on the wing skin (order 30 kPa over the element).
+    { name = "aero", where = {face = "vertical"}, type = "pressure", magnitude = 3.0e4 }
+    # Vertical g-load: the wing's own weight amplified by cornering/braking (about 4 g).
+    { name = "gload", type = "gravity", g = 39.2, direction = [0, -1, 0] }
+  ]
+  steps = [
+    { name = "stress", procedure = "static",
+      output = {node = ["U", "RF"], element = ["S", "E"]} }
+    { name = "modes", procedure = "frequency", eigenvalues = 6 }
+    # Fatigue over a race: aero cycles zero-to-max each lap (R = 0), thousands of laps.
+    { name = "life", procedure = "fatigue", of = "stress", ratio = 0.0 }
+  ]
+}
