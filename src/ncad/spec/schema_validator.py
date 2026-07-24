@@ -6,6 +6,7 @@ reference validation lives in the build/validate layers.
 """
 
 import logging
+from functools import cache
 from pathlib import Path
 
 from jsonschema import Draft202012Validator
@@ -23,15 +24,12 @@ class SchemaValidator:
     """Validates spec dicts against the part (feature-tree) schema (JSON-Schema draft 2020-12)."""
 
     def __init__(self, schema_path: Path = _SCHEMA_PATH) -> None:
-        """Load and compile the schema once.
+        """Compile the schema (reusing a cached compile for a path already seen this process).
 
         :param schema_path: Path to the HOCON schema file. Defaults to the bundled
             ``schema/part_schema.hocon``.
         """
-        schema = SpecLoader().load(str(schema_path))
-        Draft202012Validator.check_schema(schema)
-        self._validator = Draft202012Validator(schema)
-        logger.debug("loaded part schema from %s", schema_path)
+        self._validator = _compiled_schema(str(schema_path))
 
     def validate(self, spec: dict) -> list[SchemaIssue]:
         """Validate ``spec`` against the schema.
@@ -46,6 +44,20 @@ class SchemaValidator:
         if issues:
             logger.debug("spec failed schema validation with %d issue(s)", len(issues))
         return issues
+
+
+@cache
+def _compiled_schema(schema_path: str) -> Draft202012Validator:
+    """Load + compile the schema at ``schema_path`` once per process.
+
+    The bundled schema is immutable for the process's life, and a compiled Draft202012Validator is
+    read-only (validation never mutates it), so a long-lived ``ncad serve`` shares one compile
+    across every build instead of re-reading and re-checking the schema on each construction.
+    """
+    schema = SpecLoader().load(schema_path)
+    Draft202012Validator.check_schema(schema)
+    logger.debug("loaded + compiled part schema from %s", schema_path)
+    return Draft202012Validator(schema)
 
 
 def _format_location(absolute_path) -> str:
