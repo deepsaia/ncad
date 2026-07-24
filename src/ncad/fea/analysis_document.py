@@ -172,6 +172,7 @@ def _run_fatigue(steps: list, merged: dict, material: dict) -> None:
         merged["fatigue_safety_factor"] = result["fatigue_safety_factor"]
         merged["infinite_life"] = result["infinite_life"]
         merged["alternating_stress"] = result["alternating_stress"]
+        merged["mean_stress"] = result["mean_stress"]
 
 
 def _merge_summary(merged: dict, summary: dict) -> None:

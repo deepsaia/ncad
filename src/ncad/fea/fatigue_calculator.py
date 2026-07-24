@@ -61,7 +61,8 @@ def _sn_data(material: dict) -> dict:
     return {k: float(structural[k]) for k in _SN_KEYS}
 
 
-def _result(cycles, safety, infinite: bool, alternating: float, mean: float) -> dict:
+def _result(cycles: float | None, safety: float | None, infinite: bool,
+            alternating: float, mean: float) -> dict:
     """Assemble the fatigue result dict."""
     return {"cycles_to_failure": cycles, "fatigue_safety_factor": safety,
             "infinite_life": infinite, "alternating_stress": alternating, "mean_stress": mean}
