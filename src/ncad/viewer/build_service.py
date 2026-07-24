@@ -239,10 +239,26 @@ class BuildService:
             raise BuildError(str(exc)) from exc
         build_ms = (time.perf_counter() - started) * 1000.0
         name = os.path.splitext(os.path.basename(result["artifact"] or spec))[0].split(".")[0]
+        # Record the source spec into the summary sidecar so the viewer's Regenerate works after a
+        # page reload (the analysis list reads `source` from there), exactly as robots/motions do.
+        self._record_analysis_source(result.get("sidecars", {}).get("json"), spec)
         logger.info("analyzed %s from %s [%s] in %.1f ms",
                     name, spec, result["status"], build_ms)
         return {"analysis": name, "status": result["status"], "summary": result["summary"],
                 "warnings": result["warnings"], "build_ms": round(build_ms, 1)}
+
+    def _record_analysis_source(self, json_path: str | None, spec: str) -> None:
+        """Stamp the source spec into the ``.analysis.json`` so Regenerate can find it later."""
+        if not json_path or not os.path.isfile(json_path):
+            return
+        try:
+            with open(json_path, encoding="utf-8") as handle:
+                data = json.load(handle)
+            data["source"] = spec
+            with open(json_path, "w", encoding="utf-8") as handle:
+                json.dump(data, handle, indent=2)
+        except (OSError, ValueError) as exc:
+            logger.warning("could not record analysis source in %s: %s", json_path, exc)
 
     def _allowed_analysis_path(self, spec: str) -> str | None:
         """Resolve an analysis ``spec`` if under examples, else None (mirrors the physics rule)."""
