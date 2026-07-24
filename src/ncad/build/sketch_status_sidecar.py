@@ -8,7 +8,7 @@ the build.
 
 import json
 import logging
-import os
+from pathlib import Path
 
 from ncad.ops.sketch_status import SketchStatus
 
@@ -22,26 +22,24 @@ class SketchStatusSidecar:
 
     def __init__(self, models_dir: str) -> None:
         """:param models_dir: Directory holding the models and their status sidecars."""
-        self._directory = os.path.abspath(models_dir)
+        self._directory = Path(models_dir).absolute()
 
     def write(self, model_name: str, statuses: list[SketchStatus]) -> str:
         """Write the status sidecar for ``model_name`` and return its path."""
-        stem = os.path.splitext(model_name)[0]
-        path = os.path.join(self._directory, stem + _STATUS_SUFFIX)
+        path = self._directory / (Path(model_name).stem + _STATUS_SUFFIX)
         payload = {"sketches": [s.to_dict() for s in statuses]}
-        with open(path, "w", encoding="utf-8") as handle:
+        with path.open("w", encoding="utf-8") as handle:
             json.dump(payload, handle, indent=2)
         logger.debug("wrote status sidecar %s", path)
-        return path
+        return str(path)
 
     def read(self, model_name: str) -> dict | None:
         """Read the status sidecar for ``model_name``, or None if absent/unreadable."""
-        stem = os.path.splitext(model_name)[0]
-        path = os.path.join(self._directory, stem + _STATUS_SUFFIX)
-        if not os.path.isfile(path):
+        path = self._directory / (Path(model_name).stem + _STATUS_SUFFIX)
+        if not path.is_file():
             return None
         try:
-            with open(path, encoding="utf-8") as handle:
+            with path.open(encoding="utf-8") as handle:
                 return json.load(handle)
         except (OSError, ValueError):
             logger.warning("could not read status sidecar %s", path)

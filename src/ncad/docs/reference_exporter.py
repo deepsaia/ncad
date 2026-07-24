@@ -11,7 +11,7 @@ and safe to run in CI. One class.
 """
 
 import logging
-import os
+from pathlib import Path
 
 from ncad.ops.op_registry import OpRegistry
 from ncad.spec.spec_loader import SpecLoader
@@ -93,14 +93,10 @@ class ReferenceExporter:
     def _discover_examples(self) -> list[dict]:
         """Walk ``examples/`` for .hocon documents; tag each by section dir, kind, parts, ops."""
         out: list[dict] = []
-        for root, _dirs, files in os.walk(self._examples_dir):
-            for fname in sorted(files):
-                if not fname.endswith(".hocon"):
-                    continue
-                path = os.path.join(root, fname)
-                record = self._describe_example(path)
-                if record is not None:
-                    out.append(record)
+        for path in Path(self._examples_dir).rglob("*.hocon"):
+            record = self._describe_example(str(path))
+            if record is not None:
+                out.append(record)
         out.sort(key=lambda e: e["path"])
         return out
 
@@ -111,8 +107,10 @@ class ReferenceExporter:
         except (ValueError, OSError) as exc:
             logger.warning("docs exporter could not read %s: %s", path, exc)
             return None
-        rel = os.path.relpath(path, self._examples_dir)
-        section = rel.split(os.sep)[0] if os.sep in rel else ""
+        rel = Path(path).relative_to(self._examples_dir)
+        # The section is the first path component under examples/ (e.g. "02-solid-features"); a file
+        # directly in examples/ has only the filename as its part, so it gets no section.
+        section = rel.parts[0] if len(rel.parts) > 1 else ""
         kind = next((k for key, k in _KIND_BY_TOP_KEY.items() if key in document), "unknown")
         parts = sorted((document.get("parts") or {}).keys())
         ops = sorted(self._ops_used(document))

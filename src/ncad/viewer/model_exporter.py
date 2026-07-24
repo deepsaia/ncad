@@ -100,19 +100,16 @@ class ModelExporter:
         composes THAT assembly (the motion doc itself is not an assembly document). Mirrors how
         MotionBuilder locates the mechanism before solving. Raises ValueError on a malformed doc.
         """
-        import os
-
         from ncad.spec.spec_loader import SpecLoader
 
         document = SpecLoader().load(motion_source)
         motion = document.get("motion")
         if not isinstance(motion, dict) or not isinstance(motion.get("assembly"), str):
             raise ValueError(f"motion doc {motion_source!r} has no 'motion.assembly' reference")
-        assembly_path = os.path.join(os.path.dirname(os.path.abspath(motion_source)),
-                                     motion["assembly"])
-        if not os.path.isfile(assembly_path):
+        assembly_path = Path(motion_source).absolute().parent / motion["assembly"]
+        if not assembly_path.is_file():
             raise ValueError(f"motion references a missing assembly: {motion['assembly']!r}")
-        return assembly_path
+        return str(assembly_path)
 
     def _export_robot(self, source: str, fmt: str, base_name: str,
                       tmp: Path) -> tuple[str, str, bytes]:

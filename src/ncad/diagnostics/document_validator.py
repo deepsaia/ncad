@@ -8,7 +8,6 @@ side-effect-free. Referenced part connector sets and a motion's assembly are res
 """
 
 import logging
-import os
 from pathlib import Path
 
 from ncad.build.material_error import MaterialError
@@ -80,7 +79,7 @@ class DocumentValidator:
         # physics doc's; re-root base_dir there so the connector part files resolve correctly.
         outer_base = self._base_dir
         if outer_base:
-            self._base_dir = os.path.dirname(os.path.join(outer_base, spec.assembly))
+            self._base_dir = str((Path(outer_base) / spec.assembly).parent)
         try:
             return self._validate_assembly(asm_doc)
         finally:
@@ -119,7 +118,7 @@ class DocumentValidator:
         resolved_part = ParamResolver(FunctionRegistry.with_defaults()).resolve_document(part_doc)
         outer_base = self._base_dir
         if outer_base:
-            self._base_dir = os.path.dirname(os.path.join(outer_base, spec.part))
+            self._base_dir = str((Path(outer_base) / spec.part).parent)
         try:
             return self._validate_part(resolved_part)
         finally:
@@ -186,11 +185,11 @@ class DocumentValidator:
         """Load a referenced doc relative to base_dir; None if absent/unreadable (a diagnostic)."""
         if not ref or not self._base_dir:
             return None
-        path = os.path.join(self._base_dir, ref)
-        if not os.path.isfile(path):
+        path = Path(self._base_dir) / ref
+        if not path.is_file():
             return None
         try:
-            return self._loader.load(path)
+            return self._loader.load(str(path))
         except (ValueError, OSError) as exc:
             logger.debug("validator could not load %s: %s", path, exc)
             return None
