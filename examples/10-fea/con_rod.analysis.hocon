@@ -1,0 +1,23 @@
+# Connecting-rod fatigue load case: the shank carries a fully-reversed axial load (tension on the
+# intake/inertia stroke, compression on the power stroke), so R = -1 - the classic high-cycle
+# fatigue case where a real part has a FINITE life. One eye end is fixed; a tensile pressure pulls
+# on the other end (the peak axial force / the shank cross-section). Needs ncad[fea] + CalculiX.
+analysis {
+  part = "con_rod.hocon"
+  mesh { element_size = 3.0, order = 2 }
+  constraints = [
+    { name = "big_end", where = {face = "bottom"}, type = "encastre" }
+  ]
+  loads = [
+    # Peak axial tension as a pressure on the small-end face. This drives a ~440 MPa peak von Mises
+    # (fillet concentration over the ~300 MPa nominal), above the endurance limit (327 MPa), so the
+    # fully-reversed alternating stress puts the rod on a FINITE fatigue life (about 6.6M cycles).
+    { name = "axial", where = {face = "top"}, type = "pressure", magnitude = -3.0e8 }
+  ]
+  steps = [
+    { name = "stress", procedure = "static",
+      output = {node = ["U", "RF"], element = ["S", "E"]} }
+    # Fully reversed (R = -1): each engine cycle swings tension to equal compression.
+    { name = "life", procedure = "fatigue", of = "stress", ratio = -1.0 }
+  ]
+}

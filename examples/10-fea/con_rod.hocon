@@ -1,0 +1,21 @@
+units = mm
+metadata {
+  description = "Connecting rod shank"
+  tags = [ fea, part, fatigue ]
+}
+# The shank of an engine connecting rod (steel_4140), the fatigue-critical member: every cycle it
+# swings from tension (intake, inertia pulling the piston up) to compression (combustion pushing
+# down), so the loading is fully reversed (R = -1) - the textbook high-cycle-fatigue case. Modeled
+# as the slender rectangular shank (25 x 10 mm, 180 long) that carries the axial load between the
+# two bearing eyes. Referenced by con_rod.analysis.hocon.
+parts {
+  con_rod {
+    profile = solid
+    material = steel_4140
+    features = [
+      { id = sect, op = sketch, plane = XY,
+        elements = [ { id = bar, type = rectangle, w = 25, h = 10 } ] }
+      { id = shank, op = extrude, profile = sect, end = blind, distance = 180 }
+    ]
+  }
+}
