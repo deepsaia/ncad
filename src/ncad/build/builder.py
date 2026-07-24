@@ -91,7 +91,7 @@ class Builder:
         return result
 
     def build_part_mapped(
-        self, part: dict
+        self, part: dict, base_dir: str | None = None
     ) -> tuple[OpResult, ElementMap, list[SketchStatus]]:
         """Like build_part, but also return the final ElementMap (for the sidecar).
 
@@ -99,6 +99,9 @@ class Builder:
         topological order and keyed by a chained content hash; a cache hit restores the
         shape + element descriptors without running the op, so only the dirty suffix of
         a parameter edit re-executes.
+
+        ``base_dir`` (the document's directory) is passed to each op under ``__base_dir__`` so a
+        file-referencing entity (an airfoil ``dat``) can resolve its path; None when unknown.
         """
         features = part["features"]
         by_id = {f["id"]: f for f in features}
@@ -162,6 +165,7 @@ class Builder:
                 # no op dispatches per-body yet; it is reserved for per-body dispatch in 3.4.
                 feature_with_refs = dict(feature)
                 feature_with_refs["__refs__"] = refs
+                feature_with_refs["__base_dir__"] = base_dir
                 # A part whose tree includes an import edits foreign geometry, so a direct op on
                 # it runs the subprocess-guarded path (hang/segfault isolation). Authored-only
                 # parts stay in-process (the 4.0 spike measured no hangs on clean geometry).

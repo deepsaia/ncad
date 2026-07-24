@@ -1,0 +1,22 @@
+units = mm
+metadata {
+  description = "Tapered airfoil wing"
+  tags = [ solid-features, part, airfoil ]
+}
+# A tapered, washed-out wing: a NACA 2412 root section blended to a smaller-chord tip section on
+# an offset plane, lofted into one solid. Taper = the tip chord (180) smaller than the root (300);
+# span = the tip sketch's plane_offset. The airfoil entity generates the section spline from the
+# 4-digit code (no coordinate list). Proves the airfoil profile + a multi-section loft; the FEA
+# bucket analyzes a wing like this.
+parts {
+  airfoil_wing {
+    profile = solid
+    features = [
+      { id = root_sk, op = sketch, plane = XY, plane_offset = 0,
+        entities = [ { id = root, type = airfoil, naca = "2412", chord = 300, samples = 60 } ] }
+      { id = tip_sk, op = sketch, plane = XY, plane_offset = 700,
+        entities = [ { id = tip, type = airfoil, naca = "2412", chord = 180, samples = 60 } ] }
+      { id = wing, op = loft, sections = [ root_sk, tip_sk ] }
+    ]
+  }
+}
