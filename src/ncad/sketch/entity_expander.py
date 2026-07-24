@@ -12,6 +12,7 @@ import logging
 import math
 
 from ncad.assembly.cam_profile import CamProfile
+from ncad.sketch.airfoil_profile import AirfoilProfile
 from ncad.sketch.gear_profile import GearProfile
 from ncad.sketch.geneva_wheel import GenevaWheel
 from ncad.sketch.id_padding import PaddedNaming
@@ -27,14 +28,20 @@ class EntityExpander:
     def __init__(self) -> None:
         self._naming = PaddedNaming()
 
-    def expand(self, entities: list[dict]) -> list[dict]:
-        """Return a new entity list with sugar lowered to primitives."""
+    def expand(self, entities: list[dict], base_dir: str | None = None) -> list[dict]:
+        """Return a new entity list with sugar lowered to primitives.
+
+        ``base_dir`` is the referring document's directory, used only by the ``airfoil`` ``dat``
+        form to resolve its coordinate file; every other entity ignores it.
+        """
         by_id = {e["id"]: e for e in entities}
         out: list[dict] = []
         for entity in entities:
             kind = entity.get("type")
             if kind in _PASSTHROUGH:
                 out.append(entity)
+            elif kind == "airfoil":
+                out.extend(self._expand_airfoil(entity, base_dir))
             elif kind == "polyline":
                 out.extend(self._expand_polyline(entity))
             elif kind == "polygon":
@@ -53,6 +60,24 @@ class EntityExpander:
                 logger.debug("passing through unknown entity type %r", kind)
                 out.append(entity)
         return out
+
+    def _expand_airfoil(self, entity: dict, base_dir: str | None) -> list[dict]:
+        """An airfoil (naca | dat) -> fixed section points + one interpolated spline through them.
+
+        The section is generated/parsed + scaled to chord by AirfoilProfile; the points are fixed
+        (well-constrained by construction, like geneva/offset-derived geometry). ``at`` (default
+        [0, 0]) offsets the leading edge on the sketch plane. A bad airfoil raises AirfoilParamError
+        (like the other sugar profiles that cannot produce valid geometry).
+        """
+        aid = entity["id"]
+        pts = AirfoilProfile().points(entity, base_dir)
+        ox, oy = entity.get("at", [0.0, 0.0])
+        point_ids = self._naming.child_ids(f"{aid}/p", len(pts))
+        result: list[dict] = [
+            {"id": point_ids[i], "type": "point", "at": [ox + x, oy + y], "fixed": True}
+            for i, (x, y) in enumerate(pts)]
+        result.append({"id": aid, "type": "interpolated", "points": point_ids})
+        return result
 
     def _expand_polyline(self, entity: dict) -> list[dict]:
         """A polyline is an open chain of lines between consecutive point ids."""
