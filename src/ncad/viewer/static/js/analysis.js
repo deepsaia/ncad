@@ -12,7 +12,6 @@ const _RAMP = [
   [0.231, 0.298, 0.753], [0.427, 0.690, 0.937], [0.624, 0.851, 0.561],
   [0.953, 0.890, 0.353], [0.937, 0.541, 0.227], [0.706, 0.016, 0.149],
 ];
-const _MM_TO_M = 0.001;   // the kernel meshes in mm; the viewer scene is metre-scale (glTF convention)
 const _UNITS = { von_mises: "Pa", displacement: "m", temperature: "°C" };
 const _LABELS = { von_mises: "von Mises", displacement: "displacement", temperature: "temperature" };
 
@@ -84,11 +83,11 @@ function _renderMesh(data) {
 
   const geometry = new THREE.BufferGeometry();
   const positions = new Float32Array(data.points.length * 3);
-  // The mesh JSON is in the kernel's millimetres; the rest of the viewer is metre-scale (the glTF
-  // export divides mm->m). Scale here so the field mesh sits in the same scene as everything else.
-  data.points.forEach((p, i) => { positions[i * 3] = p[0] * _MM_TO_M;
-                                   positions[i * 3 + 1] = p[1] * _MM_TO_M;
-                                   positions[i * 3 + 2] = p[2] * _MM_TO_M; });
+  // The FEA field mesh JSON is already in metres (GmshMesher writes the deck in SI metres, so the
+  // .frd nodes are metres), matching the metre-scale glTF scene, so no unit conversion is needed.
+  data.points.forEach((p, i) => { positions[i * 3] = p[0];
+                                   positions[i * 3 + 1] = p[1];
+                                   positions[i * 3 + 2] = p[2]; });
   geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
   geometry.setAttribute("color", new THREE.BufferAttribute(
     new Float32Array(data.points.length * 3), 3));
@@ -104,7 +103,7 @@ function _renderMesh(data) {
   group.add(mesh);
   // Load glyphs: arrows for force/pressure/gravity/flux, a pinned marker for a fixed support, so
   // the user sees WHAT acts on the model. Sized to the model extent so they read at any scale.
-  const extent = _meshExtent(data.points) * _MM_TO_M;
+  const extent = _meshExtent(data.points);
   for (const glyph of data.loads || []) _addGlyph(group, glyph, extent);
   currentMesh = { geometry, material, group };
   scene.add(group);
@@ -113,7 +112,7 @@ function _renderMesh(data) {
   if (onMeshReady) onMeshReady(group);      // let app.js parent it as modelRoot + frame it
 }
 
-// The largest bounding-box extent of the point cloud (mm), for sizing the glyphs proportionally.
+// The largest bounding-box extent of the point cloud (metres), for sizing glyphs proportionally.
 function _meshExtent(points) {
   const lo = [Infinity, Infinity, Infinity];
   const hi = [-Infinity, -Infinity, -Infinity];
@@ -129,11 +128,11 @@ const _GLYPH_COLORS = {
 };
 
 // Add one glyph to the group: an arrow (loads) or a small octahedron marker (a fixed support), at
-// the glyph's anchor (mm->m) pointing along its direction. Length is a fraction of the model. The
-// glyphs are NOT labeled in the viewport (that got cluttered/oversized); the Analysis sidebar tab
-// carries a color-coded legend instead (glyphColor() exposes the palette to app.js).
+// the glyph's anchor (already in metres) pointing along its direction. Length is a fraction of the
+// model. The glyphs are NOT labeled in the viewport (that got cluttered/oversized); the Analysis
+// sidebar tab carries a color-coded legend instead (glyphColor() exposes the palette to app.js).
 function _addGlyph(group, glyph, extent) {
-  const at = new THREE.Vector3(glyph.at[0], glyph.at[1], glyph.at[2]).multiplyScalar(_MM_TO_M);
+  const at = new THREE.Vector3(glyph.at[0], glyph.at[1], glyph.at[2]);
   const dir = new THREE.Vector3(glyph.dir[0], glyph.dir[1], glyph.dir[2]);
   const color = _GLYPH_COLORS[glyph.kind] || 0xffffff;
   if (glyph.kind === "fixed" || dir.lengthSq() < 1e-9) {

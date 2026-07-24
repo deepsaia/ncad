@@ -27,7 +27,7 @@ class LoadGlyphBuilder:
 
         :param spec: an AnalysisSpec.
         :param group_faces: ``{group_name: [(n1, n2, n3), ...]}`` boundary faces per named group.
-        :param nodes: ``{node_id: (x, y, z)}`` (kernel millimetres).
+        :param nodes: ``{node_id: (x, y, z)}`` (metres; GmshMesher writes the deck in SI metres).
         """
         candidates: list[dict | None] = []
         for constraint in spec.constraints:

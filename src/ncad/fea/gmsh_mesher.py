@@ -14,6 +14,14 @@ from ncad.fea.face_group_mapper import FaceGroupMapper
 logger = logging.getLogger(__name__)
 
 _ELEMENT_TYPE = {1: "C3D4", 2: "C3D10"}
+# ncad parts are authored and STEP-exported in millimetres, but a CalculiX deck must use ONE
+# consistent unit system, and materials carry SI values (E in Pa, density in kg/m^3). We keep the
+# SI system by writing the mesh in metres: gmsh's Mesh.ScalingFactor scales only the WRITTEN node
+# coordinates (mm * 1e-3 -> m), leaving the in-model geometry (and so element_size, still authored
+# in mm) untouched. This makes stress come out in Pa, displacement honestly in metres, and gravity
+# body-loads / concentrated forces physically correct (an mm mesh against SI material silently made
+# gravity 1000x too weak). See docs/feature-ordering.md (FEA unit system).
+_MM_TO_M = 1.0e-3
 
 
 class GmshMesher:
@@ -59,6 +67,8 @@ class GmshMesher:
         gmsh.option.setNumber("Mesh.CharacteristicLengthMax", float(mesh_opts["element_size"]))
         gmsh.option.setNumber("Mesh.ElementOrder", order)
         gmsh.option.setNumber("Mesh.SaveGroupsOfNodes", 1)
+        # Write node coordinates in metres (mm geometry -> SI deck); see _MM_TO_M above.
+        gmsh.option.setNumber("Mesh.ScalingFactor", _MM_TO_M)
         gmsh.model.mesh.generate(3)
 
         warnings = _quality_warnings(gmsh, float(mesh_opts.get("min_quality", 0.0)))
