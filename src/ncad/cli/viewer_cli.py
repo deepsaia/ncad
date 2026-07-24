@@ -550,6 +550,12 @@ def analyze(
         print(f"  displ:  max {summary.get('max_displacement', 0.0):.4g} m")
         if summary.get("safety_factor") is not None:
             print(f"  safety: {summary['safety_factor']:.2f} (yield / max von Mises)")
+        if summary.get("cycles_to_failure") is not None or summary.get("infinite_life"):
+            life = ("infinite (below endurance limit)" if summary.get("infinite_life")
+                    else f"{summary['cycles_to_failure']:.3g} cycles")
+            print(f"  fatigue: {life}")
+            if summary.get("fatigue_safety_factor") is not None:
+                print(f"  fatigue safety: {summary['fatigue_safety_factor']:.2f}")
     for warning in result.get("warnings", []):
         print(f"  NOTE {warning}")
 

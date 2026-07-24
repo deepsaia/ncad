@@ -113,7 +113,7 @@ def _coerce_load_field(field: str, value: object) -> float | list[float]:
     return float(value)
 
 
-_PROCEDURES = frozenset({"static", "frequency", "heat_transfer"})
+_PROCEDURES = frozenset({"static", "frequency", "heat_transfer", "fatigue"})
 _THERMAL_LOAD_TYPES = frozenset({"flux", "film", "radiation", "temperature"})
 _DEFAULT_OUTPUT = {"node": ["U", "RF"], "element": ["S", "E"]}
 
@@ -137,6 +137,8 @@ def validate_step(step: dict) -> dict:
         return _validate_static(step, str(name))
     if procedure == "frequency":
         return _validate_frequency(step, str(name))
+    if procedure == "fatigue":
+        return _validate_fatigue(step, str(name))
     return _validate_heat_transfer(step, str(name))
 
 
@@ -156,6 +158,22 @@ def _validate_frequency(step: dict, name: str) -> dict:
     if count < 1:
         raise AnalysisParamError(f"frequency step {name!r} 'eigenvalues' must be >= 1")
     return {"name": name, "procedure": "frequency", "eigenvalues": count}
+
+
+def _validate_fatigue(step: dict, name: str) -> dict:
+    """A fatigue post-process: references a static step ``of`` + a stress ratio ``ratio``.
+
+    Not a CalculiX step (see AnalysisDocument); it post-processes the referenced static step's
+    solved peak stress. :raises AnalysisParamError: on a missing ``of`` or a ratio outside [-1, 1).
+    """
+    of = step.get("of")
+    if not of:
+        raise AnalysisParamError(f"fatigue step {name!r} needs 'of' (a static step name)")
+    ratio = float(step.get("ratio", -1.0))
+    if not (-1.0 <= ratio < 1.0):
+        raise AnalysisParamError(
+            f"fatigue step {name!r} 'ratio' must be in [-1, 1); got {ratio}")
+    return {"name": name, "procedure": "fatigue", "of": str(of), "ratio": ratio}
 
 
 def _validate_heat_transfer(step: dict, name: str) -> dict:

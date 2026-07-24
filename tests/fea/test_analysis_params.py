@@ -127,3 +127,23 @@ def test_heat_transfer_rejects_structural_load():
 def test_unknown_procedure_raises():
     with pytest.raises(AnalysisParamError):
         validate_step({"name": "x", "procedure": "buckling"})
+
+
+def test_fatigue_step_normalizes_of_and_ratio():
+    s = validate_step({"name": "life", "procedure": "fatigue", "of": "stress", "ratio": -1})
+    assert s["procedure"] == "fatigue" and s["of"] == "stress" and s["ratio"] == -1.0
+
+
+def test_fatigue_ratio_defaults_fully_reversed():
+    s = validate_step({"name": "life", "procedure": "fatigue", "of": "stress"})
+    assert s["ratio"] == -1.0
+
+
+def test_fatigue_without_of_raises():
+    with pytest.raises(AnalysisParamError):
+        validate_step({"name": "life", "procedure": "fatigue"})
+
+
+def test_fatigue_bad_ratio_raises():
+    with pytest.raises(AnalysisParamError):
+        validate_step({"name": "life", "procedure": "fatigue", "of": "stress", "ratio": 1.5})

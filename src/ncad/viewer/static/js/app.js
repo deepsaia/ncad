@@ -1723,6 +1723,17 @@ function renderAnalysisPanel(doc) {
     rows.push(`<div class="robot-row"><span class="robot-name">modes (Hz)</span>` +
       `<span class="robot-meta">${hz}</span></div>`);
   }
+  // Fatigue (a post-process on the static stress): cycles-to-failure + fatigue safety, when present.
+  if (s.cycles_to_failure != null || s.infinite_life) {
+    const life = s.infinite_life ? "infinite (below endurance limit)"
+                                 : `${(+s.cycles_to_failure).toExponential(2)} cycles`;
+    rows.push(`<div class="robot-row"><span class="robot-name">fatigue life</span>` +
+      `<span class="robot-meta">${life}</span></div>`);
+    if (s.fatigue_safety_factor != null) {
+      rows.push(`<div class="robot-row"><span class="robot-name">fatigue safety</span>` +
+        `<span class="robot-meta">${(+s.fatigue_safety_factor).toFixed(2)}</span></div>`);
+    }
+  }
   // Constraints + loads carry a color swatch matching their viewport glyph, so the arrows/markers
   // in the scene are self-explaining (what "tip", "base", "in" mean) without cluttering the 3D view.
   rows.push('<div class="robot-section">constraints (fixed supports)</div>');

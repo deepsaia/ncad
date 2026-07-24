@@ -13,10 +13,12 @@ import logging
 import os
 
 from ncad.build.document_builder import DocumentBuilder
+from ncad.fea.analysis_error import AnalysisError
 from ncad.fea.analysis_mesh_writer import AnalysisMeshWriter
 from ncad.fea.analysis_spec import AnalysisSpec
 from ncad.fea.ccx_runner import CcxRunner
 from ncad.fea.deck_writer import DeckWriter
+from ncad.fea.fatigue_calculator import FatigueCalculator
 from ncad.fea.frd_reader import FrdReader
 from ncad.fea.gmsh_mesher import GmshMesher
 from ncad.fea.load_glyph_builder import LoadGlyphBuilder
@@ -113,6 +115,7 @@ class AnalysisDocument:
             if primary is None and parsed["fields"].get("STRESS"):
                 primary = parsed          # color the viewer by the structural (stress) result
         primary = primary or reader.read(family_results[0][1], material)
+        _run_fatigue(spec.steps, merged, material)
         json_path = os.path.join(out_dir, f"{stem}.analysis.json")
         # The summary sidecar also carries the load case (constraints/loads/steps) so the viewer's
         # Analyze inspector can show WHAT was analyzed, not just the headline scalars.
@@ -144,9 +147,32 @@ def _step_families(steps: list) -> dict:
     """
     families: dict = {}
     for step in steps:
+        if step["procedure"] == "fatigue":
+            continue   # a post-process, never a CalculiX deck step (see _run_fatigue)
         family = "thermal" if step["procedure"] == "heat_transfer" else "structural"
         families.setdefault(family, []).append(step)
     return families
+
+
+def _run_fatigue(steps: list, merged: dict, material: dict) -> None:
+    """Post-process each fatigue step into the merged summary (cycles + safety + infinite_life).
+
+    A fatigue step's ``of`` must name a static step in ``steps``; its peak stress is the run's
+    max von Mises. Raises AnalysisError if ``of`` is not a static step.
+    """
+    static_names = {s["name"] for s in steps if s["procedure"] == "static"}
+    for step in steps:
+        if step["procedure"] != "fatigue":
+            continue
+        if step["of"] not in static_names:
+            raise AnalysisError(
+                f"fatigue step {step['name']!r} 'of' {step['of']!r} is not a static step")
+        result = FatigueCalculator().life(merged.get("max_von_mises", 0.0), step["ratio"], material)
+        merged["cycles_to_failure"] = result["cycles_to_failure"]
+        merged["fatigue_safety_factor"] = result["fatigue_safety_factor"]
+        merged["infinite_life"] = result["infinite_life"]
+        merged["alternating_stress"] = result["alternating_stress"]
+        merged["mean_stress"] = result["mean_stress"]
 
 
 def _merge_summary(merged: dict, summary: dict) -> None:

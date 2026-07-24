@@ -3,18 +3,26 @@
 # `materials_library = "..."` file.
 steel_1018 {
   physical { density = 7870 }
-  structural { youngs_modulus = 200e9, poisson = 0.29, yield = 370e6 }
+  structural { youngs_modulus = 200e9, poisson = 0.29, yield = 370e6,
+    ultimate = 440e6, endurance_limit = 220e6,
+    fatigue_strength_coeff = 1200e6, fatigue_exponent = -0.085 }
   thermal { conductivity = 51.9, specific_heat = 486, melting_point = 1420 }
 }
 aluminium_6061 {
   physical { density = 2700 }
-  structural { youngs_modulus = 68.9e9, poisson = 0.33, yield = 276e6 }
+  # Aluminium has no true endurance limit; endurance_limit here is the fatigue strength at ~5e8
+  # cycles (a conventional "run-out" stress used as the infinite-life threshold for the check).
+  structural { youngs_modulus = 68.9e9, poisson = 0.33, yield = 276e6,
+    ultimate = 310e6, endurance_limit = 96e6,
+    fatigue_strength_coeff = 525e6, fatigue_exponent = -0.102 }
   thermal { conductivity = 167, specific_heat = 896, melting_point = 652 }
 }
 # Chromoly alloy steel, the standard for crankshafts / connecting rods (quenched + tempered).
 steel_4140 {
   physical { density = 7850 }
-  structural { youngs_modulus = 205e9, poisson = 0.29, yield = 655e6 }
+  structural { youngs_modulus = 205e9, poisson = 0.29, yield = 655e6,
+    ultimate = 655e6, endurance_limit = 327e6,
+    fatigue_strength_coeff = 1540e6, fatigue_exponent = -0.08 }
   thermal { conductivity = 42.6, specific_heat = 473, melting_point = 1416 }
 }
 # Phosphor bronze, the classic connecting-rod / bushing bearing alloy. Carries a warm bronze
