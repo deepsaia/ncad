@@ -179,7 +179,8 @@ function _makeLabel(text, position, color, extent) {
   const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true,
                                                              depthTest: false }));
   sprite.position.copy(position);
-  const scale = extent * 0.28;
+  // A small, readable label: a fraction of the model extent, capped so it never dominates.
+  const scale = Math.min(extent * 0.09, 0.02);
   sprite.scale.set(scale * (w / h), scale, 1);
   sprite.userData.fieldMesh = true;        // applyMode must not touch glyph labels
   group_labels.push({ texture });          // tracked for disposal on clear
