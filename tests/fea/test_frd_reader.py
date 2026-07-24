@@ -4,6 +4,7 @@ from ncad.fea.frd_reader import FrdReader
 
 _FRD = os.path.join(os.path.dirname(__file__), "fixtures", "mini.frd")
 _REAL_FRD = os.path.join(os.path.dirname(__file__), "fixtures", "bracket_real.frd")
+_MODAL_FRD = os.path.join(os.path.dirname(__file__), "fixtures", "modal.frd")
 _STEEL = {"structural": {"yield": 370e6}}
 
 
@@ -41,6 +42,32 @@ def test_reads_real_frd_with_run_together_columns():
     assert result["nodes"][1][0] == -40.0
     # Node 1 has SXX=100e6, rest 0 -> von Mises = 100e6 (the max in the fixture).
     assert abs(result["summary"]["max_von_mises"] - 100e6) < 1.0
+
+
+def test_frequency_modes_do_not_corrupt_static_result():
+    # A chained static+frequency solve appends mass-normalized eigenVECTOR DISP/STRESS blocks
+    # (arbitrary magnitude: 88 GPa, 200 GPa here) after the static result, sharing the same field
+    # names. The reader must keep the STATIC result (100e6 von Mises, 3e-3 displacement), NOT let a
+    # modal block overwrite it. Regression for the wing that read 88 GPa off a mode shape.
+    result = FrdReader().read(_MODAL_FRD, _STEEL)
+    assert abs(result["summary"]["max_von_mises"] - 100e6) < 1.0
+    assert abs(result["summary"]["max_displacement"] - 3e-3) < 1e-9
+
+
+def test_eigenfrequencies_are_collected_once_per_mode():
+    # The modal fixture has two modes (KEY 102 at 62.7 Hz, KEY 103 at 285.5 Hz), each written as a
+    # DISP + a STRESS block. The reader collects each mode's frequency ONCE (dedup by mode key).
+    result = FrdReader().read(_MODAL_FRD, _STEEL)
+    freqs = result["summary"]["frequencies"]
+    assert len(freqs) == 2
+    assert abs(freqs[0] - 62.72320333) < 1e-6
+    assert abs(freqs[1] - 285.4686974) < 1e-6
+
+
+def test_static_only_frd_has_no_frequencies():
+    # A pure static result carries no modal blocks, so frequencies is empty (not None).
+    result = FrdReader().read(_FRD, _STEEL)
+    assert result["summary"]["frequencies"] == []
 
 
 def test_write_vtk_emits_a_field_mesh(tmp_path):

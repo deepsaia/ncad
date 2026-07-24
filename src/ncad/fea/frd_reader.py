@@ -35,10 +35,11 @@ class FrdReader:
         with open(frd_path, encoding="utf-8", errors="ignore") as handle:
             lines = handle.readlines()
         nodes = _read_nodes(lines)
-        fields = _read_result_fields(lines)
-        summary = _summarize(fields, material)
-        logger.info("read %s: %d nodes, fields %s, max von Mises %.3g",
-                    frd_path, len(nodes), list(fields), summary["max_von_mises"] or 0.0)
+        fields, frequencies = _read_result_fields(lines)
+        summary = _summarize(fields, material, frequencies)
+        logger.info("read %s: %d nodes, fields %s, max von Mises %.3g, %d eigenfrequencies",
+                    frd_path, len(nodes), list(fields), summary["max_von_mises"] or 0.0,
+                    len(frequencies))
         return {"nodes": nodes, "fields": fields, "summary": summary}
 
     def scalar_fields(self, read_result: dict) -> dict:
@@ -100,28 +101,65 @@ def _read_nodes(lines: list[str]) -> dict:
     return nodes
 
 
-def _read_result_fields(lines: list[str]) -> dict:
-    """Read every nodal result block into ``{field_name: {node: [values]}}``."""
+def _read_result_fields(lines: list[str]) -> tuple[dict, list[float]]:
+    """Read the STATIC nodal result blocks into ``{field_name: {node: [values]}}`` + eigenfreqs.
+
+    A chained static + frequency solve writes BOTH the static result AND one DISP/STRESS block per
+    eigenmode into the same .frd. The modal blocks are mass-normalized eigenVECTORS (arbitrary
+    magnitude, not physical stress/displacement), and they carry the SAME field names as the static
+    result, so keying on the field name alone lets the last mode silently overwrite the real static
+    physics. Each result block is preceded by a ``100CL`` parameter line whose ``MODAL`` token marks
+    a modal block and whose VALUE column is the mode's eigenfrequency (Hz); we keep only non-modal
+    field records and collect the modal eigenfrequencies into ``frequencies`` instead.
+    """
     fields: dict = {}
+    frequencies: list[float] = []
+    seen_modes: set[str] = set()
     current: str | None = None
     ncomps = 0
+    is_modal = False
     index = 0
     while index < len(lines):
         line = lines[index]
         marker = line[:3].strip()
-        if marker == "-4":
-            parts = line.split()
-            current = parts[1]
-            ncomps = int(parts[2])
-            fields[current] = {}
-        elif marker == "-1" and current is not None:
+        if line.lstrip().startswith("100CL"):
+            is_modal, mode_key, eigenfreq = _classify_result_block(line)
+            # Each mode writes 4 blocks (DISP/STRESS/TOSTRAIN/ERROR) sharing one KEY; record the
+            # eigenfrequency once per mode (dedup by KEY, so degenerate equal-freq modes count).
+            if (is_modal and mode_key is not None and eigenfreq is not None
+                    and mode_key not in seen_modes):
+                seen_modes.add(mode_key)
+                frequencies.append(eigenfreq)
+        elif marker == "-4":
+            current = line.split()[1]
+            ncomps = int(line.split()[2])
+            if not is_modal:
+                fields.setdefault(current, {})
+        elif marker == "-1" and current is not None and not is_modal:
             node, values, index = _read_data_record(lines, index, ncomps)
             fields[current][node] = values
             continue
         elif marker == "-3":
             current = None
         index += 1
-    return fields
+    return fields, frequencies
+
+
+def _classify_result_block(cl_line: str) -> tuple[bool, str | None, float | None]:
+    """From a ``100CL`` parameter line, return ``(is_modal, mode_key, eigenfrequency_hz_or_None)``.
+
+    ccx writes ``100CL KEY VALUE nnodes ... [i]MODAL step``; the ``MODAL`` token marks a frequency
+    eigenmode, the VALUE column is its eigenfrequency in Hz (a static block's VALUE is step time),
+    and KEY (unique per mode, shared by that mode's 4 field blocks) dedups repeats.
+    """
+    parts = cl_line.split()
+    is_modal = any("MODAL" in token for token in parts)
+    if not is_modal:
+        return False, None, None
+    try:
+        return True, parts[1], float(parts[2])
+    except (IndexError, ValueError):
+        return True, None, None
 
 
 def _read_data_record(lines: list[str], index: int, ncomps: int) -> tuple[int, list[float], int]:
@@ -153,7 +191,7 @@ def _fixed_floats(segment: str, count: int) -> list[float]:
     return values
 
 
-def _summarize(fields: dict, material: dict) -> dict:
+def _summarize(fields: dict, material: dict, frequencies: list[float]) -> dict:
     """Reduce the raw fields to the headline scalars the CLI + sidecar report."""
     max_disp = 0.0
     for values in fields.get("DISP", {}).values():
@@ -164,7 +202,7 @@ def _summarize(fields: dict, material: dict) -> dict:
     yield_strength = (material.get("structural") or {}).get("yield")
     safety = (yield_strength / max_vm) if (yield_strength and max_vm > 0) else None
     return {"max_von_mises": max_vm, "max_displacement": max_disp,
-            "frequencies": [], "safety_factor": safety}
+            "frequencies": list(frequencies), "safety_factor": safety}
 
 
 def _von_mises(stress: list[float]) -> float:
