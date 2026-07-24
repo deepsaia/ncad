@@ -12,6 +12,7 @@ across the builders; this centralises it so the convention lives in one place. O
 """
 
 import os
+from pathlib import Path
 
 
 class SpecReference:
@@ -23,13 +24,16 @@ class SpecReference:
         :param reference: The reference string as authored in the spec (e.g. ``"crank.asm.hocon"``
             or ``"../parts/widget.hocon"``); an absolute path is returned unchanged.
         :param base_dir: The referring document's DIRECTORY (the leaf-common relative convention).
-            A file-path caller passes ``os.path.dirname(doc_path)``; use ``for_doc`` to do that.
+            A file-path caller passes the doc's parent dir; use ``for_doc`` to do that.
         :return: The absolute path of the referenced document (not checked for existence here).
         """
-        if os.path.isabs(reference):
-            return os.path.abspath(reference)
-        return os.path.abspath(os.path.join(base_dir, reference))
+        ref = Path(reference)
+        absolute = ref if ref.is_absolute() else Path(base_dir) / ref
+        # Deliberately os.path.abspath, NOT Path.resolve(): abspath normalizes ``..`` purely
+        # textually, while resolve() also follows symlinks (on macOS /tmp -> /private/tmp), giving a
+        # different string than the paths these references are later compared against.
+        return os.path.abspath(absolute)
 
     def for_doc(self, reference: str, referring_doc: str) -> str:
         """Resolve ``reference`` against the DIRECTORY of the file ``referring_doc`` names it in."""
-        return self.resolve(reference, os.path.dirname(referring_doc))
+        return self.resolve(reference, str(Path(referring_doc).parent))
