@@ -8,6 +8,7 @@ examples directory).
 
 import logging
 import os
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +60,7 @@ class SpecCatalog:
 
     def tree(self) -> list[dict]:
         """Nested tree of the examples directory; empty if unset or nonexistent."""
-        if not self._root or not os.path.isdir(self._root):
+        if not self._root or not Path(self._root).is_dir():
             return []
         return self._scan(self._root)
 
@@ -70,12 +71,15 @@ class SpecCatalog:
         """
         if not self._root:
             return None
+        # Security boundary: keep os.path.abspath + commonpath here, NOT Path.resolve(). abspath is
+        # textual (no symlink following), so candidate and root normalize the same way and the
+        # containment check cannot be defeated by a symlink pointing outside the examples dir.
         candidate = os.path.abspath(os.path.join(self._root, rel_path))
         if os.path.commonpath([candidate, self._root]) != self._root:
             return None
         if not _is_spec(candidate):
             return None
-        if not os.path.isfile(candidate):
+        if not Path(candidate).is_file():
             return None
         return candidate
 
@@ -83,12 +87,12 @@ class SpecCatalog:
         """Return the sorted (dirs first) tree nodes for one directory."""
         dirs: list[dict] = []
         specs: list[dict] = []
-        for entry in sorted(os.listdir(directory)):
-            full = os.path.join(directory, entry)
-            if os.path.isdir(full):
-                dirs.append({"type": "dir", "name": entry, "children": self._scan(full)})
+        for full in sorted(Path(directory).iterdir()):
+            entry = full.name
+            if full.is_dir():
+                dirs.append({"type": "dir", "name": entry, "children": self._scan(str(full))})
             elif _is_spec(entry):
-                rel = os.path.relpath(full, self._root).replace(os.sep, "/")
+                rel = full.relative_to(self._root).as_posix()
                 specs.append({"type": "spec", "name": entry, "path": rel,
                               "kind": _spec_kind(entry)})
         return dirs + specs
