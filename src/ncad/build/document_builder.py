@@ -10,6 +10,7 @@ Per-feature build problems ride the same Diagnostic envelope.
 import json
 import logging
 import os
+from pathlib import Path
 from typing import Any
 
 from ncad.build.builder import Builder
@@ -154,7 +155,7 @@ class DocumentBuilder:
         :return: ``{"artifacts": {part: primary_artifact_path}, "diagnostics": [Diagnostic, ...]}``.
         """
         resolved_formats = resolve_formats(formats)
-        os.makedirs(out_dir, exist_ok=True)
+        Path(out_dir).mkdir(parents=True, exist_ok=True)
         document = self._load(path)
         resolved, diagnostics = self._resolve_with_diagnostics(document)
         if any(d.severity == "error" for d in diagnostics):
@@ -162,12 +163,14 @@ class DocumentBuilder:
             return {"artifacts": {}, "diagnostics": diagnostics}
         # The material library reads the RAW document (materials / materials_library), resolved
         # relative to the document's own directory. Bodies get their material via created_by.
-        material_library = MaterialLibrary(document, base_dir=os.path.dirname(path))
+        material_library = MaterialLibrary(document, base_dir=str(Path(path).parent))
         artifacts: dict[str, str] = {}
+        # abspath (not resolve) keeps the base dir a textual absolute for reference resolution.
+        part_base_dir = os.path.dirname(os.path.abspath(path))
         for name, part in resolved["parts"].items():
             stem = f"{name_prefix}{name}"
             result, element_map, statuses = self._builder.build_part_mapped(
-                part, base_dir=os.path.dirname(os.path.abspath(path)))
+                part, base_dir=part_base_dir)
             # Build-stage issues ride the same envelope as schema/semantic ones.
             diagnostics.extend(issue.to_diagnostic() for issue in result.issues)
             if result.shape is None:
@@ -188,7 +191,7 @@ class DocumentBuilder:
                            if b.get("appearance_color") is not None}
             written: list[str] = []
             for fmt in resolved_formats:
-                artifact_path = os.path.join(out_dir, f"{stem}.{_FORMAT_EXTENSIONS[fmt]}")
+                artifact_path = str(Path(out_dir) / f"{stem}.{_FORMAT_EXTENSIONS[fmt]}")
                 self._kernel.export(result.shape, artifact_path, body_colors=body_colors,
                                     mesh_tolerance=mesh_tolerance)
                 written.append(artifact_path)
@@ -212,7 +215,7 @@ class DocumentBuilder:
 
         :return: Map from part name to the written sidecar path.
         """
-        os.makedirs(out_dir, exist_ok=True)
+        Path(out_dir).mkdir(parents=True, exist_ok=True)
         resolved = self._resolve_and_validate(document)
         written: dict[str, str] = {}
         for name, part in resolved["parts"].items():
@@ -231,7 +234,8 @@ class DocumentBuilder:
         """
         document = self._load(path)
         resolved = self._resolve_and_validate(document)
-        material_library = MaterialLibrary(document, base_dir=os.path.dirname(path))
+        material_library = MaterialLibrary(document, base_dir=str(Path(path).parent))
+        # abspath (not resolve) keeps the base dir a textual absolute for reference resolution.
         base_dir = os.path.dirname(os.path.abspath(path))
         out: dict[str, tuple] = {}
         for name, part in resolved["parts"].items():
@@ -304,12 +308,12 @@ class DocumentBuilder:
                                "material": body["material"] if body else None,
                                "appearance_color": body.get("appearance_color") if body
                                else None})
-        path = os.path.join(out_dir, f"{name}{_ELEMENTMAP_SUFFIX}")
+        path = Path(out_dir) / f"{name}{_ELEMENTMAP_SUFFIX}"
         payload = {"attribute_model_version": AttributeModel.VERSION,
                    "elements": records, "meshes": meshes}
-        with open(path, "w", encoding="utf-8") as handle:
+        with path.open("w", encoding="utf-8") as handle:
             json.dump(payload, handle)
-        return path
+        return str(path)
 
     def _write_hierarchy(self, part: dict, out_dir: str, name: str,
                          statuses: Any = None, bodies: Any = None) -> str:
@@ -318,11 +322,11 @@ class DocumentBuilder:
         ``statuses`` are stamped onto sketch nodes so the tree shows constraint status inline;
         ``bodies`` (``{id, material}`` per built body) become the trailing Bodies group.
         """
-        path = os.path.join(out_dir, f"{name}{_HIERARCHY_SUFFIX}")
-        with open(path, "w", encoding="utf-8") as handle:
+        path = Path(out_dir) / f"{name}{_HIERARCHY_SUFFIX}"
+        with path.open("w", encoding="utf-8") as handle:
             json.dump(self._hierarchy.hierarchy(name, part, statuses=statuses, bodies=bodies),
                       handle)
-        return path
+        return str(path)
 
     def _write_facts(self, shape: Any, part: dict, material_library: MaterialLibrary,
                      out_dir: str, name: str) -> list[Diagnostic]:
@@ -340,8 +344,8 @@ class DocumentBuilder:
         except MaterialError:
             mass = None
         manifest = self._facts.collect(shape, mass_properties=mass)
-        path = os.path.join(out_dir, f"{name}{_FACTS_SUFFIX}")
-        with open(path, "w", encoding="utf-8") as handle:
+        path = Path(out_dir) / f"{name}{_FACTS_SUFFIX}"
+        with path.open("w", encoding="utf-8") as handle:
             json.dump(manifest, handle)
         diagnostics: list[Diagnostic] = []
         for body in (mass or {}).get("bodies", []):
