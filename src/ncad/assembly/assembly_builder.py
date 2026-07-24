@@ -13,6 +13,7 @@ import json
 import logging
 import os
 import time
+from pathlib import Path
 from typing import Any
 
 from ncad.assembly.asmt_exporter import AsmtExporter
@@ -89,6 +90,8 @@ class AssemblyBuilder:
         (a ``{driver: {...}}`` block, from a .motion.hocon document); when present, the motion pass
         runs after the static solve and writes the trajectory sidecar (see MotionBuilder).
         """
+        # abspath (textual, no symlink following) so the cycle-detection key matches across nested
+        # calls regardless of how the path was spelled.
         abs_path = os.path.abspath(asm_path)
         if abs_path in _visited:
             raise ValueError(f"circular sub-assembly reference: {abs_path}")
@@ -104,8 +107,8 @@ class AssemblyBuilder:
         if schema_issues:
             rendered = "; ".join(f"{i.location}: {i.message}" for i in schema_issues)
             raise ValueError(f"assembly failed schema validation: {rendered}")
-        os.makedirs(out_dir, exist_ok=True)
-        asm_dir = os.path.dirname(os.path.abspath(asm_path))
+        Path(out_dir).mkdir(parents=True, exist_ok=True)
+        asm_dir = os.path.dirname(os.path.abspath(asm_path))  # abspath base dir for ref resolution
         name = _stem(asm_path)
         # Expand component ops (pattern; mirror/replace/sub-assembly in later tasks) into a flat
         # instance list BEFORE placement/solve, so the rest of the pipeline sees plain instances.
@@ -167,16 +170,16 @@ class AssemblyBuilder:
         # writes (without the analysis blocks) rather than aborting the whole assemble.
         interference, bom, mass = self._analyze(
             document, asm_dir, instances, placements_mm, builders, out_dir, name, issues)
-        sidecar = os.path.join(out_dir, f"{name}{_ASSEMBLY_SUFFIX}")
+        sidecar = Path(out_dir) / f"{name}{_ASSEMBLY_SUFFIX}"
         # Record the source .asm.hocon so the viewer can regenerate this assembly after a reload
         # (the browser's in-memory source map is lost on reload; this survives it, like the part
-        # meta sidecar's `source`).
-        with open(sidecar, "w", encoding="utf-8") as handle:
+        # meta sidecar's `source`). abspath keeps `source` a textual absolute the viewer compares.
+        with sidecar.open("w", encoding="utf-8") as handle:
             json.dump({"schema_version": 1, "name": name, "source": os.path.abspath(asm_path),
                        "instances": instances, "solve": solve_block, "mates": mates_out,
                        "joints": joints_out, "couplings": couplings_out,
                        "interference": interference, "bom": bom, "mass": mass}, handle)
-        return {"sidecar": sidecar, "issues": issues, "motion": motion_path,
+        return {"sidecar": str(sidecar), "issues": issues, "motion": motion_path,
                 "instances": [i["id"] for i in instances],
                 "solve_ms": round(self._solve_ms, 1)}
 
@@ -233,8 +236,8 @@ class AssemblyBuilder:
             issues.append({"instance_id": iid,
                            "message": f"{iid}/{child_issue.get('instance_id', '?')}: "
                                       f"{child_issue.get('message', '')}"})
-        child_sidecar_path = os.path.join(out_dir, f"{_stem(child_path)}{_ASSEMBLY_SUFFIX}")
-        with open(child_sidecar_path, encoding="utf-8") as handle:
+        child_sidecar_path = Path(out_dir) / f"{_stem(child_path)}{_ASSEMBLY_SUFFIX}"
+        with child_sidecar_path.open(encoding="utf-8") as handle:
             child_doc = json.load(handle)
         parent_metres = _bake_matrix(self._placement.matrix(instance.get("placement"), 1.0),
                                      to_metres)
@@ -412,7 +415,7 @@ class AssemblyBuilder:
         # `outputs` block declares it (per-frame booleans are costly). None otherwise (key omitted).
         interference = self._motion_interference(
             document, asm_dir, placements_mm, builders, frames, to_metres, motion, issues)
-        path = os.path.join(out_dir, f"{name}.motion.json")
+        path = Path(out_dir) / f"{name}.motion.json"
         # `source` (the .motion.hocon path) lets the viewer's Regenerate re-run the study after a
         # page reload, mirroring the assembly sidecar's source. Omitted when driven directly.
         payload = {"schema_version": 2, "name": name, "driver": motion["driver"],
@@ -421,11 +424,11 @@ class AssemblyBuilder:
             payload["interference"] = interference
         if motion.get("source"):
             payload["source"] = motion["source"]
-        with open(path, "w", encoding="utf-8") as handle:
+        with path.open("w", encoding="utf-8") as handle:
             json.dump(payload, handle)
         logger.info("assembly motion: joint=%s frames=%d traces=%d measures=%d out=%s",
                     joint_id, len(frames), len(traces), len(measures), path)
-        return path
+        return str(path)
 
     def _motion_secondaries(self, document: dict, driven_joint: str, driver: dict,
                             issues: list) -> list[dict]:
@@ -612,7 +615,7 @@ class AssemblyBuilder:
                 "placement": placements_mm[iid]})
         interference = self._interference.check(placed, self._expected_contact_pairs(document))
         bom_out = self._bom.compute(inst_meta, part_mass, placements_mm)
-        self._kernel.export_assembly(components, os.path.join(out_dir, f"{name}.step"))
+        self._kernel.export_assembly(components, str(Path(out_dir) / f"{name}.step"))
         return interference, {"items": bom_out["items"]}, bom_out["mass"]
 
     def _part_mass(self, shape: Any, resolver: Any) -> dict:
@@ -789,10 +792,11 @@ class AssemblyBuilder:
         instance_id = instance["id"]
         part_file = SpecReference().resolve(instance["file"], asm_dir)
         part_name = instance["part"]
+        # abspath (textual) so the dedup/builder cache key is stable across spellings of the path.
         key = (os.path.abspath(part_file), part_name)
         if key in built_glbs:
             return built_glbs[key]  # this {file, part} already built: reuse the glb (dedup)
-        if not os.path.exists(part_file):
+        if not Path(part_file).exists():
             issues.append({"instance_id": instance_id,
                            "message": f"part file not found: {instance['file']!r}"})
             return None
@@ -800,7 +804,7 @@ class AssemblyBuilder:
         # Namespace the glb by the source document stem so two mechanisms that both define a part
         # named `stand` write distinct <doc>__stand.glb files into the shared out dir (not one
         # clobbered stand.glb). The stem is the part file's basename without extensions.
-        doc_stem = os.path.basename(part_file).split(".", 1)[0]
+        doc_stem = Path(part_file).name.split(".", 1)[0]
         try:
             build_result = builder.build_file(part_file, out_dir, formats=("glb",),
                                                name_prefix=f"{doc_stem}__")
@@ -817,12 +821,12 @@ class AssemblyBuilder:
             issues.append({"instance_id": instance_id,
                            "message": f"part {part_name!r} not in {instance['file']!r}"})
             return None
-        glb = os.path.basename(artifacts[part_name])
+        glb = Path(artifacts[part_name]).name
         # Record how this member glb was built (its source part file + the specific part name) so
         # the viewer can re-export it on its own from the Parts tab. Written as <member>.meta.json
         # to match the viewer's ModelMetadata schema, with an extra `part` field naming which part
         # of a (possibly multi-part) source document this glb is.
-        self._write_member_meta(out_dir, os.path.splitext(glb)[0], key[0], part_name)
+        self._write_member_meta(out_dir, Path(glb).stem, key[0], part_name)
         built_glbs[key] = glb
         return glb
 
@@ -835,9 +839,9 @@ class AssemblyBuilder:
         """
         payload = {"source": os.path.abspath(part_file), "part": part_name,
                    "built_at": "", "ncad_version": "", "kernel_version": ""}
-        path = os.path.join(out_dir, f"{stem}.meta.json")
+        path = Path(out_dir) / f"{stem}.meta.json"
         try:
-            with open(path, "w", encoding="utf-8") as handle:
+            with path.open("w", encoding="utf-8") as handle:
                 json.dump(payload, handle, indent=2)
         except OSError as exc:
             logger.warning("could not write member meta %s: %s", path, exc)
@@ -917,7 +921,7 @@ def _bake_frame(cid: str, frame: ConnectorFrame, to_metres: float) -> dict:
 
 def _stem(path: str) -> str:
     """The assembly name: the basename without the .asm.hocon (or .hocon) extension."""
-    base = os.path.basename(path)
+    base = Path(path).name
     for suffix in (".asm.hocon", ".hocon"):
         if base.lower().endswith(suffix):
             return base[: -len(suffix)]
