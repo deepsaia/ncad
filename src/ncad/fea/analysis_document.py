@@ -46,13 +46,17 @@ class AnalysisDocument:
         spec = AnalysisSpec(SpecLoader().load(analysis_path))
         part_path = SpecReference().for_doc(spec.part, analysis_path)
         stem = os.path.splitext(os.path.basename(part_path))[0]
+        # Load the referenced part document ONCE and thread it through: the build, the hierarchy
+        # sidecar, and the material resolution all need it, so re-loading per helper re-parsed the
+        # same HOCON three times.
+        part_document = SpecLoader().load(part_path)
 
         kernel, shape = _build_part(part_path, stem)
         step_path = os.path.join(out_dir, f"{stem}.step")
         kernel.export(shape, step_path)
         # Write the part's feature hierarchy sidecar so the viewer's Hierarchy tab has content in
         # Analyze mode (the part is built here internally, so its normal build sidecars are absent).
-        _write_hierarchy(part_path, stem, out_dir)
+        _write_hierarchy(part_document, stem, out_dir)
 
         mesh_inp = os.path.join(out_dir, f"{stem}.mesh.inp")
         groups = _groups(spec)
@@ -62,7 +66,7 @@ class AnalysisDocument:
             logger.warning("meshing skipped (install ncad[fea]): %s", exc)
             return _skipped(f"gmsh not installed; install ncad[fea] ({exc})")
 
-        material = _resolve_material(part_path, stem)
+        material = _resolve_material(part_document, part_path, stem)
         # gmsh writes surface groups as 2D CPS6 elements ccx rejects; rewrite them into element
         # *SURFACEs (for pressure/flux) and strip the 2D elements before decking.
         with open(mesh_inp, encoding="utf-8") as handle:
@@ -187,11 +191,10 @@ def _merge_summary(merged: dict, summary: dict) -> None:
                                    else min(existing, summary["safety_factor"]))
 
 
-def _write_hierarchy(part_path: str, stem: str, out_dir: str) -> None:
+def _write_hierarchy(document: dict, stem: str, out_dir: str) -> None:
     """Write ``<stem>.hierarchy.json`` (the part's display feature tree) for the viewer."""
     from ncad.build.hierarchy_builder import HierarchyBuilder
 
-    document = SpecLoader().load(part_path)
     parts = document.get("parts") or {}
     part = parts.get(stem) or next(iter(parts.values()), None)
     part_name = stem if stem in parts else next(iter(parts), stem)
@@ -220,9 +223,8 @@ def _build_part(part_path: str, stem: str):
     return kernel, shape
 
 
-def _resolve_material(part_path: str, stem: str) -> dict:
+def _resolve_material(document: dict, part_path: str, stem: str) -> dict:
     """Resolve the referenced part's material record (part-level default), for the deck."""
-    document = SpecLoader().load(part_path)
     library = MaterialLibrary(document, base_dir=os.path.dirname(part_path))
     parts = document.get("parts") or {}
     part = parts.get(stem) or next(iter(parts.values()), {})
