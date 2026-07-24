@@ -217,6 +217,37 @@ class BuildService:
         """Resolve a physics ``spec`` if under examples, else None (mirrors the motion rule)."""
         return self._spec_catalog.resolve(spec)
 
+    def analyze(self, spec: str) -> dict:
+        """Run a structural-FEA ``spec`` (mesh + delegated ccx solve + result sidecars).
+
+        Writes ``<part>.analysis.json`` (summary) + ``<part>.analysis.mesh.json`` (the field mesh
+        the viewer colors). A missing gmsh or ccx is NOT an error (the run reports ``skipped``);
+        only a genuine build/kernel fault raises BuildError. Times the build like the others.
+
+        :return: ``{"analysis": <name>, "status", "summary", "warnings", "build_ms"}``.
+        :raises BuildError: If the spec is not allowed or the analysis build fails.
+        """
+        from ncad.fea.analysis_document import AnalysisDocument
+
+        resolved = self._allowed_analysis_path(spec)
+        if resolved is None:
+            raise BuildError(f"analysis spec not allowed: {spec}")
+        started = time.perf_counter()
+        try:
+            result = AnalysisDocument().run(resolved, self._models_dir)
+        except (ValueError, OSError, RuntimeError) as exc:
+            raise BuildError(str(exc)) from exc
+        build_ms = (time.perf_counter() - started) * 1000.0
+        name = os.path.splitext(os.path.basename(result["artifact"] or spec))[0].split(".")[0]
+        logger.info("analyzed %s from %s [%s] in %.1f ms",
+                    name, spec, result["status"], build_ms)
+        return {"analysis": name, "status": result["status"], "summary": result["summary"],
+                "warnings": result["warnings"], "build_ms": round(build_ms, 1)}
+
+    def _allowed_analysis_path(self, spec: str) -> str | None:
+        """Resolve an analysis ``spec`` if under examples, else None (mirrors the physics rule)."""
+        return self._spec_catalog.resolve(spec)
+
     def read_robot_keyframes(self, name: str) -> dict:
         """Read the robot's saved keyframe sets from ``out/<name>.keyframes.json``.
 
