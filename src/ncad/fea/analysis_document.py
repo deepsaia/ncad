@@ -10,7 +10,7 @@ degrades to a ``skipped`` report (never a raise): gmsh missing -> skipped at mes
 
 import json
 import logging
-import os
+from pathlib import Path
 
 from ncad.build.document_builder import DocumentBuilder
 from ncad.fea.analysis_error import AnalysisError
@@ -42,23 +42,24 @@ class AnalysisDocument:
             solve status (``generated``/``skipped``/``failed``); ``skipped`` also covers a missing
             gmsh (no meshing) with the reason in ``warnings``.
         """
-        os.makedirs(out_dir, exist_ok=True)
+        out = Path(out_dir)
+        out.mkdir(parents=True, exist_ok=True)
         spec = AnalysisSpec(SpecLoader().load(analysis_path))
         part_path = SpecReference().for_doc(spec.part, analysis_path)
-        stem = os.path.splitext(os.path.basename(part_path))[0]
+        stem = Path(part_path).stem
         # Load the referenced part document ONCE and thread it through: the build, the hierarchy
         # sidecar, and the material resolution all need it, so re-loading per helper re-parsed the
         # same HOCON three times.
         part_document = SpecLoader().load(part_path)
 
         kernel, shape = _build_part(part_path, stem)
-        step_path = os.path.join(out_dir, f"{stem}.step")
+        step_path = str(out / f"{stem}.step")
         kernel.export(shape, step_path)
         # Write the part's feature hierarchy sidecar so the viewer's Hierarchy tab has content in
         # Analyze mode (the part is built here internally, so its normal build sidecars are absent).
         _write_hierarchy(part_document, stem, out_dir)
 
-        mesh_inp = os.path.join(out_dir, f"{stem}.mesh.inp")
+        mesh_inp = str(out / f"{stem}.mesh.inp")
         groups = _groups(spec)
         try:
             mesh_report = GmshMesher().mesh(step_path, spec.mesh, groups, mesh_inp)
@@ -80,7 +81,7 @@ class AnalysisDocument:
         artifacts, warnings, family_results = [], list(mesh_report.get("warnings", [])), []
         overall = "generated" if families else "skipped"
         for family, steps in families.items():
-            deck_path = os.path.join(out_dir, f"{stem}.{family}.inp")
+            deck_path = str(out / f"{stem}.{family}.inp")
             deck = DeckWriter().write(rewritten["text"], spec, material, element_set=_ELEMENT_SET,
                                       surfaces=rewritten["surfaces"], faces=rewritten["faces"],
                                       steps=steps)
@@ -120,14 +121,15 @@ class AnalysisDocument:
                 primary = parsed          # color the viewer by the structural (stress) result
         primary = primary or reader.read(family_results[0][1], material)
         _run_fatigue(spec.steps, merged, material)
-        json_path = os.path.join(out_dir, f"{stem}.analysis.json")
+        out = Path(out_dir)
+        json_path = str(out / f"{stem}.analysis.json")
         # The summary sidecar also carries the load case (constraints/loads/steps) so the viewer's
         # Analyze inspector can show WHAT was analyzed, not just the headline scalars.
         with open(json_path, "w", encoding="utf-8") as handle:
             json.dump({"summary": merged, "part": spec.part, "mesh": spec.mesh,
                        "constraints": spec.constraints, "loads": spec.loads,
                        "steps": spec.steps}, handle, indent=2)
-        vtk_path = os.path.join(out_dir, f"{stem}.analysis.vtk")
+        vtk_path = str(out / f"{stem}.analysis.vtk")
         reader.write_vtk(primary, _read_elements(mesh_inp), vtk_path)
         # The viewer colors the boundary surface; ship it (+ per-vertex fields) as a compact JSON
         # so the browser never parses VTK. All families share the mesh's node ordering.
@@ -135,7 +137,7 @@ class AnalysisDocument:
         # Load glyphs: what forces/BCs act on the model (drawn as arrows/markers in the viewport),
         # so a user sees WHAT produced the stress/displacement/temperature field.
         mesh_json["loads"] = LoadGlyphBuilder().build(spec, group_triangles, nodes)
-        mesh_path = os.path.join(out_dir, f"{stem}.analysis.mesh.json")
+        mesh_path = str(out / f"{stem}.analysis.mesh.json")
         with open(mesh_path, "w", encoding="utf-8") as handle:
             json.dump(mesh_json, handle)
         return {"summary": merged,
@@ -201,7 +203,7 @@ def _write_hierarchy(document: dict, stem: str, out_dir: str) -> None:
     if part is None:
         return
     tree = HierarchyBuilder().hierarchy(part_name, part)
-    with open(os.path.join(out_dir, f"{stem}.hierarchy.json"), "w", encoding="utf-8") as handle:
+    with (Path(out_dir) / f"{stem}.hierarchy.json").open("w", encoding="utf-8") as handle:
         json.dump(tree, handle, indent=2)
 
 
@@ -225,7 +227,7 @@ def _build_part(part_path: str, stem: str):
 
 def _resolve_material(document: dict, part_path: str, stem: str) -> dict:
     """Resolve the referenced part's material record (part-level default), for the deck."""
-    library = MaterialLibrary(document, base_dir=os.path.dirname(part_path))
+    library = MaterialLibrary(document, base_dir=str(Path(part_path).parent))
     parts = document.get("parts") or {}
     part = parts.get(stem) or next(iter(parts.values()), {})
     name = part.get("material")
