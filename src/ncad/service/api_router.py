@@ -13,12 +13,19 @@ from typing import Any
 
 from tornado.web import URLSpec
 
+from ncad.service.analysis_handlers import (
+    AnalysesHandler,
+    AnalysisDeleteHandler,
+    AnalysisHandler,
+    AnalysisMeshHandler,
+)
 from ncad.service.assembly_handlers import (
     AssembliesHandler,
     AssemblyDeleteHandler,
     AssemblyHandler,
 )
 from ncad.service.build_handlers import (
+    AnalyzeHandler,
     AssembleHandler,
     BuildHandler,
     MotionBuildHandler,
@@ -73,8 +80,14 @@ class ApiRouter:
             URLSpec(r"/api/v1/assemblies", AssembliesHandler, deps),
             URLSpec(r"/api/v1/motions", MotionsHandler, deps),
             URLSpec(r"/api/v1/robots", RobotsHandler, deps),
+            URLSpec(r"/api/v1/analyses", AnalysesHandler, deps),
             # Detail routes by name.
             URLSpec(r"/api/v1/motion/(.+)", MotionHandler, deps),
+            # analysis-mesh before analysis: keep the more specific prefix first.
+            URLSpec(r"/api/v1/analysis-mesh/(.+)", AnalysisMeshHandler, deps),
+            # The delete POST must precede the analysis GET catch-all (method-agnostic matching).
+            URLSpec(r"/api/v1/analysis/(.+)/delete", AnalysisDeleteHandler, deps),
+            URLSpec(r"/api/v1/analysis/(.+)", AnalysisHandler, deps),
             # robot-sweeps before robot: different prefixes, but keep the more specific first.
             URLSpec(r"/api/v1/robot-sweeps/(.+)", RobotSweepsHandler, deps),
             URLSpec(r"/api/v1/robot-keyframes/(.+)", RobotKeyframesHandler, deps),
@@ -92,6 +105,7 @@ class ApiRouter:
             URLSpec(r"/api/v1/assemble", AssembleHandler, deps),
             URLSpec(r"/api/v1/motion-build", MotionBuildHandler, deps),
             URLSpec(r"/api/v1/physics-build", PhysicsBuildHandler, deps),
+            URLSpec(r"/api/v1/analyze", AnalyzeHandler, deps),
             URLSpec(r"/api/v1/robot-collide", RobotCollideHandler, deps),
             URLSpec(r"/api/v1/export", ExportHandler, deps),
             URLSpec(r"/api/v1/validate", ValidateHandler, deps),

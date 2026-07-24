@@ -193,6 +193,67 @@ class ModelCatalog:
             return None
         return candidate if os.path.isfile(candidate) else None
 
+    def analysis_names(self) -> list[str]:
+        """Analysis names that have an FEA result (files ending in .analysis.json).
+
+        The ``.analysis.mesh.json`` field-mesh sidecar ends in ``.mesh.json`` so it is not counted
+        as a separate analysis.
+        """
+        if not os.path.isdir(self._directory):
+            return []
+        suffix = ".analysis.json"
+        return sorted(entry[: -len(suffix)] for entry in os.listdir(self._directory)
+                      if entry.lower().endswith(suffix)
+                      and os.path.isfile(os.path.join(self._directory, entry)))
+
+    def analyses_with_labels(self) -> list[dict]:
+        """Analysis names each with a label (peak von Mises) + recorded source, for the picker."""
+        result: list[dict] = []
+        for name in self.analysis_names():
+            result.append({"name": name, "label": self._analysis_label(name),
+                           "source": self._analysis_source(name)})
+        return result
+
+    def _analysis_source(self, name: str) -> str | None:
+        """The ``source`` field recorded in an ``.analysis.json``, or None."""
+        path = self.resolve_analysis(name)
+        if path is None:
+            return None
+        try:
+            with open(path, encoding="utf-8") as handle:
+                return json.load(handle).get("source")
+        except (OSError, ValueError) as exc:
+            logger.warning("could not read analysis source for %s: %s", name, exc)
+            return None
+
+    def _analysis_label(self, name: str) -> str | None:
+        """A short label for one analysis (its max von Mises stress), or None if unreadable."""
+        path = self.resolve_analysis(name)
+        if path is None:
+            return None
+        try:
+            with open(path, encoding="utf-8") as handle:
+                summary = json.load(handle).get("summary") or {}
+        except (OSError, ValueError) as exc:
+            logger.warning("could not read analysis label for %s: %s", name, exc)
+            return None
+        peak = summary.get("max_von_mises")
+        return f"{peak:.3g} Pa" if isinstance(peak, (int, float)) and peak else None
+
+    def resolve_analysis(self, name: str) -> str | None:
+        """Safe absolute path to ``<name>.analysis.json`` (the summary), or None if absent."""
+        candidate = os.path.abspath(os.path.join(self._directory, name + ".analysis.json"))
+        if os.path.dirname(candidate) != self._directory:
+            return None
+        return candidate if os.path.isfile(candidate) else None
+
+    def resolve_analysis_mesh(self, name: str) -> str | None:
+        """Safe absolute path to ``<name>.analysis.mesh.json`` (field mesh), or None if absent."""
+        candidate = os.path.abspath(os.path.join(self._directory, name + ".analysis.mesh.json"))
+        if os.path.dirname(candidate) != self._directory:
+            return None
+        return candidate if os.path.isfile(candidate) else None
+
     def delete_assembly(self, name: str) -> str | None:
         """Delete ``<name>.assembly.json`` (the composed scene). Returns the name, or None.
 
@@ -225,6 +286,21 @@ class ModelCatalog:
         sweeps = self.resolve_robot_sweeps(name)
         if sweeps is not None:
             os.remove(sweeps)
+        return name
+
+    def delete_analysis(self, name: str) -> str | None:
+        """Delete an analysis result's sidecars (``.analysis.json`` + ``.analysis.mesh.json``).
+
+        Returns the name, or None if unknown. The meshed ``.inp`` / exported ``.step`` are ordinary
+        build output left in place (cheap to regenerate), mirroring ``delete_robot``.
+        """
+        resolved = self.resolve_analysis(name)
+        if resolved is None:
+            return None
+        os.remove(resolved)
+        mesh = self.resolve_analysis_mesh(name)
+        if mesh is not None:
+            os.remove(mesh)
         return name
 
     def resolve_bom(self, model_name: str) -> str | None:

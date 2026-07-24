@@ -75,7 +75,21 @@ class AsmtExporter:
         laws, driven ALONGSIDE the primary (the solver co-solves multiple prescribed motions).
         Lengths convert to metres via ``to_metres``.
         """
-        import pyondsel as po
+        # pyondsel's top-level package is intentionally empty (no re-exports), so import the leaf
+        # symbols and bundle them into a namespace the helpers below use as ``po.AsmtModel`` etc.
+        # Kept as a lazy in-method import: pyondsel is an optional dependency (motion only), so ncad
+        # imports fine without it and only a motion build touches it.
+        from types import SimpleNamespace
+
+        from pyondsel.model.asmt_model import AsmtModel
+        from pyondsel.model.joint import Joint
+        from pyondsel.model.marker import Marker
+        from pyondsel.model.motion import Motion
+        from pyondsel.model.part import Part
+        from pyondsel.model.simulation import Simulation
+
+        po = SimpleNamespace(AsmtModel=AsmtModel, Joint=Joint, Marker=Marker,
+                             Motion=Motion, Part=Part, Simulation=Simulation)
 
         model = po.AsmtModel(name=name)
         for inst in instances:

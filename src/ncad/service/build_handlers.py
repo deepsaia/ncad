@@ -103,6 +103,28 @@ class PhysicsBuildHandler(BaseApiHandler):
         self.write_json(200, {"robots": self._catalog.robots_with_labels(), **result})
 
 
+class AnalyzeHandler(BaseApiHandler):
+    """POST /api/v1/analyze -> run an FEA load case, return the analysis list + result."""
+
+    def post(self, *args: str, **kwargs: str) -> None:
+        """Run the posted analysis spec; 400 on bad request/BuildError, 500 on failure."""
+        spec = self.load_spec_body()
+        if spec is None:
+            self.write_error_json(400, "request must be JSON with a 'spec' field")
+            return
+        try:
+            result = self._build_service.analyze(spec)
+        except BuildError as exc:
+            logger.warning("analyze rejected for %s: %s", spec, exc)
+            self.write_error_json(400, str(exc))
+            return
+        except Exception:  # noqa: BLE001 - never raise to the socket; log and 500
+            logger.exception("unexpected analyze failure for %s", spec)
+            self.write_error_json(500, "internal analyze error")
+            return
+        self.write_json(200, {"analyses": self._catalog.analyses_with_labels(), **result})
+
+
 class RobotCollideHandler(BaseApiHandler):
     """POST /api/v1/robot-collide -> non-adjacent self-collisions of a robot at a posed config."""
 

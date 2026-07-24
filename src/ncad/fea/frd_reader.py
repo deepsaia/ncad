@@ -41,6 +41,24 @@ class FrdReader:
                     frd_path, len(nodes), list(fields), summary["max_von_mises"] or 0.0)
         return {"nodes": nodes, "fields": fields, "summary": summary}
 
+    def scalar_fields(self, read_result: dict) -> dict:
+        """Per-node scalar fields ``{name: {node_id: value}}`` derived from a parsed result.
+
+        ``von_mises`` + ``displacement`` come from a structural result (STRESS/DISP);
+        ``temperature`` from a thermal result (NDTEMP). Only the fields present are returned, so a
+        caller can merge structural + thermal parses (same node ordering) into one field set.
+        """
+        fields = read_result["fields"]
+        out: dict = {}
+        if "STRESS" in fields:
+            out["von_mises"] = {n: _von_mises(v) for n, v in fields["STRESS"].items()}
+        if "DISP" in fields:
+            out["displacement"] = {n: math.sqrt(sum(c * c for c in v[:3]))
+                                   for n, v in fields["DISP"].items()}
+        if "NDTEMP" in fields:
+            out["temperature"] = {n: (v[0] if v else 0.0) for n, v in fields["NDTEMP"].items()}
+        return out
+
     def write_vtk(self, read_result: dict, elements: list, out_vtk: str) -> None:
         """Write ``out_vtk`` (nodes + tetra cells + point_data) from a parsed result via meshio.
 

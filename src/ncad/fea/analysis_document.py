@@ -13,11 +13,13 @@ import logging
 import os
 
 from ncad.build.document_builder import DocumentBuilder
+from ncad.fea.analysis_mesh_writer import AnalysisMeshWriter
 from ncad.fea.analysis_spec import AnalysisSpec
 from ncad.fea.ccx_runner import CcxRunner
 from ncad.fea.deck_writer import DeckWriter
 from ncad.fea.frd_reader import FrdReader
 from ncad.fea.gmsh_mesher import GmshMesher
+from ncad.fea.load_glyph_builder import LoadGlyphBuilder
 from ncad.fea.surface_extractor import SurfaceExtractor
 from ncad.spec.material_library import MaterialLibrary
 from ncad.spec.spec_loader import SpecLoader
@@ -46,6 +48,9 @@ class AnalysisDocument:
         kernel, shape = _build_part(part_path, stem)
         step_path = os.path.join(out_dir, f"{stem}.step")
         kernel.export(shape, step_path)
+        # Write the part's feature hierarchy sidecar so the viewer's Hierarchy tab has content in
+        # Analyze mode (the part is built here internally, so its normal build sidecars are absent).
+        _write_hierarchy(part_path, stem, out_dir)
 
         mesh_inp = os.path.join(out_dir, f"{stem}.mesh.inp")
         groups = _groups(spec)
@@ -87,28 +92,47 @@ class AnalysisDocument:
                   "artifacts": artifacts, "sidecars": {}, "summary": {}, "mesh": mesh_report,
                   "warnings": warnings}
         if family_results:
-            result.update(self._read_back(family_results, material, mesh_inp, out_dir, stem))
+            result.update(self._read_back(family_results, material, mesh_inp, out_dir, stem,
+                                          spec, rewritten["triangles"]))
         return result
 
     def _read_back(self, family_results: list, material: dict, mesh_inp: str, out_dir: str,
-                   stem: str) -> dict:
+                   stem: str, spec, group_triangles: dict) -> dict:
         """Merge each family's .frd into one summary + field mesh; return the paths + summary."""
         reader = FrdReader()
         merged: dict = {"max_von_mises": 0.0, "max_displacement": 0.0, "frequencies": [],
                         "safety_factor": None}
         primary = None
+        nodes: dict = {}
+        scalar_fields: dict = {}
         for _family, frd in family_results:
             parsed = reader.read(frd, material)
             _merge_summary(merged, parsed["summary"])
+            nodes = nodes or parsed["nodes"]
+            scalar_fields.update(reader.scalar_fields(parsed))  # von_mises/displacement/temperature
             if primary is None and parsed["fields"].get("STRESS"):
                 primary = parsed          # color the viewer by the structural (stress) result
         primary = primary or reader.read(family_results[0][1], material)
         json_path = os.path.join(out_dir, f"{stem}.analysis.json")
+        # The summary sidecar also carries the load case (constraints/loads/steps) so the viewer's
+        # Analyze inspector can show WHAT was analyzed, not just the headline scalars.
         with open(json_path, "w", encoding="utf-8") as handle:
-            json.dump({"summary": merged}, handle, indent=2)
+            json.dump({"summary": merged, "part": spec.part, "mesh": spec.mesh,
+                       "constraints": spec.constraints, "loads": spec.loads,
+                       "steps": spec.steps}, handle, indent=2)
         vtk_path = os.path.join(out_dir, f"{stem}.analysis.vtk")
         reader.write_vtk(primary, _read_elements(mesh_inp), vtk_path)
-        return {"summary": merged, "sidecars": {"json": json_path, "vtk": vtk_path}}
+        # The viewer colors the boundary surface; ship it (+ per-vertex fields) as a compact JSON
+        # so the browser never parses VTK. All families share the mesh's node ordering.
+        mesh_json = AnalysisMeshWriter().build(nodes, _read_elements(mesh_inp), scalar_fields)
+        # Load glyphs: what forces/BCs act on the model (drawn as arrows/markers in the viewport),
+        # so a user sees WHAT produced the stress/displacement/temperature field.
+        mesh_json["loads"] = LoadGlyphBuilder().build(spec, group_triangles, nodes)
+        mesh_path = os.path.join(out_dir, f"{stem}.analysis.mesh.json")
+        with open(mesh_path, "w", encoding="utf-8") as handle:
+            json.dump(mesh_json, handle)
+        return {"summary": merged,
+                "sidecars": {"json": json_path, "vtk": vtk_path, "mesh": mesh_path}}
 
 
 def _step_families(steps: list) -> dict:
@@ -135,6 +159,21 @@ def _merge_summary(merged: dict, summary: dict) -> None:
         existing = merged["safety_factor"]
         merged["safety_factor"] = (summary["safety_factor"] if existing is None
                                    else min(existing, summary["safety_factor"]))
+
+
+def _write_hierarchy(part_path: str, stem: str, out_dir: str) -> None:
+    """Write ``<stem>.hierarchy.json`` (the part's display feature tree) for the viewer."""
+    from ncad.build.hierarchy_builder import HierarchyBuilder
+
+    document = SpecLoader().load(part_path)
+    parts = document.get("parts") or {}
+    part = parts.get(stem) or next(iter(parts.values()), None)
+    part_name = stem if stem in parts else next(iter(parts), stem)
+    if part is None:
+        return
+    tree = HierarchyBuilder().hierarchy(part_name, part)
+    with open(os.path.join(out_dir, f"{stem}.hierarchy.json"), "w", encoding="utf-8") as handle:
+        json.dump(tree, handle, indent=2)
 
 
 def _build_part(part_path: str, stem: str):
@@ -189,19 +228,23 @@ def _groups(spec: AnalysisSpec) -> dict:
 
 
 def _read_elements(mesh_inp: str) -> list:
-    """Read C3D4/C3D10 element connectivity (node id lists) from the gmsh mesh .inp."""
+    """Read the VOLUME (C3D4/C3D10) element connectivity from the gmsh mesh .inp.
+
+    The mesh .inp also carries gmsh's 2D boundary elements (CPS6); those are skipped so the
+    boundary-surface extraction sees only tets (a stray 2D element would corrupt the face count).
+    """
     elements: list = []
-    in_elements = False
+    reading = False
     with open(mesh_inp, encoding="utf-8") as handle:
         for line in handle:
             stripped = line.strip()
             if stripped.upper().startswith("*ELEMENT"):
-                in_elements = True
+                reading = "C3D" in stripped.upper().replace(" ", "")
                 continue
             if stripped.startswith("*"):
-                in_elements = False
+                reading = False
                 continue
-            if in_elements and stripped:
+            if reading and stripped:
                 parts = [int(p) for p in stripped.rstrip(",").split(",") if p.strip()]
                 elements.append(parts[1:])  # drop the element id, keep node ids
     return elements

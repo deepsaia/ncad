@@ -30,6 +30,10 @@ class _FakeBuildService:
     def build_physics(self, spec: str) -> dict:
         return {"robot": "arm", "warnings": [], "build_ms": 4.0}
 
+    def analyze(self, spec: str) -> dict:
+        return {"analysis": "bracket", "status": "generated", "summary": {"max_von_mises": 1.0},
+                "warnings": [], "build_ms": 5.0}
+
     def check_robot_collision(self, name: str, pose: dict) -> dict:
         return {"collisions": [{"a": "forearm", "b": "base", "volume": 123.4}]}
 
@@ -60,6 +64,9 @@ def service(tmp_path):
     (tmp_path / "arm.robot.json").write_text(
         '{"base_link": "b", "links": [{"name": "b"}], "joints": [{"name": "j1"}]}')
     (tmp_path / "arm.robot_sweeps.json").write_text('{"j1": {"from": 0, "to": 1, "frames": []}}')
+    (tmp_path / "bracket.analysis.json").write_text('{"summary": {"max_von_mises": 423646.0}}')
+    (tmp_path / "bracket.analysis.mesh.json").write_text(
+        '{"points": [[0,0,0]], "triangles": [], "fields": {}, "ranges": {}}')
     svc = NcadService(models_dir=str(tmp_path), host="127.0.0.1", port=0,
                       build_service=_FakeBuildService())
     svc.start()
@@ -180,6 +187,24 @@ def test_robot_collide_post(service):
     assert collisions and collisions[0]["a"] == "forearm" and collisions[0]["b"] == "base"
 
 
+def test_analyses_list_summary_and_mesh(service):
+    status, body, _ = _get(f"{service.base_url}/api/v1/analyses")
+    assert status == 200
+    assert [a["name"] for a in json.loads(body)["analyses"]] == ["bracket"]
+    status, body, _ = _get(f"{service.base_url}/api/v1/analysis/bracket")
+    assert status == 200 and "summary" in json.loads(body)
+    status, body, _ = _get(f"{service.base_url}/api/v1/analysis-mesh/bracket")
+    assert status == 200 and "points" in json.loads(body)
+
+
+def test_analyze_post(service):
+    status, body, _ = _post(f"{service.base_url}/api/v1/analyze",
+                            {"spec": "bracket.analysis.hocon"})
+    payload = json.loads(body)
+    assert payload["analysis"] == "bracket" and payload["status"] == "generated"
+    assert "analyses" in payload   # the refreshed analysis list rides the response
+
+
 def test_robot_keyframes_get(service):
     status, body, _ = _get(f"{service.base_url}/api/v1/robot-keyframes/arm")
     assert status == 200
@@ -240,6 +265,14 @@ def test_robot_delete_returns_200_not_405(service):
     status, body, _ = _post(f"{service.base_url}/api/v1/robot/arm/delete", None)
     assert status == 200
     assert json.loads(body)["robots"] == []   # the only robot was just deleted
+
+
+def test_analysis_delete_returns_200_not_405(service):
+    # Guards route ordering: POST /analysis/<name>/delete must precede the GET /analysis/(.+)
+    # catch-all AND the /analysis-mesh/ prefix must not shadow it.
+    status, body, _ = _post(f"{service.base_url}/api/v1/analysis/bracket/delete", None)
+    assert status == 200
+    assert json.loads(body)["analyses"] == []   # the only analysis was just deleted
 
 
 def test_cors_header_on_get(service):

@@ -124,6 +124,19 @@ def test_motion_regenerate_rejects_unrecorded_external_source(tmp_path) -> None:
     assert service._allowed_motion_path(str(external)) is None
 
 
+def test_analyze_allows_spec_under_examples(tmp_path) -> None:
+    service, examples, _ = _service(tmp_path)
+    (examples / "g" / "bracket.analysis.hocon").write_text("x")
+    assert service._allowed_analysis_path(str(examples / "g" / "bracket.analysis.hocon")) \
+        is not None
+
+
+def test_analyze_rejects_spec_outside_examples(tmp_path) -> None:
+    service, _, _ = _service(tmp_path)
+    with pytest.raises(BuildError):
+        service.analyze("../elsewhere/evil.analysis.hocon")
+
+
 def test_save_and_read_robot_keyframes_round_trip(tmp_path) -> None:
     # The sidecar keys off a built robot tree, so plant one; then save + read back a named set.
     service, _, out = _service(tmp_path)

@@ -184,6 +184,18 @@
     background: var(--panel); border: 1px solid var(--border); border-radius: 20px;
     padding: 5px 10px; backdrop-filter: blur(6px); }
   #motion-bar[hidden] { display: none; }
+  /* Analysis field legend (S7 FEA): field selector + colormap gradient + min/max, bottom-center. */
+  #analysis-legend { position: absolute; bottom: 54px; left: 50%; transform: translateX(-50%);
+    display: flex; align-items: center; gap: 8px; z-index: 55;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 20px;
+    padding: 5px 12px; backdrop-filter: blur(6px); font-size: 12px; }
+  #analysis-legend[hidden] { display: none; }
+  #analysis-field { background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
+    border-radius: 12px; padding: 2px 6px; font-size: 12px; }
+  #analysis-gradient { width: 140px; height: 12px; border-radius: 6px; border: 1px solid var(--border);
+    background: linear-gradient(to right, #3b4cc0, #6db0ef, #9fd98f, #f3e35a, #ef8a3a, #b40426); }
+  .analysis-range { color: var(--muted); font-variant-numeric: tabular-nums; }
+  #analysis-unit { color: var(--muted); }
   /* Transport: -, play/pause, + as one compact segmented pill. */
   #motion-transport { display: flex; align-items: center; border: 1px solid var(--border);
     border-radius: 14px; overflow: hidden; background: var(--panel-2); }
@@ -397,6 +409,10 @@
   .robot-row { display: flex; flex-direction: column; gap: 1px; padding: 4px 0;
     border-bottom: 1px solid var(--border); }
   .robot-row .robot-name { font-size: 12px; font-weight: 600; color: var(--text); }
+  /* Analysis legend swatch: a small color chip inline before a load/constraint name, matching its
+     viewport glyph color so the scene arrows/markers are self-explaining. */
+  .analysis-swatch { display: inline-block; width: 9px; height: 9px; border-radius: 2px;
+    margin-right: 6px; vertical-align: baseline; border: 1px solid rgba(0,0,0,0.25); }
   .robot-row .robot-meta { font-size: 10.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
   .robot-row .robot-chain { font-size: 10px; color: var(--muted); }
   /* Session log (Logs tab): monospace lines, newest at the bottom; not persisted across reloads. */
@@ -529,7 +545,8 @@
       <button id="mode-parts" class="mode-btn active" data-mode="parts">Part</button>
       <button id="mode-assemblies" class="mode-btn" data-mode="assemblies">Asm</button>
       <button id="mode-motion" class="mode-btn" data-mode="motion">Motion</button>
-      <button id="mode-physics" class="mode-btn" data-mode="physics">Physics</button>
+      <button id="mode-physics" class="mode-btn" data-mode="physics">Phy</button>
+      <button id="mode-analysis" class="mode-btn" data-mode="analysis">Analyze</button>
     </div>
     <div>
       <div class="label">Spec</div>
@@ -726,6 +743,15 @@
       </div>
       <span id="motion-readout">0&deg;</span>
     </div>
+    <!-- Analysis field legend (S7 FEA): shown in Analysis mode when a colored field mesh loads.
+         A field selector + a colormap gradient bar with min/max labels for the active scalar. -->
+    <div id="analysis-legend" hidden>
+      <select id="analysis-field" title="Field to color by" aria-label="Analysis field"></select>
+      <span id="analysis-min" class="analysis-range">0</span>
+      <div id="analysis-gradient" aria-hidden="true"></div>
+      <span id="analysis-max" class="analysis-range">0</span>
+      <span id="analysis-unit"></span>
+    </div>
     <!-- Export control (bottom-left): a download-icon button that opens a context-sensitive format
          menu. Formats depend on the current tab; picking one re-exports via ncad + downloads. -->
     <div id="export-control" hidden>
@@ -745,6 +771,7 @@
       <button class="tab" data-tab="bom" role="tab">BOM</button>
       <button class="tab" id="tab-measures-btn" data-tab="measures" role="tab" hidden>Measures</button>
       <button class="tab" id="tab-robot-btn" data-tab="robot" role="tab" hidden>Robot</button>
+      <button class="tab" id="tab-analysis-btn" data-tab="analysis" role="tab" hidden>Analysis</button>
       <button class="tab" data-tab="logs" role="tab">Logs</button>
     </div>
     <div class="tab-panel active" id="tab-hierarchy" role="tabpanel">
@@ -758,6 +785,9 @@
     </div>
     <div class="tab-panel" id="tab-robot" role="tabpanel">
       <div id="robot-body"><div class="panel-empty">no robot</div></div>
+    </div>
+    <div class="tab-panel" id="tab-analysis" role="tabpanel">
+      <div id="analysis-body"><div class="panel-empty">no analysis</div></div>
     </div>
     <div class="tab-panel" id="tab-logs" role="tabpanel">
       <div id="logs-body"><div class="panel-empty">no log entries yet</div></div>

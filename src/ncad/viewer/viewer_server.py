@@ -38,6 +38,8 @@ _MOTION_ROUTE = "/api/motion/"
 _ROBOT_ROUTE = "/api/robot/"
 _ROBOT_SWEEPS_ROUTE = "/api/robot-sweeps/"
 _ROBOT_KEYFRAMES_ROUTE = "/api/robot-keyframes/"
+_ANALYSIS_MESH_ROUTE = "/api/analysis-mesh/"
+_ANALYSIS_ROUTE = "/api/analysis/"
 _JS_ROUTE = "/js/"
 # The viewer's app JS lives beside the page asset (src/ncad/viewer/static/js/), served at /js/.
 _STATIC_JS_DIR = Path(__file__).resolve().parent / "static" / "js"
@@ -92,6 +94,12 @@ class _ViewerRequestHandler(BaseHTTPRequestHandler):
             self._send_json(200, {"motions": self._catalog.motion_names()})
         elif path == "/api/robots":
             self._send_json(200, {"robots": self._catalog.robots_with_labels()})
+        elif path == "/api/analyses":
+            self._send_json(200, {"analyses": self._catalog.analyses_with_labels()})
+        elif path.startswith(_ANALYSIS_MESH_ROUTE):
+            self._send_analysis_mesh(path[len(_ANALYSIS_MESH_ROUTE) :])
+        elif path.startswith(_ANALYSIS_ROUTE):
+            self._send_analysis(path[len(_ANALYSIS_ROUTE) :])
         elif path.startswith(_ROBOT_SWEEPS_ROUTE):
             self._send_robot_sweeps(path[len(_ROBOT_SWEEPS_ROUTE) :])
         elif path.startswith(_ROBOT_KEYFRAMES_ROUTE):
@@ -146,6 +154,8 @@ class _ViewerRequestHandler(BaseHTTPRequestHandler):
             self._handle_motion_build()
         elif path == "/api/physics-build":
             self._handle_physics_build()
+        elif path == "/api/analyze":
+            self._handle_analyze()
         elif path == "/api/robot-collide":
             self._handle_robot_collide()
         elif path.startswith(_ROBOT_KEYFRAMES_ROUTE):
@@ -161,6 +171,9 @@ class _ViewerRequestHandler(BaseHTTPRequestHandler):
         elif path.startswith(_ROBOT_ROUTE) and path.endswith("/delete"):
             name = path[len(_ROBOT_ROUTE) : -len("/delete")]
             self._handle_delete_robot(unquote(name))
+        elif path.startswith(_ANALYSIS_ROUTE) and path.endswith("/delete"):
+            name = path[len(_ANALYSIS_ROUTE) : -len("/delete")]
+            self._handle_delete_analysis(unquote(name))
         else:
             self.send_error(404, "not found")
 
@@ -243,6 +256,26 @@ class _ViewerRequestHandler(BaseHTTPRequestHandler):
             self._send_json(500, {"error": "internal physics-build error"})
             return
         self._send_json(200, {"robots": self._catalog.robots_with_labels(), **result})
+
+    def _handle_analyze(self) -> None:
+        length = int(self.headers.get("Content-Length", 0))
+        try:
+            body = json.loads(self.rfile.read(length) or b"{}")
+            spec = body["spec"]
+        except (ValueError, KeyError):
+            self._send_json(400, {"error": "request must be JSON with a 'spec' field"})
+            return
+        try:
+            result = self._build_service.analyze(spec)
+        except BuildError as exc:
+            logger.warning("analyze rejected for %s: %s", spec, exc)
+            self._send_json(400, {"error": str(exc)})
+            return
+        except Exception:  # noqa: BLE001 - never raise to the socket; log and 500
+            logger.exception("unexpected analyze failure for %s", spec)
+            self._send_json(500, {"error": "internal analyze error"})
+            return
+        self._send_json(200, {"analyses": self._catalog.analyses_with_labels(), **result})
 
     def _handle_robot_collide(self) -> None:
         length = int(self.headers.get("Content-Length", 0))
@@ -337,6 +370,15 @@ class _ViewerRequestHandler(BaseHTTPRequestHandler):
         logger.info("deleted robot %s", name)
         self._send_json(200, {"robots": self._catalog.robots_with_labels()})
 
+    def _handle_delete_analysis(self, name: str) -> None:
+        removed = self._catalog.delete_analysis(name)
+        if removed is None:
+            logger.warning("delete rejected: unknown analysis %r", name)
+            self.send_error(404, "unknown analysis")
+            return
+        logger.info("deleted analysis %s", name)
+        self._send_json(200, {"analyses": self._catalog.analyses_with_labels()})
+
     def _send_model_list(self) -> None:
         self._send_json(200, {"models": self._catalog.models_with_sources()})
 
@@ -411,6 +453,22 @@ class _ViewerRequestHandler(BaseHTTPRequestHandler):
         resolved = self._catalog.resolve_robot(unquote(name))
         if resolved is None:
             self.send_error(404, "unknown robot")
+            return
+        with open(resolved, "rb") as handle:
+            self._send_bytes(200, "application/json", handle.read())
+
+    def _send_analysis(self, name: str) -> None:
+        resolved = self._catalog.resolve_analysis(unquote(name))
+        if resolved is None:
+            self.send_error(404, "unknown analysis")
+            return
+        with open(resolved, "rb") as handle:
+            self._send_bytes(200, "application/json", handle.read())
+
+    def _send_analysis_mesh(self, name: str) -> None:
+        resolved = self._catalog.resolve_analysis_mesh(unquote(name))
+        if resolved is None:
+            self.send_error(404, "unknown analysis mesh")
             return
         with open(resolved, "rb") as handle:
             self._send_bytes(200, "application/json", handle.read())

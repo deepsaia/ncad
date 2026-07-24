@@ -97,3 +97,14 @@ def test_motion_and_physics_documents_tagged_by_suffix(tmp_path) -> None:
     specs = {n["name"]: n["kind"] for n in catalog.tree() if n["type"] == "spec"}
     assert specs["arm.motion.hocon"] == "motion"
     assert specs["arm.physics.hocon"] == "physics"
+
+
+def test_analysis_document_tagged_analysis_kind(tmp_path) -> None:
+    # A .analysis.hocon (FEA load case) also ends in .hocon; the compound suffix must win over the
+    # bare part fallthrough so it shows in the viewer's Analysis mode combobox.
+    _make_examples(tmp_path)
+    (tmp_path / "bracket.analysis.hocon").write_text("x")
+    catalog = SpecCatalog(str(tmp_path))
+
+    specs = {n["name"]: n["kind"] for n in catalog.tree() if n["type"] == "spec"}
+    assert specs["bracket.analysis.hocon"] == "analysis"
