@@ -1,6 +1,6 @@
 """High-cycle fatigue life from a solved static stress (Basquin S-N + Goodman mean correction).
 
-Pure post-process, no solver: given the static peak stress sigma_max and the cycle's stress ratio
+Pure post-process, no solver: given the peak cyclic stress (sigma_max) and the cycle's stress ratio
 R = sigma_min/sigma_max, the alternating and mean stresses follow; the Goodman rule corrects the
 alternating stress to an equivalent fully-reversed stress against the material ultimate; the
 Basquin S-N curve N = (sigma_ar / sigma_f')^(1/b) gives cycles-to-failure; below the endurance
@@ -22,36 +22,33 @@ class FatigueCalculator:
     def life(self, peak_stress: float, ratio: float, material: dict) -> dict:
         """Return the fatigue result for ``peak_stress`` under stress ratio ``ratio``.
 
+        :param peak_stress: the peak cyclic stress (sigma_max) in Pa.
+        :param ratio: the stress ratio R = sigma_min / sigma_max.
+        :param material: material dict with structural.ultimate/endurance_limit/fatigue_* S-N data.
         :raises AnalysisError: if the material lacks S-N data, or the mean stress reaches the
             ultimate (static yield, so a fatigue life is meaningless).
         """
         sn = _sn_data(material)
-        stress_range = float(peak_stress)
-        if stress_range <= 0.0:
+        sigma_max = float(peak_stress)
+        if sigma_max <= 0.0:
             return _result(None, None, True, 0.0, 0.0)
-        # stress_range = sigma_max - sigma_min, with sigma_min = R * sigma_max
-        # so stress_range = sigma_max * (1 - R), thus sigma_max = stress_range / (1 - R)
-        if ratio >= 1.0:
-            # R >= 1 means sigma_min >= sigma_max, which is not a valid stress cycle
-            raise AnalysisError(f"stress ratio R={ratio} >= 1 is not a valid cyclic load")
-        sigma_max = stress_range / (1.0 - ratio)
-        sigma_min = ratio * sigma_max
-        alternating = (sigma_max - sigma_min) / 2.0
-        mean = (sigma_max + sigma_min) / 2.0
-        if mean >= sn["ultimate"]:
+        # sigma_a = sigma_max * (1 - R) / 2, sigma_m = sigma_max * (1 + R) / 2
+        sigma_a = sigma_max * (1.0 - ratio) / 2.0
+        sigma_m = sigma_max * (1.0 + ratio) / 2.0
+        if sigma_m >= sn["ultimate"]:
             raise AnalysisError(
-                f"fatigue mean stress {mean:.3g} Pa reaches the ultimate {sn['ultimate']:.3g} Pa "
-                f"(static yield); a fatigue life is not meaningful")
+                f"fatigue mean stress {sigma_m:.3g} Pa reaches the ultimate "
+                f"{sn['ultimate']:.3g} Pa (static yield); a fatigue life is not meaningful")
         # Goodman: the equivalent fully-reversed amplitude for a nonzero-mean cycle.
-        equivalent = alternating / (1.0 - mean / sn["ultimate"])
-        safety = sn["endurance_limit"] / equivalent if equivalent > 0 else None
-        if equivalent <= sn["endurance_limit"]:
-            return _result(None, safety, True, alternating, mean)
+        sigma_ar = sigma_a / (1.0 - sigma_m / sn["ultimate"])
+        safety = sn["endurance_limit"] / sigma_ar if sigma_ar > 0 else None
+        if sigma_ar <= sn["endurance_limit"]:
+            return _result(None, safety, True, sigma_a, sigma_m)
         # Basquin: N = (sigma_ar / sigma_f')^(1/b), b negative.
-        cycles = (equivalent / sn["fatigue_strength_coeff"]) ** (1.0 / sn["fatigue_exponent"])
-        logger.info("fatigue: range %.3g Pa, R %.2f -> alt %.3g, N %.3g cycles",
-                    stress_range, ratio, equivalent, cycles)
-        return _result(cycles, safety, False, alternating, mean)
+        cycles = (sigma_ar / sn["fatigue_strength_coeff"]) ** (1.0 / sn["fatigue_exponent"])
+        logger.info("fatigue: peak %.3g Pa, R %.2f -> alt %.3g, N %.3g cycles",
+                    sigma_max, ratio, sigma_ar, cycles)
+        return _result(cycles, safety, False, sigma_a, sigma_m)
 
 
 def _sn_data(material: dict) -> dict:
