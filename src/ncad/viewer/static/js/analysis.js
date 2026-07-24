@@ -12,6 +12,7 @@ const _RAMP = [
   [0.231, 0.298, 0.753], [0.427, 0.690, 0.937], [0.624, 0.851, 0.561],
   [0.953, 0.890, 0.353], [0.937, 0.541, 0.227], [0.706, 0.016, 0.149],
 ];
+const _MM_TO_M = 0.001;   // the kernel meshes in mm; the viewer scene is metre-scale (glTF convention)
 const _UNITS = { von_mises: "Pa", displacement: "m", temperature: "°C" };
 const _LABELS = { von_mises: "von Mises", displacement: "displacement", temperature: "temperature" };
 
@@ -80,8 +81,11 @@ function _renderMesh(data) {
 
   const geometry = new THREE.BufferGeometry();
   const positions = new Float32Array(data.points.length * 3);
-  data.points.forEach((p, i) => { positions[i * 3] = p[0]; positions[i * 3 + 1] = p[1];
-                                   positions[i * 3 + 2] = p[2]; });
+  // The mesh JSON is in the kernel's millimetres; the rest of the viewer is metre-scale (the glTF
+  // export divides mm->m). Scale here so the field mesh sits in the same scene as everything else.
+  data.points.forEach((p, i) => { positions[i * 3] = p[0] * _MM_TO_M;
+                                   positions[i * 3 + 1] = p[1] * _MM_TO_M;
+                                   positions[i * 3 + 2] = p[2] * _MM_TO_M; });
   geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
   geometry.setAttribute("color", new THREE.BufferAttribute(
     new Float32Array(data.points.length * 3), 3));
