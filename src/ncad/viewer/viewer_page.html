@@ -409,6 +409,10 @@
   .robot-row { display: flex; flex-direction: column; gap: 1px; padding: 4px 0;
     border-bottom: 1px solid var(--border); }
   .robot-row .robot-name { font-size: 12px; font-weight: 600; color: var(--text); }
+  /* Analysis legend swatch: a small color chip inline before a load/constraint name, matching its
+     viewport glyph color so the scene arrows/markers are self-explaining. */
+  .analysis-swatch { display: inline-block; width: 9px; height: 9px; border-radius: 2px;
+    margin-right: 6px; vertical-align: baseline; border: 1px solid rgba(0,0,0,0.25); }
   .robot-row .robot-meta { font-size: 10.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
   .robot-row .robot-chain { font-size: 10px; color: var(--muted); }
   /* Session log (Logs tab): monospace lines, newest at the bottom; not persisted across reloads. */

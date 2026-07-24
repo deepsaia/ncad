@@ -32,7 +32,6 @@ let unitLabel = null;
 let currentMesh = null;        // {geometry, material, group}
 let currentData = null;        // the fetched {points, triangles, fields, ranges}
 let currentField = null;
-let group_labels = [];         // glyph label sprite textures, disposed on clear
 
 export function initAnalysis(deps) {
   scene = deps.scene;
@@ -66,8 +65,6 @@ export function clearAnalysis() {
     currentMesh.material.dispose();
     currentMesh = null;
   }
-  group_labels.forEach(l => l.texture.dispose());
-  group_labels = [];
   currentData = null;
   if (legend) legend.hidden = true;
 }
@@ -132,13 +129,13 @@ const _GLYPH_COLORS = {
 };
 
 // Add one glyph to the group: an arrow (loads) or a small octahedron marker (a fixed support), at
-// the glyph's anchor (mm->m) pointing along its direction, plus a floating text label so the user
-// knows what each colored arrow/marker is. Length is a fraction of the model.
+// the glyph's anchor (mm->m) pointing along its direction. Length is a fraction of the model. The
+// glyphs are NOT labeled in the viewport (that got cluttered/oversized); the Analysis sidebar tab
+// carries a color-coded legend instead (glyphColor() exposes the palette to app.js).
 function _addGlyph(group, glyph, extent) {
   const at = new THREE.Vector3(glyph.at[0], glyph.at[1], glyph.at[2]).multiplyScalar(_MM_TO_M);
   const dir = new THREE.Vector3(glyph.dir[0], glyph.dir[1], glyph.dir[2]);
   const color = _GLYPH_COLORS[glyph.kind] || 0xffffff;
-  let tip;   // where the label floats: the arrow tip, or just above a fixed marker
   if (glyph.kind === "fixed" || dir.lengthSq() < 1e-9) {
     const marker = new THREE.Mesh(
       new THREE.OctahedronGeometry(extent * 0.05),
@@ -146,45 +143,17 @@ function _addGlyph(group, glyph, extent) {
     marker.position.copy(at);
     marker.userData.fieldMesh = true;        // applyMode must not re-materialize glyphs
     group.add(marker);
-    tip = at.clone().add(new THREE.Vector3(0, 0, extent * 0.09));
-  } else {
-    const arrow = new THREE.ArrowHelper(dir.clone().normalize(), at, extent * 0.4, color,
-                                        extent * 0.12, extent * 0.07);
-    arrow.traverse(o => { o.userData.fieldMesh = true; });
-    group.add(arrow);
-    tip = at.clone().add(dir.clone().normalize().multiplyScalar(extent * 0.44));
+    return;
   }
-  group.add(_makeLabel(`${glyph.name}: ${glyph.kind}`, tip, color, extent));
+  const arrow = new THREE.ArrowHelper(dir.clone().normalize(), at, extent * 0.4, color,
+                                      extent * 0.12, extent * 0.07);
+  arrow.traverse(o => { o.userData.fieldMesh = true; });
+  group.add(arrow);
 }
 
-// A camera-facing text sprite (canvas texture) for a glyph label, colored to match its glyph.
-function _makeLabel(text, position, color, extent) {
-  const pad = 8;
-  const font = 40;
-  const measure = document.createElement("canvas").getContext("2d");
-  measure.font = `${font}px sans-serif`;
-  const w = Math.ceil(measure.measureText(text).width) + pad * 2;
-  const h = font + pad * 2;
-  const canvas = document.createElement("canvas");
-  canvas.width = w; canvas.height = h;
-  const ctx = canvas.getContext("2d");
-  ctx.font = `${font}px sans-serif`;
-  ctx.fillStyle = "rgba(20,22,28,0.72)";
-  ctx.fillRect(0, 0, w, h);
-  ctx.fillStyle = "#" + color.toString(16).padStart(6, "0");
-  ctx.textBaseline = "middle";
-  ctx.fillText(text, pad, h / 2);
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.minFilter = THREE.LinearFilter;
-  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true,
-                                                             depthTest: false }));
-  sprite.position.copy(position);
-  // A small, readable label: a fraction of the model extent, capped so it never dominates.
-  const scale = Math.min(extent * 0.09, 0.02);
-  sprite.scale.set(scale * (w / h), scale, 1);
-  sprite.userData.fieldMesh = true;        // applyMode must not touch glyph labels
-  group_labels.push({ texture });          // tracked for disposal on clear
-  return sprite;
+// The CSS hex color for a glyph kind, so the sidebar legend swatches match the viewport arrows.
+export function glyphColor(kind) {
+  return "#" + (_GLYPH_COLORS[kind] || 0xffffff).toString(16).padStart(6, "0");
 }
 
 export function setField(name) {

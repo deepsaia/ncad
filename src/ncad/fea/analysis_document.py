@@ -48,6 +48,9 @@ class AnalysisDocument:
         kernel, shape = _build_part(part_path, stem)
         step_path = os.path.join(out_dir, f"{stem}.step")
         kernel.export(shape, step_path)
+        # Write the part's feature hierarchy sidecar so the viewer's Hierarchy tab has content in
+        # Analyze mode (the part is built here internally, so its normal build sidecars are absent).
+        _write_hierarchy(part_path, stem, out_dir)
 
         mesh_inp = os.path.join(out_dir, f"{stem}.mesh.inp")
         groups = _groups(spec)
@@ -156,6 +159,21 @@ def _merge_summary(merged: dict, summary: dict) -> None:
         existing = merged["safety_factor"]
         merged["safety_factor"] = (summary["safety_factor"] if existing is None
                                    else min(existing, summary["safety_factor"]))
+
+
+def _write_hierarchy(part_path: str, stem: str, out_dir: str) -> None:
+    """Write ``<stem>.hierarchy.json`` (the part's display feature tree) for the viewer."""
+    from ncad.build.hierarchy_builder import HierarchyBuilder
+
+    document = SpecLoader().load(part_path)
+    parts = document.get("parts") or {}
+    part = parts.get(stem) or next(iter(parts.values()), None)
+    part_name = stem if stem in parts else next(iter(parts), stem)
+    if part is None:
+        return
+    tree = HierarchyBuilder().hierarchy(part_name, part)
+    with open(os.path.join(out_dir, f"{stem}.hierarchy.json"), "w", encoding="utf-8") as handle:
+        json.dump(tree, handle, indent=2)
 
 
 def _build_part(part_path: str, stem: str):

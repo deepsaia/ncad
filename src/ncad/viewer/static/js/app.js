@@ -20,7 +20,7 @@ import { initTheme } from "./theme.js";
 import { initSceneFurniture } from "./scene_furniture.js";
 import { buildFkChain, actuatedJoints, solveFk } from "./robot_fk.js";
 import { compileKeyframes } from "./robot_keyframes.js";
-import { initAnalysis, loadAnalysis, clearAnalysis } from "./analysis.js";
+import { initAnalysis, loadAnalysis, clearAnalysis, glyphColor } from "./analysis.js";
 
 const stage = document.getElementById("stage");
 const spinner = document.getElementById("spinner");
@@ -961,6 +961,7 @@ function selectAnalysis(name) {
   localStorage.setItem("ncad.active.analysis", name);
   spinner.style.display = "flex";   // hidden again in onMeshReady (or on a load failure)
   loadAnalysis(name);        // fetches the field mesh; onMeshReady parents + frames it
+  loadHierarchy(name);       // the part's feature tree (AnalysisDocument writes its sidecar)
   // The Analyze inspector: fetch the summary + load case for the right-sidebar Analysis tab.
   fetch(apiUrl("/analysis/" + encodeURIComponent(name)))
     .then(r => (r.ok ? r.json() : null))
@@ -1721,16 +1722,21 @@ function renderAnalysisPanel(doc) {
     rows.push(`<div class="robot-row"><span class="robot-name">modes (Hz)</span>` +
       `<span class="robot-meta">${hz}</span></div>`);
   }
-  rows.push('<div class="robot-section">constraints</div>');
+  // Constraints + loads carry a color swatch matching their viewport glyph, so the arrows/markers
+  // in the scene are self-explaining (what "tip", "base", "in" mean) without cluttering the 3D view.
+  rows.push('<div class="robot-section">constraints (fixed supports)</div>');
   for (const c of doc.constraints || []) {
-    rows.push(`<div class="robot-row"><span class="robot-name">${escapeHtml(c.name)}</span>` +
+    rows.push(`<div class="robot-row">${_swatch("fixed")}` +
+      `<span class="robot-name">${escapeHtml(c.name)}</span>` +
       `<span class="robot-meta">${escapeHtml(c.type || ("dof " + (c.dof || []).join(",")))} ` +
       `&middot; ${escapeHtml(_whereText(c.where))}</span></div>`);
   }
   rows.push('<div class="robot-section">loads</div>');
   for (const l of _allLoads(doc)) {
-    rows.push(`<div class="robot-row"><span class="robot-name">${escapeHtml(l.name)}</span>` +
-      `<span class="robot-meta">${escapeHtml(l.type)} ${escapeHtml(_loadValue(l))}</span></div>`);
+    rows.push(`<div class="robot-row">${_swatch(l.type)}` +
+      `<span class="robot-name">${escapeHtml(l.name)}</span>` +
+      `<span class="robot-meta">${escapeHtml(l.type)} ${escapeHtml(_loadValue(l))} ` +
+      `&middot; ${escapeHtml(_whereText(l.where))}</span></div>`);
   }
   rows.push('<div class="robot-section">steps</div>');
   for (const st of doc.steps || []) {
@@ -1748,8 +1754,13 @@ function _allLoads(doc) {
 }
 
 function _whereText(where) {
-  if (!where) return "body";
+  if (!where) return "whole body";
   return where.face ? `face: ${where.face}` : JSON.stringify(where);
+}
+
+// A small inline color chip matching the glyph color for a load/constraint kind (the legend key).
+function _swatch(kind) {
+  return `<span class="analysis-swatch" style="background:${glyphColor(kind)}"></span>`;
 }
 
 function _loadValue(l) {
