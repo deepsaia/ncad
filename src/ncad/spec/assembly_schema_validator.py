@@ -6,6 +6,7 @@ collision is a contract error reported by id).
 """
 
 import logging
+from functools import cache
 from pathlib import Path
 
 from jsonschema import Draft202012Validator
@@ -22,9 +23,8 @@ class AssemblySchemaValidator:
     """Validates assembly document dicts against the assembly schema + id uniqueness."""
 
     def __init__(self, schema_path: Path = _SCHEMA_PATH) -> None:
-        """Load and compile the assembly schema once."""
-        schema = SpecLoader().load(str(schema_path))
-        self._validator = Draft202012Validator(schema)
+        """Compile the assembly schema (reusing a cached compile for a path seen this process)."""
+        self._validator = _compiled_assembly_schema(str(schema_path))
 
     def validate(self, document: dict) -> list[SchemaIssue]:
         """Return schema issues plus duplicate-instance-id issues; empty means valid."""
@@ -170,3 +170,9 @@ class AssemblySchemaValidator:
                         location="assembly.couplings",
                         message=f"coupling {cid!r} references unknown joint {ref!r}"))
         return out
+
+
+@cache
+def _compiled_assembly_schema(schema_path: str) -> Draft202012Validator:
+    """Load + compile the assembly schema once per process (immutable file, read-only validator)."""
+    return Draft202012Validator(SpecLoader().load(schema_path))
