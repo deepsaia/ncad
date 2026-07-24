@@ -305,8 +305,6 @@ class ViewerCli:
         diagnostics are logged and the sidecar is written beside the other build artifacts.
         ``rules`` is an optional path to an external rule file (defaults to the shipped limits).
         """
-        import os
-
         from ncad.build.dfm_rule_set import DfmRuleSet
         from ncad.build.document_builder import DocumentBuilder
         from ncad.build.manufacturability_checker import ManufacturabilityChecker
@@ -315,7 +313,7 @@ class ViewerCli:
         logging.basicConfig(level=logging.INFO, format="%(message)s")
         logging.getLogger("build123d").setLevel(logging.WARNING)
         out_dir = self.resolve_models_dir(out)
-        os.makedirs(out_dir, exist_ok=True)
+        Path(out_dir).mkdir(parents=True, exist_ok=True)
         kernel = Build123dKernel()
         checker = ManufacturabilityChecker(kernel, DfmRuleSet(rules))
         built = DocumentBuilder(kernel).build_file_document(document)
@@ -341,8 +339,6 @@ class ViewerCli:
         first-class, editable ncad part, then built to glb. Returns ``{"part", "document",
         "artifacts", "provenance"}``.
         """
-        import os
-
         from ncad.build.document_builder import DocumentBuilder
         from ncad.kernel.build123d_kernel import Build123dKernel
         from ncad.spec.spec_writer import SpecWriter
@@ -359,8 +355,8 @@ class ViewerCli:
             raise ValueError("standard_part needs a designation or explicit dimensions")
         part_name = next(iter(document["parts"]))
         out_dir = self.resolve_models_dir(out)
-        os.makedirs(out_dir, exist_ok=True)
-        doc_path = os.path.join(str(out_dir), f"{part_name}.hocon")
+        Path(out_dir).mkdir(parents=True, exist_ok=True)
+        doc_path = str(Path(out_dir) / f"{part_name}.hocon")
         SpecWriter().dump(document, doc_path)
         artifacts = DocumentBuilder(Build123dKernel()).build_file(doc_path, str(out_dir))
         return {"part": part_name, "document": doc_path, "artifacts": artifacts["artifacts"],
