@@ -8,7 +8,7 @@ class; no filesystem writes here (that is the hook's job), which keeps it unit-t
 """
 
 import logging
-import os
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -108,4 +108,4 @@ class ReferenceRenderer:
                 return handle.read().rstrip("\n")
         except OSError as exc:
             logger.warning("docs renderer could not read %s: %s", path, exc)
-            return f"# (could not read {os.path.basename(path)})"
+            return f"# (could not read {Path(path).name})"

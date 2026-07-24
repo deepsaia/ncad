@@ -13,7 +13,7 @@ URL structure mirrors the taxonomy.
 """
 
 import logging
-import os
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -131,9 +131,9 @@ class LearnRenderer:
         """Read a concept's adjacent Markdown body (relative to content_dir); None if absent."""
         if not body_file:
             return None
-        path = os.path.join(self._content_dir, body_file)
+        path = Path(self._content_dir) / body_file
         try:
-            with open(path, encoding="utf-8") as handle:
+            with path.open(encoding="utf-8") as handle:
                 return handle.read()
         except OSError as exc:
             logger.warning("learn renderer could not read body file %s: %s", path, exc)

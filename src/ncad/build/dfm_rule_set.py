@@ -11,13 +11,13 @@ The file shape (see ``dfm_rules/default_rules.json``):
 "cite"}}}}}``. One class; loading is done once at construction.
 """
 
-import os
+from pathlib import Path
 from typing import Any
 
 from ncad.spec.spec_loader import SpecLoader
 
 # The shipped default limits live beside this module; a caller may pass its own file instead.
-_DEFAULT_RULES = os.path.join(os.path.dirname(__file__), "dfm_rules", "default_rules.json")
+_DEFAULT_RULES = str(Path(__file__).parent / "dfm_rules" / "default_rules.json")
 
 
 class DfmRuleSet:
