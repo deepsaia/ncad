@@ -19,6 +19,7 @@ from ncad.fea.ccx_runner import CcxRunner
 from ncad.fea.deck_writer import DeckWriter
 from ncad.fea.frd_reader import FrdReader
 from ncad.fea.gmsh_mesher import GmshMesher
+from ncad.fea.load_glyph_builder import LoadGlyphBuilder
 from ncad.fea.surface_extractor import SurfaceExtractor
 from ncad.spec.material_library import MaterialLibrary
 from ncad.spec.spec_loader import SpecLoader
@@ -88,11 +89,12 @@ class AnalysisDocument:
                   "artifacts": artifacts, "sidecars": {}, "summary": {}, "mesh": mesh_report,
                   "warnings": warnings}
         if family_results:
-            result.update(self._read_back(family_results, material, mesh_inp, out_dir, stem))
+            result.update(self._read_back(family_results, material, mesh_inp, out_dir, stem,
+                                          spec, rewritten["triangles"]))
         return result
 
     def _read_back(self, family_results: list, material: dict, mesh_inp: str, out_dir: str,
-                   stem: str) -> dict:
+                   stem: str, spec, group_triangles: dict) -> dict:
         """Merge each family's .frd into one summary + field mesh; return the paths + summary."""
         reader = FrdReader()
         merged: dict = {"max_von_mises": 0.0, "max_displacement": 0.0, "frequencies": [],
@@ -109,13 +111,20 @@ class AnalysisDocument:
                 primary = parsed          # color the viewer by the structural (stress) result
         primary = primary or reader.read(family_results[0][1], material)
         json_path = os.path.join(out_dir, f"{stem}.analysis.json")
+        # The summary sidecar also carries the load case (constraints/loads/steps) so the viewer's
+        # Analyze inspector can show WHAT was analyzed, not just the headline scalars.
         with open(json_path, "w", encoding="utf-8") as handle:
-            json.dump({"summary": merged}, handle, indent=2)
+            json.dump({"summary": merged, "part": spec.part, "mesh": spec.mesh,
+                       "constraints": spec.constraints, "loads": spec.loads,
+                       "steps": spec.steps}, handle, indent=2)
         vtk_path = os.path.join(out_dir, f"{stem}.analysis.vtk")
         reader.write_vtk(primary, _read_elements(mesh_inp), vtk_path)
         # The viewer colors the boundary surface; ship it (+ per-vertex fields) as a compact JSON
         # so the browser never parses VTK. All families share the mesh's node ordering.
         mesh_json = AnalysisMeshWriter().build(nodes, _read_elements(mesh_inp), scalar_fields)
+        # Load glyphs: what forces/BCs act on the model (drawn as arrows/markers in the viewport),
+        # so a user sees WHAT produced the stress/displacement/temperature field.
+        mesh_json["loads"] = LoadGlyphBuilder().build(spec, group_triangles, nodes)
         mesh_path = os.path.join(out_dir, f"{stem}.analysis.mesh.json")
         with open(mesh_path, "w", encoding="utf-8") as handle:
             json.dump(mesh_json, handle)

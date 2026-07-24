@@ -41,10 +41,12 @@ class SurfaceExtractor:
 
         surfaces: dict = {}
         faces_by_group: dict = {}
+        triangles_by_group: dict = {}
         surface_blocks: list[str] = []
         for name in group_names:
             faces = _group_faces(name, elsets, tri_elements, face_of)
             faces_by_group[name] = faces
+            triangles_by_group[name] = _group_triangles(name, elsets, tri_elements)
             if faces:
                 surface_name = f"S{name}"
                 surfaces[name] = surface_name
@@ -53,7 +55,8 @@ class SurfaceExtractor:
                 surfaces[name] = None
         cleaned = _strip_2d_elements(lines).rstrip()
         tail = ("\n" + "\n".join(surface_blocks)) if surface_blocks else ""
-        return {"text": cleaned + tail + "\n", "surfaces": surfaces, "faces": faces_by_group}
+        return {"text": cleaned + tail + "\n", "surfaces": surfaces, "faces": faces_by_group,
+                "triangles": triangles_by_group}
 
 
 def _read_tets(lines: list[str]) -> dict:
@@ -134,6 +137,16 @@ def _group_faces(name: str, elsets: dict, triangles: dict, face_of: dict) -> lis
         if match is not None:
             faces.append(match)
     return faces
+
+
+def _group_triangles(name: str, elsets: dict, triangles: dict) -> list[tuple]:
+    """The group's boundary faces as ``(n1, n2, n3)`` corner-node triples (for glyph anchoring)."""
+    out = []
+    for elem_id in elsets.get(name, []):
+        corners = triangles.get(elem_id)
+        if corners is not None:
+            out.append(corners)
+    return out
 
 
 def _surface_block(surface_name: str, faces: list[tuple]) -> str:
