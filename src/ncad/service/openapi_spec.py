@@ -74,6 +74,13 @@ class OpenApiSpec:
                 "Get a robot's tree (links + joints + computed inertia).", "unknown robot"),
             "/api/v1/robot-sweeps/{name}": _get_by_name(
                 "Get a robot's per-joint articulation sweeps.", "no sweeps for robot"),
+            "/api/v1/analyses": _get_collection("List FEA analyses (parts with a .analysis.json)."),
+            "/api/v1/analysis/{name}": _get_by_name(
+                "Get an analysis summary (max stress/displacement/safety factor).",
+                "unknown analysis"),
+            "/api/v1/analysis-mesh/{name}": _get_by_name(
+                "Get an analysis field mesh (points + triangles + per-vertex fields).",
+                "unknown analysis mesh"),
             "/api/v1/robot-keyframes/{name}": {
                 "get": {"summary": "Get a robot's saved keyframe sets. Returns {sets}.",
                         "parameters": _NAME_PARAM, "responses": {"200": _JSON_OK}},
@@ -97,6 +104,8 @@ class OpenApiSpec:
                 "Run a motion study. Returns {motions, assembled, issues, build_ms}."),
             "/api/v1/physics-build": _post_build(
                 "Export a robot + sidecars. Returns {robots, robot, warnings, build_ms}."),
+            "/api/v1/analyze": _post_build(
+                "Run an FEA load case. Returns {analyses, analysis, status, summary, build_ms}."),
             "/api/v1/robot-collide": _post_build(
                 "Check a robot's self-collision at a pose. Returns {collisions}."),
             "/api/v1/export": _post_build(
