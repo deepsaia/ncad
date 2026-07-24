@@ -13,6 +13,7 @@ import logging
 import os
 
 from ncad.build.document_builder import DocumentBuilder
+from ncad.fea.analysis_mesh_writer import AnalysisMeshWriter
 from ncad.fea.analysis_spec import AnalysisSpec
 from ncad.fea.ccx_runner import CcxRunner
 from ncad.fea.deck_writer import DeckWriter
@@ -97,9 +98,13 @@ class AnalysisDocument:
         merged: dict = {"max_von_mises": 0.0, "max_displacement": 0.0, "frequencies": [],
                         "safety_factor": None}
         primary = None
+        nodes: dict = {}
+        scalar_fields: dict = {}
         for _family, frd in family_results:
             parsed = reader.read(frd, material)
             _merge_summary(merged, parsed["summary"])
+            nodes = nodes or parsed["nodes"]
+            scalar_fields.update(reader.scalar_fields(parsed))  # von_mises/displacement/temperature
             if primary is None and parsed["fields"].get("STRESS"):
                 primary = parsed          # color the viewer by the structural (stress) result
         primary = primary or reader.read(family_results[0][1], material)
@@ -108,7 +113,14 @@ class AnalysisDocument:
             json.dump({"summary": merged}, handle, indent=2)
         vtk_path = os.path.join(out_dir, f"{stem}.analysis.vtk")
         reader.write_vtk(primary, _read_elements(mesh_inp), vtk_path)
-        return {"summary": merged, "sidecars": {"json": json_path, "vtk": vtk_path}}
+        # The viewer colors the boundary surface; ship it (+ per-vertex fields) as a compact JSON
+        # so the browser never parses VTK. All families share the mesh's node ordering.
+        mesh_json = AnalysisMeshWriter().build(nodes, _read_elements(mesh_inp), scalar_fields)
+        mesh_path = os.path.join(out_dir, f"{stem}.analysis.mesh.json")
+        with open(mesh_path, "w", encoding="utf-8") as handle:
+            json.dump(mesh_json, handle)
+        return {"summary": merged,
+                "sidecars": {"json": json_path, "vtk": vtk_path, "mesh": mesh_path}}
 
 
 def _step_families(steps: list) -> dict:
@@ -189,19 +201,23 @@ def _groups(spec: AnalysisSpec) -> dict:
 
 
 def _read_elements(mesh_inp: str) -> list:
-    """Read C3D4/C3D10 element connectivity (node id lists) from the gmsh mesh .inp."""
+    """Read the VOLUME (C3D4/C3D10) element connectivity from the gmsh mesh .inp.
+
+    The mesh .inp also carries gmsh's 2D boundary elements (CPS6); those are skipped so the
+    boundary-surface extraction sees only tets (a stray 2D element would corrupt the face count).
+    """
     elements: list = []
-    in_elements = False
+    reading = False
     with open(mesh_inp, encoding="utf-8") as handle:
         for line in handle:
             stripped = line.strip()
             if stripped.upper().startswith("*ELEMENT"):
-                in_elements = True
+                reading = "C3D" in stripped.upper().replace(" ", "")
                 continue
             if stripped.startswith("*"):
-                in_elements = False
+                reading = False
                 continue
-            if in_elements and stripped:
+            if reading and stripped:
                 parts = [int(p) for p in stripped.rstrip(",").split(",") if p.strip()]
                 elements.append(parts[1:])  # drop the element id, keep node ids
     return elements

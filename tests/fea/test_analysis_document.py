@@ -43,6 +43,20 @@ def test_run_without_gmsh_is_skipped(monkeypatch, tmp_path):
     assert result["status"] == "skipped"
 
 
+def test_writes_mesh_sidecar_with_fields(tmp_path):
+    pytest.importorskip("gmsh")
+    from ncad.fea.ccx_locator import CcxLocator
+    if CcxLocator().locate() is None:
+        pytest.skip("CalculiX (ccx) not installed")
+    import json
+    result = AnalysisDocument().run(_BRACKET, str(tmp_path))
+    mesh_path = result["sidecars"]["mesh"]
+    data = json.loads(open(mesh_path).read())
+    assert data["points"] and data["triangles"]
+    assert "von_mises" in data["fields"]
+    assert "von_mises" in data["ranges"]
+
+
 def test_end_to_end_solve_matches_expectation(tmp_path):
     pytest.importorskip("gmsh")
     from ncad.fea.ccx_locator import CcxLocator
