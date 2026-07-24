@@ -960,6 +960,11 @@ function selectAnalysis(name) {
   syncExportControl();
   localStorage.setItem("ncad.active.analysis", name);
   loadAnalysis(name);        // fetches the field mesh; onMeshReady parents + frames it
+  // The Analyze inspector: fetch the summary + load case for the right-sidebar Analysis tab.
+  fetch(apiUrl("/analysis/" + encodeURIComponent(name)))
+    .then(r => (r.ok ? r.json() : null))
+    .then(doc => renderAnalysisPanel(doc))
+    .catch(() => renderAnalysisPanel(null));
   refreshAnalyses();
 }
 
@@ -1687,6 +1692,75 @@ function renderRobotTree(tree) {
   body.innerHTML = rows.join("");
 }
 
+// The Analyze inspector: the selected result's summary (peak stress/displacement/safety factor)
+// + its load case (constraints/loads/steps), fed by the .analysis.json summary sidecar. Reuses the
+// robot-inspector row styles. Toggles the Analysis tab visible only when a result is loaded.
+function renderAnalysisPanel(doc) {
+  const btn = document.getElementById("tab-analysis-btn");
+  const body = document.getElementById("analysis-body");
+  if (!doc || !doc.summary) {
+    btn.hidden = true;
+    body.innerHTML = '<div class="panel-empty">no analysis</div>';
+    return;
+  }
+  btn.hidden = false;
+  const s = doc.summary;
+  const rows = ['<div class="robot-section">result</div>'];
+  const sci = v => (v == null ? "-" : (+v).toExponential(3));
+  rows.push(`<div class="robot-row"><span class="robot-name">max von Mises</span>` +
+    `<span class="robot-meta">${sci(s.max_von_mises)} Pa</span></div>`);
+  rows.push(`<div class="robot-row"><span class="robot-name">max displacement</span>` +
+    `<span class="robot-meta">${sci(s.max_displacement)} m</span></div>`);
+  if (s.safety_factor != null) {
+    rows.push(`<div class="robot-row"><span class="robot-name">safety factor</span>` +
+      `<span class="robot-meta">${(+s.safety_factor).toFixed(2)} (yield / max von Mises)</span></div>`);
+  }
+  if ((s.frequencies || []).length) {
+    const hz = s.frequencies.slice(0, 6).map(f => (+f).toFixed(1)).join(", ");
+    rows.push(`<div class="robot-row"><span class="robot-name">modes (Hz)</span>` +
+      `<span class="robot-meta">${hz}</span></div>`);
+  }
+  rows.push('<div class="robot-section">constraints</div>');
+  for (const c of doc.constraints || []) {
+    rows.push(`<div class="robot-row"><span class="robot-name">${escapeHtml(c.name)}</span>` +
+      `<span class="robot-meta">${escapeHtml(c.type || ("dof " + (c.dof || []).join(",")))} ` +
+      `&middot; ${escapeHtml(_whereText(c.where))}</span></div>`);
+  }
+  rows.push('<div class="robot-section">loads</div>');
+  for (const l of _allLoads(doc)) {
+    rows.push(`<div class="robot-row"><span class="robot-name">${escapeHtml(l.name)}</span>` +
+      `<span class="robot-meta">${escapeHtml(l.type)} ${escapeHtml(_loadValue(l))}</span></div>`);
+  }
+  rows.push('<div class="robot-section">steps</div>');
+  for (const st of doc.steps || []) {
+    rows.push(`<div class="robot-row"><span class="robot-name">${escapeHtml(st.name)}</span>` +
+      `<span class="robot-meta">${escapeHtml(st.procedure)}</span></div>`);
+  }
+  body.innerHTML = rows.join("");
+}
+
+// A load case's loads = the top-level (structural) loads + every step's nested (thermal) loads.
+function _allLoads(doc) {
+  const loads = [...(doc.loads || [])];
+  for (const st of doc.steps || []) for (const l of st.loads || []) loads.push(l);
+  return loads;
+}
+
+function _whereText(where) {
+  if (!where) return "body";
+  return where.face ? `face: ${where.face}` : JSON.stringify(where);
+}
+
+function _loadValue(l) {
+  if (l.type === "force") return `[${(l.vector || []).join(", ")}] N`;
+  if (l.type === "pressure") return `${l.magnitude} Pa`;
+  if (l.type === "gravity") return `${l.g} m/s^2`;
+  if (l.type === "flux") return `${l.magnitude} W/m^2`;
+  if (l.type === "film") return `sink ${l.sink}, h ${l.coefficient}`;
+  if (l.type === "temperature") return `${l.value} deg`;
+  return "";
+}
+
 // ---- Export control (context-sensitive download) ----
 const exportControl = document.getElementById("export-control");
 const exportBtn = document.getElementById("export-btn");
@@ -1989,8 +2063,8 @@ function setViewMode(next) {
   document.getElementById("mode-analysis").classList.toggle("active", next === "analysis");
   // The Joints dock belongs to Physics mode only; leaving physics hides it (+ its divider).
   if (next !== "physics") showJointsDock(false);
-  // The field-mesh + legend belong to Analysis mode only; leaving clears them.
-  if (next !== "analysis") clearAnalysis();
+  // The field-mesh + legend + inspector belong to Analysis mode only; leaving clears them.
+  if (next !== "analysis") { clearAnalysis(); renderAnalysisPanel(null); }
   syncAssemblyControls();
   // Switching mode must NOT open the spec dropdown (renderSpecTree un-hides it); clear the
   // search and keep the tree hidden. It re-renders (mode-filtered) on the input's focus/input.

@@ -99,11 +99,51 @@ function _renderMesh(data) {
   mesh.castShadow = true; mesh.receiveShadow = true;
   const group = new THREE.Group();
   group.add(mesh);
+  // Load glyphs: arrows for force/pressure/gravity/flux, a pinned marker for a fixed support, so
+  // the user sees WHAT acts on the model. Sized to the model extent so they read at any scale.
+  const extent = _meshExtent(data.points) * _MM_TO_M;
+  for (const glyph of data.loads || []) _addGlyph(group, glyph, extent);
   currentMesh = { geometry, material, group };
   scene.add(group);
   _applyField(currentField);
   legend.hidden = false;
   if (onMeshReady) onMeshReady(group);      // let app.js parent it as modelRoot + frame it
+}
+
+// The largest bounding-box extent of the point cloud (mm), for sizing the glyphs proportionally.
+function _meshExtent(points) {
+  const lo = [Infinity, Infinity, Infinity];
+  const hi = [-Infinity, -Infinity, -Infinity];
+  for (const p of points) {
+    for (let a = 0; a < 3; a += 1) { lo[a] = Math.min(lo[a], p[a]); hi[a] = Math.max(hi[a], p[a]); }
+  }
+  return Math.max(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]) || 1;
+}
+
+const _GLYPH_COLORS = {
+  fixed: 0x9aa6b4, force: 0xef8a3a, pressure: 0xef4b3a, gravity: 0x6db0ef,
+  flux: 0xf3b73a, film: 0xf3e35a, radiation: 0xef6a3a, temperature: 0xb40426,
+};
+
+// Add one glyph to the group: an arrow (loads) or a small octahedron marker (a fixed support), at
+// the glyph's anchor (mm->m) pointing along its direction. Length is a fraction of the model.
+function _addGlyph(group, glyph, extent) {
+  const at = new THREE.Vector3(glyph.at[0], glyph.at[1], glyph.at[2]).multiplyScalar(_MM_TO_M);
+  const dir = new THREE.Vector3(glyph.dir[0], glyph.dir[1], glyph.dir[2]);
+  const color = _GLYPH_COLORS[glyph.kind] || 0xffffff;
+  if (glyph.kind === "fixed" || dir.lengthSq() < 1e-9) {
+    const marker = new THREE.Mesh(
+      new THREE.OctahedronGeometry(extent * 0.05),
+      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9 }));
+    marker.position.copy(at);
+    marker.userData.fieldMesh = true;        // applyMode must not re-materialize glyphs
+    group.add(marker);
+    return;
+  }
+  const arrow = new THREE.ArrowHelper(dir.clone().normalize(), at, extent * 0.4, color,
+                                      extent * 0.12, extent * 0.07);
+  arrow.traverse(o => { o.userData.fieldMesh = true; });
+  group.add(arrow);
 }
 
 export function setField(name) {
