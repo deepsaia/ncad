@@ -959,6 +959,7 @@ function selectAnalysis(name) {
   activeModel = name;
   syncExportControl();
   localStorage.setItem("ncad.active.analysis", name);
+  spinner.style.display = "flex";   // hidden again in onMeshReady (or on a load failure)
   loadAnalysis(name);        // fetches the field mesh; onMeshReady parents + frames it
   // The Analyze inspector: fetch the summary + load case for the right-sidebar Analysis tab.
   fetch(apiUrl("/analysis/" + encodeURIComponent(name)))
@@ -2192,7 +2193,9 @@ initAnalysis({
   apiUrl,
   log,
   clearPrevious: () => clearModel(),
-  onMeshReady: (group) => { modelRoot = group; applyMode(); frameModel(); },
+  onMeshReady: (group) => { modelRoot = group; applyMode(); frameModel();
+                            spinner.style.display = "none"; },
+  onDone: () => { spinner.style.display = "none"; },   // also hide on an empty/failed load
 });
 
 loadSpecs();

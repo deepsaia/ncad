@@ -20,6 +20,7 @@ let scene = null;
 let apiUrl = null;
 let log = null;
 let onMeshReady = null;        // app.js hook: (group) => set modelRoot + frame + applyMode
+let onDone = null;             // app.js hook: () => hide the spinner (also on an empty/failed load)
 let clearPrevious = null;      // app.js hook: clear the current scene model
 
 let legend = null;
@@ -31,12 +32,14 @@ let unitLabel = null;
 let currentMesh = null;        // {geometry, material, group}
 let currentData = null;        // the fetched {points, triangles, fields, ranges}
 let currentField = null;
+let group_labels = [];         // glyph label sprite textures, disposed on clear
 
 export function initAnalysis(deps) {
   scene = deps.scene;
   apiUrl = deps.apiUrl;
   log = deps.log;
   onMeshReady = deps.onMeshReady;
+  onDone = deps.onDone;
   clearPrevious = deps.clearPrevious;
 
   legend = document.getElementById("analysis-legend");
@@ -53,7 +56,7 @@ export function loadAnalysis(name) {
     .then(r => (r.ok ? r.json() : Promise.reject(new Error("no analysis mesh"))))
     .then(data => _renderMesh(data))
     .catch(() => { log(`analysis: no field mesh for ${name} (run a solve with ncad[fea] + ccx)`,
-                       "warn"); clearAnalysis(); });
+                       "warn"); clearAnalysis(); if (onDone) onDone(); });
 }
 
 export function clearAnalysis() {
@@ -63,6 +66,8 @@ export function clearAnalysis() {
     currentMesh.material.dispose();
     currentMesh = null;
   }
+  group_labels.forEach(l => l.texture.dispose());
+  group_labels = [];
   currentData = null;
   if (legend) legend.hidden = true;
 }
@@ -74,6 +79,7 @@ function _renderMesh(data) {
   const fields = Object.keys(data.fields || {});
   if (!fields.length || !data.points.length) {
     log("analysis: field mesh has no data", "warn");
+    if (onDone) onDone();
     return;
   }
   currentField = fields.includes("von_mises") ? "von_mises" : fields[0];
@@ -126,11 +132,13 @@ const _GLYPH_COLORS = {
 };
 
 // Add one glyph to the group: an arrow (loads) or a small octahedron marker (a fixed support), at
-// the glyph's anchor (mm->m) pointing along its direction. Length is a fraction of the model.
+// the glyph's anchor (mm->m) pointing along its direction, plus a floating text label so the user
+// knows what each colored arrow/marker is. Length is a fraction of the model.
 function _addGlyph(group, glyph, extent) {
   const at = new THREE.Vector3(glyph.at[0], glyph.at[1], glyph.at[2]).multiplyScalar(_MM_TO_M);
   const dir = new THREE.Vector3(glyph.dir[0], glyph.dir[1], glyph.dir[2]);
   const color = _GLYPH_COLORS[glyph.kind] || 0xffffff;
+  let tip;   // where the label floats: the arrow tip, or just above a fixed marker
   if (glyph.kind === "fixed" || dir.lengthSq() < 1e-9) {
     const marker = new THREE.Mesh(
       new THREE.OctahedronGeometry(extent * 0.05),
@@ -138,12 +146,44 @@ function _addGlyph(group, glyph, extent) {
     marker.position.copy(at);
     marker.userData.fieldMesh = true;        // applyMode must not re-materialize glyphs
     group.add(marker);
-    return;
+    tip = at.clone().add(new THREE.Vector3(0, 0, extent * 0.09));
+  } else {
+    const arrow = new THREE.ArrowHelper(dir.clone().normalize(), at, extent * 0.4, color,
+                                        extent * 0.12, extent * 0.07);
+    arrow.traverse(o => { o.userData.fieldMesh = true; });
+    group.add(arrow);
+    tip = at.clone().add(dir.clone().normalize().multiplyScalar(extent * 0.44));
   }
-  const arrow = new THREE.ArrowHelper(dir.clone().normalize(), at, extent * 0.4, color,
-                                      extent * 0.12, extent * 0.07);
-  arrow.traverse(o => { o.userData.fieldMesh = true; });
-  group.add(arrow);
+  group.add(_makeLabel(`${glyph.name}: ${glyph.kind}`, tip, color, extent));
+}
+
+// A camera-facing text sprite (canvas texture) for a glyph label, colored to match its glyph.
+function _makeLabel(text, position, color, extent) {
+  const pad = 8;
+  const font = 40;
+  const measure = document.createElement("canvas").getContext("2d");
+  measure.font = `${font}px sans-serif`;
+  const w = Math.ceil(measure.measureText(text).width) + pad * 2;
+  const h = font + pad * 2;
+  const canvas = document.createElement("canvas");
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  ctx.font = `${font}px sans-serif`;
+  ctx.fillStyle = "rgba(20,22,28,0.72)";
+  ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = "#" + color.toString(16).padStart(6, "0");
+  ctx.textBaseline = "middle";
+  ctx.fillText(text, pad, h / 2);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.minFilter = THREE.LinearFilter;
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true,
+                                                             depthTest: false }));
+  sprite.position.copy(position);
+  const scale = extent * 0.28;
+  sprite.scale.set(scale * (w / h), scale, 1);
+  sprite.userData.fieldMesh = true;        // applyMode must not touch glyph labels
+  group_labels.push({ texture });          // tracked for disposal on clear
+  return sprite;
 }
 
 export function setField(name) {
