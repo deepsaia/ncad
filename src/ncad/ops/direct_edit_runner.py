@@ -58,6 +58,7 @@ class DirectEditRunner:
         # re-import the result. The op stays IO-free; the runner owns the serialize round-trip.
         import os
         import tempfile
+        from pathlib import Path
 
         from ncad.kernel.guarded_runner import GuardedRunner
         from ncad.ops.guarded_direct_probe import guarded_offset_probe
@@ -80,8 +81,7 @@ class DirectEditRunner:
             return kernel.import_solid(out_path)
         finally:
             for path in (in_path, out_path):
-                if os.path.exists(path):
-                    os.unlink(path)
+                Path(path).unlink(missing_ok=True)
 
     def _sanity(self, kernel: Any, shape: Any) -> bool:
         # Independent of BRepCheck: finite positive volume and at least one face.

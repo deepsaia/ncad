@@ -17,7 +17,7 @@ Diagnostics; ``write_sidecar`` persists ``<name>.dfm.json``. One class; pure ove
 
 import json
 import logging
-import os
+from pathlib import Path
 from typing import Any
 
 from ncad.build.dfm_facts import DfmFacts
@@ -77,11 +77,11 @@ class ManufacturabilityChecker:
 
     def write_sidecar(self, report: dict, out_dir: str, name: str) -> str:
         """Write ``<name>.dfm.json`` and return its path."""
-        path = os.path.join(out_dir, f"{name}{_SIDECAR_SUFFIX}")
-        with open(path, "w", encoding="utf-8") as handle:
+        path = Path(out_dir) / f"{name}{_SIDECAR_SUFFIX}"
+        with path.open("w", encoding="utf-8") as handle:
             json.dump(report, handle, indent=2)
         logger.info("dfm: wrote %s (%d rules)", path, len(report["results"]))
-        return path
+        return str(path)
 
     def _evaluate(self, process: str, label: str, name: str, rule: dict, facts: dict) -> dict:
         """One rule vs the facts into a tri-state result record (see check for the shape)."""

@@ -10,6 +10,7 @@ affect ncad. One class.
 import logging
 import os
 import shutil
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +28,9 @@ class CcxLocator:
         candidate found on PATH via ``shutil.which``.
         """
         override = os.environ.get("NCAD_CCX")
-        if override and os.path.isfile(override) and os.access(override, os.X_OK):
+        # os.access (executable-bit check) has no pathlib equivalent, so keep os for that; the
+        # file-existence check is the path concern and moves to Path.
+        if override and Path(override).is_file() and os.access(override, os.X_OK):
             return override
         for name in _CANDIDATES:
             found = shutil.which(name)

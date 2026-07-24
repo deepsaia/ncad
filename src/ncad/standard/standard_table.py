@@ -9,19 +9,19 @@ generator). One class; loading happens once at construction.
 Table shape: ``{"standard", "title", "version", "source", "unit", "designations": {<key>: {..}}}``.
 """
 
-import os
+from pathlib import Path
 
 from ncad.spec.spec_loader import SpecLoader
 
 # The shipped tables live beside this module, one file per standard family.
-_TABLE_DIR = os.path.join(os.path.dirname(__file__), "standard_tables")
+_TABLE_DIR = Path(__file__).parent / "standard_tables"
 
 
 class StandardTable:
     """A loaded dimension table for one standard family, queryable by designation."""
 
     def __init__(self, file_name: str) -> None:
-        self._path = os.path.join(_TABLE_DIR, file_name)
+        self._path = str(_TABLE_DIR / file_name)
         self._data = SpecLoader().load(self._path)
 
     @property

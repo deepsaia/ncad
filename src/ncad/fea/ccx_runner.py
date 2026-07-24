@@ -9,7 +9,6 @@ One class. The subprocess invocation is isolated in ``_run`` so it is the single
 """
 
 import logging
-import os
 import subprocess
 from pathlib import Path
 
@@ -49,12 +48,13 @@ class CcxRunner:
             return _report("failed", binary, None,
                            reasons=[f"ccx exited {completed.returncode}: "
                                     f"{(completed.stderr or '').strip()[:200]}"])
-        frd = os.path.join(out_dir, f"{jobname}.frd")
-        if not os.path.isfile(frd) or os.path.getsize(frd) == 0:
+        frd = Path(out_dir) / f"{jobname}.frd"
+        if not frd.is_file() or frd.stat().st_size == 0:
             return _report("failed", binary, None,
                            reasons=["ccx reported success but wrote no .frd results file"])
         logger.info("ccx: solved %s -> %s", inp_path, frd)
-        return _report("generated", binary, frd, checks=["ccx exited 0", ".frd results written"])
+        return _report("generated", binary, str(frd),
+                       checks=["ccx exited 0", ".frd results written"])
 
     def _run(self, argv: list[str], cwd: str) -> subprocess.CompletedProcess:
         """Invoke ccx in ``cwd`` (the single mockable subprocess seam)."""
