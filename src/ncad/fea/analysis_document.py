@@ -144,6 +144,8 @@ def _step_families(steps: list) -> dict:
     """
     families: dict = {}
     for step in steps:
+        if step["procedure"] == "fatigue":
+            continue   # a post-process, never a CalculiX deck step (see _run_fatigue)
         family = "thermal" if step["procedure"] == "heat_transfer" else "structural"
         families.setdefault(family, []).append(step)
     return families

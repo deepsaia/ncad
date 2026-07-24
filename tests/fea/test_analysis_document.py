@@ -67,3 +67,11 @@ def test_end_to_end_solve_matches_expectation(tmp_path):
     assert result["summary"]["max_von_mises"] > 0
     assert os.path.isfile(result["sidecars"]["json"])
     assert os.path.isfile(result["sidecars"]["vtk"])
+
+
+def test_step_families_excludes_fatigue():
+    steps = [{"name": "s", "procedure": "static"},
+             {"name": "life", "procedure": "fatigue", "of": "s", "ratio": -1.0}]
+    families = _step_families(steps)
+    assert "life" not in [st["name"] for fam in families.values() for st in fam]
+    assert [st["name"] for st in families["structural"]] == ["s"]
