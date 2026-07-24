@@ -171,6 +171,9 @@ class _ViewerRequestHandler(BaseHTTPRequestHandler):
         elif path.startswith(_ROBOT_ROUTE) and path.endswith("/delete"):
             name = path[len(_ROBOT_ROUTE) : -len("/delete")]
             self._handle_delete_robot(unquote(name))
+        elif path.startswith(_ANALYSIS_ROUTE) and path.endswith("/delete"):
+            name = path[len(_ANALYSIS_ROUTE) : -len("/delete")]
+            self._handle_delete_analysis(unquote(name))
         else:
             self.send_error(404, "not found")
 
@@ -366,6 +369,15 @@ class _ViewerRequestHandler(BaseHTTPRequestHandler):
             return
         logger.info("deleted robot %s", name)
         self._send_json(200, {"robots": self._catalog.robots_with_labels()})
+
+    def _handle_delete_analysis(self, name: str) -> None:
+        removed = self._catalog.delete_analysis(name)
+        if removed is None:
+            logger.warning("delete rejected: unknown analysis %r", name)
+            self.send_error(404, "unknown analysis")
+            return
+        logger.info("deleted analysis %s", name)
+        self._send_json(200, {"analyses": self._catalog.analyses_with_labels()})
 
     def _send_model_list(self) -> None:
         self._send_json(200, {"models": self._catalog.models_with_sources()})

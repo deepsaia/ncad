@@ -44,3 +44,15 @@ class AnalysisMeshHandler(BaseApiHandler):
         with open(resolved, "rb") as handle:
             self.set_header("Content-Type", "application/json")
             self.safe_finish(handle.read())
+
+
+class AnalysisDeleteHandler(BaseApiHandler):
+    """POST /api/v1/analysis/<name>/delete -> delete the analysis result sidecars."""
+
+    def post(self, *args: str, **kwargs: str) -> None:
+        """Delete the analysis's summary + mesh sidecars; return the list, or 404 if unknown."""
+        removed = self._catalog.delete_analysis(unquote(args[0]))
+        if removed is None:
+            self.write_error_json(404, "unknown analysis")
+            return
+        self.write_json(200, {"analyses": self._catalog.analyses_with_labels()})

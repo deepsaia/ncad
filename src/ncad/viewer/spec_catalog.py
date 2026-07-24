@@ -20,6 +20,7 @@ _SPEC_EXTENSIONS = (".hocon", ".conf", ".json")
 _ASSEMBLY_EXTENSION = ".asm.hocon"
 _MOTION_EXTENSION = ".motion.hocon"
 _PHYSICS_EXTENSION = ".physics.hocon"
+_ANALYSIS_EXTENSION = ".analysis.hocon"
 
 
 def _is_spec(name: str) -> bool:
@@ -28,15 +29,17 @@ def _is_spec(name: str) -> bool:
 
 
 def _spec_kind(name: str) -> str:
-    """The spec kind by suffix: physics/motion/assembly, else part.
+    """The spec kind by suffix: physics/analysis/motion/assembly, else part.
 
-    ``.physics.hocon`` (a robotics-export overlay) and ``.motion.hocon`` both also end in
-    ``.hocon``; the specific compound suffixes are tested first so they win over the bare part
-    fallthrough.
+    ``.physics.hocon`` (robotics overlay), ``.analysis.hocon`` (FEA load case), and
+    ``.motion.hocon`` all also end in ``.hocon``; the specific compound suffixes are tested first so
+    they win over the bare part fallthrough.
     """
     lowered = name.lower()
     if lowered.endswith(_PHYSICS_EXTENSION):
         return "physics"
+    if lowered.endswith(_ANALYSIS_EXTENSION):
+        return "analysis"
     if lowered.endswith(_MOTION_EXTENSION):
         return "motion"
     if lowered.endswith(_ASSEMBLY_EXTENSION):

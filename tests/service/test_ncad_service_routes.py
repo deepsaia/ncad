@@ -267,6 +267,14 @@ def test_robot_delete_returns_200_not_405(service):
     assert json.loads(body)["robots"] == []   # the only robot was just deleted
 
 
+def test_analysis_delete_returns_200_not_405(service):
+    # Guards route ordering: POST /analysis/<name>/delete must precede the GET /analysis/(.+)
+    # catch-all AND the /analysis-mesh/ prefix must not shadow it.
+    status, body, _ = _post(f"{service.base_url}/api/v1/analysis/bracket/delete", None)
+    assert status == 200
+    assert json.loads(body)["analyses"] == []   # the only analysis was just deleted
+
+
 def test_cors_header_on_get(service):
     # A future cross-origin (React) client relies on the permissive CORS header on every response.
     _status, _body, headers = _get(f"{service.base_url}/api/v1/models")

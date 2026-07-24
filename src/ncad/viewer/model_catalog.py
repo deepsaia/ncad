@@ -288,6 +288,21 @@ class ModelCatalog:
             os.remove(sweeps)
         return name
 
+    def delete_analysis(self, name: str) -> str | None:
+        """Delete an analysis result's sidecars (``.analysis.json`` + ``.analysis.mesh.json``).
+
+        Returns the name, or None if unknown. The meshed ``.inp`` / exported ``.step`` are ordinary
+        build output left in place (cheap to regenerate), mirroring ``delete_robot``.
+        """
+        resolved = self.resolve_analysis(name)
+        if resolved is None:
+            return None
+        os.remove(resolved)
+        mesh = self.resolve_analysis_mesh(name)
+        if mesh is not None:
+            os.remove(mesh)
+        return name
+
     def resolve_bom(self, model_name: str) -> str | None:
         """Resolve a model name to its BOM sidecar (``<stem>.bom.json``), or None."""
         return self._resolve_sidecar(model_name, _BOM_SUFFIX)

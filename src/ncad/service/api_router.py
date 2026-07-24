@@ -15,6 +15,7 @@ from tornado.web import URLSpec
 
 from ncad.service.analysis_handlers import (
     AnalysesHandler,
+    AnalysisDeleteHandler,
     AnalysisHandler,
     AnalysisMeshHandler,
 )
@@ -84,6 +85,8 @@ class ApiRouter:
             URLSpec(r"/api/v1/motion/(.+)", MotionHandler, deps),
             # analysis-mesh before analysis: keep the more specific prefix first.
             URLSpec(r"/api/v1/analysis-mesh/(.+)", AnalysisMeshHandler, deps),
+            # The delete POST must precede the analysis GET catch-all (method-agnostic matching).
+            URLSpec(r"/api/v1/analysis/(.+)/delete", AnalysisDeleteHandler, deps),
             URLSpec(r"/api/v1/analysis/(.+)", AnalysisHandler, deps),
             # robot-sweeps before robot: different prefixes, but keep the more specific first.
             URLSpec(r"/api/v1/robot-sweeps/(.+)", RobotSweepsHandler, deps),

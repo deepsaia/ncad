@@ -20,6 +20,7 @@ import { initTheme } from "./theme.js";
 import { initSceneFurniture } from "./scene_furniture.js";
 import { buildFkChain, actuatedJoints, solveFk } from "./robot_fk.js";
 import { compileKeyframes } from "./robot_keyframes.js";
+import { initAnalysis, loadAnalysis, clearAnalysis } from "./analysis.js";
 
 const stage = document.getElementById("stage");
 const spinner = document.getElementById("spinner");
@@ -328,7 +329,9 @@ function applyMode() {
     return;
   }
   const mat = { solid: SOLID, material: materialMat(), wireframe: WIRE, xray: XRAY }[mode];
-  modelRoot.traverse(o => { if (o.isMesh) { o.material = mat; o.castShadow = castShadows && mode !== "wireframe"; } });
+  // The FEA field mesh (Analysis mode) carries its own vertex colors; never overwrite them with a
+  // shared display material.
+  modelRoot.traverse(o => { if (o.isMesh && !o.userData.fieldMesh) { o.material = mat; o.castShadow = castShadows && mode !== "wireframe"; } });
   edges.forEach(e => { e.visible = showEdges && mode !== "wireframe"; });
   // Re-capture the (shared) base material each mode sets, then re-apply per-instance highlight/
   // isolate as per-mesh clones so a mode change does not clobber the selection visuals.
@@ -709,6 +712,7 @@ function renderSpecTree(filter) {
   // lists .asm.hocon docs, Motion lists .motion.hocon docs (each a motion study driving an assembly).
   const wantKind = viewMode === "motion" ? "motion"
                  : viewMode === "physics" ? "physics"
+                 : viewMode === "analysis" ? "analysis"
                  : viewMode === "assemblies" ? "assembly" : "part";
   const matches = all.filter(s => s.kind === wantKind && s.path.toLowerCase().includes(q));
   box.innerHTML = "";
@@ -786,6 +790,7 @@ const partGlbCache = {};  // part_glb filename -> loaded THREE.Object3D (loaded 
 const assemblySources = {};  // assembly name -> source .asm.hocon path (for regenerate)
 const motionSources = {};    // assembly name -> source .motion.hocon path (for motion regenerate)
 const robotSources = {};     // robot name -> source .physics.hocon path (for physics regenerate)
+const analysisSources = {};  // analysis name -> source .analysis.hocon path (for regenerate)
 
 function refreshAssemblies() {
   return fetch(apiUrl("/assemblies")).then(r => r.json()).then(data => {
@@ -905,6 +910,93 @@ function removeRobot(name) {
     .then(r => r.json())
     .then(() => { if (activeModel === name) { activeModel = null; clearActive("physics"); clearModel(); } refreshRobots(); toast("deleted " + name); })
     .catch(() => toast("could not delete " + name, true));
+}
+
+// ---- Analysis mode (S7 FEA): list parts with FEA results + color the boundary field mesh ----
+function refreshAnalyses() {
+  return fetch(apiUrl("/analyses")).then(r => r.json()).then(data => {
+    const analyses = data.analyses || [];
+    renderAnalysisList(analyses);
+    return analyses.map(a => a.name);
+  });
+}
+
+function renderAnalysisList(analyses) {
+  const list = document.getElementById("model-list");
+  list.innerHTML = "";
+  if (!analyses.length) {
+    list.innerHTML = '<div class="panel-empty">no analyses in out/ (run `ncad analyze`)</div>';
+    return;
+  }
+  for (const analysis of analyses) {
+    const name = analysis.name;
+    if (analysis.source) analysisSources[name] = analysis.source;
+    const row = document.createElement("div");
+    row.className = "model-row" + (activeModel === name ? " active" : "");
+    const label = document.createElement("div");
+    label.className = "name"; label.textContent = name; label.title = name;
+    if (analysis.label) {
+      const meta = document.createElement("span");
+      meta.className = "row-meta"; meta.textContent = analysis.label;
+      label.appendChild(meta);
+    }
+    row.appendChild(label);
+    const actions = document.createElement("div");
+    actions.className = "row-actions";
+    const regen = iconButton("Regenerate", REGEN_SVG, "act-regen");
+    regen.addEventListener("click", ev => { ev.stopPropagation(); regenerateAnalysis(name); });
+    const del = iconButton("Delete", DELETE_SVG, "act-delete");
+    del.addEventListener("click", ev => { ev.stopPropagation(); removeAnalysis(name); });
+    actions.appendChild(regen); actions.appendChild(del);
+    row.appendChild(actions);
+    row.addEventListener("click", () => selectAnalysis(name));
+    list.appendChild(row);
+  }
+  scrollActiveIntoView(list);
+}
+
+function selectAnalysis(name) {
+  activeModel = name;
+  syncExportControl();
+  localStorage.setItem("ncad.active.analysis", name);
+  loadAnalysis(name);        // fetches the field mesh; onMeshReady parents + frames it
+  refreshAnalyses();
+}
+
+function regenerateAnalysis(name) {
+  const source = analysisSources[name];
+  if (!source) { toast("no analysis source recorded for " + name + "; pick it in the Spec box", true); return; }
+  analyzeSpec(source);
+}
+
+function removeAnalysis(name) {
+  // Delete removes the analysis result sidecars (.analysis.json + .analysis.mesh.json) via the
+  // stdlib delete route; the meshed .inp / .step stay in out/ (cheap to regenerate).
+  fetch(apiUrl("/analysis/" + encodeURIComponent(name) + "/delete"), { method: "POST" })
+    .then(r => r.json())
+    .then(() => { if (activeModel === name) { activeModel = null; clearActive("analysis"); clearModel(); clearAnalysis(); } refreshAnalyses(); toast("deleted " + name); })
+    .catch(() => toast("could not delete " + name, true));
+}
+
+function analyzeSpec(spec) {
+  if (!spec) { toast("select an analysis spec first", true); return; }
+  spinner.style.display = "block";
+  fetch(apiUrl("/analyze"), { method: "POST", headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ spec }) })
+    .then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.error || "analyze failed"); return d; })
+    .then(d => {
+      if (d.analysis) analysisSources[d.analysis] = spec;
+      refreshAnalyses();
+      if (d.analysis) selectAnalysis(d.analysis);
+      if (d.status !== "generated") {
+        toast("analyze " + d.status + ((d.warnings || []).length ? `: ${d.warnings[0]}` : ""), true);
+      } else {
+        const vm = (d.summary && d.summary.max_von_mises) || 0;
+        toast(`analyzed ${d.analysis} (max von Mises ${vm.toPrecision(3)} Pa)`);
+      }
+    })
+    .catch(e => toast(e.message, true))
+    .finally(() => { spinner.style.display = "none"; });
 }
 
 function selectMotion(name, verbose, timing) {
@@ -1894,8 +1986,11 @@ function setViewMode(next) {
   document.getElementById("mode-assemblies").classList.toggle("active", next === "assemblies");
   document.getElementById("mode-motion").classList.toggle("active", next === "motion");
   document.getElementById("mode-physics").classList.toggle("active", next === "physics");
+  document.getElementById("mode-analysis").classList.toggle("active", next === "analysis");
   // The Joints dock belongs to Physics mode only; leaving physics hides it (+ its divider).
   if (next !== "physics") showJointsDock(false);
+  // The field-mesh + legend belong to Analysis mode only; leaving clears them.
+  if (next !== "analysis") clearAnalysis();
   syncAssemblyControls();
   // Switching mode must NOT open the spec dropdown (renderSpecTree un-hides it); clear the
   // search and keep the tree hidden. It re-renders (mode-filtered) on the input's focus/input.
@@ -1925,6 +2020,13 @@ function setViewMode(next) {
     refreshRobots().then(names => {
       if (!names || !names.length) return;
       selectRobot(bootModel(names, "physics", null) || names[0]);
+    });
+  } else if (next === "analysis") {
+    // Analysis mode lists parts with an FEA result (.analysis.json); selecting one colors its
+    // boundary field mesh (von Mises / displacement / temperature).
+    refreshAnalyses().then(names => {
+      if (!names || !names.length) return;
+      selectAnalysis(bootModel(names, "analysis", null) || names[0]);
     });
   } else {
     refreshModels().then(models => {
@@ -1997,6 +2099,7 @@ document.getElementById("spec-build").addEventListener("click", () => {
   // .motion.hocon study (drives its referenced assembly + writes the trajectory).
   if (viewMode === "motion") motionBuildSpec(selectedSpec);
   else if (viewMode === "physics") physicsBuildSpec(selectedSpec);
+  else if (viewMode === "analysis") analyzeSpec(selectedSpec);
   else if (viewMode === "assemblies") assembleSpec(selectedSpec);
   else build(selectedSpec);
 });
@@ -2006,15 +2109,29 @@ document.getElementById("spec-build").addEventListener("click", () => {
 // live edges accessor (edges is reassigned on model load); initTheme applies the saved theme once.
 initTheme(scene, grid, () => edges);
 
+// Analysis mode (S7 FEA): the field-mesh renderer lives in analysis.js. It fetches the boundary
+// field mesh + colors it; onMeshReady hands the group back so app.js parents it as modelRoot and
+// frames it (the mesh is already in part space / Z-up, so no glTF-style rotation). clearPrevious
+// drops any prior part/robot scene before the field mesh loads.
+initAnalysis({
+  scene,
+  apiUrl,
+  log,
+  clearPrevious: () => clearModel(),
+  onMeshReady: (group) => { modelRoot = group; applyMode(); frameModel(); },
+});
+
 loadSpecs();
 document.getElementById("mode-parts").addEventListener("click", () => setViewMode("parts"));
 document.getElementById("mode-assemblies").addEventListener("click", () => setViewMode("assemblies"));
 document.getElementById("mode-motion").addEventListener("click", () => setViewMode("motion"));
 document.getElementById("mode-physics").addEventListener("click", () => setViewMode("physics"));
+document.getElementById("mode-analysis").addEventListener("click", () => setViewMode("analysis"));
 document.getElementById("mode-parts").classList.toggle("active", viewMode === "parts");
 document.getElementById("mode-assemblies").classList.toggle("active", viewMode === "assemblies");
 document.getElementById("mode-motion").classList.toggle("active", viewMode === "motion");
 document.getElementById("mode-physics").classList.toggle("active", viewMode === "physics");
+document.getElementById("mode-analysis").classList.toggle("active", viewMode === "analysis");
 syncAssemblyControls();
 syncExportControl();   // show the export control for the boot mode (disabled until a model loads)
 // Pick the model to show on boot for a mode. Priority: an explicit URL-path request >> the
@@ -2045,6 +2162,12 @@ if (viewMode === "assemblies") {
     if (!names || !names.length) return;
     const initial = bootModel(names, "physics", null);
     if (initial) selectRobot(initial);
+  });
+} else if (viewMode === "analysis") {
+  refreshAnalyses().then(names => {
+    if (!names || !names.length) return;
+    const initial = bootModel(names, "analysis", null);
+    if (initial) selectAnalysis(initial);
   });
 } else {
   refreshModels().then(models => {
