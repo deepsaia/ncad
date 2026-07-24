@@ -9,6 +9,7 @@ mass unit convention). This layer is document data, never the geometry kernel.
 """
 
 import logging
+from functools import cache
 from pathlib import Path
 from typing import Any
 
@@ -28,10 +29,14 @@ class MaterialLibrary:
 
     def __init__(self, document: dict, base_dir: str | None = None) -> None:
         loader = SpecLoader()
-        self._validator = Draft202012Validator(loader.load(str(_SCHEMA_PATH)))
+        # The seed materials + their schema are immutable, repo-shipped files re-used on every
+        # construction (a long-lived `ncad serve` builds many docs), so both are cached per process.
+        # The merge below only ever REPLACES a top-level name (deep-copying before mutating), and
+        # resolve() deep-copies on the way out, so sharing the cached seed's nested records is safe.
+        self._validator = _materials_schema(str(_SCHEMA_PATH))
         # Precedence is applied by merge order: seed first, then external, then inline last so
         # inline wins. Each layer is a name -> record map.
-        merged: dict = dict(loader.load(str(_SEED_PATH)))
+        merged: dict = dict(_seed_materials(str(_SEED_PATH)))
         external = document.get("materials_library")
         if external is not None:
             path = Path(external)
@@ -66,6 +71,22 @@ class MaterialLibrary:
         errors = sorted(self._validator.iter_errors(record), key=str)
         if errors:
             raise MaterialError(f"material {name!r} invalid: {errors[0].message}")
+
+
+@cache
+def _materials_schema(schema_path: str) -> Draft202012Validator:
+    """Compile the materials schema once per process (immutable file, read-only validator)."""
+    return Draft202012Validator(SpecLoader().load(schema_path))
+
+
+@cache
+def _seed_materials(seed_path: str) -> dict:
+    """Parse the seed materials once per process (immutable repo file).
+
+    The caller shallow-copies the top-level map and only ever REPLACES a name (deep-copying first),
+    and resolve() deep-copies records out, so the shared nested records are never mutated in place.
+    """
+    return SpecLoader().load(seed_path)
 
 
 def _merge_layer(base: dict, layer: dict) -> None:
