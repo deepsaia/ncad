@@ -184,6 +184,18 @@
     background: var(--panel); border: 1px solid var(--border); border-radius: 20px;
     padding: 5px 10px; backdrop-filter: blur(6px); }
   #motion-bar[hidden] { display: none; }
+  /* Analysis field legend (S7 FEA): field selector + colormap gradient + min/max, bottom-center. */
+  #analysis-legend { position: absolute; bottom: 54px; left: 50%; transform: translateX(-50%);
+    display: flex; align-items: center; gap: 8px; z-index: 55;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 20px;
+    padding: 5px 12px; backdrop-filter: blur(6px); font-size: 12px; }
+  #analysis-legend[hidden] { display: none; }
+  #analysis-field { background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
+    border-radius: 12px; padding: 2px 6px; font-size: 12px; }
+  #analysis-gradient { width: 140px; height: 12px; border-radius: 6px; border: 1px solid var(--border);
+    background: linear-gradient(to right, #3b4cc0, #6db0ef, #9fd98f, #f3e35a, #ef8a3a, #b40426); }
+  .analysis-range { color: var(--muted); font-variant-numeric: tabular-nums; }
+  #analysis-unit { color: var(--muted); }
   /* Transport: -, play/pause, + as one compact segmented pill. */
   #motion-transport { display: flex; align-items: center; border: 1px solid var(--border);
     border-radius: 14px; overflow: hidden; background: var(--panel-2); }
@@ -530,6 +542,7 @@
       <button id="mode-assemblies" class="mode-btn" data-mode="assemblies">Asm</button>
       <button id="mode-motion" class="mode-btn" data-mode="motion">Motion</button>
       <button id="mode-physics" class="mode-btn" data-mode="physics">Physics</button>
+      <button id="mode-analysis" class="mode-btn" data-mode="analysis">Analysis</button>
     </div>
     <div>
       <div class="label">Spec</div>
@@ -725,6 +738,15 @@
         <div id="motion-clash-marks" aria-hidden="true"></div>
       </div>
       <span id="motion-readout">0&deg;</span>
+    </div>
+    <!-- Analysis field legend (S7 FEA): shown in Analysis mode when a colored field mesh loads.
+         A field selector + a colormap gradient bar with min/max labels for the active scalar. -->
+    <div id="analysis-legend" hidden>
+      <select id="analysis-field" title="Field to color by" aria-label="Analysis field"></select>
+      <span id="analysis-min" class="analysis-range">0</span>
+      <div id="analysis-gradient" aria-hidden="true"></div>
+      <span id="analysis-max" class="analysis-range">0</span>
+      <span id="analysis-unit"></span>
     </div>
     <!-- Export control (bottom-left): a download-icon button that opens a context-sensitive format
          menu. Formats depend on the current tab; picking one re-exports via ncad + downloads. -->
