@@ -20,7 +20,7 @@ import { initTheme } from "./theme.js";
 import { initSceneFurniture } from "./scene_furniture.js";
 import { buildFkChain, actuatedJoints, solveFk } from "./robot_fk.js";
 import { compileKeyframes } from "./robot_keyframes.js";
-import { initAnalysis, loadAnalysis, clearAnalysis, glyphColor } from "./analysis.js";
+import { initAnalysis, loadAnalysis, clearAnalysis, glyphColor, setDisplayMode } from "./analysis.js";
 
 const stage = document.getElementById("stage");
 const spinner = document.getElementById("spinner");
@@ -328,9 +328,10 @@ function applyMode() {
     captureInstanceBases(); refreshInstanceVisuals();
     return;
   }
+  // Analysis field mesh: the floating toolbar drives its own display modes (colored field / X-ray /
+  // plain solid / wireframe) rather than swapping in a shared material, so the FEA colors survive.
+  if (setDisplayMode(mode)) return;
   const mat = { solid: SOLID, material: materialMat(), wireframe: WIRE, xray: XRAY }[mode];
-  // The FEA field mesh (Analysis mode) carries its own vertex colors; never overwrite them with a
-  // shared display material.
   modelRoot.traverse(o => { if (o.isMesh && !o.userData.fieldMesh) { o.material = mat; o.castShadow = castShadows && mode !== "wireframe"; } });
   edges.forEach(e => { e.visible = showEdges && mode !== "wireframe"; });
   // Re-capture the (shared) base material each mode sets, then re-apply per-instance highlight/

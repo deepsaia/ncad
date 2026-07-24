@@ -162,6 +162,29 @@ export function setField(name) {
   _applyField(name);
 }
 
+// Drive the field mesh off the floating display toolbar (app.js applyMode). The three useful views
+// for a result: the colored FEA field (default/solid), a translucent X-ray of it, and a plain solid
+// (no field, just the shape). Wireframe is honored too. vertexColors multiplies material.color, so
+// the color is white when showing the field and grey for the plain solid.
+export function setDisplayMode(mode) {
+  if (!currentMesh) return false;
+  const m = currentMesh.material;
+  m.wireframe = mode === "wireframe";
+  if (mode === "xray") {
+    m.vertexColors = true; m.color.set(0xffffff); m.transparent = true; m.opacity = 0.4;
+    m.depthWrite = false;
+  } else if (mode === "material") {
+    m.vertexColors = false; m.color.set(0xc6d3e2); m.transparent = false; m.opacity = 1;
+    m.depthWrite = true;
+  } else {
+    // solid (default) + wireframe: show the colored field, opaque.
+    m.vertexColors = true; m.color.set(0xffffff); m.transparent = false; m.opacity = 1;
+    m.depthWrite = true;
+  }
+  m.needsUpdate = true;
+  return true;
+}
+
 function _applyField(name) {
   const values = currentData.fields[name];
   const [lo, hi] = currentData.ranges[name] || [0, 1];
