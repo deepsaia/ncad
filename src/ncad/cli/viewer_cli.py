@@ -550,6 +550,9 @@ def analyze(
         print(f"  displ:  max {summary.get('max_displacement', 0.0):.4g} m")
         if summary.get("safety_factor") is not None:
             print(f"  safety: {summary['safety_factor']:.2f} (yield / max von Mises)")
+        if summary.get("frequencies"):
+            modes = ", ".join(f"{f:.4g}" for f in summary["frequencies"])
+            print(f"  modes:  {modes} Hz")
         if summary.get("cycles_to_failure") is not None or summary.get("infinite_life"):
             life = ("infinite (below endurance limit)" if summary.get("infinite_life")
                     else f"{summary['cycles_to_failure']:.3g} cycles")
