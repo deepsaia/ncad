@@ -12,6 +12,7 @@ import logging
 import os
 import time
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 from ncad.viewer.model_catalog import ModelCatalog
@@ -46,6 +47,7 @@ class BuildService:
         :param clock: Zero-arg callable returning an ISO-8601 timestamp string.
         :param versions: Dict with ``ncad`` and ``kernel`` version strings.
         """
+        # abspath (textual, no symlink following) keeps these roots stable absolute bases.
         self._examples_dir = os.path.abspath(examples_dir)
         self._models_dir = os.path.abspath(models_dir)
         self._builder_factory = builder_factory
@@ -78,7 +80,7 @@ class BuildService:
         # A design-invalid document no longer raises: it returns error diagnostics + no artifacts.
         diagnostics = [d.to_dict() for d in build_result["diagnostics"]]
         artifacts = build_result["artifacts"]
-        built = [os.path.basename(path) for path in artifacts.values()]
+        built = [Path(path).name for path in artifacts.values()]
         built_at = self._clock() if self._clock is not None else ""
         for name in built:
             self._meta.write(
@@ -110,7 +112,7 @@ class BuildService:
         except (ValueError, OSError, RuntimeError) as exc:
             raise BuildError(str(exc)) from exc
         build_ms = (time.perf_counter() - started) * 1000.0
-        name = os.path.basename(result["sidecar"])[: -len(".assembly.json")]
+        name = Path(result["sidecar"]).name[: -len(".assembly.json")]
         logger.info("assembled %s from %s (%d issues) in %.1f ms (solve %.1f ms)",
                     name, spec, len(result["issues"]), build_ms, result.get("solve_ms", 0.0))
         return {"assembled": name, "issues": result["issues"], "build_ms": round(build_ms, 1),
@@ -136,7 +138,7 @@ class BuildService:
         # Resolve parameter expressions before validating (a field like distance = "${t}" must
         # become a number before the schema type-checks it), matching the build path.
         expanded = ParamResolver(FunctionRegistry.with_defaults()).resolve_document(document)
-        report = DocumentValidator(base_dir=os.path.dirname(resolved)).validate(expanded)
+        report = DocumentValidator(base_dir=str(Path(resolved).parent)).validate(expanded)
         return report.to_dict()
 
     def _allowed_path(self, spec: str) -> str | None:
@@ -145,7 +147,7 @@ class BuildService:
         if under_examples is not None:
             return under_examples
         for model in self._model_catalog.models_with_sources():
-            if model["source"] == spec and os.path.isfile(spec):
+            if model["source"] == spec and Path(spec).is_file():
                 return spec
         return None
 
@@ -168,7 +170,7 @@ class BuildService:
         except (ValueError, OSError, RuntimeError) as exc:
             raise BuildError(str(exc)) from exc
         build_ms = (time.perf_counter() - started) * 1000.0
-        name = os.path.basename(result["sidecar"])[: -len(".assembly.json")]
+        name = Path(result["sidecar"]).name[: -len(".assembly.json")]
         issues = result["issues"]
         # The trajectory sidecar is None when the motion solve failed (a bad material, an unresolved
         # connector, a solver error): the assembly scene still built, but there is NO motion. Say so
@@ -208,7 +210,7 @@ class BuildService:
         except (ValueError, OSError, RuntimeError) as exc:
             raise BuildError(str(exc)) from exc
         build_ms = (time.perf_counter() - started) * 1000.0
-        name = os.path.basename(result["robot"])[: -len(".robot.json")]
+        name = Path(result["robot"]).name[: -len(".robot.json")]
         logger.info("physics-built %s from %s (sweeps=%s, %d warning(s)) in %.1f ms",
                     name, spec, with_sweeps, len(result["warnings"]), build_ms)
         return {"robot": name, "warnings": result["warnings"], "build_ms": round(build_ms, 1)}
@@ -238,7 +240,7 @@ class BuildService:
         except (ValueError, OSError, RuntimeError) as exc:
             raise BuildError(str(exc)) from exc
         build_ms = (time.perf_counter() - started) * 1000.0
-        name = os.path.splitext(os.path.basename(result["artifact"] or spec))[0].split(".")[0]
+        name = Path(result["artifact"] or spec).name.split(".")[0]
         # Record the source spec into the summary sidecar so the viewer's Regenerate works after a
         # page reload (the analysis list reads `source` from there), exactly as robots/motions do.
         self._record_analysis_source(result.get("sidecars", {}).get("json"), spec)
@@ -249,7 +251,7 @@ class BuildService:
 
     def _record_analysis_source(self, json_path: str | None, spec: str) -> None:
         """Stamp the source spec into the ``.analysis.json`` so Regenerate can find it later."""
-        if not json_path or not os.path.isfile(json_path):
+        if not json_path or not Path(json_path).is_file():
             return
         try:
             with open(json_path, encoding="utf-8") as handle:
@@ -271,7 +273,7 @@ class BuildService:
         ``{"sets": {set_name: [{time, pose}], ...}}``. Returns ``{"sets": {}}`` if none saved.
         """
         path = self._keyframes_path(name)
-        if path is None or not os.path.isfile(path):
+        if path is None or not Path(path).is_file():
             return {"sets": {}}
         try:
             with open(path, encoding="utf-8") as handle:
@@ -309,7 +311,7 @@ class BuildService:
         """The ``out/<name>.keyframes.json`` path, or None if the robot has no built tree."""
         if self._model_catalog.resolve_robot(name) is None:
             return None
-        return os.path.join(self._models_dir, name + ".keyframes.json")
+        return str(Path(self._models_dir) / (name + ".keyframes.json"))
 
     def _clean_keyframes(self, keyframes: list) -> list:
         """Sanitize a keyframe list to ``[{time: float, pose: {str: float}}]`` (bad ones drop)."""
@@ -339,7 +341,7 @@ class BuildService:
         if source is None:
             raise BuildError(f"no recorded source for robot {name!r}; rebuild it first")
         tree_path = self._model_catalog.resolve_robot(name)
-        if tree_path is None or not os.path.isfile(tree_path):
+        if tree_path is None or not Path(tree_path).is_file():
             raise BuildError(f"no robot tree for {name!r}; rebuild it first")
         with open(tree_path, encoding="utf-8") as handle:
             tree = json.load(handle)
@@ -370,7 +372,7 @@ class BuildService:
             raise BuildError(f"no recorded source for {kind} {name!r}; rebuild it first")
         # The download stem drops any .glb extension a part name carries (revolved_washer.glb ->
         # revolved_washer), so the file is <stem>.<fmt>, not <stem>.glb.<fmt>.
-        base_name = os.path.splitext(name)[0]
+        base_name = Path(name).stem
         # A part built as an assembly member records WHICH part of its (multi-part) source document
         # it is (crank_slider__block.glb -> part "block" of crank_slider.hocon), so the exporter
         # builds that one part, not the first or all. None for a plain single-part source.
@@ -411,9 +413,9 @@ class BuildService:
         """The raw ``source`` string recorded in a model ``name``'s sidecar (by kind), or None."""
         if kind == "part":
             # A part model name may arrive with or without its .glb extension; match either.
-            stem = os.path.splitext(name)[0]
+            stem = Path(name).stem
             return next((m["source"] for m in self._model_catalog.models_with_sources()
-                         if m["name"] == name or os.path.splitext(m["name"])[0] == stem), None)
+                         if m["name"] == name or Path(m["name"]).stem == stem), None)
         if kind == "assembly":
             return self._sidecar_source(self._model_catalog.resolve_assembly(name))
         if kind == "motion":
@@ -424,7 +426,7 @@ class BuildService:
 
     def _sidecar_source(self, sidecar_path: str | None) -> str | None:
         """The ``source`` field recorded in a JSON sidecar, or None if absent/unreadable."""
-        if sidecar_path is None or not os.path.isfile(sidecar_path):
+        if sidecar_path is None or not Path(sidecar_path).is_file():
             return None
         try:
             with open(sidecar_path, encoding="utf-8") as handle:
@@ -448,7 +450,7 @@ class BuildService:
                 continue
             with open(path, encoding="utf-8") as handle:
                 source = json.load(handle).get("source")
-            if source == spec and os.path.isfile(spec):
+            if source == spec and Path(spec).is_file():
                 return spec
         return None
 
@@ -468,6 +470,6 @@ class BuildService:
                 continue
             with open(path, encoding="utf-8") as handle:
                 source = json.load(handle).get("source")
-            if source == spec and os.path.isfile(spec):
+            if source == spec and Path(spec).is_file():
                 return spec
         return None
