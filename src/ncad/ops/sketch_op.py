@@ -143,7 +143,7 @@ class SketchOp:
         except OffsetError as exc:
             return OpResult(shape=None, provenance={},
                             issues=[BuildIssue(node_id=feature_id, message=str(exc))])
-        entities = EntityExpander().expand(entities)
+        entities = EntityExpander().expand(entities, base_dir=params.get("__base_dir__"))
         try:
             entities = TopologyApplier().apply(entities, params.get("modify", []))
         except TopologyError as exc:

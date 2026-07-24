@@ -147,7 +147,8 @@ class DocumentBuilder:
         artifacts: dict[str, str] = {}
         for name, part in resolved["parts"].items():
             stem = f"{name_prefix}{name}"
-            result, element_map, statuses = self._builder.build_part_mapped(part)
+            result, element_map, statuses = self._builder.build_part_mapped(
+                part, base_dir=os.path.dirname(os.path.abspath(path)))
             # Build-stage issues ride the same envelope as schema/semantic ones.
             diagnostics.extend(issue.to_diagnostic() for issue in result.issues)
             if result.shape is None:
@@ -212,9 +213,10 @@ class DocumentBuilder:
         document = self._loader.load(path)
         resolved = self._resolve_and_validate(document)
         material_library = MaterialLibrary(document, base_dir=os.path.dirname(path))
+        base_dir = os.path.dirname(os.path.abspath(path))
         out: dict[str, tuple] = {}
         for name, part in resolved["parts"].items():
-            result, _, _ = self._builder.build_part_mapped(part)
+            result, _, _ = self._builder.build_part_mapped(part, base_dir=base_dir)
             resolver = MaterialResolver(part, material_library)
             out[name] = (result.shape, resolver)
         return out

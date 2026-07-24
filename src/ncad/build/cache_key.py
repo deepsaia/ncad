@@ -13,8 +13,8 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# Runtime-only feature keys that must not affect identity (they hold resolved handles).
-_RESERVED_KEYS = ("__refs__", "__shapes__")
+# Runtime-only feature keys that must not affect identity (they hold resolved handles / context).
+_RESERVED_KEYS = ("__refs__", "__shapes__", "__base_dir__", "__imported__")
 
 
 class CacheKeyBuilder:
