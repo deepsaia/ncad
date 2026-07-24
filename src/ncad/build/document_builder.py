@@ -76,6 +76,12 @@ class DocumentBuilder:
         self._loader = SpecLoader()
         self._resolver = ParamResolver(FunctionRegistry.with_defaults())
         self._rebuild_stats: dict[str, dict[str, bool]] = {}
+        # Parsed documents cached per path for this instance's lifetime, alongside the feature
+        # cache. The assembly layer builds one DocumentBuilder per part file and calls several
+        # resolve_*/build_* methods on it (elements, builds, glb), each of which re-parsed the same
+        # HOCON; a motion study did this 6x for one part. The instance is short-lived (one assemble
+        # call), so the document is stable and a plain path key is correct.
+        self._document_cache: dict[str, dict] = {}
 
     def build(self, document: dict) -> dict[str, OpResult]:
         """Resolve expressions, validate, and build each part (incremental via cache).
@@ -104,9 +110,22 @@ class DocumentBuilder:
         """Per-part cache hit/miss map from the last build call."""
         return {name: dict(stats) for name, stats in self._rebuild_stats.items()}
 
+    def _load(self, path: str) -> dict:
+        """Load the document at ``path``, reusing this instance's parsed copy if already read.
+
+        Several resolve_*/build_* methods run against the same builder for one part file (the
+        assembly layer holds one builder per file); this caches the parse so the HOCON is read once
+        per file per instance. Callers must not mutate the returned dict (they resolve/copy it).
+        """
+        cached = self._document_cache.get(path)
+        if cached is None:
+            cached = self._loader.load(path)
+            self._document_cache[path] = cached
+        return cached
+
     def build_file_document(self, path: str) -> dict[str, OpResult]:
         """Load the document at ``path`` and build it (no export)."""
-        return self.build(self._loader.load(path))
+        return self.build(self._load(path))
 
     def build_file(self, path: str, out_dir: str,
                    formats: tuple[str, ...] = ("glb",),
@@ -136,7 +155,7 @@ class DocumentBuilder:
         """
         resolved_formats = resolve_formats(formats)
         os.makedirs(out_dir, exist_ok=True)
-        document = self._loader.load(path)
+        document = self._load(path)
         resolved, diagnostics = self._resolve_with_diagnostics(document)
         if any(d.severity == "error" for d in diagnostics):
             # The document is invalid: skip geometry entirely and hand the errors back as data.
@@ -210,7 +229,7 @@ class DocumentBuilder:
         SHAPE plus a MaterialResolver over the part's materials. Reuses the feature cache (built
         once per file), like resolve_part_elements. ``shape`` is None for a part that did not build.
         """
-        document = self._loader.load(path)
+        document = self._load(path)
         resolved = self._resolve_and_validate(document)
         material_library = MaterialLibrary(document, base_dir=os.path.dirname(path))
         base_dir = os.path.dirname(os.path.abspath(path))
@@ -228,7 +247,7 @@ class DocumentBuilder:
         Reuses the feature cache, so calling this after :meth:`build_file` on the same instance
         re-executes nothing (the element map comes straight from the cached build).
         """
-        resolved = self._resolve_and_validate(self._loader.load(path))
+        resolved = self._resolve_and_validate(self._load(path))
         out: dict[str, tuple[dict, list]] = {}
         for name, part in resolved["parts"].items():
             _, element_map, _ = self._builder.build_part_mapped(part)
