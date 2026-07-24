@@ -6,7 +6,7 @@ versions) so the viewer can regenerate it later by rebuilding that source.
 
 import json
 import logging
-import os
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +18,7 @@ class ModelMetadata:
 
     def __init__(self, models_dir: str) -> None:
         """:param models_dir: Directory holding the models and their meta sidecars."""
-        self._directory = os.path.abspath(models_dir)
+        self._directory = Path(models_dir).absolute()
 
     def write(
         self,
@@ -29,27 +29,25 @@ class ModelMetadata:
         kernel_version: str,
     ) -> str:
         """Write the meta sidecar for ``model_name`` and return its path."""
-        stem = os.path.splitext(model_name)[0]
-        path = os.path.join(self._directory, stem + _META_SUFFIX)
+        path = self._directory / (Path(model_name).stem + _META_SUFFIX)
         payload = {
             "source": source,
             "built_at": built_at,
             "ncad_version": ncad_version,
             "kernel_version": kernel_version,
         }
-        with open(path, "w", encoding="utf-8") as handle:
+        with path.open("w", encoding="utf-8") as handle:
             json.dump(payload, handle, indent=2)
         logger.debug("wrote meta sidecar %s", path)
-        return path
+        return str(path)
 
     def read(self, model_name: str) -> dict | None:
         """Read the meta sidecar for ``model_name``, or None if absent/unreadable."""
-        stem = os.path.splitext(model_name)[0]
-        path = os.path.join(self._directory, stem + _META_SUFFIX)
-        if not os.path.isfile(path):
+        path = self._directory / (Path(model_name).stem + _META_SUFFIX)
+        if not path.is_file():
             return None
         try:
-            with open(path, encoding="utf-8") as handle:
+            with path.open(encoding="utf-8") as handle:
                 return json.load(handle)
         except (OSError, ValueError):
             logger.warning("could not read meta sidecar %s", path)

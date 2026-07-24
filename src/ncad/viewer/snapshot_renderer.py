@@ -13,7 +13,7 @@ the model unless another output directory is given.
 
 import logging
 import math
-import os
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -77,8 +77,9 @@ class SnapshotRenderer:
         finally:
             renderer.delete()
 
-        base = os.path.join(out_dir or os.path.dirname(model_path) or ".",
-                            os.path.splitext(os.path.basename(model_path))[0])
+        # A bare model_path has parent Path("."), so this keeps the old "." fallback for that case.
+        out_root = Path(out_dir) if out_dir else Path(model_path).parent
+        base = out_root / Path(model_path).stem
         png_path, gif_path = f"{base}.png", f"{base}.gif"
         imageio.imwrite(png_path, still)
         # imageio's stub does not model a list[ndarray] of frames for the GIF writer; correct at
