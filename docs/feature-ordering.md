@@ -459,6 +459,55 @@ second joint is lost: the coupled body follows the driver 1:1 instead of by its 
 
 ---
 
+## Analysis (FEA) ordering
+
+### 18. The FEA deck is ONE consistent SI unit system: mesh in metres, material in Pa, results in Pa/m
+
+ncad parts are authored and STEP-exported in millimetres, but a CalculiX deck has no unit
+declaration; every quantity must belong to ONE consistent unit system. Materials carry SI values
+(E in Pa, density in kg/m^3), so the mesh MUST be written in metres to match. `GmshMesher` applies
+`Mesh.ScalingFactor = 1e-3` to scale only the WRITTEN node coordinates (mm -> m); the in-model
+geometry stays mm, so `element_size` is still authored in mm. Downstream everything is SI: the .frd
+nodes, the field-mesh sidecar, and the load glyphs are all metres, and the viewer consumes them
+without a unit conversion.
+
+- **Why:** stress is dimensionless in the length unit (`sigma = E * strain`, strain = du/dx), so an
+  mm mesh against Pa material still yields correct stress in Pa, which HID the inconsistency. But
+  displacement carries the mesh's length unit (mm read as if metres), and a gravity body-load
+  (`rho * g * volume`, density in kg/m^3 against an mm^3 volume) comes out 1000x too weak. Only a
+  metre mesh makes displacement, gravity, and concentrated forces all physically correct while
+  keeping stress in Pa (so the fatigue calculator, safety factor, and viewer legend are unchanged).
+- **Failure mode:** silent wrong physics that still solves. Stress and pressure-only results look
+  right; displacement is off by 1000x (0.18mm reported as 0.18m), and any gravity/force load is
+  1000x too small relative to a pressure. Nothing errors, so it reads as correct.
+- **Guard:** keep the single `Mesh.ScalingFactor` conversion in `GmshMesher`; never scale again
+  downstream (the viewer must NOT re-divide mm->m). If a new length-carrying quantity enters the
+  deck, confirm it is emitted in metres.
+- **Seen in:** the F1 wing (g-load) and connecting-rod (displacement) examples; the con-rod read a
+  0.175m axial displacement on a 180mm steel bar before the mesh was scaled to metres.
+
+### 19. Chain static + frequency in ONE deck, but read only the STATIC field records back
+
+A `frequency` step chained after a `static` step in the same structural deck is safe for CalculiX,
+but the .frd it writes contains BOTH the static result AND one mass-normalized eigenVECTOR
+DISP/STRESS block per mode, all sharing the same field names. `FrdReader` keys result blocks by the
+preceding `100CL` parameter line's `MODAL` marker: it keeps only the non-modal (static) DISP/STRESS
+for the summary/field mesh, and collects the modal blocks' eigenfrequencies (the `100CL` VALUE
+column) into `frequencies` instead.
+
+- **Why:** an eigenvector's magnitude is arbitrary (mass-normalized, not a physical stress), so
+  taking the max across all DISP/STRESS records lets the last mode's eigenvector overwrite the real
+  static physics.
+- **Failure mode:** the summary reports a mode shape as if it were the static result (an F1 wing
+  read 88 GPa / 1.9 m off mode 6), which then crashes the fatigue post-process ("mean stress reaches
+  ultimate"). It only appears when a frequency step is present, so a static-only run looks fine.
+- **Guard:** if a new procedure also emits DISP/STRESS records (buckling, modal dynamics), classify
+  its `100CL` line the same way so its eigenvectors do not pollute the static summary.
+- **Seen in:** the F1 wing (static + frequency(6) + fatigue); regression fixture `tests/fea/
+  fixtures/modal.frd`.
+
+---
+
 ## How to work when order bites you
 
 1. Build on the REAL kernel (`DocumentBuilder(Build123dKernel()).build_file(..., formats=
