@@ -72,11 +72,16 @@ class EntityExpander:
         aid = entity["id"]
         pts = AirfoilProfile().points(entity, base_dir)
         ox, oy = entity.get("at", [0.0, 0.0])
+        # AirfoilProfile closes the loop by repeating the first coordinate as the last; drop that
+        # duplicate here and instead close the spline by REUSING the first point id as its last
+        # connection node, so WireOrderer sees one closed ring (a single spline whose end == start).
+        if len(pts) > 1 and pts[0] == pts[-1]:
+            pts = pts[:-1]
         point_ids = self._naming.child_ids(f"{aid}/p", len(pts))
         result: list[dict] = [
             {"id": point_ids[i], "type": "point", "at": [ox + x, oy + y], "fixed": True}
             for i, (x, y) in enumerate(pts)]
-        result.append({"id": aid, "type": "interpolated", "points": point_ids})
+        result.append({"id": aid, "type": "interpolated", "points": [*point_ids, point_ids[0]]})
         return result
 
     def _expand_polyline(self, entity: dict) -> list[dict]:

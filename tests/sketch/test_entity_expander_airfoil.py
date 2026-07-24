@@ -11,9 +11,11 @@ def test_airfoil_expands_to_one_interpolated_spline():
     points = [e for e in out if e["type"] == "point"]
     assert len(splines) == 1
     assert len(points) >= 3
-    # The spline references the emitted point ids in order.
-    assert splines[0]["points"] == [p["id"] for p in points]
-    assert all(pid.startswith("wing/") for pid in splines[0]["points"])
+    point_ids = [p["id"] for p in points]
+    # The spline references the emitted points in order, then CLOSES the loop by reusing the first
+    # point id as its last connection node (one closed ring for WireOrderer).
+    assert splines[0]["points"] == [*point_ids, point_ids[0]]
+    assert all(pid.startswith("wing/") for pid in point_ids)
 
 
 def test_airfoil_points_are_fixed_and_deterministic():
