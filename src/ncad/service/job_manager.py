@@ -136,14 +136,22 @@ class JobManager:
         self._delete_progress(job.id)
 
     def _overlay_progress(self, job: BuildJob) -> None:
-        """Merge the worker's progress-file fields onto a running job (best-effort)."""
+        """Merge the worker's progress-file fields onto a running job (best-effort).
+
+        Logs each stage TRANSITION at INFO so the ``ncad serve`` terminal shows build progress
+        (e.g. "job abc123 analyze: solving (CalculiX) [3/4]"); only on change, not every poll.
+        """
         path = os.path.join(self._jobs_dir, f"{job.id}.progress.json")
         try:
             with open(path, encoding="utf-8") as handle:
                 data = json.load(handle)
         except (OSError, ValueError):
             return
-        job.stage = data.get("stage", job.stage)
+        new_stage = data.get("stage", job.stage)
+        if new_stage != job.stage:
+            logger.info("job %s %s: %s [%s/%s]", job.id, job.kind, new_stage,
+                        data.get("stages_done", 0), data.get("stages_total", 0))
+        job.stage = new_stage
         job.stages_done = data.get("stages_done", job.stages_done)
         job.stages_total = data.get("stages_total", job.stages_total)
         job.message = data.get("message", job.message)

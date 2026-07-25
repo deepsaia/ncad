@@ -130,6 +130,24 @@ def test_finalize_deletes_progress_file(tmp_path):
     assert not os.path.exists(progress)   # cleaned on finalize (bounds the .jobs dir)
 
 
+def test_get_logs_stage_transition_once(tmp_path, caplog):
+    import logging
+
+    pool = FakePool()
+    store = JobStore(clock=Clock(), ttl_s=300.0, max_jobs=100)
+    mgr = JobManager(pool=pool, store=store, models_dir=str(tmp_path), examples_dir="",
+                     jobs_dir=str(tmp_path), max_concurrent=2, queue_max=2,
+                     id_factory=_ids(), clock=Clock(), add_future=lambda f, c: None)
+    job = mgr.submit("analyze", {"spec": "c.hocon"}, coalesce_key="c.hocon")
+    (tmp_path / f"{job.id}.progress.json").write_text(
+        '{"stage": "meshing", "stages_done": 1, "stages_total": 4, "message": "c - meshing"}')
+    with caplog.at_level(logging.INFO, logger="ncad.service.job_manager"):
+        mgr.get(job.id)   # first read: stage changes queued -> meshing, logs once
+        mgr.get(job.id)   # second read: same stage, no new log
+    transitions = [r for r in caplog.records if "meshing" in r.getMessage()]
+    assert len(transitions) == 1
+
+
 def test_get_overlays_progress_file(tmp_path):
     pool = FakePool()
     store = JobStore(clock=Clock(), ttl_s=300.0, max_jobs=100)
