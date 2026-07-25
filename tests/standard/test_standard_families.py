@@ -2,8 +2,8 @@
 
 import pytest
 
-from ncad.standard.standard_library import StandardLibrary
 from ncad.standard.bolt_circle import bolt_circle_positions
+from ncad.standard.standard_library import StandardLibrary
 
 
 def test_all_families_registered():
