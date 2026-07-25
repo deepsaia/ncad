@@ -25,4 +25,4 @@ assembly {{ instances = [ {{ id = p1, file = "{part.name}", part = peg }} ] }}
     out = tmp_path / "out"
     result = _RUNNER.invoke(app, ["assemble", str(asm), "--out", str(out)])
     assert result.exit_code == 0, result.output
-    assert (out / "pegs.assembly.json").is_file()
+    assert (out / "assemblies" / "pegs" / "pegs.assembly.json").is_file()
