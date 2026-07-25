@@ -114,8 +114,8 @@ class ModelExporter:
     def _export_robot(self, source: str, fmt: str, base_name: str,
                       tmp: Path) -> tuple[str, str, bytes]:
         """Export the robot (+ per-link meshes) and return a zip of the artifact + meshes/."""
-        from ncad.robotics import RobotModelBuilder
         from ncad.robotics.robot_format import robot_writer
+        from ncad.robotics.robot_model_builder import RobotModelBuilder
 
         model, _ = RobotModelBuilder(self._kernel).build(source, str(tmp))
         writer, extension = robot_writer(fmt)
