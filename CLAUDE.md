@@ -49,6 +49,9 @@ rebuilds). No decision should foreclose scaling up to that level.
   that defines it (`from ncad.fea.frd_reader import FrdReader`), never from a
   package facade. Importing a real submodule (`from ncad.diagnostics import codes`,
   where `codes` is `codes.py`) is fine; importing a re-exported name is not.
+  The ONLY permitted exception, and only if ever actually needed, is the top-level
+  `src/ncad/__init__.py`, which may hold ncad-wide constants and nothing else (no
+  logic, no re-exports). It stays empty until such a constant genuinely exists.
 - Avoid global variables unless absolutely necessary.
 - Favor simple, well-understood design patterns when appropriate.
 
