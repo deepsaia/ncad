@@ -50,5 +50,7 @@ def test_dev_truthy_variants(monkeypatch):
         assert ServiceConfig.from_env().dev is expected
 
 
-def test_worker_default_is_at_least_one():
-    assert ServiceConfig.worker_default() >= 1
+def test_worker_default_is_bounded():
+    # At least 1, and capped at 4 for a local single-user viewer (heavy OCP process per worker).
+    d = ServiceConfig.worker_default()
+    assert 1 <= d <= 4

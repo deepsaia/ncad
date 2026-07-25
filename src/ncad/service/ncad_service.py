@@ -91,8 +91,25 @@ class NcadService:
         # so no second line here.
 
     def serve_forever(self) -> None:
-        """Run the IOLoop in the foreground until interrupted (for CLI use)."""
-        self._run()
+        """Run the IOLoop in the foreground until interrupted (for CLI use).
+
+        On Ctrl+C the inline IOLoop unwinds before ``stop()``'s add_callback can run, so drain the
+        build pool here (synchronously) to avoid leaked worker processes/semaphores.
+        """
+        try:
+            self._run()
+        finally:
+            self._drain_pool()
+
+    def _drain_pool(self) -> None:
+        """Shut the build pool down directly (foreground shutdown path); never raises."""
+        config = self._deps.get("config")
+        timeout = config.shutdown_timeout_s if config is not None else 30.0
+        if self._job_manager is not None:
+            try:
+                self._job_manager.shutdown(timeout)
+            except Exception:  # noqa: BLE001 - shutdown must not raise
+                logger.warning("job manager shutdown raised during foreground stop")
 
     def _run(self) -> None:
         """Create a thread-local IOLoop, bind the server, and run the loop."""
@@ -118,13 +135,7 @@ class NcadService:
 
     def _shutdown(self) -> None:
         """Drain the build pool, then stop the HTTP server and the IOLoop (on the loop thread)."""
-        config = self._deps.get("config")
-        timeout = config.shutdown_timeout_s if config is not None else 30.0
-        if self._job_manager is not None:
-            try:
-                self._job_manager.shutdown(timeout)
-            except Exception:  # noqa: BLE001 - shutdown must not raise on the loop
-                logger.warning("job manager shutdown raised during service stop")
+        self._drain_pool()
         if self._server is not None:
             self._server.stop()
         if self._ioloop is not None:

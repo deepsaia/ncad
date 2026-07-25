@@ -7,12 +7,22 @@ Tracks live futures for admission control. One class.
 """
 
 import logging
+import signal
 from concurrent.futures import Future, ProcessPoolExecutor
 from multiprocessing import get_context
 
 from ncad.service.build_worker import run_build
 
 logger = logging.getLogger(__name__)
+
+
+def _ignore_sigint() -> None:
+    """Worker initializer: ignore SIGINT so Ctrl+C is handled ONLY by the parent process.
+
+    Spawn workers otherwise inherit the parent's SIGINT and each dump a KeyboardInterrupt traceback
+    on Ctrl+C; ignoring it here lets the parent drain the pool cleanly and terminate them.
+    """
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
 
 
 class BuildPool:
@@ -37,7 +47,8 @@ class BuildPool:
         """Submit a build to the pool (creating it on first use); return its Future."""
         if self._pool is None:
             self._pool = ProcessPoolExecutor(
-                max_workers=self._max_workers, mp_context=get_context("spawn"))
+                max_workers=self._max_workers, mp_context=get_context("spawn"),
+                initializer=_ignore_sigint)
             logger.info("build pool started (spawn, %d workers)", self._max_workers)
         future = self._pool.submit(
             run_build, kind, payload, models_dir, examples_dir, progress_path)
