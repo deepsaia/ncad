@@ -51,6 +51,15 @@ def _post_build(summary: str) -> dict:
                      "responses": {"200": _JSON_OK, "400": _ERROR, "500": _ERROR}}}
 
 
+def _post_job(summary: str) -> dict:
+    """A POST that submits a build job: 202 {job_id}, 400 bad body, 503 when saturated."""
+    accepted = {"description": "accepted", "content": {"application/json": {
+        "schema": {"type": "object", "required": ["job_id"],
+                   "properties": {"job_id": {"type": "string"}}}}}}
+    return {"post": {"summary": summary, "requestBody": _SPEC_BODY,
+                     "responses": {"202": accepted, "400": _ERROR, "503": _ERROR}}}
+
+
 def _post_delete(summary: str) -> dict:
     """A POST that deletes a named resource (200 or 404)."""
     return {"post": {"summary": summary, "parameters": _NAME_PARAM,
@@ -96,22 +105,27 @@ class OpenApiSpec:
                 "Get a model's feature hierarchy.", "no hierarchy for model"),
             "/api/v1/status/{name}": _get_by_name(
                 "Get a model's sketch status.", "no sketch status for model"),
-            "/api/v1/build": _post_build(
-                "Build a part spec. Returns {models, built, build_ms}."),
-            "/api/v1/assemble": _post_build(
-                "Compose an assembly. Returns {assemblies, assembled, issues, build_ms}."),
-            "/api/v1/motion-build": _post_build(
-                "Run a motion study. Returns {motions, assembled, issues, build_ms}."),
-            "/api/v1/physics-build": _post_build(
-                "Export a robot + sidecars. Returns {robots, robot, warnings, build_ms}."),
-            "/api/v1/analyze": _post_build(
-                "Run an FEA load case. Returns {analyses, analysis, status, summary, build_ms}."),
+            "/api/v1/build": _post_job(
+                "Submit a part-build job. Poll /jobs/{id}; result {models, built, build_ms}."),
+            "/api/v1/assemble": _post_job(
+                "Submit an assembly job. Poll /jobs/{id}; result {assemblies, assembled, issues}."),
+            "/api/v1/motion-build": _post_job(
+                "Submit a motion-study job. Poll /jobs/{id}; result {motions, assembled, issues}."),
+            "/api/v1/physics-build": _post_job(
+                "Submit a robot-export job. Poll /jobs/{id}; result {robots, robot, warnings}."),
+            "/api/v1/analyze": _post_job(
+                "Submit an FEA job. Poll /jobs/{id}; result {analyses, analysis, status}."),
             "/api/v1/robot-collide": _post_build(
                 "Check a robot's self-collision at a pose. Returns {collisions}."),
             "/api/v1/export": _post_build(
                 "Re-export a model to a format; streams the file as a download."),
             "/api/v1/validate": _post_build(
                 "Validate a spec without building. Returns {ok, diagnostics}."),
+            "/api/v1/jobs/{name}": _get_by_name(
+                "Poll a build job's status (stage/progress, plus result on done or error).",
+                "unknown job"),
+            "/api/v1/jobs/{name}/cancel": _post_delete(
+                "Cancel a queued/running build job. Returns {cancelled}."),
             "/api/v1/models/{name}/delete": _post_delete("Delete a model and its sidecars."),
             "/api/v1/assembly/{name}/delete": _post_delete(
                 "Delete an assembly scene and its motion sidecar."),

@@ -10,7 +10,9 @@ reconnect-and-compare. Server-side autoreload (dev) is wired by ReloadWatcher.
 
 import asyncio
 import logging
+import os
 import threading
+import time
 import uuid
 
 from tornado.httpserver import HTTPServer
@@ -127,14 +129,20 @@ def _bind_sockets(host: str, port: int):
 
 
 def make_deps(models_dir: str, examples_dir: str | None, dev: bool, boot_id: str,
-              *, build_service=None) -> dict:
+              *, build_service=None, job_manager=None, config=None) -> dict:
     """Build the injected-collaborators dict passed to every handler's ``initialize``.
 
     Kept a top-level factory so tests can construct the same deps an NcadService uses (and build a
     bare Tornado Application from ApiRouter) without spinning up the full service lifecycle.
     """
+    from ncad.service.service_config import ServiceConfig
+
+    if config is None:
+        config = ServiceConfig.from_env()
     if build_service is None:
         build_service = BuildServiceFactory().create(examples_dir or "", models_dir)
+    if job_manager is None:
+        job_manager = _make_job_manager(models_dir, examples_dir or "", config)
     return {
         "catalog": ModelCatalog(models_dir),
         "spec_catalog": SpecCatalog(examples_dir or ""),
@@ -142,4 +150,24 @@ def make_deps(models_dir: str, examples_dir: str | None, dev: bool, boot_id: str
         "page": ViewerPage(dev=dev),
         "dev": dev,
         "boot_id": boot_id,
+        "job_manager": job_manager,
+        "config": config,
     }
+
+
+def _make_job_manager(models_dir: str, examples_dir: str, config):
+    """Construct the production JobManager (spawn pool + TTL store), wired to the current IOLoop."""
+    from ncad.service.build_pool import BuildPool
+    from ncad.service.job_manager import JobManager
+    from ncad.service.job_store import JobStore
+
+    jobs_dir = config.jobs_dir or os.path.join(models_dir, ".jobs")
+    os.makedirs(jobs_dir, exist_ok=True)
+    store = JobStore(clock=time.monotonic, ttl_s=config.job_ttl_s,
+                     max_jobs=max(64, config.job_queue_max * 4))
+    return JobManager(
+        pool=BuildPool(max_workers=config.max_workers), store=store,
+        models_dir=models_dir, examples_dir=examples_dir, jobs_dir=jobs_dir,
+        max_concurrent=config.max_concurrent_builds, queue_max=config.job_queue_max,
+        id_factory=lambda: uuid.uuid4().hex, clock=time.monotonic,
+        add_future=lambda f, cb: IOLoop.current().add_future(f, cb))

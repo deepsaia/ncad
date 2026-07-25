@@ -33,6 +33,7 @@ from ncad.service.build_handlers import (
     RobotCollideHandler,
 )
 from ncad.service.export_handler import ExportHandler
+from ncad.service.job_handlers import JobCancelHandler, JobStatusHandler
 from ncad.service.livereload_handler import LiveReloadHandler
 from ncad.service.model_handlers import ModelBytesHandler, ModelDeleteHandler, ModelsHandler
 from ncad.service.motion_handlers import MotionHandler, MotionsHandler
@@ -109,6 +110,9 @@ class ApiRouter:
             URLSpec(r"/api/v1/robot-collide", RobotCollideHandler, deps),
             URLSpec(r"/api/v1/export", ExportHandler, deps),
             URLSpec(r"/api/v1/validate", ValidateHandler, deps),
+            # Job status + cancel. Cancel POST precedes the catch-all GET (method-agnostic match).
+            URLSpec(r"/api/v1/jobs/(.+)/cancel", JobCancelHandler, deps),
+            URLSpec(r"/api/v1/jobs/(.+)", JobStatusHandler, deps),
             # CRITICAL ORDER: Tornado matches by URL pattern only (method-agnostic, `$`-anchored,
             # `.+` matches `/`). The delete POSTs MUST precede the GET catch-alls below, or e.g.
             # POST /api/v1/models/foo/delete would match `/api/v1/models/(.+)` and route to the

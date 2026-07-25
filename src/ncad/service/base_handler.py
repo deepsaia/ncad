@@ -35,6 +35,8 @@ class BaseApiHandler(RequestHandler):
         self._page = kwargs["page"]
         self._dev: bool = kwargs["dev"]
         self._boot_id: str = kwargs["boot_id"]
+        self._job_manager: Any = kwargs.get("job_manager")
+        self._config: Any = kwargs.get("config")
 
     def set_default_headers(self) -> None:
         """Permit cross-origin API use (a future React client on another origin).
