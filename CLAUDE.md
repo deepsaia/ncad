@@ -1,9 +1,10 @@
 # ncad: Coding Guidelines & Best Practices
 
 These are project-wide instructions for working in this repository. They take
-precedence over default behavior. See [`docs/documentation-design.md`](./docs/documentation-design.md)
-for the documentation information-architecture and [`docs/feature-ordering.md`](./docs/feature-ordering.md)
-for the op-composition rules.
+precedence over default behavior. See [`docs/feature-ordering.md`](./docs/feature-ordering.md)
+for the op-composition rules. The documentation site's taxonomy lives in
+[`docs/documentation-structure.json`](./docs/documentation-structure.json) (rendered by
+`ncad.docs`).
 
 ---
 
