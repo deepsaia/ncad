@@ -44,8 +44,11 @@ rebuilds). No decision should foreclose scaling up to that level.
   class per module**.
 - Avoid excessively large modules or functions.
 - Group related functionality logically within packages.
-- **Do not place any logic inside `__init__.py`.** Use it only for namespace
-  exports (re-exports), nothing more.
+- **Every `__init__.py` must be empty.** No logic, no re-exports, no `__all__`,
+  not even a docstring: zero bytes. Import every symbol from the concrete module
+  that defines it (`from ncad.fea.frd_reader import FrdReader`), never from a
+  package facade. Importing a real submodule (`from ncad.diagnostics import codes`,
+  where `codes` is `codes.py`) is fine; importing a re-exported name is not.
 - Avoid global variables unless absolutely necessary.
 - Favor simple, well-understood design patterns when appropriate.
 
