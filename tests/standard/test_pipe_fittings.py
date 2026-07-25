@@ -2,7 +2,7 @@
 
 import pytest
 
-from ncad.standard import StandardLibrary
+from ncad.standard.standard_library import StandardLibrary
 
 
 def test_pipe_fitting_is_a_grouped_family():

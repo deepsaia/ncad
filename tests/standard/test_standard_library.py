@@ -4,7 +4,7 @@ import math
 
 import pytest
 
-from ncad.standard import StandardLibrary
+from ncad.standard.standard_library import StandardLibrary
 
 
 def test_families_and_designations():

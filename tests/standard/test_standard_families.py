@@ -2,7 +2,7 @@
 
 import pytest
 
-from ncad.standard import StandardLibrary
+from ncad.standard.standard_library import StandardLibrary
 from ncad.standard.bolt_circle import bolt_circle_positions
 
 
