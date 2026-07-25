@@ -21,6 +21,7 @@ from ncad.build.inertia_validator import InertiaValidator
 from ncad.build.mass_calculator import MassCalculator
 from ncad.build.material_error import MaterialError
 from ncad.build.material_resolver import MaterialResolver
+from ncad.build.output_layout import OutputLayout
 from ncad.build.sketch_status_sidecar import SketchStatusSidecar
 from ncad.diagnostics.checks.disconnected_solid_check import DisconnectedSolidCheck
 from ncad.diagnostics.diagnostic import Diagnostic
@@ -130,23 +131,20 @@ class DocumentBuilder:
 
     def build_file(self, path: str, out_dir: str,
                    formats: tuple[str, ...] = ("glb",),
-                   name_prefix: str = "",
+                   layout_kind: str | None = "parts",
                    mesh_tolerance: float | None = None) -> dict[str, Any]:
-        """Load, build, and export each part to ``<out_dir>/<prefix><part>.<ext>`` per format.
+        """Load, build, and export each part per format, writing artifacts + sidecars together.
 
-        Also writes each part's element-map / hierarchy / status sidecars beside the
-        artifacts. ``formats`` selects the export format(s): glb is the display mesh; step/iges
-        are the exact B-rep for CAD interchange; stl/3mf/obj/ply are tessellated meshes (slicing,
-        robot links). The default keeps the viewer's glb-only path unchanged.
+        ``formats`` selects the export format(s): glb is the display mesh; step/iges are the exact
+        B-rep for CAD interchange; stl/3mf/obj/ply are tessellated meshes (slicing, robot links).
+        The default keeps the viewer's glb-only path unchanged. ``mesh_tolerance`` (mm, optional)
+        pins the tessellation deflection for the mesh formats; None uses a size-relative default.
 
-        ``mesh_tolerance`` (mm, optional) pins the tessellation deflection for the mesh formats;
-        None uses a size-relative default. Ignored by the exact B-rep formats (step/iges).
-
-        ``name_prefix`` namespaces the written artifact + sidecar basenames (default ""
-        keeps the bare ``<part>`` names). Assembly composition passes the source document's
-        stem so two mechanisms that both define a part named ``stand`` write distinct
-        ``<doc>__stand.glb`` files into the shared output dir instead of clobbering one
-        ``stand.glb``. The artifacts map is still keyed by the bare part name.
+        ``layout_kind`` selects WHERE each part is written. ``"parts"`` (default) writes each part
+        into its own ``<out_dir>/parts/<name>/`` subdir with the bare name. ``None`` writes each
+        part flat into ``out_dir`` (the exact dir the caller already chose, e.g. an assembly's own
+        dir for its member parts, where the dir already namespaces them). The artifacts map is
+        keyed by the bare part name either way.
 
         This is the agent-facing entry: a bad DESIGN is reported as data, not raised. On any
         error-severity diagnostic (schema/semantic) geometry is skipped and ``artifacts`` is empty;
@@ -156,6 +154,7 @@ class DocumentBuilder:
         """
         resolved_formats = resolve_formats(formats)
         Path(out_dir).mkdir(parents=True, exist_ok=True)
+        layout = OutputLayout(out_dir) if layout_kind is not None else None
         document = self._load(path)
         resolved, diagnostics = self._resolve_with_diagnostics(document)
         if any(d.severity == "error" for d in diagnostics):
@@ -168,7 +167,14 @@ class DocumentBuilder:
         # abspath (not resolve) keeps the base dir a textual absolute for reference resolution.
         part_base_dir = os.path.dirname(os.path.abspath(path))
         for name, part in resolved["parts"].items():
-            stem = f"{name_prefix}{name}"
+            # layout_kind="parts" -> each part gets its own out/parts/<name>/ dir; None -> flat
+            # into the caller's out_dir (assembly-member case; that dir already namespaces them).
+            if layout is not None and layout_kind is not None:
+                part_dir = str(layout.dir_for(layout_kind, name))
+            else:
+                part_dir = out_dir
+            Path(part_dir).mkdir(parents=True, exist_ok=True)
+            stem = name
             result, element_map, statuses = self._builder.build_part_mapped(
                 part, base_dir=part_base_dir)
             # Build-stage issues ride the same envelope as schema/semantic ones.
@@ -191,15 +197,15 @@ class DocumentBuilder:
                            if b.get("appearance_color") is not None}
             written: list[str] = []
             for fmt in resolved_formats:
-                artifact_path = str(Path(out_dir) / f"{stem}.{_FORMAT_EXTENSIONS[fmt]}")
+                artifact_path = str(Path(part_dir) / f"{stem}.{_FORMAT_EXTENSIONS[fmt]}")
                 self._kernel.export(result.shape, artifact_path, body_colors=body_colors,
                                     mesh_tolerance=mesh_tolerance)
                 written.append(artifact_path)
-            self._write_element_map(element_map, out_dir, stem, bodies, result.shape)
-            self._write_hierarchy(part, out_dir, stem, statuses, bodies)
+            self._write_element_map(element_map, part_dir, stem, bodies, result.shape)
+            self._write_hierarchy(part, part_dir, stem, statuses, bodies)
             diagnostics.extend(
-                self._write_facts(result.shape, part, material_library, out_dir, stem))
-            SketchStatusSidecar(out_dir).write(stem, statuses)
+                self._write_facts(result.shape, part, material_library, part_dir, stem))
+            SketchStatusSidecar(part_dir).write(stem, statuses)
             for status in statuses:
                 logger.info("sketch %s: %s-constrained (dof %d)%s", status.feature_id,
                             status.status, status.dof,
