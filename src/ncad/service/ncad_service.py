@@ -59,6 +59,7 @@ class NcadService:
         self._boot_id = uuid.uuid4().hex
         self._deps = make_deps(models_dir, examples_dir, dev, self._boot_id,
                                build_service=build_service, job_manager=job_manager)
+        self._job_manager = self._deps["job_manager"]
         # A custom access log_function colors the status by class (see AccessLogger); it emits
         # through the "tornado.access" logger, which ServiceLogging configures for the CLI.
         self._app = Application(ApiRouter().rules(self._deps),
@@ -116,7 +117,14 @@ class NcadService:
             self._thread.join(timeout=5)
 
     def _shutdown(self) -> None:
-        """Stop the HTTP server and the IOLoop (runs on the loop thread)."""
+        """Drain the build pool, then stop the HTTP server and the IOLoop (on the loop thread)."""
+        config = self._deps.get("config")
+        timeout = config.shutdown_timeout_s if config is not None else 30.0
+        if self._job_manager is not None:
+            try:
+                self._job_manager.shutdown(timeout)
+            except Exception:  # noqa: BLE001 - shutdown must not raise on the loop
+                logger.warning("job manager shutdown raised during service stop")
         if self._server is not None:
             self._server.stop()
         if self._ioloop is not None:
