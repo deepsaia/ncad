@@ -13,11 +13,16 @@ if [ "${1:-}" == "--no-cache" ]; then
     CACHE_ARGS="--no-cache --progress=plain"
 fi
 
+# BuildKit is preferred, but this Dockerfile uses no BuildKit-only features (multi-stage +
+# COPY --from build on the legacy builder too), so allow DOCKER_BUILDKIT=0 to fall back when the
+# buildx plugin is missing. Default on.
+export DOCKER_BUILDKIT="${DOCKER_BUILDKIT:-1}"
+
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-echo "Building ${SERVICE_TAG}:${SERVICE_VERSION} for linux/amd64 from ${REPO_ROOT}"
+echo "Building ${SERVICE_TAG}:${SERVICE_VERSION} for linux/amd64 from ${REPO_ROOT} (BuildKit=${DOCKER_BUILDKIT})"
 
 # shellcheck disable=SC2086
-DOCKER_BUILDKIT=1 docker build \
+docker build \
     -t "${SERVICE_TAG}:${SERVICE_VERSION}" \
     -t "${SERVICE_TAG}:latest" \
     --platform linux/amd64 \
