@@ -398,12 +398,22 @@ def view(
 @app.command()
 def serve(
     models_dir: str = typer.Argument(None, help="directory of glTF/GLB models (default: out/)"),
-    host: str = typer.Option("127.0.0.1", help="bind address"),
-    port: int = typer.Option(8000, help="bind port (0 = ephemeral)"),
-    dev: bool = typer.Option(True, help="hot-reload (server autoreload + browser live-reload)"),
+    host: str = typer.Option(None, help="bind address (default: NCAD_HOST or 127.0.0.1)"),
+    port: int = typer.Option(None, help="bind port, 0=ephemeral (default: NCAD_PORT or 8000)"),
+    dev: bool = typer.Option(None, help="hot-reload (default: NCAD_DEV, or on)"),
 ) -> None:
-    """Run the Tornado HTTP service: JSON API under /api/v1, viewer at /viewer, docs at /docs."""
-    cli.launch_service(models_dir, host, port, dev)
+    """Run the Tornado HTTP service: JSON API under /api/v1, viewer at /viewer, docs at /docs.
+
+    Precedence is flag > NCAD_ env var > default. host/port fall back to ServiceConfig; dev keeps
+    its historical default-on for the CLI unless NCAD_DEV or the flag says otherwise.
+    """
+    from ncad.service.service_config import ServiceConfig
+
+    cfg = ServiceConfig.from_env()
+    resolved_host = host if host is not None else cfg.host
+    resolved_port = port if port is not None else cfg.port
+    resolved_dev = dev if dev is not None else (cfg.dev or True)
+    cli.launch_service(models_dir, resolved_host, resolved_port, resolved_dev)
 
 
 @app.command()

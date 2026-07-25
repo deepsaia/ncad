@@ -16,18 +16,19 @@ from ncad.service.base_handler import BaseApiHandler
 _HEAD_TAG = "<head>"
 
 
-def _bootstrap_script(dev: bool, boot_id: str) -> str:
-    """The bootstrap <script> injected right after <head>, exposing the dev flag + boot id."""
+def _bootstrap_script(dev: bool, boot_id: str, poll_ms: int) -> str:
+    """The bootstrap <script> injected after <head>: dev flag, boot id, and job-poll interval."""
     return ("<script>"
             f"window.NCAD_DEV={json.dumps(bool(dev))};"
             f"window.NCAD_BOOT_ID={json.dumps(boot_id)};"
             f'window.NCAD_API_BASE="/api/v1";'
+            f"window.NCAD_JOB_POLL_MS={json.dumps(int(poll_ms))};"
             "</script>")
 
 
-def _inject(html: str, dev: bool, boot_id: str) -> str:
+def _inject(html: str, dev: bool, boot_id: str, poll_ms: int) -> str:
     """Insert the bootstrap script right after the first <head> tag (or prepend if absent)."""
-    script = _bootstrap_script(dev, boot_id)
+    script = _bootstrap_script(dev, boot_id, poll_ms)
     index = html.find(_HEAD_TAG)
     if index == -1:
         return script + html
@@ -41,7 +42,8 @@ class ViewerHandler(BaseApiHandler):
     def get(self, *args: str, **kwargs: str) -> None:
         """Render the viewer page and inject the bootstrap block. Any deep-link tail is ignored
         here (the SPA reads it from the URL path itself)."""
-        html = _inject(self._page.render(), self._dev, self._boot_id)
+        poll_ms = self._config.job_poll_ms if self._config is not None else 400
+        html = _inject(self._page.render(), self._dev, self._boot_id, poll_ms)
         self.set_header("Content-Type", "text/html; charset=utf-8")
         self.safe_finish(html)
 
