@@ -38,3 +38,38 @@
   color: var(--md-default-fg-color--light);
 }
 .ncad-caption strong { color: var(--md-default-fg-color); }
+
+/* Home hero: a two-column band (pitch + CTAs on the left, a live 3D scene on the right) that stacks
+   on narrow screens. The viewer reuses the .ncad-viewer machinery, so the home scene is the same
+   engine output as the Showcase. */
+.ncad-hero {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+  align-items: center;
+  margin: 1rem 0 2.5rem;
+}
+@media (max-width: 76.25em) {
+  .ncad-hero { grid-template-columns: 1fr; }
+}
+.ncad-hero-copy h1 {
+  font-size: 2.4rem;
+  line-height: 1.1;
+  margin: 0 0 0.6rem;
+}
+.ncad-hero-copy .ncad-lede {
+  font-size: 1.05rem;
+  color: var(--md-default-fg-color--light);
+  margin: 0 0 1.2rem;
+}
+.ncad-hero .ncad-viewer { height: 380px; }
+
+/* Feature-card thumbnails: a small image atop a grid card, cropped to a consistent band. */
+.grid.cards .ncad-thumb {
+  display: block;
+  width: 100%;
+  height: 120px;
+  object-fit: cover;
+  border-radius: 4px;
+  margin-bottom: 0.5rem;
+}

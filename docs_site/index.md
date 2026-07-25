@@ -4,17 +4,30 @@ hide:
   - toc
 ---
 
+<div class="ncad-hero" markdown>
+
+<div class="ncad-hero-copy" markdown>
+
 # ncad
 
 **A data-driven CAD engine.** Declarative, parametric and direct.
 
-Define a part as a text document; a pure executor replays it against an exact-geometry kernel
-to produce solids, assemblies, and motion. No authoring GUI. The same document is editable by a
-human, an agent, or a generator, and rebuilds deterministically.
+Define a part as a text document; a pure executor replays it against an exact-geometry kernel to
+produce solids, assemblies, motion, robots, and analyses. No authoring GUI. The same document is
+editable by a human, an agent, or a generator, and rebuilds deterministically.
 
-[Use ncad](ncad/index.md){ .md-button .md-button--primary }
+[Get started](ncad/getting-started/index.md){ .md-button .md-button--primary }
 [Showcase](ncad/showcase.md){ .md-button }
 [Learn the field](learn/index.md){ .md-button }
+
+</div>
+
+<div class="ncad-viewer" data-ncad-model="assets/models/crank_slider" data-ncad-motion="true"></div>
+
+</div>
+
+The whole model is one text document. This builds an L-bracket: a sketch, an extrude, a fillet, and a
+sized hole, replayed deterministically.
 
 ```properties
 units = mm
@@ -35,30 +48,45 @@ parts {
 
 <div class="grid cards" markdown>
 
-- __Parametric__
+- __Parametric & direct__
 
-    An ordered feature tree: sketch >> extrude >> hole >> fillet. Edit a parameter or reorder a
-    feature and the part rebuilds deterministically.
-
-- __Direct__
-
-    History-free face and relational edits on the current B-rep: defeature, offset, move-face,
-    guarded by a measured robustness envelope.
+    An ordered feature tree (sketch >> extrude >> hole >> fillet) plus history-free direct edits
+    (defeature, offset, move-face) guarded by a robustness envelope.
+    [Author parts](ncad/guides/authoring-parts.md)
 
 - __Assemblies__
 
     Instances placed by mates and lower-pair joints, solved by a constraint solver, with
     interference checks and rolled-up mass properties.
+    [Author assemblies](ncad/guides/authoring-assemblies.md)
 
 - __Motion__
 
-    Forward-kinematics mechanisms: drivers sweep joints; gear, cam and slot couplings are
+    Forward-kinematics mechanisms: drivers sweep joints; gear, cam, and geneva couplings are
     enforced; traces and measures come out over time.
+    [Author motion](ncad/guides/authoring-motion.md)
+
+- __Robotics__
+
+    Export an assembly as URDF, MJCF, or SDF with link inertials computed from the geometry, never
+    authored.
+    [Author robots](ncad/guides/authoring-robots.md)
+
+- __Analysis (FEA)__
+
+    Structural load cases meshed with Gmsh and solved by CalculiX: static stress, modes, thermal.
+    [Author analyses](ncad/guides/authoring-analyses.md)
+
+- __Standard parts__
+
+    Generate fasteners, pipes, flanges, bearings, and profiles natively, each with a standards
+    citation.
+    [Standard parts](ncad/guides/standard-parts.md)
 
 - __Exact geometry__
 
-    Precise B-rep solids on an OpenCASCADE kernel behind a swappable interface. STEP for
-    interchange, glTF for the browser viewer.
+    Precise B-rep solids on an OpenCASCADE kernel behind a swappable interface. STEP for interchange,
+    glTF for the browser viewer.
 
 - __Deterministic__
 
