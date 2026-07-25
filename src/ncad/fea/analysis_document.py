@@ -13,6 +13,7 @@ import logging
 from pathlib import Path
 
 from ncad.build.document_builder import DocumentBuilder
+from ncad.build.output_layout import OutputLayout
 from ncad.fea.analysis_error import AnalysisError
 from ncad.fea.analysis_mesh_writer import AnalysisMeshWriter
 from ncad.fea.analysis_spec import AnalysisSpec
@@ -42,11 +43,13 @@ class AnalysisDocument:
             solve status (``generated``/``skipped``/``failed``); ``skipped`` also covers a missing
             gmsh (no meshing) with the reason in ``warnings``.
         """
-        out = Path(out_dir)
-        out.mkdir(parents=True, exist_ok=True)
         spec = AnalysisSpec(SpecLoader().load(analysis_path))
         part_path = SpecReference().for_doc(spec.part, analysis_path)
         stem = Path(part_path).stem
+        # This analysis's artifacts (summary, field mesh, STEP, mesh .inp, hierarchy) live together
+        # in out/analyses/<stem>/.
+        out = OutputLayout(out_dir).dir_for("analyses", stem)
+        out.mkdir(parents=True, exist_ok=True)
         # Load the referenced part document ONCE and thread it through: the build, the hierarchy
         # sidecar, and the material resolution all need it, so re-loading per helper re-parsed the
         # same HOCON three times.
@@ -57,7 +60,7 @@ class AnalysisDocument:
         kernel.export(shape, step_path)
         # Write the part's feature hierarchy sidecar so the viewer's Hierarchy tab has content in
         # Analyze mode (the part is built here internally, so its normal build sidecars are absent).
-        _write_hierarchy(part_document, stem, out_dir)
+        _write_hierarchy(part_document, stem, str(out))
 
         mesh_inp = str(out / f"{stem}.mesh.inp")
         groups = _groups(spec)
@@ -88,7 +91,7 @@ class AnalysisDocument:
             with open(deck_path, "w", encoding="utf-8") as handle:
                 handle.write(deck)
             artifacts.append(deck_path)
-            solve = CcxRunner().solve(deck_path, out_dir)
+            solve = CcxRunner().solve(deck_path, str(out))
             warnings += solve["skipped"] + solve["reasons"]
             if solve["status"] == "generated":
                 family_results.append((family, solve["artifact"]))
@@ -99,7 +102,7 @@ class AnalysisDocument:
                   "artifacts": artifacts, "sidecars": {}, "summary": {}, "mesh": mesh_report,
                   "warnings": warnings}
         if family_results:
-            result.update(self._read_back(family_results, material, mesh_inp, out_dir, stem,
+            result.update(self._read_back(family_results, material, mesh_inp, str(out), stem,
                                           spec, rewritten["triangles"]))
         return result
 

@@ -31,6 +31,14 @@ def test_run_reports_skipped_without_ccx(tmp_path):
     assert os.path.isfile(result["artifact"])
 
 
+def test_run_writes_into_analyses_subdir(tmp_path):
+    # The STEP + hierarchy land in out/analyses/bracket/ regardless of ccx availability.
+    pytest.importorskip("gmsh")
+    AnalysisDocument().run(_BRACKET, str(tmp_path))
+    assert (tmp_path / "analyses" / "bracket" / "bracket.step").is_file()
+    assert (tmp_path / "analyses" / "bracket" / "bracket.hierarchy.json").is_file()
+
+
 def test_run_without_gmsh_is_skipped(monkeypatch, tmp_path):
     # Simulate the extra being absent: the mesh stage must degrade to skipped, not raise.
     import ncad.fea.gmsh_mesher as gm
