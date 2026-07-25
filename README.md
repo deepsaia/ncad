@@ -81,13 +81,28 @@ as `ncad view`.
 
 ## Running ncad
 
-The `ncad` command (a typer app) is the single entrypoint. The two everyday commands:
+The `ncad` command (a typer app) is the single entrypoint. The everyday commands:
 
 | Command | What it does |
 | --- | --- |
 | `ncad build <document> [--out DIR]` | Build every part in a feature-tree document to `<part>.glb` (plus its BOM / plan / element-map sidecars). |
 | `ncad view [DIR]` (or bare `ncad`) | Launch the lightweight stdlib browser 3D viewer + local model-manager over a models directory (default `out/`). |
 | `ncad serve [DIR]` | Run the full HTTP service (Tornado): versioned JSON API under `/api/v1`, the viewer SPA at `/viewer`, Swagger UI at `/docs`, and dev hot-reload. |
+
+The rest of the surface (see the [CLI reference](https://deepsaia.github.io/ncad/ncad/reference/cli/)):
+
+| Command | What it does |
+| --- | --- |
+| `ncad import <step>` | Import a STEP/IGES solid as an editable base-feature document. |
+| `ncad assemble <asm>` | Compose an assembly (placed instances + mates/joints) into a scene. |
+| `ncad motion <motion>` | Drive a mechanism: run a motion study into a trajectory. |
+| `ncad physics <physics>` | Export a robot description (URDF/MJCF/SDF) with computed inertials. |
+| `ncad analyze <analysis>` | Run a structural FEA load case (mesh + delegated solve + read). |
+| `ncad slice <stl> -p <profile>` | Slice an STL to G-code via an installed slicer (delegated). |
+| `ncad validate <document>` | Statically validate a document (no geometry); exit 1 if not ok. |
+| `ncad snapshot <model>` | Render a model to a PNG still + orbit GIF (offscreen). |
+| `ncad dfm <document>` | Manufacturability preflight against a process's DFM rules. |
+| `ncad spgen <family> <designation>` | Generate a standard part (by designation or custom dims). |
 
 Common flags for `ncad view` / `ncad serve`: `--host` (default `127.0.0.1`), `--port`
 (default `8000`, `0` picks a free port), `--dev` / `--no-dev` (hot-reload; on by default).
@@ -178,10 +193,30 @@ showcases). Build any of them with `ncad build <path>` and view with `ncad view`
 
 The core engine is built: parametric feature modeling (2D sketching + constraint solver,
 sketched + dress-up solid features, patterns/booleans/multibody, a persistent-name layer with
-direct/synchronous edits), assemblies (mates + lower-pair joints), forward-kinematics motion
-(drivers + gear/cam/slot couplings), an agent-facing validation + diagnostics contract, and a
-browser viewer + HTTP service. Geometry is build123d/OCCT; sketch constraints are py-slvs; motion
-is OndselSolver via pyondsel.
+direct/synchronous edits), assemblies (mates + lower-pair joints + couplings), and forward-kinematics
+motion (drivers + gear/cam/geneva couplings), with an agent-facing validation + diagnostics contract.
+
+Beyond the core, several downstream capabilities ship today:
+
+- **Robotics export**: an assembly + a `.physics.hocon` overlay exports a robot description in URDF,
+  MJCF, or SDF, with link inertials computed from the geometry (never authored). Emitted URDF/MJCF is
+  validated by loading it in MuJoCo. (`ncad physics`)
+- **Structural FEA**: a `.analysis.hocon` load case is meshed with Gmsh and solved by CalculiX
+  (delegated, not bundled) for static stress, modes, and thermal steps, read back into a viewer field
+  mesh. (`ncad analyze`, extra `fea`)
+- **CAM slicing**: an STL is sliced to G-code by delegating to an installed slicer. (`ncad slice`)
+- **Standard parts**: fasteners, pipes, flanges, bearings, and profiles are generated natively, each
+  with a standards citation. (`ncad spgen`)
+- **DFM preflight**: a manufacturability check against per-process rules. (`ncad dfm`)
+- **Serving + Docker**: a browser viewer and a concurrent Tornado HTTP service (`ncad serve`), with a
+  single-node container image (see "Running in Docker" above).
+
+Geometry is build123d/OCCT; sketch constraints are py-slvs; motion is OndselSolver via pyondsel.
+Delegated solves (CalculiX, a slicer, MuJoCo validation) are optional and degrade to a reported
+"skipped" status when absent. Full, code-generated capability detail is on the
+[documentation site](https://deepsaia.github.io/ncad/).
+
+![A crank-piston mechanism modeled in ncad](docs_site/assets/img/ncad_crank_piston.jpeg)
 
 ## Future roadmap / possible directions
 
@@ -195,12 +230,12 @@ Not built; recorded as directions rather than commitments:
   showcases demonstrate the general substrate already reaches these without dedicated profiles;
   kept as future potential.
 - **Large-assembly performance** (lightweight reps, LOD, spatial index, out-of-context cache).
-- **Interchange & plugins** (IGES / STL / 3MF / DXF; a plugin contract; PartCAD; OpenSCAD import)
-  and **analysis export seams** (delegate every solve: FEA to CalculiX/Elmer/Z88, 1D frame to
-  frame3dd/PyNite, CFD to Elmer, pipe-network to EPANET, all as input-deck exporters, never a
-  solver we write).
-- **Multibody dynamics & robotics** (gravity, forces, springs, contact >> reaction forces; and
-  contact-rich robotics sim) via a real physics engine (MuJoCo/Bullet) as a first-class
-  force-driven backend. Deferred here because OndselSolver as vendored is kinematics-only.
-- **CAM** (a process profile over a built solid >> toolpaths >> G-code) and **PCB/ECAD**
-  (a board data model + DRC + lowering to solids, KiCad round-trip).
+- **More analysis export seams** (1D frame to frame3dd/PyNite, CFD to Elmer, pipe-network to EPANET,
+  as input-deck exporters, never a solver we write). Structural FEA to CalculiX already ships.
+- **Full multibody dynamics** (gravity, forces, springs, contact >> reaction forces; contact-rich
+  robotics sim) via a real physics engine (MuJoCo/Bullet) as a first-class force-driven backend.
+  Deferred because OndselSolver as vendored is kinematics-only; robot-description export (URDF / MJCF
+  / SDF) already ships.
+- **CAM toolpaths** (a process profile over a built solid >> toolpaths >> G-code). Slicing an STL to
+  G-code via a delegated slicer already ships; native toolpath generation is the future step.
+- **PCB / ECAD** (a board data model + DRC + lowering to solids, KiCad round-trip).
