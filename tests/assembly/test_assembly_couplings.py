@@ -52,7 +52,7 @@ assembly {{
     out = tmp_path / "out"
     result = AssemblyBuilder(Build123dKernel()).assemble(str(asm), str(out))
     assert not result["issues"], result["issues"]
-    sidecar = json.loads((out / "geared.assembly.json").read_text())
+    sidecar = json.loads((out / "assemblies" / "geared" / "geared.assembly.json").read_text())
     couplings = sidecar["couplings"]
     assert len(couplings) == 1
     assert couplings[0]["id"] == "c1" and couplings[0]["type"] == "gear"
@@ -91,7 +91,7 @@ assembly {{
     out = tmp_path / "out"
     result = AssemblyBuilder(Build123dKernel()).assemble(str(asm), str(out))
     assert not result["issues"], result["issues"]
-    sidecar = json.loads((out / "cammed.assembly.json").read_text())
+    sidecar = json.loads((out / "assemblies" / "cammed" / "cammed.assembly.json").read_text())
     cam = next(c for c in sidecar["couplings"] if c["id"] == "camPair")
     assert cam["type"] == "cam"
     assert cam["profile"] == "select edges where type = 'circle'"

@@ -54,7 +54,7 @@ assembly {{
     out = tmp_path / "out"
     result = AssemblyBuilder(Build123dKernel()).assemble(str(asm), str(out))
     assert not result["issues"], result["issues"]
-    sidecar = json.loads((out / "mated.assembly.json").read_text())
+    sidecar = json.loads((out / "assemblies" / "mated" / "mated.assembly.json").read_text())
     solve = sidecar["solve"]
     assert "explanation" in solve and "bodies" in solve["explanation"]
     assert "redundant_ids" in solve
@@ -88,7 +88,7 @@ assembly {{
 """)
     out = tmp_path / "out"
     AssemblyBuilder(Build123dKernel()).assemble(str(asm), str(out))
-    sidecar = json.loads((out / "redundant.assembly.json").read_text())
+    sidecar = json.loads((out / "assemblies" / "redundant" / "redundant.assembly.json").read_text())
     assert sidecar["solve"]["status"] == "redundant"
     assert sidecar["solve"]["status"] != "over_constrained"
     assert set(sidecar["solve"]["redundant_ids"]) & {"m1", "m2"}

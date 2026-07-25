@@ -54,7 +54,7 @@ def test_nested_sub_assembly_composes_and_namespaces(tmp_path):
     parent = _write(str(tmp_path), "parent.asm.hocon", _PARENT)
     result = AssemblyBuilder(Build123dKernel()).assemble(parent, str(tmp_path))
     assert not result["issues"], result["issues"]
-    sidecar = json.loads((tmp_path / "parent.assembly.json").read_text())
+    sidecar = json.loads((tmp_path / "assemblies" / "parent" / "parent.assembly.json").read_text())
     ids = {i["id"] for i in sidecar["instances"]}
     # Each sub-assembly's instances are namespaced under the parent instance id.
     assert {"left/lower", "left/upper", "right/lower", "right/upper"} <= ids
