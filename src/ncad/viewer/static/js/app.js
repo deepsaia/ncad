@@ -37,6 +37,54 @@ const MODEL_BASE = (typeof window !== "undefined" && window.NCAD_API_BASE)
 function apiUrl(path) { return API + path; }              // path AFTER /api, e.g. "/specs"
 function modelUrl(name) { return MODEL_BASE + "/" + name; }  // model bytes
 
+// Build submission. `ncad serve` (Tornado) offloads builds to a process pool and answers a POST
+// with 202 {job_id}; we then poll GET /jobs/<id> until terminal, surfacing the live stage message.
+// `ncad view` (the stdlib server) is synchronous and answers 200 with the result directly; we use
+// it as-is. Either way this resolves with the same result payload the render code already expects.
+const JOB_POLL_MS = (typeof window !== "undefined" && window.NCAD_JOB_POLL_MS) || 400;
+
+function submitJob(endpoint, spec) {
+  return fetch(apiUrl(endpoint), {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ spec }),
+  }).then(async r => {
+    const d = await r.json();
+    if (r.status === 503) throw new Error(d.error || "server busy, try again");
+    if (!r.ok) throw new Error(d.error || "build failed");
+    if (r.status === 202 && d.job_id) return pollJob(d.job_id);   // ncad serve: poll the job
+    return d;                                                     // ncad view: synchronous result
+  });
+}
+
+function pollJob(jobId) {
+  return new Promise((resolve, reject) => {
+    let lastMessage = null;   // only log/toast a stage message when it changes
+    const tick = () => {
+      fetch(apiUrl("/jobs/" + encodeURIComponent(jobId)))
+        .then(async r => {
+          if (!r.ok) throw new Error("lost job " + jobId);
+          return r.json();
+        })
+        .then(s => {
+          if (s.status === "done") { resolve(s.result || {}); return; }
+          if (s.status === "failed" || s.status === "cancelled") {
+            reject(new Error(s.error || s.status)); return;
+          }
+          // Surface the live stage on a NEW message only. toast() already writes to the Logs panel
+          // (see toast -> log), so call it alone; a second log() here would double every line.
+          if (s.message && s.message !== lastMessage) {
+            lastMessage = s.message;
+            const detail = s.stages_total ? ` [${s.stages_done}/${s.stages_total}]` : "";
+            toast(s.message + detail);
+          }
+          setTimeout(tick, JOB_POLL_MS);
+        })
+        .catch(reject);
+    };
+    tick();
+  });
+}
+
 // Browser live-reload (dev only, ncad serve): open /ws/livereload and reload when the server's
 // boot id changes. Reconnect-and-compare, not server push: we record the first boot id we see;
 // when autoreload re-execs the server the socket drops, we reconnect with backoff, and the fresh
@@ -989,9 +1037,7 @@ function removeAnalysis(name) {
 function analyzeSpec(spec) {
   if (!spec) { toast("select an analysis spec first", true); return; }
   spinner.style.display = "block";
-  fetch(apiUrl("/analyze"), { method: "POST", headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({ spec }) })
-    .then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.error || "analyze failed"); return d; })
+  submitJob("/analyze", spec)
     .then(d => {
       if (d.analysis) analysisSources[d.analysis] = spec;
       refreshAnalyses();
@@ -1078,9 +1124,7 @@ function assembleSpec(spec) {
   if (!spec) { toast("select an assembly spec first", true); return; }
   spinner.style.display = "block";
   const t0 = performance.now();   // client wall-clock start (button click), for the render split
-  fetch(apiUrl("/assemble"), { method: "POST", headers: { "Content-Type": "application/json" },
-                           body: JSON.stringify({ spec }) })
-    .then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.error || "assemble failed"); return d; })
+  submitJob("/assemble", spec)
     .then(d => {
       assemblySources[d.assembled] = spec;  // remember the source for regenerate
       // Timing (build / solve / render, a profiling starting point): the server build_ms (total
@@ -1107,9 +1151,7 @@ function motionBuildSpec(spec) {
   if (!spec) { toast("select a motion spec first", true); return; }
   spinner.style.display = "block";
   const t0 = performance.now();
-  fetch(apiUrl("/motion-build"), { method: "POST", headers: { "Content-Type": "application/json" },
-                               body: JSON.stringify({ spec }) })
-    .then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.error || "motion build failed"); return d; })
+  submitJob("/motion-build", spec)
     .then(d => {
       motionSources[d.assembled] = spec;  // remember the motion doc for regenerate
       // Timing (build / solve / render): the server's motion build_ms + solve_ms (the OndselSolver
@@ -1128,9 +1170,7 @@ function physicsBuildSpec(spec) {
   if (!spec) { toast("select a physics spec first", true); return; }
   spinner.style.display = "block";
   const t0 = performance.now();
-  fetch(apiUrl("/physics-build"), { method: "POST", headers: { "Content-Type": "application/json" },
-                               body: JSON.stringify({ spec }) })
-    .then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.error || "physics build failed"); return d; })
+  submitJob("/physics-build", spec)
     .then(d => {
       // Timing: the server's physics build_ms + a render-done split logged by loadAssembly, exactly
       // as Parts/Assemblies/Motion. No separate solve_ms (the joint sweeps are inside build_ms).
@@ -1227,8 +1267,7 @@ function loadAssembly(name, verbose, timing) {
           ? `build ${fmtDuration(Math.max(timing.buildMs - solve, 0))} + solve ${fmtDuration(solve)}`
             + ` + render ${fmtDuration(render)} = ${fmtDuration(total)}`
           : `build ${fmtDuration(timing.buildMs)} + render ${fmtDuration(render)} = ${fmtDuration(total)}`;
-        toast(line);
-        log(line, "info");
+        toast(line);   // toast() already writes to the Logs panel; no separate log() (would double)
       }
     };
     for (const inst of sceneDoc.instances) {
@@ -2139,17 +2178,17 @@ function build(spec) {
   if (!spec) { toast("select a spec first", true); return; }
   spinner.style.display = "block";
   const t0 = performance.now();
-  fetch(apiUrl("/build"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ spec }) })
-    .then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.error || "build failed"); return d; })
+  submitJob("/build", spec)
     .then(d => {
-      renderModelList(d.models); const first = (d.built || [])[0]; if (first) selectModel(first);
+      // The job result carries {built, build_ms} but not the model list (that used to be merged by
+      // the synchronous handler); refresh the authoritative listing, then select the built model.
+      refreshModels().then(() => { const first = (d.built || [])[0]; if (first) selectModel(first); });
       // Timing split (build vs render): server build_ms + client render (total - build) + total.
       const total = performance.now() - t0;
       if (d.build_ms != null) {
         const render = Math.max(total - d.build_ms, 0);
         const line = `build ${fmtDuration(d.build_ms)} + render ${fmtDuration(render)} = ${fmtDuration(total)}`;
         toast("built " + (d.built || []).join(", ") + " - " + line);
-        log(line, "info");
       } else {
         toast("built " + (d.built || []).join(", "));
       }
