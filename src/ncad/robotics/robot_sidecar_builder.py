@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Any
 
 from ncad.assembly.assembly_builder import AssemblyBuilder
+from ncad.build.output_layout import OutputLayout
 from ncad.robotics.physics_spec import PhysicsSpec
 from ncad.robotics.robot_model import RobotModel
 from ncad.robotics.robot_model_builder import RobotModelBuilder
@@ -53,9 +54,19 @@ class RobotSidecarBuilder:
 
         ``with_sweeps`` defaults to True here (the standalone builder's job is the full sidecar
         set); the CLI passes its own flag. Set False for just the cheap ``.robot.json`` tree.
+
+        All of the robot's artifacts (.robot.json, .robot_sweeps.json, meshes/, and the internal
+        assembly build byproducts) live under ``out/robots/<name>/``. The name is the referenced
+        assembly's stem (== the scene name == model.name), known up front from the overlay.
         """
-        model, warnings = self._model_builder.build(physics_path, out_dir)
-        result = self.write(model, physics_path, out_dir, with_sweeps=with_sweeps)
+        spec = PhysicsSpec(SpecLoader().load(physics_path))
+        # The robot name == the referenced assembly's stem == the scene name == model.name. Strip
+        # the full .asm.hocon (Path.stem would leave a trailing ".asm"), matching AssemblyBuilder.
+        name = _assembly_stem(spec.assembly)
+        robot_out = str(OutputLayout(out_dir).dir_for("robots", name))
+        Path(robot_out).mkdir(parents=True, exist_ok=True)
+        model, warnings = self._model_builder.build(physics_path, robot_out)
+        result = self.write(model, physics_path, robot_out, with_sweeps=with_sweeps)
         result["warnings"] = warnings + result["warnings"]
         return result
 
@@ -180,3 +191,16 @@ class RobotSidecarBuilder:
 def robot_sidecar_suffixes() -> tuple[str, str]:
     """The (.robot.json, .robot_sweeps.json) suffixes (for the catalog + delete cleanup)."""
     return _ROBOT_SUFFIX, _SWEEPS_SUFFIX
+
+
+def _assembly_stem(assembly_ref: str) -> str:
+    """The assembly name for a referenced .asm.hocon: basename without the .asm.hocon/.hocon ext.
+
+    Matches AssemblyBuilder's naming so the robot dir equals the model/scene name (not a stray
+    ".asm" tail that Path.stem would leave).
+    """
+    base = Path(assembly_ref).name
+    for suffix in (".asm.hocon", ".hocon"):
+        if base.lower().endswith(suffix):
+            return base[: -len(suffix)]
+    return base

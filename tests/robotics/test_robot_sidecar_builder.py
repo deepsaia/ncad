@@ -65,11 +65,12 @@ def test_build_writes_tree_and_sweep_sidecars(tmp_path):
 
     RobotSidecarBuilder(Build123dKernel()).build(
         "examples/08-robotics/crank_slider.physics.hocon", str(tmp_path), with_sweeps=True)
-    tree = json.loads((tmp_path / "crank_slider.robot.json").read_text())
+    robot_dir = tmp_path / "robots" / "crank_slider"
+    tree = json.loads((robot_dir / "crank_slider.robot.json").read_text())
     assert tree["base_link"] == "block"
     assert {link["name"] for link in tree["links"]} == {"block", "flywheel", "rod", "piston"}
 
-    sweeps = json.loads((tmp_path / "crank_slider.robot_sweeps.json").read_text())
+    sweeps = json.loads((robot_dir / "crank_slider.robot_sweeps.json").read_text())
     # mainPin is the only actuated joint; its sweep drives the closed loop across the limit.
     assert "mainPin" in sweeps
     frames = sweeps["mainPin"]["frames"]
@@ -80,8 +81,8 @@ def test_build_writes_tree_and_sweep_sidecars(tmp_path):
     # the crank ~6 degrees. R[0][0] = cos(rotation) must reach both extremes (~-1 and ~+1).
     cos_rot = [f["placements"]["flywheel"][0][0] for f in frames]
     assert min(cos_rot) < -0.9 and max(cos_rot) > 0.9, "sweep did not articulate the full turn"
-    # the per-joint solve was isolated: no stray .motion.json churned into the output dir.
-    assert not (tmp_path / "crank_slider.motion.json").exists()
+    # the per-joint solve was isolated: no stray .motion.json churned into the robot output dir.
+    assert not (robot_dir / "crank_slider.motion.json").exists()
 
 
 @pytest.mark.slow
@@ -91,6 +92,7 @@ def test_sweeps_are_opt_in(tmp_path):
 
     result = RobotSidecarBuilder(Build123dKernel()).build(
         "examples/08-robotics/crank_slider.physics.hocon", str(tmp_path), with_sweeps=False)
-    assert (tmp_path / "crank_slider.robot.json").is_file()
+    robot_dir = tmp_path / "robots" / "crank_slider"
+    assert (robot_dir / "crank_slider.robot.json").is_file()
     assert result["sweeps"] is None
-    assert not (tmp_path / "crank_slider.robot_sweeps.json").exists()
+    assert not (robot_dir / "crank_slider.robot_sweeps.json").exists()
