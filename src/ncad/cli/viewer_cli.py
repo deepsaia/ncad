@@ -232,7 +232,8 @@ class ViewerCli:
         """
         from pathlib import Path
 
-        from ncad.cam import SlicerProfile, SliceRunner
+        from ncad.cam.slice_runner import SliceRunner
+        from ncad.cam.slicer_profile import SlicerProfile
         from ncad.spec.spec_loader import SpecLoader
 
         logging.basicConfig(level=logging.INFO, format="%(message)s")
