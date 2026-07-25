@@ -61,6 +61,7 @@ class JobManager:
         future = self._pool.submit(
             kind, payload, self._models_dir, self._examples_dir, progress_path)
         job.status = "running"
+        logger.info("job %s accepted: %s %s", job.id, kind, coalesce_key or "")
         self._add_future(future, lambda f: self._finalize(job, f))
         return job
 
@@ -117,11 +118,13 @@ class JobManager:
             self._delete_progress(job.id)
             return
         job.finished_at = self._clock()
+        elapsed = job.finished_at - job.created_at
         try:
             out = future.result()
         except Exception as exc:  # noqa: BLE001 - a died worker surfaces here
             job.status = "failed"
             job.error = f"build process died: {exc}"
+            logger.warning("job %s failed after %.1fs: %s", job.id, elapsed, job.error)
             self._store.mark_terminal(job.id)
             self._delete_progress(job.id)
             return
@@ -129,9 +132,12 @@ class JobManager:
             job.status = "done"
             job.result = out.get("result")
             job.stage = "done"
+            logger.info("job %s %s done in %.1fs", job.id, job.kind, elapsed)
         else:
             job.status = "failed"
             job.error = out.get("error", "unknown build error")
+            logger.warning("job %s %s failed after %.1fs: %s",
+                           job.id, job.kind, elapsed, job.error)
         self._store.mark_terminal(job.id)
         self._delete_progress(job.id)
 

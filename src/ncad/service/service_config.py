@@ -25,8 +25,14 @@ class ServiceConfig:
 
     @staticmethod
     def worker_default() -> int:
-        """Default process-pool size: leave 2 cores for the loop + OS, but at least 1 worker."""
-        return max(1, (os.cpu_count() or 2) - 2)
+        """Default process-pool size for a local single-user viewer.
+
+        Capped at 4: each spawn worker imports OCP/OCCT (a heavy, few-hundred-MB resident process),
+        so sizing to every core would risk multi-GB memory under load for a benefit one interactive
+        user rarely needs. Still bounded below the core count (leave 2 for the loop + OS). A heavy
+        server can opt up via NCAD_MAX_WORKERS.
+        """
+        return max(1, min(4, (os.cpu_count() or 2) - 2))
 
     @classmethod
     def from_env(cls) -> "ServiceConfig":
