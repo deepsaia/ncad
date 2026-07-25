@@ -143,6 +143,31 @@ A theme toggle in the sidebar top bar cycles light / system / dark; "system" fol
 the OS preference live. The 3D viewport recolors with the theme, and the choice
 persists across reloads.
 
+## Running in Docker
+
+`ncad serve` (the JSON API + browser viewer) ships as a single-node container image.
+
+Build (linux/amd64; the CAD wheels are x86_64-only, so on Apple Silicon this runs under emulation):
+
+```bash
+deploy/build.sh          # tags ncad:<version> + ncad:latest
+```
+
+Run:
+
+```bash
+deploy/run.sh            # http://localhost:8000/viewer ; artifacts are ephemeral
+deploy/run.sh --persist  # also bind-mounts ./out so built models survive container removal
+```
+
+Configuration is via the `NCAD_*` environment variables (see `.env.example`): copy it to `.env`
+and `deploy/run.sh` picks it up (`--env-file`), or pass `-e NCAD_MAX_WORKERS=2` etc. The image
+defaults to `NCAD_HOST=0.0.0.0` + port `8000`.
+
+FEA (the `/analyze` route) shells out to CalculiX (`ccx`), which is NOT bundled (the image stays
+slim; analyze degrades to a "skipped" status without it). To enable FEA, provide a `ccx` binary and
+point `NCAD_CCX` at it (bind-mount it, or build a derived image that installs it).
+
 ## Examples
 
 Curated example documents live under `examples/`, organized by capability (sketching, solid
