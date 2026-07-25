@@ -47,4 +47,4 @@ engine is not tied to one geometry library; the interface is the seam.
 
 For the full field background behind these ideas, see [Learn](../../learn/index.md); for what the
 engine can do today, see the [Operations Reference](../reference/index.md) and the
-[Capability Matrix](../reference/index.md).
+[Capability Matrix](../reference/capability-matrix.md).

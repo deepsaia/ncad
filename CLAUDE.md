@@ -124,7 +124,7 @@ order-sensitive (a late shell can produce an invalid B-rep; a late fillet can se
   PR.**
 - Validate op composition on the **real kernel**, not just in isolation: build the part
   truncated to the first N features and assert each cumulative prefix is a valid single
-  solid (see the additive-composition test in `tests/examples/test_gate_examples.py`).
+  solid.
 
 ---
 
