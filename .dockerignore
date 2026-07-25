@@ -1,0 +1,15 @@
+# Keep the build context small + reproducible: exclude local artifacts, caches, VCS, scratch.
+out/
+.venv/
+.git/
+.gitignore
+docs/superpowers/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+tests/
+other_docs/
+.env
+*.egg-info/
+.DS_Store
