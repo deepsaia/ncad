@@ -73,8 +73,11 @@ class ModelExporter:
         """
         from ncad.build.document_builder import DocumentBuilder
 
+        # A throwaway temp dir for a one-shot download: build flat (layout_kind=None) so the file
+        # lands directly in tmp/ (read by the returned path or the flat _one_artifact scan), not
+        # under a tmp/parts/<name>/ subdir.
         artifacts = DocumentBuilder(self._kernel).build_file(
-            source, str(tmp), formats=(fmt,))["artifacts"]
+            source, str(tmp), formats=(fmt,), layout_kind=None)["artifacts"]
         if part is not None:
             if part not in artifacts:
                 raise ValueError(f"part {part!r} not found in {source!r} "

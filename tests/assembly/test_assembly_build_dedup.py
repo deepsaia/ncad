@@ -45,9 +45,11 @@ def test_part_file_built_once_regardless_of_instance_count(tmp_path, monkeypatch
     real = DocumentBuilder.build_file
     real_resolve = DocumentBuilder.resolve_part_elements
 
-    def counting_build_file(self, path, out_dir, formats=("glb",), name_prefix=""):
+    def counting_build_file(self, path, out_dir, formats=("glb",), layout_kind="parts",
+                            mesh_tolerance=None):
         calls["n"] += 1
-        return real(self, path, out_dir, formats=formats, name_prefix=name_prefix)
+        return real(self, path, out_dir, formats=formats, layout_kind=layout_kind,
+                    mesh_tolerance=mesh_tolerance)
 
     def counting_resolve(self, path):
         calls["n"] += 1
