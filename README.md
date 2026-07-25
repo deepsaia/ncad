@@ -9,8 +9,8 @@ directions, not current capabilities; see the roadmap below.)
 
 ## Documents
 
-- [`docs/documentation-design.md`](./docs/documentation-design.md): the documentation site's
-  information architecture (the Learn + ncad two-part model).
+- [`docs/documentation-structure.json`](./docs/documentation-structure.json): the documentation
+  site's taxonomy (Learn + ncad two-part model), rendered by `ncad.docs`.
 - [`docs/feature-ordering.md`](./docs/feature-ordering.md): op-composition rules (safe order +
   failure mode per op).
 - [`CLAUDE.md`](./CLAUDE.md): coding guidelines and best practices.
