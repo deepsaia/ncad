@@ -110,20 +110,29 @@ class _FakeJobManager:
 
 @pytest.fixture
 def service(tmp_path):
-    # A model + its sidecars, an assembly scene, and a motion trajectory so every GET has content.
-    (tmp_path / "box.gltf").write_text('{"asset": {"version": "2.0"}}')
-    (tmp_path / "box.bom.json").write_text('{"floor_area": 24.0}')
-    (tmp_path / "box.plan.svg").write_text('<svg xmlns="http://www.w3.org/2000/svg"></svg>')
-    (tmp_path / "box.elementmap.json").write_text('{"attribute_model_version": 2, "elements": []}')
-    (tmp_path / "box.hierarchy.json").write_text('{"name": "box", "kind": "part", "children": []}')
-    (tmp_path / "box.status.json").write_text('{"sketches": []}')
-    (tmp_path / "widget.assembly.json").write_text('{"instances": [], "joints": []}')
-    (tmp_path / "widget.motion.json").write_text('{"frames": [], "driver": {"joint": "j"}}')
-    (tmp_path / "arm.robot.json").write_text(
+    # A model + its sidecars, an assembly scene, and a motion trajectory so every GET has content,
+    # laid out in the out/<kind>/<name>/ tree the catalog now reads.
+    part = tmp_path / "parts" / "box"
+    part.mkdir(parents=True)
+    (part / "box.gltf").write_text('{"asset": {"version": "2.0"}}')
+    (part / "box.bom.json").write_text('{"floor_area": 24.0}')
+    (part / "box.plan.svg").write_text('<svg xmlns="http://www.w3.org/2000/svg"></svg>')
+    (part / "box.elementmap.json").write_text('{"attribute_model_version": 2, "elements": []}')
+    (part / "box.hierarchy.json").write_text('{"name": "box", "kind": "part", "children": []}')
+    (part / "box.status.json").write_text('{"sketches": []}')
+    asm = tmp_path / "assemblies" / "widget"
+    asm.mkdir(parents=True)
+    (asm / "widget.assembly.json").write_text('{"instances": [], "joints": []}')
+    (asm / "widget.motion.json").write_text('{"frames": [], "driver": {"joint": "j"}}')
+    robot = tmp_path / "robots" / "arm"
+    robot.mkdir(parents=True)
+    (robot / "arm.robot.json").write_text(
         '{"base_link": "b", "links": [{"name": "b"}], "joints": [{"name": "j1"}]}')
-    (tmp_path / "arm.robot_sweeps.json").write_text('{"j1": {"from": 0, "to": 1, "frames": []}}')
-    (tmp_path / "bracket.analysis.json").write_text('{"summary": {"max_von_mises": 423646.0}}')
-    (tmp_path / "bracket.analysis.mesh.json").write_text(
+    (robot / "arm.robot_sweeps.json").write_text('{"j1": {"from": 0, "to": 1, "frames": []}}')
+    analysis = tmp_path / "analyses" / "bracket"
+    analysis.mkdir(parents=True)
+    (analysis / "bracket.analysis.json").write_text('{"summary": {"max_von_mises": 423646.0}}')
+    (analysis / "bracket.analysis.mesh.json").write_text(
         '{"points": [[0,0,0]], "triangles": [], "fields": {}, "ranges": {}}')
     fake_build = _FakeBuildService()
     svc = NcadService(models_dir=str(tmp_path), host="127.0.0.1", port=0,

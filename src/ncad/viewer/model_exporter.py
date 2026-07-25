@@ -89,11 +89,17 @@ class ModelExporter:
 
     def _export_assembly_step(self, source: str, base_name: str,
                               tmp: Path) -> tuple[str, str, bytes]:
-        """Compose the assembly and return its AP242 STEP bytes."""
+        """Compose the assembly and return its AP242 STEP bytes.
+
+        The assembly writes into tmp/assemblies/<name>/; the STEP is the sidecar's sibling
+        <name>.step (found via the returned sidecar path, not a flat scan of tmp).
+        """
         from ncad.assembly.assembly_builder import AssemblyBuilder
 
-        AssemblyBuilder(self._kernel).assemble(source, str(tmp))
-        step = self._one_artifact(tmp, "step")
+        result = AssemblyBuilder(self._kernel).assemble(source, str(tmp))
+        step = Path(result["sidecar"]).with_suffix("").with_suffix(".step")
+        if not step.is_file():
+            raise ValueError("export produced no .step file")
         return f"{base_name}.step", _content_type("step"), step.read_bytes()
 
     def _motion_assembly_path(self, motion_source: str) -> str:
