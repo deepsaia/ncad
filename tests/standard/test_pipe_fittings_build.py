@@ -4,7 +4,7 @@ import pytest
 
 from ncad.build.document_builder import DocumentBuilder
 from ncad.kernel.build123d_kernel import Build123dKernel
-from ncad.standard import StandardLibrary
+from ncad.standard.standard_library import StandardLibrary
 
 pytestmark = pytest.mark.slow
 

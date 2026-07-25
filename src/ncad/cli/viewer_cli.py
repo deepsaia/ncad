@@ -343,7 +343,7 @@ class ViewerCli:
         from ncad.build.document_builder import DocumentBuilder
         from ncad.kernel.build123d_kernel import Build123dKernel
         from ncad.spec.spec_writer import SpecWriter
-        from ncad.standard import StandardLibrary
+        from ncad.standard.standard_library import StandardLibrary
 
         logging.basicConfig(level=logging.INFO, format="%(message)s")
         logging.getLogger("build123d").setLevel(logging.WARNING)
@@ -633,7 +633,7 @@ def spgen(
     Flat family: ``spgen washer M8``. Grouped family: ``spgen pipe_fitting elbow DN50`` (the subtype
     is the first positional after the family). With --dim, the designation is omitted.
     """
-    from ncad.standard import StandardLibrary
+    from ncad.standard.standard_library import StandardLibrary
 
     grouped = bool(StandardLibrary().subtypes(family))  # a grouped family has subtypes
     subtype = arg1 if grouped else None
