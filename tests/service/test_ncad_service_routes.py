@@ -88,6 +88,9 @@ class _FakeJobManager:
     def cancel(self, job_id):
         return False
 
+    def shutdown(self, timeout_s):
+        pass
+
     async def arun_direct(self, kind, payload):
         import base64
 
