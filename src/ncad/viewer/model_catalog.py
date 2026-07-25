@@ -8,6 +8,7 @@ outside the directory, so a crafted name can't escape via ``..``).
 import json
 import logging
 import os
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -37,13 +38,13 @@ class ModelCatalog:
 
     def model_names(self) -> list[str]:
         """Sorted base names of model files in the directory (empty if none/missing)."""
-        if not os.path.isdir(self._directory):
+        if not Path(self._directory).is_dir():
             return []
         names = [
             entry
             for entry in os.listdir(self._directory)
             if entry.lower().endswith(_MODEL_EXTENSIONS)
-            and os.path.isfile(os.path.join(self._directory, entry))
+            and (Path(self._directory) / entry).is_file()
         ]
         return sorted(names)
 
@@ -52,23 +53,26 @@ class ModelCatalog:
 
         Rejects path traversal and any name not directly inside the directory.
         """
+        # Traversal guard: os.path.abspath (textual, no symlink following) so the dirname-equals
+        # check cannot be defeated by a symlink; both sides are abspath of the same directory. This
+        # is deliberately os.path, NOT Path.resolve() (which would follow symlinks).
         candidate = os.path.abspath(os.path.join(self._directory, name))
         if os.path.dirname(candidate) != self._directory:
             return None
         if not candidate.lower().endswith(_SERVABLE_EXTENSIONS):
             return None
-        if not os.path.isfile(candidate):
+        if not Path(candidate).is_file():
             return None
         return candidate
 
     def assembly_names(self) -> list[str]:
         """Assembly scene names (files ending in .assembly.json), without the suffix."""
-        if not os.path.isdir(self._directory):
+        if not Path(self._directory).is_dir():
             return []
         suffix = ".assembly.json"
         return sorted(entry[: -len(suffix)] for entry in os.listdir(self._directory)
                       if entry.lower().endswith(suffix)
-                      and os.path.isfile(os.path.join(self._directory, entry)))
+                      and (Path(self._directory) / entry).is_file())
 
     def resolve_assembly(self, name: str) -> str | None:
         """Safe absolute path to ``<name>.assembly.json``, or None if unsafe/absent.
@@ -78,16 +82,16 @@ class ModelCatalog:
         candidate = os.path.abspath(os.path.join(self._directory, name + ".assembly.json"))
         if os.path.dirname(candidate) != self._directory:
             return None
-        return candidate if os.path.isfile(candidate) else None
+        return candidate if Path(candidate).is_file() else None
 
     def motion_names(self) -> list[str]:
         """Assembly names that have a motion trajectory (files ending in .motion.json)."""
-        if not os.path.isdir(self._directory):
+        if not Path(self._directory).is_dir():
             return []
         suffix = ".motion.json"
         return sorted(entry[: -len(suffix)] for entry in os.listdir(self._directory)
                       if entry.lower().endswith(suffix)
-                      and os.path.isfile(os.path.join(self._directory, entry)))
+                      and (Path(self._directory) / entry).is_file())
 
     def motions_with_labels(self) -> list[dict]:
         """Motion names each with a short DECLARED-value label for the picker (fps or steps).
@@ -130,16 +134,16 @@ class ModelCatalog:
         candidate = os.path.abspath(os.path.join(self._directory, name + ".motion.json"))
         if os.path.dirname(candidate) != self._directory:
             return None
-        return candidate if os.path.isfile(candidate) else None
+        return candidate if Path(candidate).is_file() else None
 
     def robot_names(self) -> list[str]:
         """Robot names that have a Physics-viewer tree (files ending in .robot.json)."""
-        if not os.path.isdir(self._directory):
+        if not Path(self._directory).is_dir():
             return []
         suffix = ".robot.json"
         return sorted(entry[: -len(suffix)] for entry in os.listdir(self._directory)
                       if entry.lower().endswith(suffix)
-                      and os.path.isfile(os.path.join(self._directory, entry)))
+                      and (Path(self._directory) / entry).is_file())
 
     def robots_with_labels(self) -> list[dict]:
         """Robot names each with a short label + recorded source for the picker.
@@ -184,14 +188,14 @@ class ModelCatalog:
         candidate = os.path.abspath(os.path.join(self._directory, name + ".robot.json"))
         if os.path.dirname(candidate) != self._directory:
             return None
-        return candidate if os.path.isfile(candidate) else None
+        return candidate if Path(candidate).is_file() else None
 
     def resolve_robot_sweeps(self, name: str) -> str | None:
         """Safe absolute path to ``<name>.robot_sweeps.json`` (joint sweeps), or None if absent."""
         candidate = os.path.abspath(os.path.join(self._directory, name + ".robot_sweeps.json"))
         if os.path.dirname(candidate) != self._directory:
             return None
-        return candidate if os.path.isfile(candidate) else None
+        return candidate if Path(candidate).is_file() else None
 
     def analysis_names(self) -> list[str]:
         """Analysis names that have an FEA result (files ending in .analysis.json).
@@ -199,12 +203,12 @@ class ModelCatalog:
         The ``.analysis.mesh.json`` field-mesh sidecar ends in ``.mesh.json`` so it is not counted
         as a separate analysis.
         """
-        if not os.path.isdir(self._directory):
+        if not Path(self._directory).is_dir():
             return []
         suffix = ".analysis.json"
         return sorted(entry[: -len(suffix)] for entry in os.listdir(self._directory)
                       if entry.lower().endswith(suffix)
-                      and os.path.isfile(os.path.join(self._directory, entry)))
+                      and (Path(self._directory) / entry).is_file())
 
     def analyses_with_labels(self) -> list[dict]:
         """Analysis names each with a label (peak von Mises) + recorded source, for the picker."""
@@ -245,14 +249,14 @@ class ModelCatalog:
         candidate = os.path.abspath(os.path.join(self._directory, name + ".analysis.json"))
         if os.path.dirname(candidate) != self._directory:
             return None
-        return candidate if os.path.isfile(candidate) else None
+        return candidate if Path(candidate).is_file() else None
 
     def resolve_analysis_mesh(self, name: str) -> str | None:
         """Safe absolute path to ``<name>.analysis.mesh.json`` (field mesh), or None if absent."""
         candidate = os.path.abspath(os.path.join(self._directory, name + ".analysis.mesh.json"))
         if os.path.dirname(candidate) != self._directory:
             return None
-        return candidate if os.path.isfile(candidate) else None
+        return candidate if Path(candidate).is_file() else None
 
     def delete_assembly(self, name: str) -> str | None:
         """Delete ``<name>.assembly.json`` (the composed scene). Returns the name, or None.
@@ -264,12 +268,12 @@ class ModelCatalog:
         resolved = self.resolve_assembly(name)
         if resolved is None:
             return None
-        os.remove(resolved)
+        Path(resolved).unlink()
         # Remove the motion trajectory + the Physics-viewer robot sidecars keyed by the same name.
         for companion in (self.resolve_motion(name), self.resolve_robot(name),
                           self.resolve_robot_sweeps(name)):
             if companion is not None:
-                os.remove(companion)
+                Path(companion).unlink()
         return name
 
     def delete_robot(self, name: str) -> str | None:
@@ -282,10 +286,10 @@ class ModelCatalog:
         resolved = self.resolve_robot(name)
         if resolved is None:
             return None
-        os.remove(resolved)
+        Path(resolved).unlink()
         sweeps = self.resolve_robot_sweeps(name)
         if sweeps is not None:
-            os.remove(sweeps)
+            Path(sweeps).unlink()
         return name
 
     def delete_analysis(self, name: str) -> str | None:
@@ -297,10 +301,10 @@ class ModelCatalog:
         resolved = self.resolve_analysis(name)
         if resolved is None:
             return None
-        os.remove(resolved)
+        Path(resolved).unlink()
         mesh = self.resolve_analysis_mesh(name)
         if mesh is not None:
-            os.remove(mesh)
+            Path(mesh).unlink()
         return name
 
     def resolve_bom(self, model_name: str) -> str | None:
@@ -313,11 +317,11 @@ class ModelCatalog:
 
     def _resolve_sidecar(self, model_name: str, suffix: str) -> str | None:
         """Resolve ``<stem><suffix>`` beside the model, or None if unsafe/absent."""
-        stem = os.path.splitext(model_name)[0]
+        stem = Path(model_name).stem
         candidate = os.path.abspath(os.path.join(self._directory, stem + suffix))
         if os.path.dirname(candidate) != self._directory:
             return None
-        if not os.path.isfile(candidate):
+        if not Path(candidate).is_file():
             return None
         return candidate
 
@@ -350,12 +354,12 @@ class ModelCatalog:
         if target is None:
             return None
         removed = [target]
-        os.remove(target)
-        stem = os.path.splitext(model_name)[0]
+        Path(target).unlink()
+        stem = Path(model_name).stem
         for suffix in _SIDECAR_SUFFIXES:
             sidecar = os.path.abspath(os.path.join(self._directory, stem + suffix))
-            if os.path.dirname(sidecar) == self._directory and os.path.isfile(sidecar):
-                os.remove(sidecar)
+            if os.path.dirname(sidecar) == self._directory and Path(sidecar).is_file():
+                Path(sidecar).unlink()
                 removed.append(sidecar)
         logger.debug("deleted model %s and %d sidecar(s)", model_name, len(removed) - 1)
         return removed
