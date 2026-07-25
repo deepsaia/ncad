@@ -101,6 +101,11 @@ nav:
   - ncad:
       - ncad/index.md
       - Showcase: ncad/showcase.md
+      - Getting Started:
+          - ncad/getting-started/index.md
+          - First part: ncad/getting-started/first-part.md
+          - First assembly: ncad/getting-started/first-assembly.md
+          - First motion: ncad/getting-started/first-motion.md
       # Operations Reference children are generated + categorized from the op registry by
       # docs_hooks.py (on_config); this placeholder is replaced at build time.
       - Operations Reference:
