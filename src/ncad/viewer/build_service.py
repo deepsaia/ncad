@@ -15,6 +15,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from ncad.build.output_layout import OutputLayout
 from ncad.viewer.model_catalog import ModelCatalog
 from ncad.viewer.model_metadata import ModelMetadata
 from ncad.viewer.spec_catalog import SpecCatalog
@@ -35,7 +36,6 @@ class BuildService:
         models_dir: str,
         builder_factory: Callable,
         *,
-        meta: ModelMetadata | None = None,
         clock: Callable[[], str] | None = None,
         versions: dict | None = None,
     ) -> None:
@@ -43,17 +43,16 @@ class BuildService:
         :param models_dir: Output directory for built models.
         :param builder_factory: Zero-arg callable returning an object with
             ``build_file(path, out_dir) -> dict[str, str]``.
-        :param meta: ModelMetadata writer (defaults to one over ``models_dir``).
         :param clock: Zero-arg callable returning an ISO-8601 timestamp string.
         :param versions: Dict with ``ncad`` and ``kernel`` version strings.
         """
         # abspath (textual, no symlink following) keeps these roots stable absolute bases.
         self._examples_dir = os.path.abspath(examples_dir)
         self._models_dir = os.path.abspath(models_dir)
+        self._layout = OutputLayout(models_dir)
         self._builder_factory = builder_factory
         self._spec_catalog = SpecCatalog(examples_dir)
         self._model_catalog = ModelCatalog(models_dir)
-        self._meta = meta or ModelMetadata(models_dir)
         self._clock = clock
         self._versions = versions or {"ncad": "unknown", "kernel": "unknown"}
         # Lazily created + reused so its per-robot link-shape cache survives across pose checks (the
@@ -83,8 +82,10 @@ class BuildService:
         built = [Path(path).name for path in artifacts.values()]
         built_at = self._clock() if self._clock is not None else ""
         for name in built:
-            self._meta.write(
-                name,
+            # Meta lands in the part's own dir (out/parts/<stem>/), beside its glb + sidecars.
+            stem = Path(name).stem
+            ModelMetadata(str(self._layout.dir_for("parts", stem))).write(
+                stem,
                 source=spec,
                 built_at=built_at,
                 ncad_version=self._versions["ncad"],
@@ -302,16 +303,21 @@ class BuildService:
             existing[set_name] = clean
         else:
             existing.pop(set_name, None)
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
         with open(path, "w", encoding="utf-8") as handle:
             json.dump({"sets": existing}, handle, indent=2)
         logger.info("saved keyframe set %r (%d frame(s)) for %s", set_name, len(clean), name)
         return {"sets": sorted(existing)}
 
     def _keyframes_path(self, name: str) -> str | None:
-        """The ``out/<name>.keyframes.json`` path, or None if the robot has no built tree."""
+        """The ``out/robots/<name>/<name>.keyframes.json`` path, or None if the robot has no tree.
+
+        The viewer-authored keyframes sidecar lives WITH the robot, so delete_robot's dir removal
+        cleans it up automatically.
+        """
         if self._model_catalog.resolve_robot(name) is None:
             return None
-        return str(Path(self._models_dir) / (name + ".keyframes.json"))
+        return str(self._layout.dir_for("robots", name) / f"{name}.keyframes.json")
 
     def _clean_keyframes(self, keyframes: list) -> list:
         """Sanitize a keyframe list to ``[{time: float, pose: {str: float}}]`` (bad ones drop)."""
@@ -388,7 +394,8 @@ class BuildService:
         Assembly composition records the specific part name for each member glb; a plain single-part
         build records no ``part`` (the source has one part). None keeps the single-part path.
         """
-        meta = self._meta.read(name)
+        stem = Path(name).stem
+        meta = ModelMetadata(str(self._layout.dir_for("parts", stem))).read(stem)
         return meta.get("part") if meta else None
 
     def _export_source(self, name: str, kind: str) -> str | None:

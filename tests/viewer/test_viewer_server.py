@@ -15,17 +15,19 @@ from ncad.viewer.viewer_server import ViewerServer
 
 @pytest.fixture
 def server(tmp_path):
-    (tmp_path / "box.gltf").write_text('{"asset": {"version": "2.0"}}')
-    (tmp_path / "box.bom.json").write_text('{"floor_area": 24.0, "door_count": 1}')
-    (tmp_path / "box.plan.svg").write_text('<svg xmlns="http://www.w3.org/2000/svg"></svg>')
-    (tmp_path / "box.elementmap.json").write_text(
+    box = tmp_path / "parts" / "box"
+    box.mkdir(parents=True)
+    (box / "box.gltf").write_text('{"asset": {"version": "2.0"}}')
+    (box / "box.bom.json").write_text('{"floor_area": 24.0, "door_count": 1}')
+    (box / "box.plan.svg").write_text('<svg xmlns="http://www.w3.org/2000/svg"></svg>')
+    (box / "box.elementmap.json").write_text(
         '{"attribute_model_version": 1, "elements": ['
         '{"index": 0, "id": "pad/cap(+Z)/0", "kind": "face", '
         '"created_by": "pad", "tag": "cap(+Z)"}]}')
-    (tmp_path / "box.hierarchy.json").write_text(
+    (box / "box.hierarchy.json").write_text(
         '{"name": "box", "kind": "part", "op": "solid", "children": ['
         '{"id": "pad", "kind": "feature", "op": "extrude", "children": []}]}')
-    (tmp_path / "box.status.json").write_text(
+    (box / "box.status.json").write_text(
         '{"sketches": [{"feature_id": "sk", "status": "well", "dof": 0, '
         '"failing_ids": []}]}')
     srv = ViewerServer(models_dir=str(tmp_path), host="127.0.0.1", port=0)
@@ -133,7 +135,9 @@ def test_bom_endpoint_returns_sidecar_json(server) -> None:
 
 
 def test_bom_endpoint_404_when_no_sidecar(tmp_path) -> None:
-    (tmp_path / "lonely.glb").write_bytes(b"glTF\x02\x00\x00\x00")  # model, no .bom.json
+    (tmp_path / "parts" / "lonely").mkdir(parents=True)
+    # a model with no .bom.json sidecar
+    (tmp_path / "parts" / "lonely" / "lonely.glb").write_bytes(b"glTF\x02\x00\x00\x00")
     srv = ViewerServer(models_dir=str(tmp_path), host="127.0.0.1", port=0)
     srv.start()
     try:
@@ -155,7 +159,8 @@ def test_elementmap_endpoint_returns_sidecar_json(server) -> None:
 
 
 def test_elementmap_endpoint_404_when_no_sidecar(tmp_path) -> None:
-    (tmp_path / "lonely.glb").write_bytes(b"glTF\x02\x00\x00\x00")
+    (tmp_path / "parts" / "lonely").mkdir(parents=True)
+    (tmp_path / "parts" / "lonely" / "lonely.glb").write_bytes(b"glTF\x02\x00\x00\x00")
     srv = ViewerServer(models_dir=str(tmp_path), host="127.0.0.1", port=0)
     srv.start()
     try:
@@ -177,7 +182,8 @@ def test_hierarchy_endpoint_returns_sidecar_json(server) -> None:
 
 
 def test_hierarchy_endpoint_404_when_no_sidecar(tmp_path) -> None:
-    (tmp_path / "lonely.glb").write_bytes(b"glTF\x02\x00\x00\x00")
+    (tmp_path / "parts" / "lonely").mkdir(parents=True)
+    (tmp_path / "parts" / "lonely" / "lonely.glb").write_bytes(b"glTF\x02\x00\x00\x00")
     srv = ViewerServer(models_dir=str(tmp_path), host="127.0.0.1", port=0)
     srv.start()
     try:
@@ -199,7 +205,8 @@ def test_status_endpoint_returns_sidecar_json(server) -> None:
 
 
 def test_status_endpoint_404_when_no_sidecar(tmp_path) -> None:
-    (tmp_path / "lonely.glb").write_bytes(b"glTF\x02\x00\x00\x00")
+    (tmp_path / "parts" / "lonely").mkdir(parents=True)
+    (tmp_path / "parts" / "lonely" / "lonely.glb").write_bytes(b"glTF\x02\x00\x00\x00")
     srv = ViewerServer(models_dir=str(tmp_path), host="127.0.0.1", port=0)
     srv.start()
     try:
@@ -211,7 +218,10 @@ def test_status_endpoint_404_when_no_sidecar(tmp_path) -> None:
 
 
 def test_motions_list_and_fetch(tmp_path) -> None:
-    (tmp_path / "crank_slider.motion.json").write_text(
+    asm = tmp_path / "assemblies" / "crank_slider"
+    asm.mkdir(parents=True)
+    (asm / "crank_slider.assembly.json").write_text('{"name": "crank_slider", "instances": []}')
+    (asm / "crank_slider.motion.json").write_text(
         json.dumps({"name": "crank_slider", "driver": {"joint": "spin"},
                     "frames": [{"t": 0.0, "driver_value": 0.0, "status": "solved",
                                 "placements": {}}]}))
@@ -241,7 +251,8 @@ def test_plan_endpoint_returns_svg(server) -> None:
 
 
 def test_plan_endpoint_404_when_no_sidecar(tmp_path) -> None:
-    (tmp_path / "lonely.glb").write_bytes(b"glTF\x02\x00\x00\x00")
+    (tmp_path / "parts" / "lonely").mkdir(parents=True)
+    (tmp_path / "parts" / "lonely" / "lonely.glb").write_bytes(b"glTF\x02\x00\x00\x00")
     srv = ViewerServer(models_dir=str(tmp_path), host="127.0.0.1", port=0)
     srv.start()
     try:
@@ -257,8 +268,10 @@ def test_gltf_companion_bin_buffer_is_served(tmp_path) -> None:
 
     The server must serve that sidecar, or models fail to load in the browser.
     """
-    (tmp_path / "m.gltf").write_text('{"buffers":[{"uri":"m.bin"}]}')
-    (tmp_path / "m.bin").write_bytes(b"\x01\x02\x03\x04")
+    part = tmp_path / "parts" / "m"
+    part.mkdir(parents=True)
+    (part / "m.gltf").write_text('{"buffers":[{"uri":"m.bin"}]}')
+    (part / "m.bin").write_bytes(b"\x01\x02\x03\x04")   # companion buffer, same dir
     srv = ViewerServer(models_dir=str(tmp_path), host="127.0.0.1", port=0)
     srv.start()
     try:
@@ -271,7 +284,8 @@ def test_gltf_companion_bin_buffer_is_served(tmp_path) -> None:
 
 
 def test_glb_served_with_binary_content_type(tmp_path) -> None:
-    (tmp_path / "m.glb").write_bytes(b"glTF\x02\x00\x00\x00")
+    (tmp_path / "parts" / "m").mkdir(parents=True)
+    (tmp_path / "parts" / "m" / "m.glb").write_bytes(b"glTF\x02\x00\x00\x00")
     srv = ViewerServer(models_dir=str(tmp_path), host="127.0.0.1", port=0)
     srv.start()
     try:
@@ -319,9 +333,10 @@ def test_api_specs_returns_tree(tmp_path) -> None:
 
 def test_api_models_carries_source(tmp_path) -> None:
     models = tmp_path / "out"
-    models.mkdir()
-    (models / "block.glb").write_bytes(b"x")
-    (models / "block.meta.json").write_text('{"source": "g/block.hocon"}')
+    part = models / "parts" / "block"
+    part.mkdir(parents=True)
+    (part / "block.glb").write_bytes(b"x")
+    (part / "block.meta.json").write_text('{"source": "g/block.hocon"}')
     srv = ViewerServer(str(models), port=0, examples_dir=str(tmp_path))
     srv.start()
     try:
@@ -376,8 +391,9 @@ def test_api_build_error_returns_400(tmp_path) -> None:
 
 def test_api_delete_removes_and_returns_list(tmp_path) -> None:
     models = tmp_path / "out"
-    models.mkdir()
-    (models / "block.glb").write_bytes(b"x")
+    part = models / "parts" / "block"
+    part.mkdir(parents=True)
+    (part / "block.glb").write_bytes(b"x")
     srv = ViewerServer(str(models), port=0, examples_dir=str(tmp_path))
     srv.start()
     try:
@@ -387,7 +403,7 @@ def test_api_delete_removes_and_returns_list(tmp_path) -> None:
 
     assert status == 200
     assert json.loads(body)["models"] == []
-    assert not (models / "block.glb").exists()
+    assert not part.exists()   # the whole part dir removed
 
 
 def test_index_contains_new_ui_elements(tmp_path) -> None:

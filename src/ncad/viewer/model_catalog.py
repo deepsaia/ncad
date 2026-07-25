@@ -1,110 +1,78 @@
-"""Discover 3D model files (glTF/GLB) in a directory for the browser viewer.
+"""Discover built models (glTF/GLB) + their sidecars for the browser viewer.
 
-Keeps filesystem concerns out of the HTTP server: the server asks the catalog what
-models exist and resolves a requested name to a safe absolute path (rejecting anything
-outside the directory, so a crafted name can't escape via ``..``).
+Keeps filesystem concerns out of the HTTP server: the server asks the catalog what models exist and
+resolves a requested name to a safe absolute path. The on-disk layout is out/<kind>/<name>/ (see
+OutputLayout); this catalog is a thin, name-based facade over it, so the HTTP API stays bare-name
+(GET /models/<name>, /bom/<name>, ...). All path-traversal safety lives in OutputLayout.resolve.
 """
 
 import json
 import logging
-import os
+import shutil
 from pathlib import Path
+
+from ncad.build.output_layout import OutputLayout
 
 logger = logging.getLogger(__name__)
 
-# Extensions that appear in the model picker.
-_MODEL_EXTENSIONS = (".gltf", ".glb")
-# Extensions the server may serve: models plus their external buffer/image sidecars
-# (a text .gltf references a companion .bin buffer that the loader fetches separately).
-_SERVABLE_EXTENSIONS = (".gltf", ".glb", ".bin", ".png", ".jpg", ".jpeg")
-# A model's sidecars sit beside it as "<stem><suffix>".
+# A model's sidecars sit beside it in its part dir as "<stem><suffix>".
 _BOM_SUFFIX = ".bom.json"
 _PLAN_SUFFIX = ".plan.svg"
 _META_SUFFIX = ".meta.json"
 _ELEMENTMAP_SUFFIX = ".elementmap.json"
 _HIERARCHY_SUFFIX = ".hierarchy.json"
 _STATUS_SUFFIX = ".status.json"
-# All sidecar suffixes removed alongside a model on delete.
-_SIDECAR_SUFFIXES = (_META_SUFFIX, _BOM_SUFFIX, _PLAN_SUFFIX, _ELEMENTMAP_SUFFIX,
-                     _HIERARCHY_SUFFIX, _STATUS_SUFFIX)
+_MODEL_EXTENSIONS = (".gltf", ".glb")
 
 
 class ModelCatalog:
-    """Lists and safely resolves model files within a single directory."""
+    """Lists + safely resolves models/sidecars in the out/<kind>/<name>/ tree via OutputLayout."""
 
     def __init__(self, directory: str) -> None:
-        """:param directory: Directory to scan for model files."""
-        self._directory = os.path.abspath(directory)
+        """:param directory: the models output root (the historical flat ``out/``)."""
+        self._layout = OutputLayout(directory)
 
     def model_names(self) -> list[str]:
-        """Sorted base names of model files in the directory (empty if none/missing)."""
-        if not Path(self._directory).is_dir():
-            return []
-        names = [
-            entry
-            for entry in os.listdir(self._directory)
-            if entry.lower().endswith(_MODEL_EXTENSIONS)
-            and (Path(self._directory) / entry).is_file()
-        ]
+        """Sorted glb/gltf filenames of built parts (the viewer fetches models by filename)."""
+        names: list[str] = []
+        for stem in self._layout.names("parts"):
+            for ext in _MODEL_EXTENSIONS:
+                if self._layout.resolve("parts", stem, f"{stem}{ext}") is not None:
+                    names.append(f"{stem}{ext}")
+                    break
         return sorted(names)
 
     def resolve(self, name: str) -> str | None:
-        """Resolve a model ``name`` to an absolute path, or None if unknown/unsafe.
+        """Resolve a servable model/buffer/image by filename to a safe absolute path, or None.
 
-        Rejects path traversal and any name not directly inside the directory.
+        Searches the parts + assemblies dirs (the two kinds that emit meshes), so a member glb (and
+        its glTF companion .bin/.png) resolves from its assembly dir. Path-traversal-safe.
         """
-        # Traversal guard: os.path.abspath (textual, no symlink following) so the dirname-equals
-        # check cannot be defeated by a symlink; both sides are abspath of the same directory. This
-        # is deliberately os.path, NOT Path.resolve() (which would follow symlinks).
-        candidate = os.path.abspath(os.path.join(self._directory, name))
-        if os.path.dirname(candidate) != self._directory:
-            return None
-        if not candidate.lower().endswith(_SERVABLE_EXTENSIONS):
-            return None
-        if not Path(candidate).is_file():
-            return None
-        return candidate
+        return self._layout.servable(name)
 
     def assembly_names(self) -> list[str]:
-        """Assembly scene names (files ending in .assembly.json), without the suffix."""
-        if not Path(self._directory).is_dir():
-            return []
-        suffix = ".assembly.json"
-        return sorted(entry[: -len(suffix)] for entry in os.listdir(self._directory)
-                      if entry.lower().endswith(suffix)
-                      and (Path(self._directory) / entry).is_file())
+        """Assembly scene names (dirs under out/assemblies/ with a <name>.assembly.json)."""
+        return [n for n in self._layout.names("assemblies")
+                if self._layout.resolve("assemblies", n, f"{n}.assembly.json") is not None]
 
     def resolve_assembly(self, name: str) -> str | None:
-        """Safe absolute path to ``<name>.assembly.json``, or None if unsafe/absent.
-
-        Rejects path traversal and any name not directly inside the directory (mirrors resolve).
-        """
-        candidate = os.path.abspath(os.path.join(self._directory, name + ".assembly.json"))
-        if os.path.dirname(candidate) != self._directory:
-            return None
-        return candidate if Path(candidate).is_file() else None
+        """Safe absolute path to ``<name>.assembly.json``, or None if unsafe/absent."""
+        return self._layout.resolve("assemblies", name, f"{name}.assembly.json")
 
     def motion_names(self) -> list[str]:
-        """Assembly names that have a motion trajectory (files ending in .motion.json)."""
-        if not Path(self._directory).is_dir():
-            return []
-        suffix = ".motion.json"
-        return sorted(entry[: -len(suffix)] for entry in os.listdir(self._directory)
-                      if entry.lower().endswith(suffix)
-                      and (Path(self._directory) / entry).is_file())
+        """Assembly names that have a motion trajectory (a <name>.motion.json in their dir)."""
+        return [n for n in self._layout.names("assemblies")
+                if self._layout.resolve("assemblies", n, f"{n}.motion.json") is not None]
 
     def motions_with_labels(self) -> list[dict]:
         """Motion names each with a short DECLARED-value label for the picker (fps or steps).
 
         The label reports what the driver actually declared, never a derived number: ``30fps`` when
         the driver used ``fps`` (+ duration), else ``72 steps`` (the smoothness knob), else ``73f``
-        as a last resort (frame count from the trajectory). Reading is best-effort: a
-        missing/unreadable trajectory yields no label rather than failing the listing.
+        as a last resort (frame count from the trajectory). Best-effort: an unreadable trajectory
+        yields no label rather than failing the listing.
         """
-        result: list[dict] = []
-        for name in self.motion_names():
-            result.append({"name": name, "label": self._motion_label(name)})
-        return result
+        return [{"name": name, "label": self._motion_label(name)} for name in self.motion_names()]
 
     def _motion_label(self, name: str) -> str | None:
         """The declared driver label for one motion, or None if the trajectory can't be read."""
@@ -126,24 +94,13 @@ class ModelCatalog:
         return f"{len(frames)}f" if isinstance(frames, list) and frames else None
 
     def resolve_motion(self, name: str) -> str | None:
-        """Safe absolute path to ``<name>.motion.json`` (the trajectory), or None if absent.
-
-        Rejects path traversal and any name not directly inside the directory (mirrors
-        resolve_assembly). The viewer fetches this by the assembly stem to play back motion.
-        """
-        candidate = os.path.abspath(os.path.join(self._directory, name + ".motion.json"))
-        if os.path.dirname(candidate) != self._directory:
-            return None
-        return candidate if Path(candidate).is_file() else None
+        """Safe absolute path to ``<name>.motion.json`` in the assembly dir, or None if absent."""
+        return self._layout.resolve("assemblies", name, f"{name}.motion.json")
 
     def robot_names(self) -> list[str]:
-        """Robot names that have a Physics-viewer tree (files ending in .robot.json)."""
-        if not Path(self._directory).is_dir():
-            return []
-        suffix = ".robot.json"
-        return sorted(entry[: -len(suffix)] for entry in os.listdir(self._directory)
-                      if entry.lower().endswith(suffix)
-                      and (Path(self._directory) / entry).is_file())
+        """Robot names that have a Physics-viewer tree (a <name>.robot.json in the robot dir)."""
+        return [n for n in self._layout.names("robots")
+                if self._layout.resolve("robots", n, f"{n}.robot.json") is not None]
 
     def robots_with_labels(self) -> list[dict]:
         """Robot names each with a short label + recorded source for the picker.
@@ -151,11 +108,8 @@ class ModelCatalog:
         ``source`` is the ``.physics.hocon`` the robot was built from (recorded in the tree), so the
         viewer can Regenerate after a page reload, exactly as the assembly/motion lists do.
         """
-        result: list[dict] = []
-        for name in self.robot_names():
-            result.append({"name": name, "label": self._robot_label(name),
-                           "source": self._robot_source(name)})
-        return result
+        return [{"name": name, "label": self._robot_label(name),
+                 "source": self._robot_source(name)} for name in self.robot_names()]
 
     def _robot_source(self, name: str) -> str | None:
         """The ``source`` field recorded in a robot's ``.robot.json`` tree, or None."""
@@ -185,38 +139,21 @@ class ModelCatalog:
 
     def resolve_robot(self, name: str) -> str | None:
         """Safe absolute path to ``<name>.robot.json`` (the tree), or None if absent."""
-        candidate = os.path.abspath(os.path.join(self._directory, name + ".robot.json"))
-        if os.path.dirname(candidate) != self._directory:
-            return None
-        return candidate if Path(candidate).is_file() else None
+        return self._layout.resolve("robots", name, f"{name}.robot.json")
 
     def resolve_robot_sweeps(self, name: str) -> str | None:
         """Safe absolute path to ``<name>.robot_sweeps.json`` (joint sweeps), or None if absent."""
-        candidate = os.path.abspath(os.path.join(self._directory, name + ".robot_sweeps.json"))
-        if os.path.dirname(candidate) != self._directory:
-            return None
-        return candidate if Path(candidate).is_file() else None
+        return self._layout.resolve("robots", name, f"{name}.robot_sweeps.json")
 
     def analysis_names(self) -> list[str]:
-        """Analysis names that have an FEA result (files ending in .analysis.json).
-
-        The ``.analysis.mesh.json`` field-mesh sidecar ends in ``.mesh.json`` so it is not counted
-        as a separate analysis.
-        """
-        if not Path(self._directory).is_dir():
-            return []
-        suffix = ".analysis.json"
-        return sorted(entry[: -len(suffix)] for entry in os.listdir(self._directory)
-                      if entry.lower().endswith(suffix)
-                      and (Path(self._directory) / entry).is_file())
+        """Analysis names that have an FEA result (a <name>.analysis.json in the analysis dir)."""
+        return [n for n in self._layout.names("analyses")
+                if self._layout.resolve("analyses", n, f"{n}.analysis.json") is not None]
 
     def analyses_with_labels(self) -> list[dict]:
         """Analysis names each with a label (peak von Mises) + recorded source, for the picker."""
-        result: list[dict] = []
-        for name in self.analysis_names():
-            result.append({"name": name, "label": self._analysis_label(name),
-                           "source": self._analysis_source(name)})
-        return result
+        return [{"name": name, "label": self._analysis_label(name),
+                 "source": self._analysis_source(name)} for name in self.analysis_names()]
 
     def _analysis_source(self, name: str) -> str | None:
         """The ``source`` field recorded in an ``.analysis.json``, or None."""
@@ -246,66 +183,11 @@ class ModelCatalog:
 
     def resolve_analysis(self, name: str) -> str | None:
         """Safe absolute path to ``<name>.analysis.json`` (the summary), or None if absent."""
-        candidate = os.path.abspath(os.path.join(self._directory, name + ".analysis.json"))
-        if os.path.dirname(candidate) != self._directory:
-            return None
-        return candidate if Path(candidate).is_file() else None
+        return self._layout.resolve("analyses", name, f"{name}.analysis.json")
 
     def resolve_analysis_mesh(self, name: str) -> str | None:
         """Safe absolute path to ``<name>.analysis.mesh.json`` (field mesh), or None if absent."""
-        candidate = os.path.abspath(os.path.join(self._directory, name + ".analysis.mesh.json"))
-        if os.path.dirname(candidate) != self._directory:
-            return None
-        return candidate if Path(candidate).is_file() else None
-
-    def delete_assembly(self, name: str) -> str | None:
-        """Delete ``<name>.assembly.json`` (the composed scene). Returns the name, or None.
-
-        The shared part glbs are ordinary build output and are left in place (other assemblies
-        or the part view may use them); only the assembly scene sidecar (and its motion
-        trajectory, if any) is removed.
-        """
-        resolved = self.resolve_assembly(name)
-        if resolved is None:
-            return None
-        Path(resolved).unlink()
-        # Remove the motion trajectory + the Physics-viewer robot sidecars keyed by the same name.
-        for companion in (self.resolve_motion(name), self.resolve_robot(name),
-                          self.resolve_robot_sweeps(name)):
-            if companion is not None:
-                Path(companion).unlink()
-        return name
-
-    def delete_robot(self, name: str) -> str | None:
-        """Delete a robot's Physics-viewer sidecars (``.robot.json`` + ``.robot_sweeps.json``).
-
-        Returns the name, or None if the robot is unknown. Only the two robot sidecars are removed:
-        the composed assembly scene + the shared part glbs are ordinary build output left in place
-        (the Assemblies view or another robot may use them), mirroring ``delete_assembly``.
-        """
-        resolved = self.resolve_robot(name)
-        if resolved is None:
-            return None
-        Path(resolved).unlink()
-        sweeps = self.resolve_robot_sweeps(name)
-        if sweeps is not None:
-            Path(sweeps).unlink()
-        return name
-
-    def delete_analysis(self, name: str) -> str | None:
-        """Delete an analysis result's sidecars (``.analysis.json`` + ``.analysis.mesh.json``).
-
-        Returns the name, or None if unknown. The meshed ``.inp`` / exported ``.step`` are ordinary
-        build output left in place (cheap to regenerate), mirroring ``delete_robot``.
-        """
-        resolved = self.resolve_analysis(name)
-        if resolved is None:
-            return None
-        Path(resolved).unlink()
-        mesh = self.resolve_analysis_mesh(name)
-        if mesh is not None:
-            Path(mesh).unlink()
-        return name
+        return self._layout.resolve("analyses", name, f"{name}.analysis.mesh.json")
 
     def resolve_bom(self, model_name: str) -> str | None:
         """Resolve a model name to its BOM sidecar (``<stem>.bom.json``), or None."""
@@ -316,14 +198,9 @@ class ModelCatalog:
         return self._resolve_sidecar(model_name, _PLAN_SUFFIX)
 
     def _resolve_sidecar(self, model_name: str, suffix: str) -> str | None:
-        """Resolve ``<stem><suffix>`` beside the model, or None if unsafe/absent."""
+        """Resolve ``<stem><suffix>`` in the part's dir, or None if unsafe/absent."""
         stem = Path(model_name).stem
-        candidate = os.path.abspath(os.path.join(self._directory, stem + suffix))
-        if os.path.dirname(candidate) != self._directory:
-            return None
-        if not Path(candidate).is_file():
-            return None
-        return candidate
+        return self._layout.resolve("parts", stem, f"{stem}{suffix}")
 
     def resolve_meta(self, model_name: str) -> str | None:
         """Resolve a model name to its metadata sidecar (``<stem>.meta.json``), or None."""
@@ -346,23 +223,32 @@ class ModelCatalog:
         return [{"name": name, "source": self._read_source(name)} for name in self.model_names()]
 
     def delete_model(self, model_name: str) -> list[str] | None:
-        """Delete the model file and its sidecars from this directory (path-safe).
+        """Delete a part's whole ``out/parts/<stem>/`` dir (glb + all sidecars).
 
-        :return: Absolute paths removed, or None if the model is unknown or unsafe.
+        :return: ``[dir]`` removed, or None if the part is unknown.
         """
-        target = self.resolve(model_name)
-        if target is None:
+        return self._delete_dir("parts", Path(model_name).stem)
+
+    def delete_assembly(self, name: str) -> str | None:
+        """Delete an assembly's whole ``out/assemblies/<name>/`` dir (scene + members + motion)."""
+        return name if self._delete_dir("assemblies", name) else None
+
+    def delete_robot(self, name: str) -> str | None:
+        """Delete a robot's ``out/robots/<name>/`` dir (tree + sweeps + keyframes + meshes)."""
+        return name if self._delete_dir("robots", name) else None
+
+    def delete_analysis(self, name: str) -> str | None:
+        """Delete an analysis's whole ``out/analyses/<name>/`` dir (summary + field mesh + STEP)."""
+        return name if self._delete_dir("analyses", name) else None
+
+    def _delete_dir(self, kind: str, name: str) -> list[str] | None:
+        """Remove the target's ``out/<kind>/<name>/`` dir; return ``[dir]`` or None if absent."""
+        target = self._layout.dir_for(kind, name)
+        if not target.is_dir():
             return None
-        removed = [target]
-        Path(target).unlink()
-        stem = Path(model_name).stem
-        for suffix in _SIDECAR_SUFFIXES:
-            sidecar = os.path.abspath(os.path.join(self._directory, stem + suffix))
-            if os.path.dirname(sidecar) == self._directory and Path(sidecar).is_file():
-                Path(sidecar).unlink()
-                removed.append(sidecar)
-        logger.debug("deleted model %s and %d sidecar(s)", model_name, len(removed) - 1)
-        return removed
+        shutil.rmtree(target)
+        logger.debug("deleted %s %s (%s)", kind, name, target)
+        return [str(target)]
 
     def _read_source(self, model_name: str) -> str | None:
         """Read the ``source`` field from a model's meta sidecar, or None."""
