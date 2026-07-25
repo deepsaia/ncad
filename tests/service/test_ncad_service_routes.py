@@ -88,6 +88,22 @@ class _FakeJobManager:
     def cancel(self, job_id):
         return False
 
+    async def arun_direct(self, kind, payload):
+        import base64
+
+        if kind == "validate":
+            return {"ok": True, "result": self._svc.validate(payload["spec"])}
+        if kind == "robot-collide":
+            return {"ok": True,
+                    "result": self._svc.check_robot_collision(payload["name"], payload["pose"])}
+        if kind == "export":
+            name, content_type, data = self._svc.export_model(
+                payload["name"], payload["kind"], payload["format"])
+            return {"ok": True, "result": {
+                "download_name": name, "content_type": content_type,
+                "data_b64": base64.b64encode(data).decode("ascii")}}
+        raise AssertionError(f"unexpected arun_direct kind {kind!r}")
+
 
 @pytest.fixture
 def service(tmp_path):
