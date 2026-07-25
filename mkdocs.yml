@@ -119,6 +119,11 @@ nav:
           - Assembly to robot: ncad/workflows/assembly-to-robot.md
           - Part to FEA: ncad/workflows/part-to-fea.md
           - Import, edit, export: ncad/workflows/import-edit-export.md
+      - Reference:
+          - CLI: ncad/reference/cli.md
+          - HTTP API: ncad/reference/http-api.md
+          - Python API: ncad/reference/python-api.md
+          - Document kinds: ncad/reference/document-kinds.md
       # Operations Reference children are generated + categorized from the op registry by
       # docs_hooks.py (on_config); this placeholder is replaced at build time.
       - Operations Reference:
