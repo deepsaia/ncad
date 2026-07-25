@@ -8,12 +8,9 @@ it is offloaded but awaited directly (no job record) so a drag stays responsive.
 """
 
 import json
-import logging
 
 from ncad.service.base_handler import BaseApiHandler
 from ncad.service.job_manager import SaturatedError
-
-logger = logging.getLogger(__name__)
 
 
 class BuildHandler(BaseApiHandler):
@@ -104,24 +101,20 @@ class AnalyzeHandler(BaseApiHandler):
 class RobotCollideHandler(BaseApiHandler):
     """POST /api/v1/robot-collide -> non-adjacent self-collisions of a robot at a posed config."""
 
-    def post(self, *args: str, **kwargs: str) -> None:
-        """Check the posted robot ``name`` at ``pose``; 400 on bad request/BuildError, 500 else."""
-        from ncad.viewer.build_service import BuildError
+    async def post(self, *args: str, **kwargs: str) -> None:  # pyrefly: ignore[bad-override]
+        """Check the posted robot ``name`` at ``pose`` (offloaded, awaited); 400 on bad request.
 
+        Awaited directly (no job record): the posing panel calls this live while dragging a joint,
+        so a poll cycle would add drag latency; offloading keeps the loop free without one.
+        """
         try:
             body = json.loads(self.request.body or b"{}")
             name, pose = body["name"], body.get("pose", {})
         except (ValueError, KeyError, TypeError):
             self.write_error_json(400, "request must be JSON with 'name' + 'pose'")
             return
-        try:
-            result = self._build_service.check_robot_collision(name, pose)
-        except BuildError as exc:
-            logger.warning("robot-collide rejected for %s: %s", name, exc)
-            self.write_error_json(400, str(exc))
+        out = await self._job_manager.arun_direct("robot-collide", {"name": name, "pose": pose})
+        if not out.get("ok"):
+            self.write_error_json(400, out.get("error", "robot-collide failed"))
             return
-        except Exception:  # noqa: BLE001 - never raise to the socket; log and 500
-            logger.exception("unexpected robot-collide failure for %s", name)
-            self.write_error_json(500, "internal robot-collide error")
-            return
-        self.write_json(200, result)
+        self.write_json(200, out["result"])
