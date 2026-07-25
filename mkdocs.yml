@@ -106,6 +106,13 @@ nav:
           - First part: ncad/getting-started/first-part.md
           - First assembly: ncad/getting-started/first-assembly.md
           - First motion: ncad/getting-started/first-motion.md
+      - How-to guides:
+          - Authoring parts: ncad/guides/authoring-parts.md
+          - Authoring assemblies: ncad/guides/authoring-assemblies.md
+          - Authoring motion: ncad/guides/authoring-motion.md
+          - Authoring robots: ncad/guides/authoring-robots.md
+          - Authoring analyses: ncad/guides/authoring-analyses.md
+          - Standard parts: ncad/guides/standard-parts.md
       # Operations Reference children are generated + categorized from the op registry by
       # docs_hooks.py (on_config); this placeholder is replaced at build time.
       - Operations Reference:
