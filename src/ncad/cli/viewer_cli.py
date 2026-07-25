@@ -192,9 +192,9 @@ class ViewerCli:
         ``{"artifact", "meshes_dir", "format", "robot", "sweeps", "warnings", "links", "joints"}``.
         """
         from ncad.kernel.build123d_kernel import Build123dKernel
-        from ncad.robotics import RobotModelBuilder
         from ncad.robotics.physics_spec import PhysicsSpec
         from ncad.robotics.robot_format import robot_writer
+        from ncad.robotics.robot_model_builder import RobotModelBuilder
         from ncad.robotics.robot_sidecar_builder import RobotSidecarBuilder
         from ncad.spec.spec_loader import SpecLoader
 

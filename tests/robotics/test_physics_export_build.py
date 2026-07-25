@@ -3,7 +3,8 @@
 import pytest
 
 from ncad.kernel.build123d_kernel import Build123dKernel
-from ncad.robotics import RobotModelBuilder, UrdfWriter
+from ncad.robotics.robot_model_builder import RobotModelBuilder
+from ncad.robotics.urdf_writer import UrdfWriter
 
 pytestmark = pytest.mark.slow
 
