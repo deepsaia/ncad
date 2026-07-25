@@ -65,5 +65,5 @@ def test_part_file_built_once_regardless_of_instance_count(tmp_path, monkeypatch
     # per instance. So the combined count is bounded (<= 2), not 5+ (the O(N-instances) blowup).
     assert calls["n"] <= 2, f"part file rebuilt {calls['n']} times for 5 instances (should dedup)"
     # And the composed scene still has all five instances placed.
-    sidecar = json.loads((out / "many.assembly.json").read_text())
+    sidecar = json.loads((out / "assemblies" / "many" / "many.assembly.json").read_text())
     assert len(sidecar["instances"]) == 5

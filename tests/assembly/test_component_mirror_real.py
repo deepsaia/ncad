@@ -44,7 +44,7 @@ def test_component_mirror_reflects_to_negative_x(tmp_path):
     asm = _write(str(tmp_path), "a.asm.hocon", _ASM)
     result = AssemblyBuilder(Build123dKernel()).assemble(asm, str(tmp_path))
     assert not result["issues"], result["issues"]
-    sidecar = json.loads((tmp_path / "a.assembly.json").read_text())
+    sidecar = json.loads((tmp_path / "assemblies" / "a" / "a.assembly.json").read_text())
     right = next(i for i in sidecar["instances"] if i["id"] == "rightBracket")
     # The mirrored bracket sits at -x (placement baked to metres: 25 mm -> -0.025 m).
     assert right["placement"][3][0] < 0.0

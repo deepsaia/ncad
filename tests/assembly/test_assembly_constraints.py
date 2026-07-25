@@ -51,7 +51,7 @@ assembly {{
     out = tmp_path / "out"
     result = AssemblyBuilder(Build123dKernel()).assemble(str(asm), str(out))
     assert not result["issues"], result["issues"]
-    sidecar = json.loads((out / "mated.assembly.json").read_text())
+    sidecar = json.loads((out / "assemblies" / "mated" / "mated.assembly.json").read_text())
     assert sidecar["solve"]["status"] in ("well_constrained", "under_constrained", "redundant")
     assert not sidecar["solve"]["failing_ids"]
     mate = next(m for m in sidecar["mates"] if m["id"] == "m1")

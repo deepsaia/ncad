@@ -48,7 +48,7 @@ def test_tangent_mate_solves(tmp_path):
     asm = _write(str(tmp_path), "a.asm.hocon", _ASM)
     result = AssemblyBuilder(Build123dKernel()).assemble(asm, str(tmp_path))
     assert not result["issues"], result["issues"]
-    sidecar = json.loads((tmp_path / "a.assembly.json").read_text())
+    sidecar = json.loads((tmp_path / "assemblies" / "a" / "a.assembly.json").read_text())
     # The tangent mate is active (a distance constraint; the pin is otherwise free to slide/spin,
     # so the network may be under-constrained, which is fine).
     t = next(m for m in sidecar["mates"] if m["id"] == "t1")

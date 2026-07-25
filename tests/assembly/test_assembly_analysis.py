@@ -50,7 +50,7 @@ assembly {{
     out = tmp_path / "out"
     result = AssemblyBuilder(Build123dKernel()).assemble(str(asm), str(out))
     assert not result["issues"], result["issues"]
-    sidecar = json.loads((out / "pegged.assembly.json").read_text())
+    sidecar = json.loads((out / "assemblies" / "pegged" / "pegged.assembly.json").read_text())
     # Interference is checked + classified for the pair. This connect example seats the peg base on
     # the plate top so the peg dips into the plate -> a real interference with positive volume
     # (the detector correctly catches it; touching vs overlap correctness is the assembly capstone).
@@ -61,4 +61,4 @@ assembly {{
     assert parts == {"plate", "peg"}
     assert sidecar["mass"]["total_mass"] > 0
     # Structured STEP written beside the sidecar.
-    assert (out / "pegged.step").is_file()
+    assert (out / "assemblies" / "pegged" / "pegged.step").is_file()

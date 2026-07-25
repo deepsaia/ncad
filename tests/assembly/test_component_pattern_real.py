@@ -44,6 +44,6 @@ def test_component_pattern_places_four_pegs(tmp_path):
     asm = _write(str(tmp_path), "a.asm.hocon", _ASM)
     result = AssemblyBuilder(Build123dKernel()).assemble(asm, str(tmp_path))
     assert not result["issues"], result["issues"]
-    sidecar = json.loads((tmp_path / "a.assembly.json").read_text())
+    sidecar = json.loads((tmp_path / "assemblies" / "a" / "a.assembly.json").read_text())
     ids = {i["id"] for i in sidecar["instances"]}
     assert {"peg/0", "peg/1", "peg/2", "peg/3"} <= ids

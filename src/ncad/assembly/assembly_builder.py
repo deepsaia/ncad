@@ -44,6 +44,7 @@ from ncad.assembly.trace_extractor import TraceExtractor
 from ncad.build.document_builder import DocumentBuilder
 from ncad.build.mass_calculator import MassCalculator
 from ncad.build.material_error import MaterialError
+from ncad.build.output_layout import OutputLayout
 from ncad.spec.assembly_schema_validator import AssemblySchemaValidator
 from ncad.spec.spec_loader import SpecLoader
 from ncad.spec.spec_reference import SpecReference
@@ -110,6 +111,11 @@ class AssemblyBuilder:
         Path(out_dir).mkdir(parents=True, exist_ok=True)
         asm_dir = os.path.dirname(os.path.abspath(asm_path))  # abspath base dir for ref resolution
         name = _stem(asm_path)
+        # This assembly's own artifacts (scene sidecar, STEP, motion trajectory) + its member glbs
+        # live together in out/assemblies/<name>/. Sub-assemblies get their OWN such dir (the child
+        # assemble computes it), so _compose_sub_assembly still receives the root out_dir.
+        asm_out = str(OutputLayout(out_dir).dir_for("assemblies", name))
+        Path(asm_out).mkdir(parents=True, exist_ok=True)
         # Expand component ops (pattern; mirror/replace/sub-assembly in later tasks) into a flat
         # instance list BEFORE placement/solve, so the rest of the pipeline sees plain instances.
         pre_issues: list[dict] = []
@@ -142,7 +148,7 @@ class AssemblyBuilder:
                 instances.extend(self._compose_sub_assembly(
                     instance, asm_dir, out_dir, _visited, to_metres, placements_mm, issues))
                 continue
-            glb = self._ensure_part_glb(instance, asm_dir, out_dir, builders, built_glbs, issues)
+            glb = self._ensure_part_glb(instance, asm_dir, asm_out, builders, built_glbs, issues)
             if glb is None:
                 continue
             iid = instance["id"]
@@ -163,14 +169,14 @@ class AssemblyBuilder:
         # MotionBuilder), solve the driven mechanism over the driver's value sweep with the
         # OndselSolver multibody engine (via pyondsel) and write a trajectory sidecar. Runs after
         # the static solve (rest pose). Kinematic only (force dynamics deferred to Phase 17).
-        motion_path = self._run_motion(motion_spec, document, name, out_dir, asm_dir, local_frames,
+        motion_path = self._run_motion(motion_spec, document, name, asm_out, asm_dir, local_frames,
                                        placements_mm, builders, to_metres, solve_block, issues)
         # Analysis over the solved assembly (bucket 5.6): interference + BOM + roll-up mass +
         # structured STEP. Guarded so a failure is an id-attributed issue and the sidecar still
         # writes (without the analysis blocks) rather than aborting the whole assemble.
         interference, bom, mass = self._analyze(
-            document, asm_dir, instances, placements_mm, builders, out_dir, name, issues)
-        sidecar = Path(out_dir) / f"{name}{_ASSEMBLY_SUFFIX}"
+            document, asm_dir, instances, placements_mm, builders, asm_out, name, issues)
+        sidecar = Path(asm_out) / f"{name}{_ASSEMBLY_SUFFIX}"
         # Record the source .asm.hocon so the viewer can regenerate this assembly after a reload
         # (the browser's in-memory source map is lost on reload; this survives it, like the part
         # meta sidecar's `source`). abspath keeps `source` a textual absolute the viewer compares.
@@ -236,7 +242,10 @@ class AssemblyBuilder:
             issues.append({"instance_id": iid,
                            "message": f"{iid}/{child_issue.get('instance_id', '?')}: "
                                       f"{child_issue.get('message', '')}"})
-        child_sidecar_path = Path(out_dir) / f"{_stem(child_path)}{_ASSEMBLY_SUFFIX}"
+        # The child assembled into its OWN out/assemblies/<child>/ dir; read its sidecar from there.
+        child_name = _stem(child_path)
+        child_sidecar_path = OutputLayout(out_dir).dir_for("assemblies", child_name) / \
+            f"{child_name}{_ASSEMBLY_SUFFIX}"
         with child_sidecar_path.open(encoding="utf-8") as handle:
             child_doc = json.load(handle)
         parent_metres = _bake_matrix(self._placement.matrix(instance.get("placement"), 1.0),
@@ -801,13 +810,12 @@ class AssemblyBuilder:
                            "message": f"part file not found: {instance['file']!r}"})
             return None
         builder = builders.setdefault(key[0], DocumentBuilder(self._kernel))
-        # Namespace the glb by the source document stem so two mechanisms that both define a part
-        # named `stand` write distinct <doc>__stand.glb files into the shared out dir (not one
-        # clobbered stand.glb). The stem is the part file's basename without extensions.
-        doc_stem = Path(part_file).name.split(".", 1)[0]
+        # Member parts build flat into the assembly's own dir (out_dir is asm_out here) with bare
+        # names; the dir namespaces them, so two assemblies each with a `stand` no longer collide
+        # (no doc-stem prefix needed). layout_kind=None keeps the write flat in that exact dir.
         try:
             build_result = builder.build_file(part_file, out_dir, formats=("glb",),
-                                               name_prefix=f"{doc_stem}__")
+                                               layout_kind=None)
         except Exception as exc:  # noqa: BLE001 - a bad part becomes an id-attributed issue
             issues.append({"instance_id": instance_id, "message": f"part build failed: {exc}"})
             return None

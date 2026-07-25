@@ -52,7 +52,7 @@ assembly {{
     out = tmp_path / "out"
     result = AssemblyBuilder(Build123dKernel()).assemble(str(asm), str(out))
     assert not result["issues"], result["issues"]
-    sidecar = json.loads((out / "pinned.assembly.json").read_text())
+    sidecar = json.loads((out / "assemblies" / "pinned" / "pinned.assembly.json").read_text())
     joints = sidecar["joints"]
     assert len(joints) == 1
     j = joints[0]
@@ -130,7 +130,7 @@ motion { assembly = "slot.asm.hocon"
 """)
     out = tmp_path / "out"
     MotionBuilder(Build123dKernel()).build(str(motion), str(out))
-    traj = json.loads((out / "slot.motion.json").read_text())
+    traj = json.loads((out / "assemblies" / "slot" / "slot.motion.json").read_text())
     xs = [fr["placements"]["yoke"][3][0] for fr in traj["frames"]]
     # yoke travel = 2 * crank pin radius = 0.06 m (metres); a real slot joint, not a scotch_yoke
     # law.

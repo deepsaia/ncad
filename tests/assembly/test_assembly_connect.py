@@ -45,7 +45,7 @@ assembly {{ instances = [
     out = tmp_path / "out"
     result = AssemblyBuilder(Build123dKernel()).assemble(str(asm), str(out))
     assert not result["issues"], result["issues"]
-    sidecar = json.loads((out / "stack.assembly.json").read_text())
+    sidecar = json.loads((out / "assemblies" / "stack" / "stack.assembly.json").read_text())
     pin = next(i for i in sidecar["instances"] if i["id"] == "pin")
     # The peg's base connector snapped onto the plate top (z=6mm = 0.006m): the pin's placement
     # lifts it to sit on the plate top.

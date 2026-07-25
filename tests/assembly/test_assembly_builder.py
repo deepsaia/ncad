@@ -34,11 +34,14 @@ assembly {{ instances = [
     result = AssemblyBuilder(Build123dKernel()).assemble(str(asm), str(out))
 
     assert not result["issues"], result["issues"]
+    # The scene sidecar + its member glbs live in out/assemblies/<name>/.
+    assert Path(result["sidecar"]).as_posix().endswith("/out/assemblies/pegs/pegs.assembly.json")
     sidecar = json.loads(Path(result["sidecar"]).read_text())
     assert [i["id"] for i in sidecar["instances"]] == ["p1", "p2"]
     glbs = {i["part_glb"] for i in sidecar["instances"]}
     assert len(glbs) == 1  # shared part glb deduped
-    assert (out / next(iter(glbs))).is_file()
+    assert next(iter(glbs)) == "peg.glb"  # bare name (no doc-stem prefix; the dir namespaces it)
+    assert (out / "assemblies" / "pegs" / next(iter(glbs))).is_file()
     p2 = next(i for i in sidecar["instances"] if i["id"] == "p2")
     assert p2["placement"][3][0] == pytest.approx(0.020)  # 20mm baked to metres (glb unit)
 
@@ -65,8 +68,8 @@ assembly {{ instances = [ {{ id = p1, file = "{part.name}", part = peg }} ] }}
     out = tmp_path / "out"
     result = AssemblyBuilder(Build123dKernel()).assemble(str(asm), str(out))
     assert not result["issues"], result["issues"]
-    # The member glb is namespaced <doc>__<part>.glb -> widget__peg.glb; its meta names the part.
-    meta = json.loads((out / "widget__peg.meta.json").read_text())
+    # The member glb is bare-named (peg.glb) in out/assemblies/widgets/; its meta names the part.
+    meta = json.loads((out / "assemblies" / "widgets" / "peg.meta.json").read_text())
     assert meta["part"] == "peg"
     assert Path(meta["source"]).name == "widget.hocon"
     assert Path(meta["source"]).is_file()

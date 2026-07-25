@@ -58,7 +58,7 @@ def test_motion_sidecar_has_a_frame_per_step(tmp_path):
     result = MotionBuilder(Build123dKernel()).build(motion_doc, str(tmp_path))
     assert not result["issues"], result["issues"]
     assert result.get("motion") is not None
-    motion = json.loads((tmp_path / "a.motion.json").read_text())
+    motion = json.loads((tmp_path / "assemblies" / "a" / "a.motion.json").read_text())
     assert motion["driver"]["joint"] == "spin"
     assert len(motion["frames"]) == 9  # steps=8 -> 9 inclusive frames
     frame = motion["frames"][2]
@@ -76,7 +76,7 @@ def test_motion_sidecar_always_has_dof_block(tmp_path):
     _write(str(tmp_path), "a.asm.hocon", _ASM)
     motion_doc = _write(str(tmp_path), "a.motion.hocon", _MOTION)
     MotionBuilder(Build123dKernel()).build(motion_doc, str(tmp_path))
-    motion = json.loads((tmp_path / "a.motion.json").read_text())
+    motion = json.loads((tmp_path / "assemblies" / "a" / "a.motion.json").read_text())
     assert motion["schema_version"] == 2
     assert motion["traces"] == [] and motion["measures"] == []
     assert "gruebler" in motion["dof"] and "solver" in motion["dof"] and "status" in motion["dof"]
@@ -93,7 +93,7 @@ def test_motion_sidecar_emits_declared_traces_and_measures(tmp_path):
     motion_doc = _write(str(tmp_path), "a.motion.hocon", _MOTION_WITH_OUTPUTS)
     result = MotionBuilder(Build123dKernel()).build(motion_doc, str(tmp_path))
     assert not result["issues"], result["issues"]
-    motion = json.loads((tmp_path / "a.motion.json").read_text())
+    motion = json.loads((tmp_path / "assemblies" / "a" / "a.motion.json").read_text())
     n = len(motion["frames"])
     assert len(motion["traces"]) == 1 and motion["traces"][0]["id"] == "rimPath"
     assert len(motion["traces"][0]["polyline"]) == n
@@ -111,4 +111,4 @@ def test_assembly_without_motion_writes_no_trajectory(tmp_path):
     result = AssemblyBuilder(Build123dKernel()).assemble(asm, str(tmp_path))
     assert not result["issues"], result["issues"]
     assert result.get("motion") is None
-    assert not (tmp_path / "a.motion.json").exists()
+    assert not (tmp_path / "assemblies" / "a" / "a.motion.json").exists()
