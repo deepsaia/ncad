@@ -3,8 +3,8 @@
 The one collaborator handlers talk to. ``submit`` dedups an identical in-flight (kind, spec),
 enforces the concurrency + queue cap (raising SaturatedError -> 503), creates a BuildJob, submits
 run_build to the pool, and wires the Future's completion back onto the IOLoop (via the injected
-``add_future``) so the job is finalized on the loop thread with no locking. ``run_direct`` awaits a
-build without tracking a job (for byte downloads / live checks). One class.
+``add_future``) so the job is finalized on the loop thread with no locking. ``arun_direct`` awaits
+a build without tracking a job (for byte downloads / live checks). One class.
 """
 
 import asyncio
@@ -64,7 +64,7 @@ class JobManager:
         self._add_future(future, lambda f: self._finalize(job, f))
         return job
 
-    async def run_direct(self, kind: str, payload: dict) -> dict:
+    async def arun_direct(self, kind: str, payload: dict) -> dict:
         """Run a build in the pool and await its result WITHOUT tracking a job (bytes/live checks).
 
         Same admission cap as submit; returns the worker's ``{"ok", "result"|"error"}`` dict.

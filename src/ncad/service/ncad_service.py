@@ -41,6 +41,7 @@ class NcadService:
         *,
         examples_dir: str | None = None,
         build_service=None,
+        job_manager=None,
         dev: bool = False,
     ) -> None:
         """:param models_dir: Directory of glTF/GLB models + assembly/motion sidecars to serve.
@@ -48,6 +49,7 @@ class NcadService:
         :param port: Bind port; 0 picks an ephemeral free port.
         :param examples_dir: Directory of example specs (spec panel empty if None).
         :param build_service: Injected BuildService; a default is built if None.
+        :param job_manager: Injected JobManager; a default (spawn pool + TTL store) built if None.
         :param dev: When True, hot-reload affordances are enabled (autoreload + live-reload + the
             viewer HTML is re-read per request).
         """
@@ -56,7 +58,7 @@ class NcadService:
         self._dev = dev
         self._boot_id = uuid.uuid4().hex
         self._deps = make_deps(models_dir, examples_dir, dev, self._boot_id,
-                               build_service=build_service)
+                               build_service=build_service, job_manager=job_manager)
         # A custom access log_function colors the status by class (see AccessLogger); it emits
         # through the "tornado.access" logger, which ServiceLogging configures for the CLI.
         self._app = Application(ApiRouter().rules(self._deps),

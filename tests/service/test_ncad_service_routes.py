@@ -50,6 +50,45 @@ class _FakeBuildService:
         return {"ok": True, "diagnostics": []}
 
 
+class _FakeJobManager:
+    """Runs the fake build service synchronously and stores a done job, so a poll returns it.
+
+    The real JobManager offloads to a spawn worker (which builds its own BuildService), bypassing
+    the injected fake; this stand-in keeps the route contract testable without a subprocess.
+    """
+
+    _DISPATCH = {
+        "build": lambda s, p: s.build(p["spec"]),
+        "assemble": lambda s, p: s.assemble(p["spec"]),
+        "motion": lambda s, p: s.build_motion(p["spec"]),
+        "physics": lambda s, p: s.build_physics(p["spec"]),
+        "analyze": lambda s, p: s.analyze(p["spec"]),
+    }
+
+    def __init__(self, build_service):
+        self._svc = build_service
+        self._jobs: dict = {}
+        self._n = 0
+
+    def submit(self, kind, payload, coalesce_key):
+        from ncad.service.build_job import BuildJob
+
+        self._n += 1
+        job_id = f"job{self._n}"
+        result = self._DISPATCH[kind](self._svc, payload)
+        job = BuildJob(id=job_id, kind=kind, spec=coalesce_key or "", status="done",
+                       stage="done", stages_done=1, stages_total=1, message="", result=result,
+                       error=None, created_at=0.0, finished_at=1.0)
+        self._jobs[job_id] = job
+        return job
+
+    def get(self, job_id):
+        return self._jobs.get(job_id)
+
+    def cancel(self, job_id):
+        return False
+
+
 @pytest.fixture
 def service(tmp_path):
     # A model + its sidecars, an assembly scene, and a motion trajectory so every GET has content.
@@ -67,8 +106,9 @@ def service(tmp_path):
     (tmp_path / "bracket.analysis.json").write_text('{"summary": {"max_von_mises": 423646.0}}')
     (tmp_path / "bracket.analysis.mesh.json").write_text(
         '{"points": [[0,0,0]], "triangles": [], "fields": {}, "ranges": {}}')
+    fake_build = _FakeBuildService()
     svc = NcadService(models_dir=str(tmp_path), host="127.0.0.1", port=0,
-                      build_service=_FakeBuildService())
+                      build_service=fake_build, job_manager=_FakeJobManager(fake_build))
     svc.start()
     try:
         yield svc
@@ -149,34 +189,36 @@ def test_sidecar_routes(service, route, ctype):
     assert headers["Content-Type"] == ctype
 
 
-def test_build_post(service):
-    status, body, _ = _post(f"{service.base_url}/api/v1/build", {"spec": "x.hocon"})
+def _submit_and_poll(service, endpoint: str, spec: str) -> dict:
+    """POST a build (expect 202 + job_id), then GET the job once; return its result dict."""
+    status, body, _ = _post(f"{service.base_url}/api/v1/{endpoint}", {"spec": spec})
+    assert status == 202
+    job_id = json.loads(body)["job_id"]
+    status, body, _ = _get(f"{service.base_url}/api/v1/jobs/{job_id}")
     assert status == 200
-    payload = json.loads(body)
-    assert payload["built"] == ["thing.glb"] and payload["build_ms"] == 1.0
-    assert "models" in payload  # refreshed listing merged in
+    job = json.loads(body)
+    assert job["status"] == "done"
+    return job["result"]
+
+
+def test_build_post(service):
+    result = _submit_and_poll(service, "build", "x.hocon")
+    assert result["built"] == ["thing.glb"] and result["build_ms"] == 1.0
 
 
 def test_assemble_post(service):
-    status, body, _ = _post(f"{service.base_url}/api/v1/assemble", {"spec": "x.asm.hocon"})
-    payload = json.loads(body)
-    assert payload["assembled"] == "asm" and payload["build_ms"] == 2.0
-    assert "assemblies" in payload
+    result = _submit_and_poll(service, "assemble", "x.asm.hocon")
+    assert result["assembled"] == "asm" and result["build_ms"] == 2.0
 
 
 def test_motion_build_post(service):
-    status, body, _ = _post(f"{service.base_url}/api/v1/motion-build", {"spec": "x.motion.hocon"})
-    payload = json.loads(body)
-    assert payload["assembled"] == "asm" and payload["build_ms"] == 3.0
-    assert "motions" in payload
+    result = _submit_and_poll(service, "motion-build", "x.motion.hocon")
+    assert result["assembled"] == "asm" and result["build_ms"] == 3.0
 
 
 def test_physics_build_post(service):
-    status, body, _ = _post(f"{service.base_url}/api/v1/physics-build",
-                            {"spec": "x.physics.hocon"})
-    payload = json.loads(body)
-    assert payload["robot"] == "arm" and payload["build_ms"] == 4.0
-    assert "robots" in payload   # the refreshed robot list rides the response
+    result = _submit_and_poll(service, "physics-build", "x.physics.hocon")
+    assert result["robot"] == "arm" and result["build_ms"] == 4.0
 
 
 def test_robot_collide_post(service):
@@ -198,11 +240,8 @@ def test_analyses_list_summary_and_mesh(service):
 
 
 def test_analyze_post(service):
-    status, body, _ = _post(f"{service.base_url}/api/v1/analyze",
-                            {"spec": "bracket.analysis.hocon"})
-    payload = json.loads(body)
-    assert payload["analysis"] == "bracket" and payload["status"] == "generated"
-    assert "analyses" in payload   # the refreshed analysis list rides the response
+    result = _submit_and_poll(service, "analyze", "bracket.analysis.hocon")
+    assert result["analysis"] == "bracket" and result["status"] == "generated"
 
 
 def test_robot_keyframes_get(service):

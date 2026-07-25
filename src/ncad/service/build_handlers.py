@@ -1,128 +1,104 @@
-"""Build routes: build a part, compose an assembly, or run a motion study.
+"""Build routes: submit a part/assembly/motion/physics/analysis build as an async job.
 
-Each POST reads a JSON body ``{"spec": ...}``, calls the injected BuildService, and returns the
-service result merged with the refreshed catalog listing. Errors follow the shared contract: a
-malformed body or missing ``spec`` is 400, a disallowed/failed build (``BuildError``) is 400, and
-an unexpected failure is 500 (logged, never leaked). Mirrors the stdlib server's handlers.
+Each POST reads a JSON body ``{"spec": ...}``, submits a job to the injected JobManager, and
+returns ``202 {job_id}`` immediately so the Tornado loop is never blocked by the build; the client
+polls ``GET /api/v1/jobs/<id>`` for stage progress + the result. A malformed body is 400; a
+saturated pool + queue is 503 (SaturatedError). RobotCollideHandler is the live posing-panel check;
+it is offloaded but awaited directly (no job record) so a drag stays responsive.
 """
 
 import json
 import logging
 
 from ncad.service.base_handler import BaseApiHandler
-from ncad.viewer.build_service import BuildError
+from ncad.service.job_manager import SaturatedError
 
 logger = logging.getLogger(__name__)
 
 
 class BuildHandler(BaseApiHandler):
-    """POST /api/v1/build -> build a part spec, return the refreshed model list + build result."""
+    """POST /api/v1/build -> submit a part-build job; 202 {job_id}."""
 
-    def post(self, *args: str, **kwargs: str) -> None:
-        """Build the posted spec; 400 on bad request/BuildError, 500 on unexpected failure."""
+    async def post(self, *args: str, **kwargs: str) -> None:  # pyrefly: ignore[bad-override]
+        """Submit the posted spec as a build job; 400 bad body, 503 when saturated."""
         spec = self.load_spec_body()
         if spec is None:
             self.write_error_json(400, "request must be JSON with a 'spec' field")
             return
         try:
-            result = self._build_service.build(spec)
-        except BuildError as exc:
-            logger.warning("build rejected for %s: %s", spec, exc)
-            self.write_error_json(400, str(exc))
+            job = self._job_manager.submit("build", {"spec": spec}, coalesce_key=spec)
+        except SaturatedError as exc:
+            self.write_error_json(503, str(exc))
             return
-        except Exception:  # noqa: BLE001 - never raise to the socket; log and 500
-            logger.exception("unexpected build failure for %s", spec)
-            self.write_error_json(500, "internal build error")
-            return
-        self.write_json(200, {"models": self._catalog.models_with_sources(), **result})
+        self.write_json(202, {"job_id": job.id})
 
 
 class AssembleHandler(BaseApiHandler):
-    """POST /api/v1/assemble -> compose an assembly, return the refreshed list + result."""
+    """POST /api/v1/assemble -> submit an assembly-compose job; 202 {job_id}."""
 
-    def post(self, *args: str, **kwargs: str) -> None:
-        """Compose the posted assembly spec; 400 on bad request/BuildError, 500 on failure."""
+    async def post(self, *args: str, **kwargs: str) -> None:  # pyrefly: ignore[bad-override]
+        """Submit the posted assembly spec as a job; 400 bad body, 503 when saturated."""
         spec = self.load_spec_body()
         if spec is None:
             self.write_error_json(400, "request must be JSON with a 'spec' field")
             return
         try:
-            result = self._build_service.assemble(spec)
-        except BuildError as exc:
-            logger.warning("assemble rejected for %s: %s", spec, exc)
-            self.write_error_json(400, str(exc))
+            job = self._job_manager.submit("assemble", {"spec": spec}, coalesce_key=spec)
+        except SaturatedError as exc:
+            self.write_error_json(503, str(exc))
             return
-        except Exception:  # noqa: BLE001 - never raise to the socket; log and 500
-            logger.exception("unexpected assemble failure for %s", spec)
-            self.write_error_json(500, "internal assemble error")
-            return
-        self.write_json(200, {"assemblies": self._catalog.assembly_names(), **result})
+        self.write_json(202, {"job_id": job.id})
 
 
 class MotionBuildHandler(BaseApiHandler):
-    """POST /api/v1/motion-build -> drive a motion study, return the refreshed list + result."""
+    """POST /api/v1/motion-build -> submit a motion-study job; 202 {job_id}."""
 
-    def post(self, *args: str, **kwargs: str) -> None:
-        """Run the posted motion spec; 400 on bad request/BuildError, 500 on failure."""
+    async def post(self, *args: str, **kwargs: str) -> None:  # pyrefly: ignore[bad-override]
+        """Submit the posted motion spec as a job; 400 bad body, 503 when saturated."""
         spec = self.load_spec_body()
         if spec is None:
             self.write_error_json(400, "request must be JSON with a 'spec' field")
             return
         try:
-            result = self._build_service.build_motion(spec)
-        except BuildError as exc:
-            logger.warning("motion-build rejected for %s: %s", spec, exc)
-            self.write_error_json(400, str(exc))
+            job = self._job_manager.submit("motion", {"spec": spec}, coalesce_key=spec)
+        except SaturatedError as exc:
+            self.write_error_json(503, str(exc))
             return
-        except Exception:  # noqa: BLE001 - never raise to the socket; log and 500
-            logger.exception("unexpected motion-build failure for %s", spec)
-            self.write_error_json(500, "internal motion-build error")
-            return
-        self.write_json(200, {"motions": self._catalog.motions_with_labels(), **result})
+        self.write_json(202, {"job_id": job.id})
 
 
 class PhysicsBuildHandler(BaseApiHandler):
-    """POST /api/v1/physics-build -> export a robot + sidecars, return the robot list + result."""
+    """POST /api/v1/physics-build -> submit a robot-export job; 202 {job_id}."""
 
-    def post(self, *args: str, **kwargs: str) -> None:
-        """Run the posted physics spec; 400 on bad request/BuildError, 500 on failure."""
+    async def post(self, *args: str, **kwargs: str) -> None:  # pyrefly: ignore[bad-override]
+        """Submit the posted physics spec as a job; 400 bad body, 503 when saturated."""
         spec = self.load_spec_body()
         if spec is None:
             self.write_error_json(400, "request must be JSON with a 'spec' field")
             return
         try:
-            result = self._build_service.build_physics(spec)
-        except BuildError as exc:
-            logger.warning("physics-build rejected for %s: %s", spec, exc)
-            self.write_error_json(400, str(exc))
+            job = self._job_manager.submit("physics", {"spec": spec}, coalesce_key=spec)
+        except SaturatedError as exc:
+            self.write_error_json(503, str(exc))
             return
-        except Exception:  # noqa: BLE001 - never raise to the socket; log and 500
-            logger.exception("unexpected physics-build failure for %s", spec)
-            self.write_error_json(500, "internal physics-build error")
-            return
-        self.write_json(200, {"robots": self._catalog.robots_with_labels(), **result})
+        self.write_json(202, {"job_id": job.id})
 
 
 class AnalyzeHandler(BaseApiHandler):
-    """POST /api/v1/analyze -> run an FEA load case, return the analysis list + result."""
+    """POST /api/v1/analyze -> submit an FEA load-case job; 202 {job_id}."""
 
-    def post(self, *args: str, **kwargs: str) -> None:
-        """Run the posted analysis spec; 400 on bad request/BuildError, 500 on failure."""
+    async def post(self, *args: str, **kwargs: str) -> None:  # pyrefly: ignore[bad-override]
+        """Submit the posted analysis spec as a job; 400 bad body, 503 when saturated."""
         spec = self.load_spec_body()
         if spec is None:
             self.write_error_json(400, "request must be JSON with a 'spec' field")
             return
         try:
-            result = self._build_service.analyze(spec)
-        except BuildError as exc:
-            logger.warning("analyze rejected for %s: %s", spec, exc)
-            self.write_error_json(400, str(exc))
+            job = self._job_manager.submit("analyze", {"spec": spec}, coalesce_key=spec)
+        except SaturatedError as exc:
+            self.write_error_json(503, str(exc))
             return
-        except Exception:  # noqa: BLE001 - never raise to the socket; log and 500
-            logger.exception("unexpected analyze failure for %s", spec)
-            self.write_error_json(500, "internal analyze error")
-            return
-        self.write_json(200, {"analyses": self._catalog.analyses_with_labels(), **result})
+        self.write_json(202, {"job_id": job.id})
 
 
 class RobotCollideHandler(BaseApiHandler):
@@ -130,6 +106,8 @@ class RobotCollideHandler(BaseApiHandler):
 
     def post(self, *args: str, **kwargs: str) -> None:
         """Check the posted robot ``name`` at ``pose``; 400 on bad request/BuildError, 500 else."""
+        from ncad.viewer.build_service import BuildError
+
         try:
             body = json.loads(self.request.body or b"{}")
             name, pose = body["name"], body.get("pose", {})
