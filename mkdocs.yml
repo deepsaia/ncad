@@ -128,5 +128,7 @@ nav:
       # docs_hooks.py (on_config); this placeholder is replaced at build time.
       - Operations Reference:
           - ncad/reference/index.md
+      - ncad Explained:
+          - ncad/explained/index.md
   - Learn:
       - learn/index.md
