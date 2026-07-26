@@ -72,3 +72,37 @@ This writes the robot artifact (`.urdf` / `.xml` / `.sdf`) with per-link meshes,
 sidecar `<name>.robot.json` (links + computed inertia + joints). `--sweeps` also precomputes
 per-actuated-joint articulation for the Physics viewer mode, which shows the live sliders and a
 self-collision check at each pose. See the [assembly-to-robot workflow](../workflows/assembly-to-robot.md).
+
+## Planning semantics (SRDF)
+
+A URDF describes the kinematics + geometry; a **Semantic Robot Description Format (SRDF)** file adds
+the planning semantics motion planners and IK solvers (e.g. MoveIt) need: planning groups (the joint
+chain a planner operates on), end-effectors, named group states, and disabled-collision pairs. When
+you export a `urdf`, `ncad physics` also writes a `<name>.srdf` beside it (suppress with
+`--no-srdf`).
+
+Author the semantics in an optional `srdf {}` block inside the physics overlay:
+
+```properties
+physics {
+  assembly = "desk_arm.asm.hocon"
+  base = base
+  joints { ... }
+  export { format = urdf, mesh = stl }
+  srdf {
+    groups = [
+      { name = arm, base = base, tip = hand }      # a chain: base_link -> tip_link
+      { name = gripper, joints = [ grip ] }        # or an explicit joint list
+    ]
+    end_effectors = [ { name = hand_ee, parent = hand, group = gripper } ]
+    group_states = [ { name = home, group = arm,
+                       values = { base_yaw = 0, shoulder = 0, elbow = 0, wrist = 0 } } ]
+  }
+}
+```
+
+Every group / end-effector / group-state reference is validated against the built model, so a typo in
+a link or joint name fails the export rather than emitting a broken SRDF. **Disabled-collision pairs
+are derived automatically** from adjacency (every parent/child pair of a tree joint always touches at
+the joint), so you do not author them. If the `srdf {}` block is absent, a single default chain group
+spanning the base link to the deepest leaf is synthesized, so a usable SRDF is always produced.
