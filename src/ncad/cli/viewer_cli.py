@@ -181,7 +181,7 @@ class ViewerCli:
         return MotionBuilder(Build123dKernel()).build(file, str(out_dir))
 
     def physics_document(self, file: str, out: str | None, sidecars: bool = True,
-                         sweeps: bool = False) -> dict:
+                         sweeps: bool = False, write_srdf: bool = True) -> dict:
         """Export a physics/robotics document to a robot description + per-link meshes.
 
         Derives a format-neutral RobotModel from the referenced assembly (computed inertials + Stage
@@ -196,17 +196,27 @@ class ViewerCli:
         from ncad.robotics.robot_format import robot_writer
         from ncad.robotics.robot_model_builder import RobotModelBuilder
         from ncad.robotics.robot_sidecar_builder import RobotSidecarBuilder
+        from ncad.robotics.srdf_spec import SrdfSpec
+        from ncad.robotics.srdf_writer import SrdfWriter
         from ncad.spec.spec_loader import SpecLoader
 
         logging.basicConfig(level=logging.INFO, format="%(message)s")
         logging.getLogger("build123d").setLevel(logging.WARNING)
         out_dir = self.resolve_models_dir(out)
         kernel = Build123dKernel()
-        export_format = PhysicsSpec(SpecLoader().load(file)).export_format
+        document = SpecLoader().load(file)
+        export_format = PhysicsSpec(document).export_format
         model, warnings = RobotModelBuilder(kernel).build(file, str(out_dir))
         writer, extension = robot_writer(export_format)
         artifact = out_dir / f"{model.name}.{extension}"
         artifact.write_text(writer.to_xml(model), encoding="utf-8")
+        # SRDF pairs with a URDF specifically (MJCF/SDF encode their own semantics), so write the
+        # .srdf planning sidecar only for the urdf format when requested.
+        srdf_path = None
+        if write_srdf and export_format == "urdf":
+            srdf_path = out_dir / f"{model.name}.srdf"
+            srdf_path.write_text(SrdfWriter().to_xml(model, SrdfSpec(document, model)),
+                                 encoding="utf-8")
         # Viewer sidecars are OPTIONAL: the cheap tree rides on --sidecars (default on); the
         # expensive per-joint sweeps (a motion solve each) only on --sweeps.
         robot_sidecar = None
@@ -220,6 +230,7 @@ class ViewerCli:
             logging.warning("%s", warning)
         return {"artifact": str(artifact), "meshes_dir": str(out_dir / "meshes"),
                 "format": export_format, "robot": robot_sidecar, "sweeps": sweeps_sidecar,
+                "srdf": str(srdf_path) if srdf_path else None,
                 "warnings": warnings, "links": len(model.links),
                 "joints": len(model.tree_joints())}
 
@@ -500,14 +511,19 @@ def physics(
     sweeps: bool = typer.Option(
         False, "--sweeps",
         help="also solve per-actuated-joint articulation sweeps (one motion solve per joint)"),
+    srdf: bool = typer.Option(
+        True, "--srdf/--no-srdf",
+        help="also write the .srdf planning sidecar (urdf export only; default on)"),
 ) -> None:
     """Export a robot description (urdf/mjcf/sdf) from an assembly + a physics overlay (computed
     inertia)."""
-    result = cli.physics_document(document, out, sidecars=sidecars, sweeps=sweeps)
+    result = cli.physics_document(document, out, sidecars=sidecars, sweeps=sweeps, write_srdf=srdf)
     print(f"\nncad physics: {document}  [{result['format']}]")
     print(f"  robot: {result['links']} links, {result['joints']} tree joints")
     print(f"  artifact: {result['artifact']}")
     print(f"  meshes: {result['meshes_dir']}")
+    if result["srdf"]:
+        print(f"  srdf:   {result['srdf']}")
     if result["robot"]:
         print(f"  tree:   {result['robot']}")
     if result["sweeps"]:
