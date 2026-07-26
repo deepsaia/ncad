@@ -234,6 +234,25 @@ class ViewerCli:
                 "warnings": warnings, "links": len(model.links),
                 "joints": len(model.tree_joints())}
 
+    def draw_document(self, file: str, out: str | None,
+                      formats: tuple[str, ...] = ("svg", "dxf")) -> dict:
+        """Produce a 2D engineering drawing (SVG + DXF) from a .drawing.hocon document.
+
+        Builds the referenced part, projects each view via HLR, resolves selector-anchored
+        dimensions, lays them on the sheet, and writes the requested formats into
+        ``out/drawings/<name>/``. Returns ``{"svg": path|None, "dxf": path|None, "warnings": []}``.
+        """
+        from ncad.drafting.drawing_document import DrawingDocument
+        from ncad.kernel.build123d_kernel import Build123dKernel
+
+        logging.basicConfig(level=logging.INFO, format="%(message)s")
+        logging.getLogger("build123d").setLevel(logging.WARNING)
+        out_dir = self.resolve_models_dir(out)
+        result = DrawingDocument(Build123dKernel()).run(file, str(out_dir), formats=formats)
+        for warning in result["warnings"]:
+            logging.warning("%s", warning)
+        return result
+
     def slice_model(self, stl: str, profile: str, out: str | None) -> dict:
         """Slice an STL to G-code via an installed slicer (delegation); return the slice report.
 
@@ -582,6 +601,26 @@ def analyze(
             print(f"  fatigue: {life}")
             if summary.get("fatigue_safety_factor") is not None:
                 print(f"  fatigue safety: {summary['fatigue_safety_factor']:.2f}")
+    for warning in result.get("warnings", []):
+        print(f"  NOTE {warning}")
+
+
+@app.command()
+def draw(
+    document: str = typer.Argument(..., help="path to a .drawing.hocon drawing document"),
+    out: str = typer.Option(None, help="output directory (default: out/)"),
+    format: str = typer.Option(
+        "svg,dxf", "--format", "-f",
+        help="comma-separated output formats: svg, dxf (default both)"),
+) -> None:
+    """Produce a 2D engineering drawing (orthographic HLR views + dimensions) as SVG and/or DXF."""
+    formats = tuple(f.strip() for f in format.split(",") if f.strip())
+    result = cli.draw_document(document, out, formats=formats)
+    print(f"\nncad draw: {document}")
+    if result.get("svg"):
+        print(f"  svg: {result['svg']}")
+    if result.get("dxf"):
+        print(f"  dxf: {result['dxf']}")
     for warning in result.get("warnings", []):
         print(f"  NOTE {warning}")
 
