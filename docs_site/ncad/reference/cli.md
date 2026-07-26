@@ -15,6 +15,7 @@ root: models to `<root>/out`, examples to `<root>/examples`.
 | `ncad motion` | run a motion study (assembly + driver) into a trajectory |
 | `ncad physics` | export a robot description (urdf/mjcf/sdf) from a physics overlay |
 | `ncad analyze` | run a structural FEA load case (mesh + solve + read) |
+| `ncad draw` | produce a 2D engineering drawing (HLR views + dimensions) as SVG + DXF |
 | `ncad slice` | slice an STL to G-code via an installed slicer (delegated) |
 | `ncad validate` | statically validate a document (no geometry); exit 1 if not ok |
 | `ncad snapshot` | render a model to a PNG still + orbit GIF (offscreen) |
@@ -78,6 +79,7 @@ Export a robot description from an assembly + physics overlay (computed inertia)
 - Positional `document` (required): a `.physics.hocon`. `--out TEXT` (default `out/`).
 - `--sidecars / --no-sidecars` also write the `.robot.json` viewer tree (default on).
 - `--sweeps` also solve per-actuated-joint articulation sweeps (default off).
+- `--srdf / --no-srdf` also write the `.srdf` planning sidecar for a urdf export (default on).
 
 ### `ncad slice`
 
@@ -91,6 +93,14 @@ Slice an STL to G-code via an installed slicer (delegation; stops at G-code).
 Run a structural FEA load case: mesh (gmsh) + solve (delegated CalculiX ccx) + read results.
 
 - Positional `document` (required): a `.analysis.hocon`. `--out TEXT` (default `out/`).
+
+### `ncad draw`
+
+Produce a 2D engineering drawing (orthographic HLR views + selector-anchored dimensions) as SVG +
+DXF. See the [drawings guide](../guides/authoring-drawings.md).
+
+- Positional `document` (required): a `.drawing.hocon`. `--out TEXT` (default `out/`).
+- `--format, -f TEXT` comma-separated output formats (default `svg,dxf`): `svg`, `dxf`.
 
 ### `ncad validate`
 
