@@ -280,6 +280,15 @@ class FakeKernel(Kernel):
         # fake projection is offset-agnostic (it does not model the plane's world placement).
         return list(edges)
 
+    def hlr_view(self, shape: Any, direction: Any, up: Any = None) -> dict:
+        # Drafting/HLR is exercised against the real kernel (slow tests), not the FakeKernel;
+        # this stub satisfies the interface for the fast-path tests that only build geometry.
+        return {"visible": [], "hidden": []}
+
+    def project_edges_to_view(self, edges: list, direction: Any, up: Any = None) -> list:
+        # See hlr_view: not modeled by the fake kernel; identity-shaped stub.
+        return list(edges)
+
     def vertices_of(self, shape: Any) -> list:
         # A fake face's corner ring doubles as its "vertices" (2D tuples); good enough for the
         # vertex-projection path in fake-kernel tests.
