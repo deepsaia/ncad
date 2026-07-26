@@ -42,6 +42,15 @@ class ViewProjector:
         direction, up = self._direction_for(view, parent)
         return self._kernel.hlr_view(shape, direction, up)
 
+    def project_edges(self, edges: list, view: dict, parent: dict | None = None) -> list:
+        """Project specific model ``edges`` into ``view``'s 2D frame (for dimension attachment).
+
+        Uses the same view direction as :meth:`project`, so the returned polylines align with the
+        view's HLR geometry.
+        """
+        direction, up = self._direction_for(view, parent)
+        return self._kernel.project_edges_to_view(edges, direction, up)
+
     def _direction_for(self, view: dict, parent: dict | None) -> tuple[tuple, tuple | None]:
         view_type = view["type"]
         if view_type == "iso":

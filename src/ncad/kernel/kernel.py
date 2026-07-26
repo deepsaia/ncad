@@ -244,6 +244,16 @@ class Kernel(ABC):
         """
 
     @abstractmethod
+    def project_edges_to_view(self, edges: list, direction: Point3,
+                              up: Point3 | None = None) -> list:
+        """Project ``edges`` (kernel edge handles) into the same 2D frame ``hlr_view`` uses.
+
+        Returns one 2D polyline (list of ``(x, y)`` points) per edge, in the projection plane seen
+        along ``direction`` with up axis ``up``. Used to attach a drawing dimension (whose selector
+        picked model edges) to the view those edges appear in.
+        """
+
+    @abstractmethod
     def cylinder(self, center: Point3, axis: str, diameter: float, length: float) -> Any:
         """A solid cylinder of ``diameter`` and ``length`` from ``center`` along ``axis``."""
 

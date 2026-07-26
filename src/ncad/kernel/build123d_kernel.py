@@ -204,6 +204,33 @@ def _hlr_frame(direction: Any, up: Any) -> Any:
                   gp_Dir(ux, uy, uz))  # pyrefly: ignore[no-matching-overload]
 
 
+def _view_plane(direction: Any, up: Any) -> Any:
+    """A build123d Plane matching ``_hlr_frame`` so projected dimension edges align with the view.
+
+    Same normal (view direction) + in-plane X (up) choice as the HLR frame, so an edge's
+    ``to_local_coords`` (x, y) lands in the same 2D space as the HLR polylines.
+    """
+    dx, dy, dz = direction
+    if up is None:
+        up = (0.0, 1.0, 0.0) if abs(dx) < 1e-9 and abs(dy) < 1e-9 else (0.0, 0.0, 1.0)
+    return Plane(origin=(0.0, 0.0, 0.0), x_dir=up, z_dir=direction)
+
+
+def _edge_to_view_polyline(edge: Any, basis: Any) -> list:
+    """Sample one 3D ``edge`` into 2D ``(x, y)`` points in the ``basis`` (view) plane."""
+    name = _geom_name(edge)
+    if name in ("line", None):
+        a = basis.to_local_coords(edge.position_at(0))
+        b = basis.to_local_coords(edge.position_at(1))
+        return [(a.X, a.Y), (b.X, b.Y)]
+    points: list = []
+    for i in range(_PROJECT_SPLINE_SAMPLES):
+        t = i / (_PROJECT_SPLINE_SAMPLES - 1)
+        local = basis.to_local_coords(edge.position_at(t))
+        points.append((local.X, local.Y))
+    return points
+
+
 def _hlr_polylines(compound: Any) -> list:
     """Every edge in an HLR result ``compound`` as a 2D polyline (list of ``(x, y)`` points).
 
@@ -573,6 +600,10 @@ class Build123dKernel(Kernel):
         visible = _hlr_polylines(to_shape.VCompound()) + _hlr_polylines(to_shape.OutLineVCompound())
         hidden = _hlr_polylines(to_shape.HCompound()) + _hlr_polylines(to_shape.OutLineHCompound())
         return {"visible": visible, "hidden": hidden}
+
+    def project_edges_to_view(self, edges: list, direction: Any, up: Any = None) -> list:
+        basis = _view_plane(direction, up)
+        return [_edge_to_view_polyline(edge, basis) for edge in edges]
 
     def vertices_of(self, shape: Any) -> list:
         return list(shape.vertices())
