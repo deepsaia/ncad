@@ -23,8 +23,8 @@ physics {
 
 ## Derived vs authored
 
-The key property: inertia is COMPUTED, never typed (most tools, and text-to-cad's hand-written
-`gen_urdf()`, make you enter it).
+The key property: inertia is COMPUTED, never typed (most robot-description tools make you enter it by
+hand).
 
 | Derived from the built assembly | Authored in the overlay |
 |---------------------------------|--------------------------|
