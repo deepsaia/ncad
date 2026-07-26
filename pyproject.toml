@@ -18,6 +18,7 @@ dependencies = [
     "pyondsel>=0.0.3",
     "tornado>=6.5.6",
     "mujoco>=3.10.0",
+    "ezdxf",
 ]
 
 # pyondsel (the OndselSolver multibody bindings for motion) resolves from PyPI by default (the base
@@ -34,9 +35,9 @@ ncad = "ncad.cli.viewer_cli:main"
 ncad-build = "ncad.build.__main__:main"
 
 [project.optional-dependencies]
-# CAD interchange: DXF/IFC floor plans (future roadmap: interchange)
+# CAD interchange: IFC floor plans (future roadmap: interchange). DXF (ezdxf) moved to base deps
+# because 2D drafting (ncad draw) emits DXF as a core output.
 interchange = [
-    "ezdxf",
     "ifcopenshell",
 ]
 # Structural FEA (S7 CAE): gmsh meshes an exported STEP; meshio reads the CalculiX .frd
