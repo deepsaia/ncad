@@ -33,4 +33,16 @@ physics {
                damping = 0.05 }
   }
   export { format = urdf, mesh = stl }
+  # SRDF planning semantics (emitted as a .srdf beside the .urdf): the 4 revolute joints form the
+  # `arm` IK chain (base -> hand); the prismatic slide is the `gripper` group; a `home` group-state
+  # pins the arm straight up. Adjacent-link collision pairs are derived automatically from the tree.
+  srdf {
+    groups = [
+      { name = arm, base = base, tip = hand }
+      { name = gripper, joints = [ grip ] }
+    ]
+    end_effectors = [ { name = hand_ee, parent = hand, group = gripper } ]
+    group_states = [ { name = home, group = arm,
+                       values = { base_yaw = 0, shoulder = 0, elbow = 0, wrist = 0 } } ]
+  }
 }
