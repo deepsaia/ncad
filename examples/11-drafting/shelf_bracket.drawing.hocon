@@ -10,8 +10,12 @@ drawing {
     { id = right, type = projected, from = front, direction = right, at = [ 200, 120 ] }
     { id = iso,   type = iso, at = [ 320, 80 ] }
   ]
+  # A linear dimension between two isolated edges (a 22 mm gap up the wall plate). Selectors pick
+  # model edges by attribute, so the dimension survives a rebuild; the drafting layer projects them
+  # into the front view and measures the projected span.
   dimensions = [
-    { view = front, type = linear, between = "select edges where orientation = 'vertical'" }
+    { view = front, type = linear,
+      between = "select edges where length > 4.9 and length < 5.1 and mid_x > 5.5 and mid_x < 6.5 and mid_z < 40" }
   ]
   title_block = { title = "Shelf Bracket", drawn_by = "ncad", scale = "1:1" }
 }
