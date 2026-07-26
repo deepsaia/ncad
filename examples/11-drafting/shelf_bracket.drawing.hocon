@@ -1,0 +1,17 @@
+# A 2D engineering drawing of the shelf bracket: three orthographic views (front / top / right) via
+# hidden-line removal, an isometric pictorial, and a linear dimension. Built with `ncad draw`, this
+# emits an SVG (for viewing) + a DXF (for CAM / laser / CNC handoff) into out/drawings/shelf_bracket/.
+drawing {
+  part = "../03-dress-up/shelf_bracket.hocon"
+  sheet = { size = A3, orientation = landscape }
+  views = [
+    { id = front, type = base, projection = XZ, at = [ 70, 120 ] }
+    { id = top,   type = projected, from = front, direction = up, at = [ 70, 60 ] }
+    { id = right, type = projected, from = front, direction = right, at = [ 200, 120 ] }
+    { id = iso,   type = iso, at = [ 320, 80 ] }
+  ]
+  dimensions = [
+    { view = front, type = linear, between = "select edges where orientation = 'vertical'" }
+  ]
+  title_block = { title = "Shelf Bracket", drawn_by = "ncad", scale = "1:1" }
+}
