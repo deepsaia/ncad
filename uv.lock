@@ -1504,6 +1504,7 @@ version = "0.0.1"
 source = { editable = "." }
 dependencies = [
     { name = "build123d" },
+    { name = "ezdxf" },
     { name = "imageio" },
     { name = "jsonschema" },
     { name = "lark" },
@@ -1527,7 +1528,6 @@ fea = [
     { name = "meshio" },
 ]
 interchange = [
-    { name = "ezdxf" },
     { name = "ifcopenshell" },
 ]
 
@@ -1544,7 +1544,7 @@ docs = [
 [package.metadata]
 requires-dist = [
     { name = "build123d" },
-    { name = "ezdxf", marker = "extra == 'interchange'" },
+    { name = "ezdxf" },
     { name = "gmsh", marker = "extra == 'fea'" },
     { name = "ifcopenshell", marker = "extra == 'interchange'" },
     { name = "imageio" },
