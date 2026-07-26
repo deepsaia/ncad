@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class OutputLayout:
     """Maps (kind, name) to out/<kind>/<name>/ and resolves files within it, path-traversal-safe."""
 
-    KINDS = ("parts", "assemblies", "robots", "analyses")
+    KINDS = ("parts", "assemblies", "robots", "analyses", "drawings")
     SERVABLE_EXTENSIONS = (".gltf", ".glb", ".bin", ".png", ".jpg", ".jpeg")
 
     def __init__(self, root: str) -> None:
