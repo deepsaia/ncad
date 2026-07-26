@@ -112,6 +112,7 @@ nav:
           - Authoring motion: ncad/guides/authoring-motion.md
           - Authoring robots: ncad/guides/authoring-robots.md
           - Authoring analyses: ncad/guides/authoring-analyses.md
+          - Authoring drawings: ncad/guides/authoring-drawings.md
           - Standard parts: ncad/guides/standard-parts.md
       - Workflows:
           - ncad/workflows/index.md
