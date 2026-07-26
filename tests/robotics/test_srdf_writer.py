@@ -1,12 +1,17 @@
 """SrdfWriter: emit SRDF XML (planning groups, end-effectors, group states, adjacency pairs)."""
 
 import xml.etree.ElementTree as ET
+from pathlib import Path
 
 from ncad.robotics.robot_joint import RobotJoint
 from ncad.robotics.robot_link import RobotLink
 from ncad.robotics.robot_model import RobotModel
 from ncad.robotics.srdf_spec import SrdfSpec
 from ncad.robotics.srdf_writer import SrdfWriter
+from ncad.spec.spec_loader import SpecLoader
+
+_GOLDEN = Path(__file__).parent / "goldens" / "desk_arm.srdf"
+_EXAMPLE = "examples/08-robotics/desk_arm.physics.hocon"
 
 
 def _model() -> RobotModel:
@@ -81,3 +86,14 @@ def test_pure_same_inputs_same_xml():
     first = SrdfWriter().to_xml(_model(), SrdfSpec(doc, _model()))
     second = SrdfWriter().to_xml(_model(), SrdfSpec(doc, _model()))
     assert first == second
+
+
+def test_desk_arm_authored_srdf_matches_golden():
+    """The srdf {} block authored in the desk_arm example emits the checked-in golden SRDF.
+
+    Uses a fixture model matching desk_arm's topology (no kernel build needed), so a change to the
+    example's srdf block or the writer output is caught here fast.
+    """
+    document = SpecLoader().load(_EXAMPLE)
+    xml = SrdfWriter().to_xml(_model(), SrdfSpec(document, _model()))
+    assert xml == _GOLDEN.read_text(encoding="utf-8")
