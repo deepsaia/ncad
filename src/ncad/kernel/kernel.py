@@ -232,6 +232,18 @@ class Kernel(ABC):
         """
 
     @abstractmethod
+    def hlr_view(self, shape: Any, direction: Point3,
+                 up: Point3 | None = None) -> dict:
+        """Hidden-line-removal projection of ``shape`` viewed along ``direction``.
+
+        Returns ``{"visible": [...], "hidden": [...]}`` where each list holds 2D polyline edges
+        (each a list of ``(x, y)`` points) in the projection plane. ``visible`` are the edges an
+        observer sees; ``hidden`` are the occluded edges (drawn dashed in a drawing). ``up`` sets
+        the projection-plane up axis; when None a stable up is derived from ``direction``. This is
+        the geometry behind 2D drafting views (base / projected / isometric).
+        """
+
+    @abstractmethod
     def cylinder(self, center: Point3, axis: str, diameter: float, length: float) -> Any:
         """A solid cylinder of ``diameter`` and ``length`` from ``center`` along ``axis``."""
 

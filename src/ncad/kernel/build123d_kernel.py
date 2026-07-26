@@ -70,12 +70,18 @@ from OCP.Geom import Geom_BezierCurve  # pyrefly: ignore[missing-module-attribut
 from OCP.GeomAbs import GeomAbs_G1  # pyrefly: ignore[missing-module-attribute]
 from OCP.gp import (
     gp_Ax1,  # pyrefly: ignore[missing-module-attribute]
+    gp_Ax2,  # pyrefly: ignore[missing-module-attribute]
     gp_Dir,  # pyrefly: ignore[missing-module-attribute]
     gp_GTrsf,  # pyrefly: ignore[missing-module-attribute]
     gp_Pln,  # pyrefly: ignore[missing-module-attribute]
     gp_Pnt,  # pyrefly: ignore[missing-module-attribute]
 )
 from OCP.GProp import GProp_GProps  # pyrefly: ignore[missing-module-attribute]
+from OCP.HLRAlgo import HLRAlgo_Projector  # pyrefly: ignore[missing-module-attribute]
+from OCP.HLRBRep import (
+    HLRBRep_Algo,  # pyrefly: ignore[missing-module-attribute]
+    HLRBRep_HLRToShape,  # pyrefly: ignore[missing-module-attribute]
+)
 from OCP.TColgp import TColgp_Array1OfPnt  # pyrefly: ignore[missing-module-attribute]
 from OCP.TColStd import TColStd_Array1OfReal  # pyrefly: ignore[missing-module-attribute]
 from OCP.TopAbs import TopAbs_EDGE, TopAbs_FACE  # pyrefly: ignore[missing-module-attribute]
@@ -179,6 +185,56 @@ def _axis_to_wire(axis: Any) -> Any:
     start = Vector(ox, oy, oz)
     end = Vector(ox + dx, oy + dy, oz + dz)
     return Wire([Edge.make_line(start, end)])  # pyrefly: ignore[bad-argument-type]
+
+
+def _hlr_frame(direction: Any, up: Any) -> Any:
+    """A gp_Ax2 eye frame for HLR: the view looks along ``direction`` (the plane normal).
+
+    ``up`` sets the plane's up axis; when None a stable up is chosen that is not parallel to the
+    view direction (world +Z, or +Y when looking along Z), so the frame is always well-defined.
+    """
+    dx, dy, dz = direction
+    view_dir = gp_Dir(dx, dy, dz)  # pyrefly: ignore[no-matching-overload]
+    if up is None:
+        up = (0.0, 1.0, 0.0) if abs(dx) < 1e-9 and abs(dy) < 1e-9 else (0.0, 0.0, 1.0)
+    ux, uy, uz = up
+    # gp_Ax2(origin, N, Vx): N is the plane normal (view direction), Vx an in-plane axis. Use the
+    # up vector as the in-plane reference X so the projection's orientation is deterministic.
+    return gp_Ax2(gp_Pnt(0.0, 0.0, 0.0), view_dir,
+                  gp_Dir(ux, uy, uz))  # pyrefly: ignore[no-matching-overload]
+
+
+def _hlr_polylines(compound: Any) -> list:
+    """Every edge in an HLR result ``compound`` as a 2D polyline (list of ``(x, y)`` points).
+
+    HLR returns edges already projected into the frame's plane (Z ~ 0), so the edge's X, Y are the
+    2D drawing coordinates. Straight edges give two endpoints; curved edges are sampled at a pinned
+    number of parameters (deterministic, so drawings + goldens are stable).
+    """
+    if compound is None or compound.IsNull():
+        return []
+    polylines: list = []
+    explorer = TopExp_Explorer(compound, TopAbs_EDGE)
+    while explorer.More():
+        edge = Edge(TopoDS.Edge_s(explorer.Current()))
+        polylines.append(_edge_polyline(edge))
+        explorer.Next()
+    return polylines
+
+
+def _edge_polyline(edge: Any) -> list:
+    """Sample one (already-projected) edge into 2D points; two for a line, more for a curve."""
+    name = _geom_name(edge)
+    if name in ("line", None):
+        a = edge.position_at(0)
+        b = edge.position_at(1)
+        return [(a.X, a.Y), (b.X, b.Y)]
+    points: list = []
+    for i in range(_PROJECT_SPLINE_SAMPLES):
+        t = i / (_PROJECT_SPLINE_SAMPLES - 1)
+        p = edge.position_at(t)
+        points.append((p.X, p.Y))
+    return points
 
 
 def _basis(plane: Any, offset: float) -> Any:
@@ -503,6 +559,20 @@ class Build123dKernel(Kernel):
     def project_edges(self, edges: list, plane: Any, offset: float = 0.0) -> list:
         basis = _basis(plane, offset)
         return [_project_edge(edge, basis) for edge in edges]
+
+    def hlr_view(self, shape: Any, direction: Any,
+                 up: Any = None) -> dict:
+        projector = HLRAlgo_Projector(_hlr_frame(direction, up))
+        algo = HLRBRep_Algo()
+        algo.Add(_wrapped(shape))
+        algo.Projector(projector)
+        algo.Update()
+        algo.Hide()
+        to_shape = HLRBRep_HLRToShape(algo)
+        # Visible = sharp edges + smooth outline silhouette; hidden = their occluded counterparts.
+        visible = _hlr_polylines(to_shape.VCompound()) + _hlr_polylines(to_shape.OutLineVCompound())
+        hidden = _hlr_polylines(to_shape.HCompound()) + _hlr_polylines(to_shape.OutLineHCompound())
+        return {"visible": visible, "hidden": hidden}
 
     def vertices_of(self, shape: Any) -> list:
         return list(shape.vertices())
