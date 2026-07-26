@@ -45,3 +45,21 @@ def test_svg_only_format(tmp_path):
         "examples/11-drafting/shelf_bracket.drawing.hocon", str(tmp_path), formats=("svg",))
     assert result.get("svg") is not None
     assert result.get("dxf") is None
+
+
+@pytest.mark.slow
+def test_shelf_bracket_svg_matches_golden(tmp_path):
+    # The drawing is deterministic (same document + kernel -> identical SVG). A change to the HLR
+    # output, the layout, or the writer is caught here against the checked-in golden.
+    golden = Path("tests/drafting/goldens/shelf_bracket.drawing.svg").read_text()
+    result = ViewerCli().draw_document(
+        "examples/11-drafting/shelf_bracket.drawing.hocon", str(tmp_path), formats=("svg",))
+    assert Path(result["svg"]).read_text() == golden
+
+
+@pytest.mark.slow
+def test_shelf_bracket_dimension_is_22mm(tmp_path):
+    # The authored linear dimension resolves to the known 22 mm gap between the two selected edges.
+    result = ViewerCli().draw_document(
+        "examples/11-drafting/shelf_bracket.drawing.hocon", str(tmp_path), formats=("svg",))
+    assert ">22</text>" in Path(result["svg"]).read_text()
