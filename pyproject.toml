@@ -3,6 +3,12 @@ name = "ncad"
 version = "0.0.1"
 description = "A data-driven CAD engine: declarative, parametric and direct, driven by a text document."
 readme = "README.md"
+# GPL-3.0-only: ncad hard-imports py-slvs (the SolveSpace GCS binding, GPL-3.0) in its sketch and
+# assembly solvers, so the distributed combined work carries the GPL. This is the honest label for
+# the current dependency set. A permissive relicense (Apache-2.0) is possible later ONLY if py-slvs
+# becomes an optional extra behind a lazy import (see NOTICE.md); until then GPL-3.0 is required.
+license = "GPL-3.0-only"
+license-files = ["LICENSE", "NOTICE.md"]
 requires-python = ">=3.13,<3.14"
 dependencies = [
     "build123d",
