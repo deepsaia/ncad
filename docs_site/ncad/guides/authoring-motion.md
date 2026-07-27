@@ -35,8 +35,11 @@ One assembly can back several studies (a different driver joint or range).
 
 If the assembly declares couplings (gear, cam, belt, rack_pinion, scotch_yoke, geneva, universal),
 the driven joint propagates through them, so a single driver turns a whole gear train or lifts a cam
-follower. The mechanism's mobility (Gruebler-Kutzbach count and the solver's actual free-DoF) is
-reported, and per-frame interference events are flagged.
+follower. A coupling is enforced as a **prescribed** relation: the solver drives the coupled joint by
+the declared ratio or profile (`output = f(driver)`), rather than simulating tooth mesh or cam
+contact, so the ratio you author is the ratio you get. The mechanism's mobility is reported as a
+planar Gruebler-Kutzbach count (planar mechanisms) alongside the solver's actual free-DoF, and
+per-frame interference events are flagged.
 
 ## Outputs: traces and measures
 
