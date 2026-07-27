@@ -50,3 +50,24 @@ def test_events_respects_declared_pairs_subset():
     events = MotionInterference(_FakeKernel()).events(
         pairs=[("a", "c")], shapes_by_id=shapes, frames=frames, to_metres=1e-3)
     assert {(e["a"], e["b"]) for e in events} == {("a", "c")}
+
+
+def test_every_event_carries_its_status():
+    # Each recorded event is tagged with its status, so a checker/witness can distinguish
+    # penetration (interfering) from contact-maintenance (touching) through the cycle.
+    frames = [_frame(0.0, 0.0, 0.005)]     # 5 mm apart: interfering
+    events = MotionInterference(_FakeKernel()).events(
+        pairs=[("a", "b")], shapes_by_id={"a": "SA", "b": "SB"}, frames=frames, to_metres=1e-3)
+    assert events[0]["status"] == "interfering"
+
+
+def test_records_touching_contact_frames():
+    # contact-maintenance witness: a touching frame (exactly 10 mm apart, distance ~0) is recorded,
+    # so a cam/gear/geneva witness can assert the parts stay IN CONTACT through the cycle.
+    frames = [_frame(0.0, 0.0, 0.010), _frame(1.0, 0.0, 0.005)]  # touching, then interfering
+    events = MotionInterference(_FakeKernel()).events(
+        pairs=[("a", "b")], shapes_by_id={"a": "SA", "b": "SB"}, frames=frames, to_metres=1e-3)
+    by_frame = {e["frame"]: e for e in events}
+    assert set(by_frame) == {0, 1}
+    assert by_frame[0]["status"] == "touching"
+    assert by_frame[1]["status"] == "interfering"

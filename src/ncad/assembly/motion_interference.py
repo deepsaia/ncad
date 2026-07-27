@@ -2,9 +2,13 @@
 
 Reuses the assembly InterferenceChecker (pairwise kernel distance + common volume + classify) over a
 motion trajectory's per-frame placements. For each frame it places every watched instance's shape at
-that frame's transform and checks the requested pairs, recording only INTERFERING frames as timeline
-events {frame, t, a, b, volume}. DISCRETE per-frame sampling: a collision fully between two frames
-can be missed (tied to solve resolution); continuous/swept detection is deferred. Optional: the
+that frame's transform and checks the requested pairs, recording CONTACT frames as timeline
+events {frame, t, a, b, status, volume} - both ``interfering`` (penetration, volume > 0) and
+``touching`` (contact at zero gap). Clearance frames are not recorded; the ``status`` lets a checker
+tell a fault (penetration) from a witness signal (contact-maintenance through the cycle, e.g. a cam
+follower or gear teeth that must stay touching). DISCRETE per-frame sampling: a collision fully
+between two frames can be missed (tied to solve resolution); continuous/swept detection is deferred.
+Optional: the
 builder only calls this when the motion `outputs` block declares interference. One class.
 
 Frame placements are row-major 4x4 in METRES; base shapes + kernel.place work in MM, so each frame's
@@ -28,27 +32,28 @@ class MotionInterference:
 
     def events(self, pairs: list | None, shapes_by_id: dict, frames: list,
                to_metres: float) -> list[dict]:
-        """Timeline events for interfering pairs across ``frames``.
+        """Timeline contact events (interfering + touching) for watched pairs across ``frames``.
 
         :param pairs: instance-id pairs (tuples) to watch, or None to check all pairs each frame.
         :param shapes_by_id: instance id -> its base (mm) shape.
         :param frames: the trajectory frames ({t, driver_value, placements} in metres).
         :param to_metres: mm -> metres factor (frame translation / to_metres = mm).
-        :return: [{frame, t, a, b, volume}] for interfering pairs only.
+        :return: [{frame, t, a, b, status, volume}] for frames where a watched pair is
+            ``interfering`` (penetration) or ``touching`` (zero-gap contact). Clearance is omitted.
         """
         watch = None if pairs is None else {tuple(sorted(p)) for p in pairs}
         out: list[dict] = []
         for index, frame in enumerate(frames):
             placed = self._place_frame(frame, shapes_by_id, to_metres)
             for finding in self._checker.check(placed):
-                if finding.get("status") != "interfering":
+                if finding.get("status") not in ("interfering", "touching"):
                     continue
                 key = tuple(sorted((finding["a"], finding["b"])))
                 if watch is not None and key not in watch:
                     continue
                 out.append({"frame": index, "t": frame.get("t"),
                             "a": finding["a"], "b": finding["b"],
-                            "volume": finding["volume"]})
+                            "status": finding["status"], "volume": finding["volume"]})
         return out
 
     def _place_frame(self, frame: dict, shapes_by_id: dict, to_metres: float) -> list[dict]:
