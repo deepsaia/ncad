@@ -41,6 +41,13 @@ contact, so the ratio you author is the ratio you get. The mechanism's mobility 
 planar Gruebler-Kutzbach count (planar mechanisms) alongside the solver's actual free-DoF, and
 per-frame interference events are flagged.
 
+Couplings **chain**: a coupling enforces when its first `between` joint is already driven, whether
+directly by the driver or by an upstream gear/belt coupling's output. So a multi-stage gear train
+runs from one input, composing cumulative ratios (stage 2's ratio multiplies stage 1's), and the
+listing order does not matter. Only gear and belt outputs chain onward (a linear angular ratio);
+a rack slide, cam, geneva, or scotch-yoke output is a leaf (it cannot be the primary of a further
+angular coupling). A coupling whose primary is never driven is simply left unenforced.
+
 ## Outputs: traces and measures
 
 - A **trace** records a point's path over the sweep (a coupler curve, an output-point locus).

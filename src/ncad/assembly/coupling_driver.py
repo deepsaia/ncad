@@ -40,6 +40,23 @@ class CouplingDriverError(Exception):
 class CouplingDriver:
     """Builds the coupled joint's prescribed-motion spec from a rate-ratio coupling + the driver."""
 
+    def angular_ratio(self, coupling: dict) -> float:
+        """The signed angular ratio (omega_derived / omega_primary) of a gear/belt coupling.
+
+        Public so the caller can COMPOSE ratios along a chain (a derived revolute becoming the
+        primary of the next stage): the derived joint's swept angle is ``ratio * primary_angle``, so
+        a two-stage train's second ratio multiplies the first. Only gear/belt chain this way (a
+        linear angular ratio); rack_pinion outputs a slide and geneva/scotch/cam are non-linear, so
+        they are not chainable primaries.
+
+        :raises CouplingDriverError: if the coupling is not a gear/belt or its ratio/gears is bad.
+        """
+        ctype = coupling.get("type")
+        if ctype not in ("gear", "belt"):
+            raise CouplingDriverError(
+                f"coupling {coupling.get('id')!r} type {ctype!r} is not a chainable angular ratio")
+        return self._angular_ratio(coupling, reverses=(ctype == "gear"))
+
     def secondary(self, coupling: dict, primary: dict) -> dict:
         """Return {joint_id, joint_type, expression} for the coupling's derived joint.
 

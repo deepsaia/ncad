@@ -176,3 +176,28 @@ def _eval(expr, t):
         raise ValueError(f"unexpected node {ast.dump(node)}")
 
     return walk(ast.parse(expr, mode="eval"))
+
+
+def test_angular_ratio_gear_reverses():
+    # a gear's chainable ratio is signed: external mesh reverses (negative).
+    c = {"id": "g", "type": "gear", "between": ["a", "b"], "ratio": 0.6667}
+    assert CouplingDriver().angular_ratio(c) == pytest.approx(-0.6667)
+
+
+def test_angular_ratio_belt_keeps_sense():
+    c = {"id": "b", "type": "belt", "between": ["a", "b"], "ratio": 2.0}
+    assert CouplingDriver().angular_ratio(c) == pytest.approx(2.0)
+
+
+def test_angular_ratio_from_gears_block():
+    c = {"id": "mesh", "type": "gear", "between": ["a", "b"],
+         "gears": {"driver": {"module": 2.0, "teeth": 16},
+                   "driven": {"module": 2.0, "teeth": 24}}}
+    assert CouplingDriver().angular_ratio(c) == pytest.approx(-16.0 / 24.0)
+
+
+def test_angular_ratio_rejects_non_chainable_types():
+    # rack_pinion outputs a slide; geneva/scotch/cam are non-linear - none chain as angular ratios.
+    for ctype in ("rack_pinion", "geneva", "scotch_yoke", "cam"):
+        with pytest.raises(CouplingDriverError, match="chainable"):
+            CouplingDriver().angular_ratio({"id": "x", "type": ctype, "between": ["a", "b"]})

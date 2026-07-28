@@ -458,32 +458,62 @@ class AssemblyBuilder:
 
     def _motion_secondaries(self, document: dict, driven_joint: str, driver: dict,
                             issues: list) -> list[dict]:
-        """Build a secondary prescribed-motion spec per coupling the driver enforces (bucket 6.2).
+        """Build a secondary prescribed-motion spec per enforceable coupling (6.2 + chaining).
 
-        A coupling is enforced when its first ``between`` joint is the driven joint. gear/belt/
-        rack_pinion go through CouplingDriver (ratio); a cam goes through CamProfile (its profile).
-        An unenforceable coupling (bad ratio/profile, wrong primary) is an id-attributed issue and
-        is skipped; other couplings + the primary motion still solve. Returns [] when none apply.
+        A coupling enforces when its first ``between`` joint is ALREADY DRIVEN: directly by the
+        driver, OR (chaining) by an upstream gear/belt coupling's derived joint. This propagates
+        motion through a coupling graph from one input - a multi-stage gear train drives stage 2 off
+        stage 1's output, composing cumulative ratios. gear/belt go through CouplingDriver (ratio),
+        rack_pinion converts to a slide, a cam through CamProfile; only gear/belt outputs are
+        chainable primaries (a linear angular ratio), so rack/cam/geneva/scotch stay leaf
+        secondaries. An unenforceable coupling (bad ratio/profile) is an id-attributed issue; a
+        coupling whose primary is never driven is left out. Returns [] when none apply.
         """
+        # Effective primary per already-driven revolute joint (its composed degree sweep). Seed with
+        # the driver; gear/belt enforcement adds each derived joint so a later stage chains off it.
+        driven: dict[str, dict] = {driven_joint: driver}
+        couplings = list(document["assembly"].get("couplings") or [])
         secondaries: list[dict] = []
-        for c in (document["assembly"].get("couplings") or []):
-            between = c.get("between") or []
-            if len(between) < 2 or between[0] != driven_joint:
-                continue
-            try:
-                if c.get("type") == "cam":
-                    cam = CamProfile.from_profile(c.get("profile") or {})
-                    span = driver["end"] - driver["start"]
-                    secondaries.append({
-                        "joint_id": between[1], "joint_type": "slider",
-                        "expression": cam.expression(driver["start"], span),
-                    })
-                else:
-                    secondaries.append(CouplingDriver().secondary(c, driver))
-            except (CouplingDriverError, CamProfileError) as exc:
-                issues.append({"coupling_id": c.get("id"),
-                               "message": f"coupling not enforced: {exc}"})
+        enforced: set[int] = set()
+        # Fixpoint: keep enforcing couplings whose primary became driven this round, until none do.
+        progressed = True
+        while progressed:
+            progressed = False
+            for idx, c in enumerate(couplings):
+                between = c.get("between") or []
+                if idx in enforced or len(between) < 2 or between[0] not in driven:
+                    continue
+                primary = driven[between[0]]
+                sec = self._enforce_coupling(c, primary, issues)
+                enforced.add(idx)
+                progressed = True
+                if sec is None:
+                    continue
+                secondaries.append(sec)
+                # A gear/belt derived joint is itself a chainable primary: register its composed
+                # sweep (ratio * primary sweep) so a downstream stage drives off it.
+                if c.get("type") in ("gear", "belt"):
+                    ratio = CouplingDriver().angular_ratio(c)
+                    driven[between[1]] = {
+                        "joint_id": between[1], "joint_type": "revolute",
+                        "start": ratio * float(primary["start"]),
+                        "end": ratio * float(primary["end"])}
         return secondaries
+
+    def _enforce_coupling(self, coupling: dict, primary: dict, issues: list) -> dict | None:
+        """Return the secondary spec for one coupling driven by ``primary``, or None on failure."""
+        try:
+            if coupling.get("type") == "cam":
+                cam = CamProfile.from_profile(coupling.get("profile") or {})
+                span = primary["end"] - primary["start"]
+                between = coupling.get("between") or []
+                return {"joint_id": between[1], "joint_type": "slider",
+                        "expression": cam.expression(primary["start"], span)}
+            return CouplingDriver().secondary(coupling, primary)
+        except (CouplingDriverError, CamProfileError) as exc:
+            issues.append({"coupling_id": coupling.get("id"),
+                           "message": f"coupling not enforced: {exc}"})
+            return None
 
     def _motion_outputs(self, motion: dict, local_frames: dict, frames: list, to_metres: float,
                         issues: list) -> tuple[list, list]:
