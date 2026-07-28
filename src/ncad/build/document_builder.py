@@ -13,6 +13,7 @@ import os
 from pathlib import Path
 from typing import Any
 
+from ncad.build.build_timeout import BuildTimeout, BuildTimeoutError, build_timeout_s
 from ncad.build.builder import Builder
 from ncad.build.feature_cache import FeatureCache
 from ncad.build.geometry_facts import GeometryFacts
@@ -23,6 +24,7 @@ from ncad.build.material_error import MaterialError
 from ncad.build.material_resolver import MaterialResolver
 from ncad.build.output_layout import OutputLayout
 from ncad.build.sketch_status_sidecar import SketchStatusSidecar
+from ncad.diagnostics import codes
 from ncad.diagnostics.checks.disconnected_solid_check import DisconnectedSolidCheck
 from ncad.diagnostics.diagnostic import Diagnostic
 from ncad.diagnostics.document_validator import DocumentValidator
@@ -100,10 +102,15 @@ class DocumentBuilder:
         resolved = self._resolve_and_validate(document)
         results: dict[str, OpResult] = {}
         self._rebuild_stats = {}
+        timeout = build_timeout_s()
         for name, part in resolved["parts"].items():
             logger.debug("building part %s", name)
             self._cache.reset_stats()
-            result, _, _ = self._builder.build_part_mapped(part)
+            # Bound each part's OCP work: a wedged boolean/fillet/tessellation raises a timeout
+            # (via SIGALRM between ops) instead of hanging the build. The label names the part so a
+            # slow one is diagnosable; the caller surfaces the error like any build failure.
+            with BuildTimeout(timeout, label=f"part {name!r}"):
+                result, _, _ = self._builder.build_part_mapped(part)
             results[name] = result
             self._rebuild_stats[name] = self._cache.stats()
         return results
@@ -166,6 +173,7 @@ class DocumentBuilder:
         artifacts: dict[str, str] = {}
         # abspath (not resolve) keeps the base dir a textual absolute for reference resolution.
         part_base_dir = os.path.dirname(os.path.abspath(path))
+        timeout = build_timeout_s()
         for name, part in resolved["parts"].items():
             # layout_kind="parts" -> each part gets its own out/parts/<name>/ dir; None -> flat
             # into the caller's out_dir (assembly-member case; that dir already namespaces them).
@@ -175,8 +183,20 @@ class DocumentBuilder:
                 part_dir = out_dir
             Path(part_dir).mkdir(parents=True, exist_ok=True)
             stem = name
-            result, element_map, statuses = self._builder.build_part_mapped(
-                part, base_dir=part_base_dir)
+            # Bound the part's OCP work; a wedged op becomes an error diagnostic (skip this part,
+            # keep the rest) rather than hanging or raising past the agent-facing data envelope.
+            try:
+                with BuildTimeout(timeout, label=f"part {name!r}"):
+                    result, element_map, statuses = self._builder.build_part_mapped(
+                        part, base_dir=part_base_dir)
+            except BuildTimeoutError as exc:
+                logger.warning("part %s timed out; skipping export: %s", name, exc)
+                diagnostics.append(Diagnostic(
+                    severity="error", code=codes.BUILD_TIMEOUT,
+                    location=f"parts.{name}", message=str(exc),
+                    hint="raise NCAD_BUILD_TIMEOUT, or simplify the geometry that wedged",
+                    stage="build"))
+                continue
             # Build-stage issues ride the same envelope as schema/semantic ones.
             diagnostics.extend(issue.to_diagnostic() for issue in result.issues)
             if result.shape is None:
