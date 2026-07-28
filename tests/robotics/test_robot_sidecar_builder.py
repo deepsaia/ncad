@@ -26,7 +26,7 @@ def _model():
 
 def test_tree_carries_links_joints_and_actuated_flag():
     builder = RobotSidecarBuilder(kernel=None)
-    tree = builder._tree(_model(), actuated={"j1"})
+    tree = builder._tree(_model(), actuated={"j1"}, group_states=[])
     assert tree["base_link"] == "base"
     assert [link["name"] for link in tree["links"]] == ["base", "arm"]
     j1 = next(j for j in tree["joints"] if j["name"] == "j1")
@@ -36,6 +36,16 @@ def test_tree_carries_links_joints_and_actuated_flag():
     # the arm link carries its computed inertia + mesh for the inspector.
     arm = next(link for link in tree["links"] if link["name"] == "arm")
     assert arm["mesh"] == "meshes/arm.stl" and arm["inertia"]["ixx"] == 0.1
+    assert tree["group_states"] == []
+
+
+def test_tree_carries_group_states_for_the_pose_picker():
+    builder = RobotSidecarBuilder(kernel=None)
+    states = [{"name": "home", "group": "arm", "values": {"j1": 0.0}},
+              {"name": "ready", "group": "arm", "values": {"j1": 1.2}}]
+    tree = builder._tree(_model(), actuated={"j1"}, group_states=states)
+    assert [s["name"] for s in tree["group_states"]] == ["home", "ready"]
+    assert tree["group_states"][1]["values"]["j1"] == 1.2
 
 
 def test_range_uses_authored_limits():

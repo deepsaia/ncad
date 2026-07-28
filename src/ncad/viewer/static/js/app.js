@@ -18,7 +18,7 @@ import { initMotion, resetMotion, setupMotion, showMotionFrame, advanceMotion,
          pauseMotion, loadTrajectory } from "./motion.js";
 import { initTheme } from "./theme.js";
 import { initSceneFurniture } from "./scene_furniture.js";
-import { buildFkChain, actuatedJoints, solveFk } from "./robot_fk.js";
+import { buildFkChain, actuatedJoints, solveFk, groupStates } from "./robot_fk.js";
 import { compileKeyframes } from "./robot_keyframes.js";
 import { initAnalysis, loadAnalysis, clearAnalysis, glyphColor, setDisplayMode } from "./analysis.js";
 
@@ -1424,9 +1424,12 @@ function setupPhysics(name, instanceNodes) {
 
 // The actuated joints of the current robot (kept so the table can re-render with keyframe columns).
 let _actuatedJoints = [];
+// The authored SRDF named poses (home/ready/folded/...) for the pose picker; [] when none.
+let _groupStates = [];
 
 function buildJointSliders(tree) {
   _actuatedJoints = actuatedJoints(tree);
+  _groupStates = groupStates(tree);
   state.robotPose = {};
   state.robotKeyframes = [];
   if (!_actuatedJoints.length) {
@@ -1439,7 +1442,20 @@ function buildJointSliders(tree) {
   renderJointTable();
   showJointsDock(true);
   applyRobotPose();   // seat the rest pose (identity) so the nodes are FK-driven from the start
-  log(`physics: ${_actuatedJoints.length} actuated joint(s) posable`, "info");
+  const poses = _groupStates.length ? `, ${_groupStates.length} named pose(s)` : "";
+  log(`physics: ${_actuatedJoints.length} actuated joint(s) posable${poses}`, "info");
+}
+
+// Apply an SRDF named pose: set the sliders for the joints the state names (leaving others as-is),
+// re-render so the slider positions reflect it, and re-solve FK. Named poses are the cadskills-style
+// "jump to home/ready" recall; a state only mentions its group's joints, so partial states compose.
+function applyGroupState(groupState) {
+  for (const jointName in groupState.values) {
+    if (jointName in state.robotPose) state.robotPose[jointName] = groupState.values[jointName];
+  }
+  renderJointTable();
+  applyRobotPose();
+  log(`physics: pose "${groupState.name}"`, "info");
 }
 
 // Revolute reads/edits in DEGREES (limits stored in radians); prismatic in MILLIMETRES (metres).
@@ -1453,8 +1469,35 @@ function _jointUnit(joint) { return _jointIsRevolute(joint) ? "°" : "mm"; }
 // keyframe is added/removed so the columns track state.robotKeyframes.
 function renderJointTable() {
   physicsJoints.innerHTML = "";
+  if (_groupStates.length) physicsJoints.appendChild(_groupStatePicker());
   physicsJoints.appendChild(_keyframeHeaderRow());
   for (const joint of _actuatedJoints) physicsJoints.appendChild(_jointRow(joint));
+}
+
+// A dropdown of authored SRDF named poses; selecting one jumps the arm to that pose. First option is
+// a placeholder so a selection always fires a change even when re-picking the same pose.
+function _groupStatePicker() {
+  const row = document.createElement("div");
+  row.className = "pj-row pj-poses";
+  const label = document.createElement("span");
+  label.className = "pj-name"; label.textContent = "Pose"; label.title = "SRDF named poses";
+  const select = document.createElement("select");
+  select.className = "pj-pose-select";
+  const placeholder = document.createElement("option");
+  placeholder.value = ""; placeholder.textContent = "select a pose...";
+  select.appendChild(placeholder);
+  _groupStates.forEach((gs, i) => {
+    const opt = document.createElement("option");
+    opt.value = String(i); opt.textContent = `${gs.name} (${gs.group})`;
+    select.appendChild(opt);
+  });
+  select.addEventListener("change", () => {
+    const idx = parseInt(select.value, 10);
+    if (!Number.isNaN(idx) && _groupStates[idx]) applyGroupState(_groupStates[idx]);
+    select.value = "";   // reset to placeholder so re-selecting the same pose re-fires
+  });
+  row.appendChild(label); row.appendChild(select);
+  return row;
 }
 
 function _keyframeHeaderRow() {

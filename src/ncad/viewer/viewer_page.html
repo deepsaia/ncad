@@ -251,6 +251,10 @@
     text-overflow: ellipsis; white-space: nowrap; }
   .pj-slider { width: 100%; accent-color: var(--accent); cursor: pointer; }
   .pj-val { font-size: 11px; color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+  /* SRDF named-pose picker: a dropdown above the joint sliders to jump the arm to an authored pose. */
+  .pj-poses { padding-bottom: 4px; border-bottom: 1px solid var(--border); margin-bottom: 4px; }
+  .pj-pose-select { flex: 1; font: inherit; font-size: 11px; color: var(--text);
+    background: var(--panel); border: 1px solid var(--border); border-radius: 4px; padding: 2px 4px; }
   /* Keyframe column cells: a compact editable value per (joint, keyframe). The header row carries
      each column's Kn label + its time field + a delete control. */
   .pj-kf { width: 46px; font: inherit; font-size: 11px; text-align: right; color: var(--text);
