@@ -10,6 +10,8 @@ the trajectory) keeps its static rest placement. Pure math; one class.
 import math
 from typing import Any
 
+from ncad.assembly.asmt_exporter import _safe
+
 
 class AsmtTrajectoryMapper:
     """Turns a pyondsel Trajectory into the motion sidecar's per-frame placement records."""
@@ -18,7 +20,10 @@ class AsmtTrajectoryMapper:
                   values: list[float], to_metres: float) -> list[dict]:
         """Per-frame records aligned to ``values`` (the driver sweep); placements in metres."""
         rest_metres = {iid: _bake(placements_mm[iid], to_metres) for iid in placements_mm}
-        part_paths = {iid: f"/{name}/{iid}" for iid in placements_mm}
+        # The trajectory keys parts by the SAME sanitized path the exporter wrote (/name/<safe id>),
+        # so a patterned id ("leaf/3") looks up "/name/leaf_3"; the output dict stays keyed by the
+        # real iid. Without this the pose lookup misses and the body silently falls back to rest.
+        part_paths = {iid: f"/{name}/{_safe(iid)}" for iid in placements_mm}
         frame_count = min(_trajectory_frames(trajectory, part_paths), len(values))
         span = values[-1] - values[0] if len(values) > 1 else 0.0
         frames: list[dict] = []

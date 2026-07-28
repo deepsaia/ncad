@@ -60,6 +60,21 @@ _MOTION_KIND = {"revolute": "rotational", "slider": "translational"}
 _ANCHOR = "_anchor"
 
 
+def _safe(iid: str) -> str:
+    """A pyondsel-path-safe part name from an ncad instance id.
+
+    pyondsel builds hierarchical ASMT paths as ``/<assembly>/<part>/<marker>`` and splits on ``/``,
+    so an instance id containing ``/`` (component-pattern mints ``<id>/<n>``, e.g. ``leaf/3``)
+    corrupts the path: the marker never resolves and the body silently freezes in the solve while
+    the build still reports well_constrained. Replacing ``/`` with ``_`` keeps every patterned part
+    a distinct, resolvable node. Applied consistently everywhere an id becomes a Part name or a
+    part_path segment (part, grounds, joints), so joint markers still point at the same part. The
+    ncad-facing instance id (in the sidecar, joints, couplings) is unchanged; this rename stays
+    internal to the ASMT model only.
+    """
+    return iid.replace("/", "_")
+
+
 class AsmtExporter:
     """Builds a pyondsel AsmtModel from an ncad assembly + motion driver."""
 
@@ -115,7 +130,7 @@ class AsmtExporter:
         """
         pos, rot = _pose_to_metres(placement_mm, to_metres)
         mass_kg, inertia, cog = _mass_terms(mass, to_metres)
-        part = po.Part(name=iid, position=pos, rotation=rot, mass=mass_kg,
+        part = po.Part(name=_safe(iid), position=pos, rotation=rot, mass=mass_kg,
                        moments_of_inertia=inertia, mass_center=cog, density=1.0)
         part.add_marker(po.Marker(_ANCHOR))
         for cid, frame in frames.items():
@@ -141,11 +156,11 @@ class AsmtExporter:
             if iid not in ground_ids or iid not in placements_mm:
                 continue
             pos, rot = _pose_to_metres(placements_mm[iid], to_metres)
-            ground_name = f"world_{iid}"
+            ground_name = f"world_{_safe(iid)}"
             model.add_ground_marker(po.Marker(ground_name, position=pos, rotation=rot))
-            model.add_joint(po.Joint(f"ground_{iid}", "fixed",
+            model.add_joint(po.Joint(f"ground_{_safe(iid)}", "fixed",
                                      model.ground_path(ground_name),
-                                     model.part_path(iid, _ANCHOR)))
+                                     model.part_path(_safe(iid), _ANCHOR)))
 
     def _add_joints(self, po: Any, model: Any, joints: list[dict]) -> None:
         """Add every declared joint (revolute/slider/etc.) between its two connector markers."""
@@ -166,8 +181,8 @@ class AsmtExporter:
                 extra["offset"] = float(joint["offset"])
             model.add_joint(po.Joint(
                 joint["id"], kind,
-                model.part_path(a["instance"], a["connector"]),
-                model.part_path(b["instance"], b["connector"]), **extra))
+                model.part_path(_safe(a["instance"]), a["connector"]),
+                model.part_path(_safe(b["instance"]), b["connector"]), **extra))
 
     def _add_driver(self, po: Any, model: Any, driver: dict) -> None:
         """Add the driver's time motion: angle (rad) or distance (m) ramped linearly over t 0..1."""

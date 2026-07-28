@@ -99,3 +99,33 @@ def test_non_drivable_joint_type_raises():
     with pytest.raises(ValueError):
         AsmtExporter().build_model("Rig", instances, frames, placements, mass, joints,
                                    {"base"}, driver, to_metres=0.001)
+
+
+def test_patterned_instance_id_resolves_in_asmt_paths():
+    # A component-pattern mints ids like "leaf/3". The '/' collides with pyondsel's ASMT path
+    # separator (/<asm>/<part>/<marker>), so a patterned body's markers never resolve and it freezes
+    # in motion (build still reports well_constrained). The exporter must sanitize the id used as a
+    # pyondsel Part name / path segment while the ncad-facing id keeps its '/'.
+    instances = [{"id": "base"}, {"id": "leaf/3"}]
+    frames = {
+        "base": {"pivot": ConnectorFrame.from_axis((0, 0, 0), (0, 0, 1))},
+        "leaf/3": {"hub": ConnectorFrame.from_axis((10, 0, 0), (0, 0, 1))},
+    }
+    placements = {"base": _placement(0, 0, 0), "leaf/3": _placement(0, 0, 0)}
+    mass = {"leaf/3": {"mass": 1.0, "cog": (0, 0, 0), "inertia": {"principal": [1, 1, 1]}}}
+    joints = [{"id": "spin", "type": "revolute",
+               "between": [{"instance": "base", "connector": "pivot"},
+                           {"instance": "leaf/3", "connector": "hub"}]}]
+    driver = {"joint_id": "spin", "joint_type": "revolute",
+              "pivot": joints[0]["between"][0], "moving": joints[0]["between"][1],
+              "values": [0.0, 35.0]}
+    model = AsmtExporter().build_model("Rig", instances, frames, placements, mass, joints,
+                                       {"base"}, driver, to_metres=0.001)
+    # the Part name must carry NO '/' (would corrupt the ASMT part path), but stay unique
+    leaf = next(p for p in model.parts if p.name != "base")
+    assert "/" not in leaf.name
+    assert leaf.name == "leaf_3"
+    # the joint's marker path must point at the SAME sanitized part, so it resolves + the body moves
+    asmt = model.to_asmt()
+    assert "leaf_3" in asmt
+    assert "leaf/3" not in asmt          # no unsanitized id leaks into the ASMT path text
