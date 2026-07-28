@@ -1,0 +1,35 @@
+units = mm
+# SO-101-class 6-DoF arm assembled as an OPEN serial kinematic chain (no closed loop): base grounded,
+# then six joints stack up the arm - base_pan (about Z), shoulder_lift / elbow_flex / wrist_flex
+# (pitch about Y), wrist_roll (coaxial about Z, the new axis desk_arm lacked), and a prismatic gripper
+# (jaw slides along X). Each link is authored in its rest pose (arm straight up) so joints connect
+# coincident frames without a snap. Six INDEPENDENT actuated joints -> six live Physics sliders.
+metadata {
+  description = "6-DoF SO-101-class arm: base + shoulder + upperarm + forearm + wrist + hand + jaw"
+  tags = [ so101, robot, arm, assembly, serial, six_dof ]
+}
+assembly {
+  instances = [
+    { id = base, file = "so101_arm.hocon", part = base, lock = true }
+    { id = shoulder, file = "so101_arm.hocon", part = shoulder }
+    { id = upperarm, file = "so101_arm.hocon", part = upperarm }
+    { id = forearm, file = "so101_arm.hocon", part = forearm }
+    { id = wrist, file = "so101_arm.hocon", part = wrist }
+    { id = hand, file = "so101_arm.hocon", part = hand }
+    { id = jaw, file = "so101_arm.hocon", part = jaw }
+  ]
+  joints = [
+    { id = base_pan, type = revolute, between = [
+      { instance = base, connector = top }, { instance = shoulder, connector = foot } ] }
+    { id = shoulder_lift, type = revolute, between = [
+      { instance = shoulder, connector = lift }, { instance = upperarm, connector = p_shoulder } ] }
+    { id = elbow_flex, type = revolute, between = [
+      { instance = upperarm, connector = p_elbow }, { instance = forearm, connector = p_elbow } ] }
+    { id = wrist_flex, type = revolute, between = [
+      { instance = forearm, connector = p_wrist }, { instance = wrist, connector = p_wrist } ] }
+    { id = wrist_roll, type = revolute, between = [
+      { instance = wrist, connector = roll }, { instance = hand, connector = p_roll } ] }
+    { id = gripper, type = slider, between = [
+      { instance = hand, connector = jawRail }, { instance = jaw, connector = rail } ] }
+  ]
+}

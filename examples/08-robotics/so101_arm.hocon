@@ -1,0 +1,174 @@
+units = mm
+# SO-101-class 6-DoF desktop arm authored as a primitive blockout (the robotics authoring lane),
+# one more DoF than desk_arm AND a new coaxial wrist-roll axis the 5-DoF arm never had. Serial open
+# chain: base -> shoulder(pan+lift) -> upperarm -> forearm -> wrist(flex) -> hand(roll) -> jaw.
+# Six independent actuated joints:
+#   base_pan   : shoulder block shaft in the base bore, rotary bearing about +Z.
+#   shoulder_lift / elbow_flex / wrist_flex : yoke-and-pin clevis hinges, pitch about +Y.
+#   wrist_roll : the hand rolls on a stub of the wrist link, coaxial about +Z (the new axis).
+#   gripper    : the jaw's collar bore rides a rail rod on the hand, captured slide along +X.
+# Rest pose (all joint angles 0): arm stands straight UP along +Z. Joint Z-stations on the arm
+# centreline at rest: base top / pan 20, shoulder_lift 64, elbow 176, wrist_flex 276, wrist_roll
+# 316, gripper rail 344. Servo blocks read servo-black; printed brackets read printed-white.
+metadata {
+  description = "SO-101-class 6-DoF arm blockout: pan+lift shoulder, elbow, wrist flex+roll, gripper"
+  tags = [ so101, robot, arm, blockout, six_dof ]
+}
+# Inline material library: two DISPLAY materials carrying appearance color (servo-black + printed
+# white), plus real metals for density/inertia. appearance.color is r,g,b in 0..1.
+materials {
+  servo_black  { physical { density = 1250 }, appearance { color = [ 0.10, 0.10, 0.12 ] } }
+  printed_white { physical { density = 1240 }, appearance { color = [ 0.90, 0.90, 0.93 ] } }
+}
+parts {
+  # Base: a pedestal disc + a hub bore that seats the shoulder-block shaft (the base_pan bearing).
+  base { profile = solid, material = steel_4140,
+    connectors = [
+      { id = top, at_point = [ 0, 0, 20 ], axis = [ 0, 0, 1 ] }
+    ],
+    features = [
+      { id = pad, op = primitive, kind = cylinder, d = 92, h = 11, plane = XY, plane_offset = 0 }
+      { id = hub, op = primitive, kind = cylinder, d = 38, h = 16, plane = XY, plane_offset = 11 }
+      { id = body, op = boolean, operation = union, target = pad, tool = hub }
+      { id = bore, op = primitive, kind = cylinder, d = 12, h = 14, plane = XY, plane_offset = 13,
+        at = [ 0, 0 ] }
+      { id = whole, op = boolean, operation = cut, target = body, tool = bore }
+    ] }
+  # Shoulder block: a slim shaft into the base bore (base_pan about +Z) + a yoke rising to the
+  # shoulder_lift pin at z=64. `foot` (axis Z) seats on the base top; `lift` (axis Y) is the pitch
+  # axis. The plates straddle the upper-arm tongue. Servo-black (this is the pan+lift servo housing).
+  shoulder { profile = solid, material = servo_black,
+    connectors = [
+      { id = foot, at_point = [ 0, 0, 20 ], axis = [ 0, 0, 1 ] }
+      { id = lift, at_point = [ 0, 0, 64 ], axis = [ 0, 1, 0 ] }
+    ],
+    features = [
+      { id = shaft, op = primitive, kind = cylinder, d = 11, h = 20, plane = XY, plane_offset = 6 }
+      { id = neck, op = primitive, kind = cylinder, d = 26, h = 28, plane = XY, plane_offset = 24 }
+      { id = s1, op = boolean, operation = union, target = shaft, tool = neck }
+      { id = plateR, op = primitive, kind = box, w = 17, d = 4, h = 26, plane = XY,
+        plane_offset = 46, at = [ -8.5, 5 ] }
+      { id = plateL, op = primitive, kind = box, w = 17, d = 4, h = 26, plane = XY,
+        plane_offset = 46, at = [ -8.5, -9 ] }
+      { id = capR, op = primitive, kind = cylinder, d = 17, h = 4, plane = XZ, plane_offset = 5,
+        at = [ 0, 64 ] }
+      { id = capL, op = primitive, kind = cylinder, d = 17, h = 4, plane = XZ, plane_offset = -9,
+        at = [ 0, 64 ] }
+      { id = s2, op = boolean, operation = union, target = s1, tool = plateR }
+      { id = s3, op = boolean, operation = union, target = s2, tool = plateL }
+      { id = s4, op = boolean, operation = union, target = s3, tool = capR }
+      { id = yoke, op = boolean, operation = union, target = s4, tool = capL }
+      { id = pin, op = primitive, kind = cylinder, d = 3.5, h = 22, plane = XZ, plane_offset = -11,
+        at = [ 0, 64 ] }
+      { id = whole, op = boolean, operation = union, target = yoke, tool = pin }
+    ] }
+  # Upper arm: round-nosed TONGUE at the shoulder (z=64) swinging in the shoulder-block groove, a
+  # slim bar to a yoke at the elbow (z=176). Printed-white bracket. p_shoulder + p_elbow share +Y.
+  upperarm { profile = solid, material = printed_white,
+    connectors = [
+      { id = p_shoulder, at_point = [ 0, 0, 64 ], axis = [ 0, 1, 0 ] }
+      { id = p_elbow, at_point = [ 0, 0, 176 ], axis = [ 0, 1, 0 ] }
+    ],
+    features = [
+      { id = tongueS, op = primitive, kind = cylinder, d = 16, h = 8, plane = XZ, plane_offset = -4,
+        at = [ 0, 64 ] }
+      { id = bar, op = primitive, kind = box, w = 14, d = 8, h = 104, plane = XY,
+        plane_offset = 66, at = [ -7, -4 ] }
+      { id = a1, op = boolean, operation = union, target = tongueS, tool = bar }
+      { id = plateR, op = primitive, kind = box, w = 14, d = 4, h = 22, plane = XY,
+        plane_offset = 160, at = [ -7, 3.5 ] }
+      { id = plateL, op = primitive, kind = box, w = 14, d = 4, h = 22, plane = XY,
+        plane_offset = 160, at = [ -7, -7.5 ] }
+      { id = capR, op = primitive, kind = cylinder, d = 14, h = 4, plane = XZ, plane_offset = 3.5,
+        at = [ 0, 176 ] }
+      { id = capL, op = primitive, kind = cylinder, d = 14, h = 4, plane = XZ, plane_offset = -7.5,
+        at = [ 0, 176 ] }
+      { id = a2, op = boolean, operation = union, target = a1, tool = plateR }
+      { id = a3, op = boolean, operation = union, target = a2, tool = plateL }
+      { id = a4, op = boolean, operation = union, target = a3, tool = capR }
+      { id = yoke, op = boolean, operation = union, target = a4, tool = capL }
+      { id = pin, op = primitive, kind = cylinder, d = 3.5, h = 18, plane = XZ, plane_offset = -9,
+        at = [ 0, 176 ] }
+      { id = whole, op = boolean, operation = union, target = yoke, tool = pin }
+    ] }
+  # Forearm: round-nosed TONGUE at the elbow (z=176), a slim bar to a yoke at the wrist (z=276).
+  forearm { profile = solid, material = printed_white,
+    connectors = [
+      { id = p_elbow, at_point = [ 0, 0, 176 ], axis = [ 0, 1, 0 ] }
+      { id = p_wrist, at_point = [ 0, 0, 276 ], axis = [ 0, 1, 0 ] }
+    ],
+    features = [
+      { id = tongueE, op = primitive, kind = cylinder, d = 13, h = 6, plane = XZ, plane_offset = -3,
+        at = [ 0, 176 ] }
+      { id = bar, op = primitive, kind = box, w = 12, d = 6, h = 92, plane = XY,
+        plane_offset = 178, at = [ -6, -3 ] }
+      { id = f1, op = boolean, operation = union, target = tongueE, tool = bar }
+      { id = plateR, op = primitive, kind = box, w = 12, d = 3.5, h = 20, plane = XY,
+        plane_offset = 262, at = [ -6, 3 ] }
+      { id = plateL, op = primitive, kind = box, w = 12, d = 3.5, h = 20, plane = XY,
+        plane_offset = 262, at = [ -6, -6.5 ] }
+      { id = capR, op = primitive, kind = cylinder, d = 12, h = 3.5, plane = XZ, plane_offset = 3,
+        at = [ 0, 276 ] }
+      { id = capL, op = primitive, kind = cylinder, d = 12, h = 3.5, plane = XZ, plane_offset = -6.5,
+        at = [ 0, 276 ] }
+      { id = f2, op = boolean, operation = union, target = f1, tool = plateR }
+      { id = f3, op = boolean, operation = union, target = f2, tool = plateL }
+      { id = f4, op = boolean, operation = union, target = f3, tool = capR }
+      { id = yoke, op = boolean, operation = union, target = f4, tool = capL }
+      { id = pin, op = primitive, kind = cylinder, d = 3, h = 15, plane = XZ, plane_offset = -7.5,
+        at = [ 0, 276 ] }
+      { id = whole, op = boolean, operation = union, target = yoke, tool = pin }
+    ] }
+  # Wrist: round-nosed TONGUE at the wrist_flex pin (z=276, pitch about +Y), a short neck rising to
+  # a ROLL STUB at z=316 whose axis is +Z (the coaxial wrist_roll bearing the hand spins on).
+  # Servo-black (this is the wrist servo cluster). p_wrist (axis Y) + roll (axis Z).
+  wrist { profile = solid, material = servo_black,
+    connectors = [
+      { id = p_wrist, at_point = [ 0, 0, 276 ], axis = [ 0, 1, 0 ] }
+      { id = roll, at_point = [ 0, 0, 316 ], axis = [ 0, 0, 1 ] }
+    ],
+    features = [
+      { id = tongueW, op = primitive, kind = cylinder, d = 11, h = 6, plane = XZ, plane_offset = -3,
+        at = [ 0, 276 ] }
+      { id = neck, op = primitive, kind = box, w = 18, d = 18, h = 26, plane = XY,
+        plane_offset = 280, at = [ -9, -9 ] }
+      { id = w1, op = boolean, operation = union, target = tongueW, tool = neck }
+      { id = stub, op = primitive, kind = cylinder, d = 12, h = 10, plane = XY, plane_offset = 306 }
+      { id = whole, op = boolean, operation = union, target = w1, tool = stub }
+    ] }
+  # Hand: a collar bore that rides the wrist roll stub (p_roll, axis Z, wrist_roll), a palm, a FIXED
+  # jaw on -X, and a RAIL rod (axis X, z=344) the sliding jaw rides. Printed-white gripper body.
+  hand { profile = solid, material = printed_white,
+    connectors = [
+      { id = p_roll, at_point = [ 0, 0, 316 ], axis = [ 0, 0, 1 ] }
+      { id = jawRail, at_point = [ 0, 0, 344 ], axis = [ 1, 0, 0 ] }
+    ],
+    features = [
+      { id = hubh, op = primitive, kind = cylinder, d = 20, h = 12, plane = XY, plane_offset = 314 }
+      { id = palm, op = primitive, kind = box, w = 32, d = 22, h = 12, plane = XY,
+        plane_offset = 326, at = [ -16, -11 ] }
+      { id = h1, op = boolean, operation = union, target = hubh, tool = palm }
+      { id = fixedjaw, op = primitive, kind = box, w = 5, d = 18, h = 24, plane = XY,
+        plane_offset = 338, at = [ -17, -9 ] }
+      { id = h2, op = boolean, operation = union, target = h1, tool = fixedjaw }
+      { id = rail, op = primitive, kind = cylinder, d = 5, h = 58, plane = YZ, plane_offset = -28,
+        at = [ 0, 344 ] }
+      { id = whole, op = boolean, operation = union, target = h2, tool = rail }
+    ] }
+  # Sliding jaw: the moving gripper finger, guided by a collar bore that wraps the hand rail rod.
+  # At rest it sits open on +X; `rail` (axis X) mates the hand rod. Servo-black finger.
+  jaw { profile = solid, material = servo_black,
+    connectors = [
+      { id = rail, at_point = [ 15, 0, 344 ], axis = [ 1, 0, 0 ] }
+    ],
+    features = [
+      { id = finger, op = primitive, kind = box, w = 5, d = 18, h = 24, plane = XY,
+        plane_offset = 338, at = [ 13, -9 ] }
+      { id = collar, op = primitive, kind = box, w = 13, d = 12, h = 12, plane = XY,
+        plane_offset = 342, at = [ 10, -6 ] }
+      { id = block, op = boolean, operation = union, target = finger, tool = collar }
+      { id = channel, op = primitive, kind = cylinder, d = 6.5, h = 18, plane = YZ,
+        plane_offset = 9, at = [ 0, 344 ] }
+      { id = whole, op = boolean, operation = cut, target = block, tool = channel }
+    ] }
+}
