@@ -53,6 +53,15 @@ export function actuatedJoints(tree) {
 function defaultLower(joint) { return joint.type === "prismatic" ? 0 : -Math.PI; }
 function defaultUpper(joint) { return joint.type === "prismatic" ? 0.1 : Math.PI; }
 
+// The authored SRDF named poses (from <name>.robot.json group_states): each {name, group, values}
+// where values maps joint name -> value (radians / metres). The panel offers these as a pose picker;
+// selecting one sets the matching sliders and leaves joints the state does not mention untouched.
+export function groupStates(tree) {
+  return (tree.group_states || []).map(s => ({
+    name: s.name, group: s.group, values: { ...(s.values || {}) },
+  }));
+}
+
 // Solve FK for a pose ({jointName: value}, radians for revolute / metres for prismatic). Returns
 // {link: THREE.Matrix4} where each matrix is the NODE placement: it maps the link's rest-world
 // geometry to its posed world position (identity at rest), so app.js can assign it to the instance

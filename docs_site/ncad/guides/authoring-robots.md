@@ -111,3 +111,8 @@ a link or joint name fails the export rather than emitting a broken SRDF. **Disa
 are derived automatically** from adjacency (every parent/child pair of a tree joint always touches at
 the joint), so you do not author them. If the `srdf {}` block is absent, a single default chain group
 spanning the base link to the deepest leaf is synthesized, so a usable SRDF is always produced.
+
+The named group states also carry into the viewer: the `.robot.json` sidecar includes them, and the
+Physics tab shows a **pose picker** above the joint sliders. Selecting a named pose (e.g. `home`,
+`ready`) jumps the arm to it by setting the matching sliders, so you can recall authored poses
+without dragging each joint.

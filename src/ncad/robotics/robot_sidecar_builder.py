@@ -27,6 +27,7 @@ from ncad.build.output_layout import OutputLayout
 from ncad.robotics.physics_spec import PhysicsSpec
 from ncad.robotics.robot_model import RobotModel
 from ncad.robotics.robot_model_builder import RobotModelBuilder
+from ncad.robotics.srdf_spec import SrdfSpec, SrdfSpecError
 from ncad.spec.spec_loader import SpecLoader
 from ncad.spec.spec_reference import SpecReference
 
@@ -79,14 +80,17 @@ class RobotSidecarBuilder:
         joint (expensive) and is only needed for slider articulation. Returns
         ``{robot, sweeps, warnings}``; ``sweeps`` is None when not generated.
         """
-        spec = PhysicsSpec(SpecLoader().load(physics_path))
+        document = SpecLoader().load(physics_path)
+        spec = PhysicsSpec(document)
         out = Path(out_dir)
         actuated = self._actuated_names(spec, model)
+        group_states = self._group_states(document, model, physics_path)
 
         robot_path = out / f"{model.name}{_ROBOT_SUFFIX}"
         # Record the .physics.hocon source so the viewer can re-export the robot after a reload
         # (mirrors the .assembly.json / .motion.json source field).
-        tree = {**self._tree(model, actuated), "source": str(Path(physics_path).resolve())}
+        tree = {**self._tree(model, actuated, group_states),
+                "source": str(Path(physics_path).resolve())}
         robot_path.write_text(json.dumps(tree, indent=2), encoding="utf-8")
         if not with_sweeps:
             return {"robot": str(robot_path), "sweeps": None, "warnings": []}
@@ -100,8 +104,21 @@ class RobotSidecarBuilder:
         """The joint names the overlay marks ``actuated``."""
         return {j.name for j in model.joints if spec.joint_overlay(j.name).get("actuated")}
 
-    def _tree(self, model: RobotModel, actuated: set[str]) -> dict:
-        """The .robot.json tree: base + links (inertia) + joints (limits + actuated flag)."""
+    def _group_states(self, document: dict, model: RobotModel, physics_path: str) -> list[dict]:
+        """The authored SRDF named poses, so the viewer can offer a group-state picker.
+
+        Returns ``[{name, group, values: {joint: value}}]`` (empty when no srdf block). A malformed
+        srdf is an authoring error the export path already surfaces via SrdfWriter; here it must not
+        block the tree sidecar, so a bad reference is logged and yields no group states.
+        """
+        try:
+            return SrdfSpec(document, model).group_states
+        except SrdfSpecError as exc:
+            logger.warning("robot sidecar: skipping group states for %s: %s", model.name, exc)
+            return []
+
+    def _tree(self, model: RobotModel, actuated: set[str], group_states: list[dict]) -> dict:
+        """The .robot.json tree: base + links + joints (limits/actuated) + group states."""
         return {
             "schema_version": 1,
             "name": model.name,
@@ -115,6 +132,7 @@ class RobotSidecarBuilder:
                         "actuated": j.name in actuated,
                         "loop_closure": j.is_loop_closure}
                        for j in model.joints],
+            "group_states": group_states,
         }
 
     def _sweeps(self, physics_path: str, model: RobotModel, actuated: set[str],
