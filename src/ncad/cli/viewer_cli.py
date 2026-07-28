@@ -414,6 +414,21 @@ app = typer.Typer(
 cli = ViewerCli()
 
 
+def _issue_label(issue: dict) -> str:
+    """A bracketed id tag for an assemble/motion issue, whichever id key it carries.
+
+    Issues come from several producers: instance-placement issues carry ``instance_id``, joint
+    lowering carries ``joint_id``, coupling issues carry ``coupling_id``, and some issues carry none
+    (a plain message). Indexing a fixed key crashed the CLI on a joint/coupling issue; this returns
+    the first present id (or an empty string) so every issue prints regardless of its source.
+    """
+    for key in ("instance_id", "joint_id", "coupling_id"):
+        value = issue.get(key)
+        if value:
+            return f"[{value}] "
+    return ""
+
+
 @app.callback()
 def _root(
     ctx: typer.Context,
@@ -511,7 +526,7 @@ def assemble(
     for instance_id in result["instances"]:
         print(f"  instance {instance_id}")
     for issue in result["issues"]:
-        print(f"  ISSUE [{issue['instance_id']}] {issue['message']}")
+        print(f"  ISSUE {_issue_label(issue)}{issue['message']}")
     out_dir = result["sidecar"].rsplit("/", 1)[0]
     print(f"\nview with:  ncad view {out_dir}\n")
 
@@ -525,7 +540,7 @@ def motion(
     result = cli.motion_document(document, out)
     print(f"\nncad motion: {document}")
     for issue in result["issues"]:
-        print(f"  ISSUE {issue.get('instance_id', '')} {issue['message']}")
+        print(f"  ISSUE {_issue_label(issue)}{issue['message']}")
     if result.get("motion"):
         print(f"  trajectory: {result['motion']}")
     out_dir = result["sidecar"].rsplit("/", 1)[0]
