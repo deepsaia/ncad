@@ -328,6 +328,18 @@ class ViewerCli:
         logging.basicConfig(level=logging.INFO, format="%(message)s")
         return SnapshotRenderer(frames=frames).render(model, out_dir=out)
 
+    def snapshot_views(self, model: str, out: str | None = None,
+                       views: tuple[str, ...] | None = None) -> dict[str, str]:
+        """Render one framed still per named view (front/right/iso/top); return ``{view: png}``.
+
+        The multi-angle review packet for authoring: several sides in one build so different defects
+        are each catchable. ``views`` defaults to every named view.
+        """
+        from ncad.viewer.snapshot_renderer import SnapshotRenderer
+
+        logging.basicConfig(level=logging.INFO, format="%(message)s")
+        return SnapshotRenderer().render_views(model, out_dir=out, views=views)
+
     def dfm_document(self, document: str, out: str | None, processes: list[str],
                      rules: str | None = None) -> dict:
         """Build a document and run the DFM preflight per part; write a .dfm.json per part.
@@ -651,8 +663,22 @@ def snapshot(
     model: str = typer.Argument(..., help="path to a built model (glb/stl/obj/ply/3mf)"),
     out: str = typer.Option(None, help="output directory (default: beside the model)"),
     frames: int = typer.Option(24, help="orbit frames in the GIF"),
+    views: str = typer.Option(
+        None, help="comma-separated named stills instead of the GIF (front,right,iso,top)"),
 ) -> None:
-    """Render a model to a PNG still + an orbit GIF review packet (offscreen, no viewer)."""
+    """Render a model to a review packet (offscreen, no viewer).
+
+    Default: a 3/4 still + an orbit GIF. With ``--views``, render one framed still per named angle
+    (front/right/iso/top) instead - the multi-angle packet for reviewing an authored model.
+    """
+    if views is not None:
+        chosen = tuple(v.strip() for v in views.split(",") if v.strip()) or None
+        result = cli.snapshot_views(model, out, views=chosen)
+        print(f"\nncad snapshot views: {model}")
+        for view, path in result.items():
+            print(f"  {view:6} {path}")
+        print()
+        return
     result = cli.snapshot_model(model, out, frames=frames)
     print(f"\nncad snapshot: {model}")
     print(f"  still: {result['png']}")

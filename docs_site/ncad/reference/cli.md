@@ -111,10 +111,14 @@ Statically validate a part / assembly / motion document (no geometry). Prints di
 
 ### `ncad snapshot`
 
-Render a model to a PNG still + orbit GIF review packet (offscreen, no viewer).
+Render a model to a review packet (offscreen, no viewer). Default: a 3/4 PNG still + an orbit GIF.
 
 - Positional `model` (required): a built model (glb/stl/obj/ply/3mf).
 - `--out TEXT` (default: beside the model). `--frames INT` orbit frames in the GIF (default `24`).
+- `--views TEXT` comma-separated named stills instead of the GIF: `front,right,iso,top`. Writes one
+  `<model>.<view>.png` per angle. The multi-angle packet for reviewing an authored model from
+  several sides at once (a frozen joint reads on `iso`, a mis-seated feature on `front`, a z-layer
+  clash on `top`).
 
 ### `ncad dfm`
 
