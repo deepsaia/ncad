@@ -1,5 +1,7 @@
 """SnapshotRenderer writes a framed PNG + orbit GIF with real model content (offscreen)."""
 
+from pathlib import Path
+
 import numpy as np
 import pytest
 
@@ -104,3 +106,24 @@ def test_render_views_writes_a_png_per_view(tmp_path) -> None:
 def test_render_views_defaults_to_all_named(tmp_path) -> None:
     out = SnapshotRenderer(width=160, height=120).render_views(_glb(tmp_path))
     assert set(out) == set(_NAMED_VIEWS)
+
+
+def test_render_motion_frames_writes_a_still_per_sampled_frame(tmp_path) -> None:
+    import json
+
+    # one built glb, referenced by a minimal assembly.json; a 2-frame motion.json translates it.
+    kernel = Build123dKernel()
+    block = kernel.cylinder((0, 0, 0), "Z", diameter=20.0, length=10.0)
+    kernel.export(block, str(tmp_path / "block.glb"))
+    (tmp_path / "rig.assembly.json").write_text(json.dumps({
+        "instances": [{"id": "block", "part_glb": "block.glb"}]}))
+    ident = [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
+    slid = [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0.05, 0, 0, 1]]  # 50mm in x
+    (tmp_path / "rig.motion.json").write_text(json.dumps({"frames": [
+        {"placements": {"block": ident}}, {"placements": {"block": slid}}]}))
+
+    out = SnapshotRenderer(width=160, height=120).render_motion_frames(
+        str(tmp_path / "rig.motion.json"), str(tmp_path / "rig.assembly.json"), samples=2)
+    assert set(out) == {0, 1}
+    for path in out.values():
+        assert (tmp_path / Path(path).name).is_file()
