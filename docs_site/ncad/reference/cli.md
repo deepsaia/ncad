@@ -119,6 +119,11 @@ Render a model to a review packet (offscreen, no viewer). Default: a 3/4 PNG sti
   `<model>.<view>.png` per angle. The multi-angle packet for reviewing an authored model from
   several sides at once (a frozen joint reads on `iso`, a mis-seated feature on `front`, a z-layer
   clash on `top`).
+- Given a `<name>.motion.json` (a built trajectory) as the model, renders posed stills at sampled
+  frames of the motion (the mechanism mid-cycle), using the `<name>.assembly.json` beside it for the
+  instance geometry. `--motion-samples INT` how many frames (default `4`); `--view TEXT` the camera
+  angle. Writes `<name>.frameNNN.png` per sample - the observe/improve packet for a mechanism's
+  motion without opening the viewer.
 
 ### `ncad dfm`
 

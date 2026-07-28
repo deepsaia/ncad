@@ -154,6 +154,57 @@ class SnapshotRenderer:
         logger.info("snapshot views: wrote %s", ", ".join(f"{v}={p}" for v, p in out.items()))
         return out
 
+    def render_motion_frames(self, motion_path: str, assembly_path: str,
+                             out_dir: str | None = None, samples: int = 4,
+                             view: str = "iso") -> dict[int, str]:
+        """Render posed stills at ``samples`` trajectory frames; return ``{frame_index: png_path}``.
+
+        The observe->improve loop for MOTION: an author sees the mechanism mid-cycle (start,
+        through, end), not just at rest, so a frozen joint or a mid-stroke clash is visible in a
+        still. Loads each instance's glb (from ``assembly_path``'s instances[].part_glb, resolved
+        beside it), applies that instance's per-frame placement from ``motion_path`` (row-major
+        row-vector, metres - transposed for the column-vector renderer), and renders from a FIXED
+        camera framed on the whole trajectory's extent so the frames are comparable. Writes
+        ``<stem>.frameNNN.png``. Raises ValueError if the artifacts lack instances/frames/geometry.
+        """
+        import imageio.v2 as imageio
+        import pyrender
+
+        instances = _load_instances(assembly_path)      # {id: loaded trimesh scene of its glb}
+        frames = _load_frames(motion_path)
+        if not instances or not frames:
+            raise ValueError(
+                f"no posable geometry: {len(instances)} instances, {len(frames)} frames")
+        indices = _sample_indices(len(frames), samples)
+        center, radius = _trajectory_bounds(instances, frames, indices)
+        distance = _fit_distance(radius)
+
+        camera = pyrender.PerspectiveCamera(yfov=_YFOV)
+        cam_pose = _view_pose(center, distance, view)
+        out_root = Path(out_dir) if out_dir else Path(motion_path).parent
+        out_root.mkdir(parents=True, exist_ok=True)
+        base = out_root / Path(motion_path).stem.replace(".motion", "")
+        renderer = pyrender.OffscreenRenderer(self._width, self._height)
+        out: dict[int, str] = {}
+        try:
+            for idx in indices:
+                scene = pyrender.Scene(bg_color=list(_BG_COLOR), ambient_light=list(_AMBIENT))
+                placements = frames[idx].get("placements", {})
+                for iid, geometries in instances.items():
+                    pose = _pose_matrix(placements.get(iid))
+                    for geometry in geometries:
+                        scene.add(pyrender.Mesh.from_trimesh(geometry, smooth=True), pose=pose)
+                scene.add(camera, pose=cam_pose)
+                scene.add(pyrender.DirectionalLight(intensity=3.0), pose=cam_pose)
+                color, _ = renderer.render(scene)
+                path = f"{base}.frame{idx:03d}.png"
+                imageio.imwrite(path, color)
+                out[idx] = path
+        finally:
+            renderer.delete()
+        logger.info("snapshot motion: wrote %d frame stills (%s)", len(out), base.name)
+        return out
+
     def _render_at(self, renderer: Any, scene: Any, camera_node: Any, center: np.ndarray,
                    distance: float, azimuth: float) -> np.ndarray:
         """Pose the camera at ``azimuth`` around ``center`` and return the rendered RGB frame."""
@@ -168,6 +219,86 @@ def _bounds_center_radius(bounds: np.ndarray) -> tuple[np.ndarray, float]:
     center = (low + high) / 2.0
     radius = float(np.linalg.norm(high - low)) / 2.0
     return center, max(radius, 1e-6)
+
+
+def _load_instances(assembly_path: str) -> dict:
+    """{instance_id: [trimesh geometries]} for each instance's part glb, beside the json."""
+    import json
+
+    import trimesh
+
+    with open(assembly_path, encoding="utf-8") as handle:
+        assembly = json.load(handle)
+    asm_dir = Path(assembly_path).parent
+    out: dict[str, list] = {}
+    for inst in assembly.get("instances", []):
+        glb = inst.get("part_glb")
+        iid = inst.get("id")
+        if not glb or not iid:
+            continue
+        glb_path = asm_dir / glb
+        if not glb_path.is_file():
+            continue
+        loaded = trimesh.load(str(glb_path), force="scene")
+        geoms = list(loaded.geometry.values())  # pyrefly: ignore[missing-attribute]
+        if geoms:
+            out[iid] = geoms
+    return out
+
+
+def _load_frames(motion_path: str) -> list:
+    """The motion trajectory's frame records (each ``{placements: {id: 4x4}}``)."""
+    import json
+
+    with open(motion_path, encoding="utf-8") as handle:
+        return json.load(handle).get("frames", [])
+
+
+def _sample_indices(frame_count: int, samples: int) -> list[int]:
+    """``samples`` evenly-spaced frame indices across ``[0, frame_count)`` incl. first and last."""
+    if frame_count <= 0:
+        return []
+    n = max(1, min(samples, frame_count))
+    if n == 1:
+        return [0]
+    return sorted({round(i * (frame_count - 1) / (n - 1)) for i in range(n)})
+
+
+def _pose_matrix(placement: list | None) -> np.ndarray:
+    """A column-vector 4x4 from an ncad row-major row-vector placement (transpose the 3x3).
+
+    ncad placements are row-vector (p_world = p_local . M): the rotation rows are basis images, so
+    the renderer (column-vector M . p) needs the transpose; the translation stays m[3]. Identity
+    when an instance is absent from the frame (a body the solver did not move).
+    """
+    if placement is None:
+        return np.eye(4)
+    m = placement
+    return np.array([
+        [m[0][0], m[1][0], m[2][0], m[3][0]],
+        [m[0][1], m[1][1], m[2][1], m[3][1]],
+        [m[0][2], m[1][2], m[2][2], m[3][2]],
+        [0.0, 0.0, 0.0, 1.0]])
+
+
+def _trajectory_bounds(instances: dict, frames: list,
+                       indices: list[int]) -> tuple[np.ndarray, float]:
+    """Center + radius over every sampled posed frame, so the fixed camera frames the sweep."""
+    lows: list[np.ndarray] = []
+    highs: list[np.ndarray] = []
+    for idx in indices:
+        placements = frames[idx].get("placements", {})
+        for iid, geometries in instances.items():
+            pose = _pose_matrix(placements.get(iid))
+            for geometry in geometries:
+                posed = geometry.bounds @ pose[:3, :3].T + pose[:3, 3]
+                lows.append(posed.min(axis=0))
+                highs.append(posed.max(axis=0))
+    if not lows:
+        return np.zeros(3), 1.0
+    low = np.min(lows, axis=0)
+    high = np.max(highs, axis=0)
+    return _bounds_center_radius(np.array([low, high]))
 
 
 def _fit_distance(radius: float) -> float:

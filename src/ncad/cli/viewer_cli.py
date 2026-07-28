@@ -340,6 +340,20 @@ class ViewerCli:
         logging.basicConfig(level=logging.INFO, format="%(message)s")
         return SnapshotRenderer().render_views(model, out_dir=out, views=views)
 
+    def snapshot_motion(self, motion_json: str, out: str | None = None,
+                        samples: int = 4, view: str = "iso") -> dict[int, str]:
+        """Render posed stills at ``samples`` trajectory frames; return ``{frame_index: png_path}``.
+
+        ``motion_json`` is a built ``<name>.motion.json``; the ``<name>.assembly.json`` beside it
+        supplies the instance glbs. The observe->improve loop for a mechanism mid-cycle.
+        """
+        from ncad.viewer.snapshot_renderer import SnapshotRenderer
+
+        logging.basicConfig(level=logging.INFO, format="%(message)s")
+        assembly_json = motion_json.replace(".motion.json", ".assembly.json")
+        return SnapshotRenderer().render_motion_frames(
+            motion_json, assembly_json, out_dir=out, samples=samples, view=view)
+
     def dfm_document(self, document: str, out: str | None, processes: list[str],
                      rules: str | None = None) -> dict:
         """Build a document and run the DFM preflight per part; write a .dfm.json per part.
@@ -675,23 +689,35 @@ def validate(
 
 @app.command()
 def snapshot(
-    model: str = typer.Argument(..., help="path to a built model (glb/stl/obj/ply/3mf)"),
+    model: str = typer.Argument(
+        ..., help="a built model (glb/stl/obj/ply/3mf), or a <name>.motion.json for frame stills"),
     out: str = typer.Option(None, help="output directory (default: beside the model)"),
     frames: int = typer.Option(24, help="orbit frames in the GIF"),
     views: str = typer.Option(
         None, help="comma-separated named stills instead of the GIF (front,right,iso,top)"),
+    motion_samples: int = typer.Option(
+        4, help="for a .motion.json: how many trajectory frames to render as posed stills"),
+    view: str = typer.Option("iso", help="camera view for the motion-frame stills"),
 ) -> None:
     """Render a model to a review packet (offscreen, no viewer).
 
-    Default: a 3/4 still + an orbit GIF. With ``--views``, render one framed still per named angle
-    (front/right/iso/top) instead - the multi-angle packet for reviewing an authored model.
+    Default: a 3/4 still + an orbit GIF. With ``--views``, one framed still per named angle
+    (front/right/iso/top). Given a ``<name>.motion.json``, posed stills at sampled trajectory frames
+    (the mechanism mid-cycle) - the observe/improve packet for motion.
     """
+    if model.endswith(".motion.json"):
+        result = cli.snapshot_motion(model, out, samples=motion_samples, view=view)
+        print(f"\nncad snapshot motion: {model}")
+        for frame, path in result.items():
+            print(f"  frame {frame:>3} {path}")
+        print()
+        return
     if views is not None:
         chosen = tuple(v.strip() for v in views.split(",") if v.strip()) or None
         result = cli.snapshot_views(model, out, views=chosen)
         print(f"\nncad snapshot views: {model}")
-        for view, path in result.items():
-            print(f"  {view:6} {path}")
+        for view_name, path in result.items():
+            print(f"  {view_name:6} {path}")
         print()
         return
     result = cli.snapshot_model(model, out, frames=frames)
