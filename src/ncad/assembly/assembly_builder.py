@@ -56,6 +56,10 @@ _ASSEMBLY_SUFFIX = ".assembly.json"
 # Document unit -> metres (glTF's unit). The scene sidecar's placements are baked to metres so
 # they match the part glbs (which export in metres), and the viewer stays unit-agnostic.
 _TO_METRES = {"mm": 0.001, "m": 1.0, "in": 0.0254}
+# Wall-clock bound (seconds) on the native multibody solve. pyondsel runs the solve in a subprocess
+# and raises past this, so a non-converging or hung solve fails as an issue instead of wedging. The
+# default is generous (15 min) so a complex mechanism has room; NCAD_BUILD_TIMEOUT overrides it.
+_DEFAULT_SOLVE_TIMEOUT_S = 900.0
 
 
 class AssemblyBuilder:
@@ -401,7 +405,7 @@ class AssemblyBuilder:
                 name, instances, local_frames, placements_mm, mass_props, joints, ground_ids,
                 driver, to_metres, secondaries=secondaries)
             _solve_t0 = time.perf_counter()
-            trajectory = model.solve()
+            trajectory = model.solve(timeout=_solve_timeout_s())
             self._solve_ms += (time.perf_counter() - _solve_t0) * 1000.0
         except ImportError as exc:
             issues.append({"message": f"motion needs the pyondsel dependency: {exc}"})
@@ -950,3 +954,21 @@ def _stem(path: str) -> str:
         if base.lower().endswith(suffix):
             return base[: -len(suffix)]
     return base
+
+
+def _solve_timeout_s() -> float:
+    """The multibody-solve wall-clock bound (seconds): NCAD_BUILD_TIMEOUT or the generous default.
+
+    A malformed or over-generous value falls back to the default rather than raising, so a bad env
+    var never blocks a build; it is only a safety bound on a hung/non-converging solve.
+    """
+    raw = os.environ.get("NCAD_BUILD_TIMEOUT")
+    if raw is None:
+        return _DEFAULT_SOLVE_TIMEOUT_S
+    try:
+        value = float(raw)
+    except ValueError:
+        logger.warning("ignoring non-numeric NCAD_BUILD_TIMEOUT=%r; using %.0fs",
+                       raw, _DEFAULT_SOLVE_TIMEOUT_S)
+        return _DEFAULT_SOLVE_TIMEOUT_S
+    return value if value > 0 else _DEFAULT_SOLVE_TIMEOUT_S
