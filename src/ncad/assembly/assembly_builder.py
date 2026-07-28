@@ -37,6 +37,7 @@ from ncad.assembly.mate_solver import MateSolver
 from ncad.assembly.measure_evaluator import MeasureEvaluator
 from ncad.assembly.motion_driver import MotionDriver, MotionParamError
 from ncad.assembly.motion_interference import MotionInterference
+from ncad.assembly.motion_liveness import MotionLivenessChecker
 from ncad.assembly.motion_mobility import MotionMobility
 from ncad.assembly.motion_outputs_spec import MotionOutputsError, MotionOutputsSpec
 from ncad.assembly.sub_assembly_composer import SubAssemblyComposer
@@ -411,6 +412,21 @@ class AssemblyBuilder:
             return None
         frames = AsmtTrajectoryMapper().to_frames(trajectory, name, instances, placements_mm,
                                                   values, to_metres)
+        # Frozen-motion guard: the mapper stamps every frame status='solved' even if the solver
+        # returned identical poses on every frame (a degenerate co-solve, a dropped coupling, an
+        # over-constrained loop). Detect a fully-frozen result and surface it loudly, so a silent
+        # non-moving 'solved' trajectory cannot masquerade as a real motion study.
+        liveness = MotionLivenessChecker().assess(frames, ground_ids)
+        if liveness["movable"] and not liveness["any_moved"]:
+            logger.warning("assembly motion for %s produced NO movement: all %d movable bodies "
+                           "frozen (%s) - check the driver range and couplings", name,
+                           liveness["movable"], ", ".join(liveness["frozen"]))
+            issues.append({"message": f"motion produced no movement: all {liveness['movable']} "
+                           f"movable bodies stayed frozen ({', '.join(liveness['frozen'])})"})
+        elif liveness["frozen"]:
+            logger.warning("assembly motion for %s: %d body(ies) never moved (%s) - a coupling or "
+                           "joint may not be enforced", name, len(liveness["frozen"]),
+                           ", ".join(liveness["frozen"]))
         # Motion outputs (bucket 6.1): traces (a point's world path), measures over time, and the
         # mobility (DoF) report. Pure post-processing over the trajectory (no re-solve). Optional +
         # additive: an absent/malformed `outputs` block yields no traces/measures (the trajectory
