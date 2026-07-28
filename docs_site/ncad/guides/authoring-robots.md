@@ -59,6 +59,11 @@ physics {
 }
 ```
 
+A larger **6-DoF arm** (`examples/08-robotics/so101_arm.physics.hocon`): an SO-101-class serial arm
+(base pan + shoulder/elbow/wrist flex + a coaxial wrist roll + a prismatic gripper), with five named
+SRDF group states (`home`, `ready`, `folded`, `grip_open`, `grip_closed`). It exports URDF + SRDF +
+MJCF that load in MuJoCo, and every joint articulates in the viewer's forward-kinematics sliders.
+
 A **closed loop** (`examples/08-robotics/crank_slider.physics.hocon`): one actuated revolute closes
 the loop, so URDF drops it (reported) while MJCF keeps it.
 

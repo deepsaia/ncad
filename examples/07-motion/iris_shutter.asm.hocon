@@ -1,0 +1,50 @@
+units = mm
+# A working iris/aperture shutter: 7 curved brass leaves on a grounded base, each on its own
+# revolute pivot on the r36 pivot circle, all synchronized to ONE driver by belt couplings. This is
+# a component-pattern assembly - one authored `leaf` part expanded into leaf/0..leaf/6 by a circular
+# pattern - so the mechanism is authored once and replicated by geometry, not hand-copied. Every
+# patterned leaf gets its own pivot joint + a belt coupling back to the driven leaf, so a single
+# input closes the whole diaphragm as a verified multibody solve (see iris_shutter.motion.hocon).
+#
+# Why 7 (not 8+): a single driver co-solves at most 6 prescribed-secondary couplings in OndselSolver;
+# 7 leaves = 1 driver + 6 belts sits exactly at that ceiling. A larger STATIC iris is fine (the leaf
+# pattern count is free); only synchronized single-driver ANIMATION caps at 7. A frozen result would
+# now be flagged loudly (motion liveness check), so this is the honest working maximum.
+metadata {
+  description = "Iris shutter: 7 curved leaves circular-patterned, each pivoted, synced from one driver"
+  tags = [ iris, aperture, shutter, assembly, showpiece, mechanism ]
+}
+assembly {
+  instances = [
+    { id = base, file = "iris_shutter.hocon", part = base_plate, lock = true }
+    # ONE leaf part, circular-patterned into leaf/0..leaf/6 about the optical axis; the placement
+    # lifts the pattern to the leaf z-layer (the part is authored at z 0..2 so its holes drill).
+    { id = leaf, file = "iris_shutter.hocon", part = leaf, placement = { position = [ 0, 0, 8 ] },
+      pattern = { kind = circular, count = 7, axis = { point = [ 0, 0, 0 ], dir = [ 0, 0, 1 ] } } }
+  ]
+  joints = [
+    { id = pivot0, type = revolute, between = [
+      { instance = base, connector = pv0 }, { instance = leaf/0, connector = pivot } ] }
+    { id = pivot1, type = revolute, between = [
+      { instance = base, connector = pv1 }, { instance = leaf/1, connector = pivot } ] }
+    { id = pivot2, type = revolute, between = [
+      { instance = base, connector = pv2 }, { instance = leaf/2, connector = pivot } ] }
+    { id = pivot3, type = revolute, between = [
+      { instance = base, connector = pv3 }, { instance = leaf/3, connector = pivot } ] }
+    { id = pivot4, type = revolute, between = [
+      { instance = base, connector = pv4 }, { instance = leaf/4, connector = pivot } ] }
+    { id = pivot5, type = revolute, between = [
+      { instance = base, connector = pv5 }, { instance = leaf/5, connector = pivot } ] }
+    { id = pivot6, type = revolute, between = [
+      { instance = base, connector = pv6 }, { instance = leaf/6, connector = pivot } ] }
+  ]
+  # One driven leaf (pivot0), the other six belt-coupled 1:1 so all leaves swing in lock-step.
+  couplings = [
+    { id = sync1, type = belt, between = [ pivot0, pivot1 ], ratio = 1.0 }
+    { id = sync2, type = belt, between = [ pivot0, pivot2 ], ratio = 1.0 }
+    { id = sync3, type = belt, between = [ pivot0, pivot3 ], ratio = 1.0 }
+    { id = sync4, type = belt, between = [ pivot0, pivot4 ], ratio = 1.0 }
+    { id = sync5, type = belt, between = [ pivot0, pivot5 ], ratio = 1.0 }
+    { id = sync6, type = belt, between = [ pivot0, pivot6 ], ratio = 1.0 }
+  ]
+}

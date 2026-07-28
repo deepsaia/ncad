@@ -1,0 +1,52 @@
+units = mm
+# Physics/robotics overlay on the 6-DoF SO-101-class arm: exports a URDF whose link inertials are
+# COMPUTED from the parts and whose SIX joints carry authored actuation limits. Open serial chain
+# rooted at the base, so every joint is in the base-rooted tree (clean URDF, no loop closure). Six
+# actuated joints -> six live Physics sliders: five revolute (base pan + shoulder/elbow/wrist flex +
+# wrist roll) + one prismatic gripper. Limits are URDF-native (radians for revolute, metres slide).
+metadata {
+  description = "SO-101-class 6-DoF arm as URDF/SRDF: computed inertials, six actuated joints, poses"
+  tags = [ so101, robotics, physics, urdf, srdf, arm ]
+}
+physics {
+  assembly = "so101_arm.asm.hocon"
+  base = base
+  joints {
+    base_pan      { actuated = true, limit = [ -3.14159, 3.14159 ], effort = 45, velocity = 3.14,
+                    damping = 0.1 }
+    shoulder_lift { actuated = true, limit = [ -1.91986, 1.91986 ], effort = 60, velocity = 2.0,
+                    damping = 0.2 }
+    elbow_flex    { actuated = true, limit = [ -2.35619, 2.35619 ], effort = 40, velocity = 2.5,
+                    damping = 0.15 }
+    wrist_flex    { actuated = true, limit = [ -2.09439, 2.09439 ], effort = 18, velocity = 3.0,
+                    damping = 0.05 }
+    wrist_roll    { actuated = true, limit = [ -3.14159, 3.14159 ], effort = 10, velocity = 4.0,
+                    damping = 0.03 }
+    gripper       { actuated = true, limit = [ -0.026, 0.0 ], effort = 20, velocity = 0.1,
+                    damping = 0.05 }
+  }
+  export { format = urdf, mesh = stl }
+  # SRDF planning semantics (emitted as a .srdf beside the .urdf): the 5 revolute joints form the
+  # `arm` IK chain (base -> hand); the prismatic slide is the `gripper` group. FIVE named group
+  # states stress the group-state authoring: home (straight up), ready (a reach pose), folded
+  # (tucked), plus grip_open / grip_closed for the gripper group. Adjacent collision pairs derived.
+  srdf {
+    groups = [
+      { name = arm, base = base, tip = hand }
+      { name = gripper, joints = [ gripper ] }
+    ]
+    end_effectors = [ { name = hand_ee, parent = hand, group = gripper } ]
+    group_states = [
+      { name = home, group = arm,
+        values = { base_pan = 0, shoulder_lift = 0, elbow_flex = 0, wrist_flex = 0, wrist_roll = 0 } }
+      { name = ready, group = arm,
+        values = { base_pan = 0, shoulder_lift = 0.6, elbow_flex = -1.2, wrist_flex = 0.6,
+                   wrist_roll = 0 } }
+      { name = folded, group = arm,
+        values = { base_pan = 0, shoulder_lift = 1.9, elbow_flex = -2.3, wrist_flex = 2.0,
+                   wrist_roll = 0 } }
+      { name = grip_open, group = gripper, values = { gripper = 0 } }
+      { name = grip_closed, group = gripper, values = { gripper = -0.026 } }
+    ]
+  }
+}
