@@ -5,10 +5,12 @@ import pytest
 
 from ncad.kernel.build123d_kernel import Build123dKernel
 from ncad.viewer.snapshot_renderer import (
+    _NAMED_VIEWS,
     SnapshotRenderer,
     _bounds_center_radius,
     _fit_distance,
     _orbit_pose,
+    _view_pose,
 )
 
 pytestmark = pytest.mark.slow
@@ -66,3 +68,39 @@ def test_fit_distance_scales_with_radius() -> None:
     center, radius = _bounds_center_radius(np.array([[-1.0, -1.0, -1.0], [1.0, 1.0, 1.0]]))
     assert np.allclose(center, [0.0, 0.0, 0.0])
     assert radius == pytest.approx(np.linalg.norm([2.0, 2.0, 2.0]) / 2.0)
+
+
+def test_named_views_are_defined() -> None:
+    # the multi-angle set an author reviews from; iso is the 3/4 hero angle
+    assert {"front", "iso", "top", "right"} <= set(_NAMED_VIEWS)
+
+
+def test_view_pose_looks_at_center() -> None:
+    center = np.array([1.0, 2.0, 3.0])
+    for view in ("front", "iso", "top", "right"):
+        pose = _view_pose(center, distance=10.0, view=view)
+        eye = pose[:3, 3]
+        forward = -pose[:3, 2]
+        to_center = (center - eye) / np.linalg.norm(center - eye)
+        assert np.allclose(forward, to_center, atol=1e-6), view
+
+
+def test_top_view_looks_down() -> None:
+    # the top view's eye sits above the model center (+Z), looking down
+    center = np.array([0.0, 0.0, 0.0])
+    eye = _view_pose(center, distance=10.0, view="top")[:3, 3]
+    assert eye[2] > 8.0                      # eye well above center on +Z
+
+
+def test_render_views_writes_a_png_per_view(tmp_path) -> None:
+    out = SnapshotRenderer(width=200, height=150).render_views(
+        _glb(tmp_path), views=("front", "iso", "top"))
+    assert set(out) == {"front", "iso", "top"}
+    for view, path in out.items():
+        assert path.endswith(f"part.{view}.png")
+        assert (tmp_path / f"part.{view}.png").is_file()
+
+
+def test_render_views_defaults_to_all_named(tmp_path) -> None:
+    out = SnapshotRenderer(width=160, height=120).render_views(_glb(tmp_path))
+    assert set(out) == set(_NAMED_VIEWS)

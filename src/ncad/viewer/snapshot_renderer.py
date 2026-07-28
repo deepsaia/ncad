@@ -29,6 +29,18 @@ _BG_COLOR = (0.10, 0.10, 0.12, 1.0)
 _AMBIENT = (0.30, 0.30, 0.30)
 _PNG_AZIMUTH = math.pi / 4.0   # the still is a 3/4 view, not a face-on one
 
+# Named review angles for render_views: an author catches different defects from different sides
+# (a frozen joint reads on iso, a mis-seated pin on front, a z-layer clash on top). Each is an
+# (azimuth, elevation) around the model center; ``top`` is a straight-down view flagged separately.
+# azimuth 0 looks along -X toward center (front); pi/2 looks along -Z; the eye elevation is a
+# fraction of the fit distance above (+) or below (-) center.
+_NAMED_VIEWS: dict[str, dict[str, float | bool]] = {
+    "front": {"azimuth": 0.0, "elevation": 0.0},
+    "right": {"azimuth": math.pi / 2.0, "elevation": 0.0},
+    "iso": {"azimuth": math.pi / 4.0, "elevation": 0.5},
+    "top": {"azimuth": 0.0, "elevation": 0.0, "top_down": True},
+}
+
 
 class SnapshotRenderer:
     """Renders a model file to a framed still + an orbit GIF (offscreen, no display)."""
@@ -89,6 +101,59 @@ class SnapshotRenderer:
         logger.info("snapshot: wrote %s + %s (%d frames)", png_path, gif_path, self._frames)
         return {"png": png_path, "gif": gif_path}
 
+    def render_views(self, model_path: str, out_dir: str | None = None,
+                     views: tuple[str, ...] | None = None) -> dict[str, str]:
+        """Render one framed still per named view; return ``{view: png_path}``.
+
+        The multi-angle review packet for authoring: an author sees the model from several sides in
+        one build so different defects (a frozen joint on iso, a mis-seated pin on front, a z-layer
+        clash on top) are each catchable. Writes ``<stem>.<view>.png`` per view. ``views`` defaults
+        to every entry in ``_NAMED_VIEWS``. Raises ValueError when the model has no geometry or a
+        view name is unknown.
+        """
+        import imageio.v2 as imageio
+        import pyrender
+        import trimesh
+
+        chosen = views or tuple(_NAMED_VIEWS)
+        unknown = [v for v in chosen if v not in _NAMED_VIEWS]
+        if unknown:
+            raise ValueError(f"unknown view(s) {unknown}; known: {sorted(_NAMED_VIEWS)}")
+
+        loaded = trimesh.load(model_path, force="scene")
+        geometries = list(loaded.geometry.values())  # pyrefly: ignore[missing-attribute]
+        if not geometries:
+            raise ValueError(f"no renderable geometry in {model_path!r}")
+        center, radius = _bounds_center_radius(loaded.bounds)
+        distance = _fit_distance(radius)
+
+        scene = pyrender.Scene(bg_color=list(_BG_COLOR), ambient_light=list(_AMBIENT))
+        for geometry in geometries:
+            scene.add(pyrender.Mesh.from_trimesh(geometry, smooth=True))
+        camera = pyrender.PerspectiveCamera(yfov=_YFOV)
+        camera_node = scene.add(camera, pose=_view_pose(center, distance, chosen[0]))
+        light = pyrender.DirectionalLight(intensity=3.0)
+        light_node = scene.add(light, pose=_view_pose(center, distance, chosen[0]))
+
+        out_root = Path(out_dir) if out_dir else Path(model_path).parent
+        out_root.mkdir(parents=True, exist_ok=True)
+        base = out_root / Path(model_path).stem
+        renderer = pyrender.OffscreenRenderer(self._width, self._height)
+        out: dict[str, str] = {}
+        try:
+            for view in chosen:
+                pose = _view_pose(center, distance, view)
+                scene.set_pose(camera_node, pose)
+                scene.set_pose(light_node, pose)  # key light rides the camera so no face goes black
+                color, _ = renderer.render(scene)
+                path = f"{base}.{view}.png"
+                imageio.imwrite(path, color)
+                out[view] = path
+        finally:
+            renderer.delete()
+        logger.info("snapshot views: wrote %s", ", ".join(f"{v}={p}" for v, p in out.items()))
+        return out
+
     def _render_at(self, renderer: Any, scene: Any, camera_node: Any, center: np.ndarray,
                    distance: float, azimuth: float) -> np.ndarray:
         """Pose the camera at ``azimuth`` around ``center`` and return the rendered RGB frame."""
@@ -119,15 +184,40 @@ def _orbit_pose(center: np.ndarray, distance: float, azimuth: float) -> np.ndarr
     eye = center + np.array([distance * math.cos(azimuth),
                              -distance * _ELEVATION,
                              distance * math.sin(azimuth)])
+    return _look_at(eye, center)
+
+
+def _view_pose(center: np.ndarray, distance: float, view: str) -> np.ndarray:
+    """A 4x4 camera pose for a named view (front/right/iso/top) looking at ``center``.
+
+    Non-top views place the eye on a horizontal ring at ``azimuth`` (about +Z) raised by the view's
+    ``elevation`` fraction of the distance; ``top`` looks straight down the -Z axis. All look at the
+    model center, so the framing matches _orbit_pose's fit.
+    """
+    spec = _NAMED_VIEWS[view]
+    if spec.get("top_down"):
+        eye = center + np.array([0.0, 0.0, distance])
+        return _look_at(eye, center, up=np.array([0.0, 1.0, 0.0]))
+    azimuth = float(spec["azimuth"])
+    elevation = float(spec["elevation"])
+    eye = center + np.array([distance * math.cos(azimuth),
+                             distance * math.sin(azimuth),
+                             distance * elevation])
+    return _look_at(eye, center)
+
+
+def _look_at(eye: np.ndarray, center: np.ndarray,
+             up: np.ndarray | None = None) -> np.ndarray:
+    """A 4x4 camera pose whose -Z looks from ``eye`` to ``center`` (pyrender/OpenGL convention)."""
+    world_up = up if up is not None else np.array([0.0, 0.0, 1.0])
     forward = center - eye
     forward = forward / np.linalg.norm(forward)
-    world_up = np.array([0.0, 0.0, 1.0])
     right = np.cross(forward, world_up)
     right = right / np.linalg.norm(right)
-    up = np.cross(right, forward)
+    cam_up = np.cross(right, forward)
     pose = np.eye(4)
     pose[:3, 0] = right
-    pose[:3, 1] = up
+    pose[:3, 1] = cam_up
     pose[:3, 2] = -forward
     pose[:3, 3] = eye
     return pose
