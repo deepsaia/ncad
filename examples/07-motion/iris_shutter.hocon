@@ -1,0 +1,92 @@
+units = mm
+# An iris/aperture shutter (camera-diaphragm style), authored as a real multi-part product.
+# All parts live in a shared world frame centered on the optical axis (+Z). Coordinate plan (mm):
+#   base_plate : a d120 disc, 6 thick (z 0..6), central d24 aperture bore, a r50 bolt circle
+#                (8 x d5 holes) and a r36 pivot circle (8 x d4 pivot-pin holes).
+#   cover_plate: a d120 ring, 6 thick (z 20..26), same central bore + bolt circle; the drive ring.
+#   leaf       : a thin (2 mm) CURVED blade - an annular sector (arc-line-arc-line) that sweeps
+#                from the pivot toward the center, closing the aperture. Has a d4 pivot hole and a
+#                d3 drive-pin hole. Authored in its own local frame at the +X pivot, z 8..10.
+#   pivot_pin  : a d4 dowel, z 6..20, that the leaf turns on.
+#   bolt       : an M5 cap screw (d8 head + d5 shank) standing on the r50 bolt circle.
+metadata {
+  description = "Iris aperture shutter: base + cover ring, 8 curved leaves, 8 pivot pins, 8 bolts"
+  tags = [ iris, aperture, shutter, assembly, showpiece ]
+}
+materials {
+  anodized_black { physical { density = 2700 },
+    appearance { color = [ 0.09, 0.10, 0.12 ], metalness = 0.6, roughness = 0.35 } }
+  brass_leaf { physical { density = 8500 },
+    appearance { color = [ 0.83, 0.68, 0.29 ], metalness = 0.9, roughness = 0.25 } }
+  steel_pin { physical { density = 7850 },
+    appearance { color = [ 0.70, 0.72, 0.76 ], metalness = 0.95, roughness = 0.15 } }
+  steel_bolt { physical { density = 7850 },
+    appearance { color = [ 0.30, 0.31, 0.34 ], metalness = 0.8, roughness = 0.3 } }
+}
+parts {
+  # Base plate: grounded disc. Central aperture + a bolt circle + a pivot circle. The pvN connectors
+  # are each pivot hole (d4, at r36) picked by position, one per 45-deg station; they are the fixed
+  # axes the 8 leaves turn on. mid_x/mid_y boxes isolate each station (area < 85 drops d5 bolt holes).
+  base_plate { profile = solid, material = anodized_black,
+    connectors = [
+      { id = pv0, at_point = [ 35.800, 3.760, 8 ], axis = [ 0, 0, 1 ] }
+      { id = pv1, at_point = [ 22.656, 27.973, 8 ], axis = [ 0, 0, 1 ] }
+      { id = pv2, at_point = [ -3.760, 35.800, 8 ], axis = [ 0, 0, 1 ] }
+      { id = pv3, at_point = [ -27.973, 22.656, 8 ], axis = [ 0, 0, 1 ] }
+      { id = pv4, at_point = [ -35.800, -3.760, 8 ], axis = [ 0, 0, 1 ] }
+      { id = pv5, at_point = [ -22.656, -27.973, 8 ], axis = [ 0, 0, 1 ] }
+      { id = pv6, at_point = [ 3.760, -35.800, 8 ], axis = [ 0, 0, 1 ] }
+      { id = pv7, at_point = [ 27.973, -22.656, 8 ], axis = [ 0, 0, 1 ] }
+    ],
+    features = [
+      { id = sk, op = sketch, plane = XY, elements = [ { id = c, type = circle, d = 120 } ] }
+      { id = disc, op = extrude, profile = sk, distance = 6 }
+      { id = aperture, op = hole, plane = XY, positions = [ [ 0, 0 ] ], diameter = 24, through = true }
+      { id = boltholes, op = hole, plane = XY, diameter = 5, through = true,
+        positions = [ [ 50, 0 ], [ 35.355, 35.355 ], [ 0, 50 ], [ -35.355, 35.355 ],
+          [ -50, 0 ], [ -35.355, -35.355 ], [ 0, -50 ], [ 35.355, -35.355 ] ] }
+      { id = pivotholes, op = hole, plane = XY, diameter = 4, through = true,
+        positions = [ [ 36, 0 ], [ 25.456, 25.456 ], [ 0, 36 ], [ -25.456, 25.456 ],
+          [ -36, 0 ], [ -25.456, -25.456 ], [ 0, -36 ], [ 25.456, -25.456 ] ] }
+    ] }
+  # Cover ring: the rotating drive ring above the leaves (same bolt circle, open center).
+  cover_plate { profile = solid, material = anodized_black,
+    features = [
+      { id = sk, op = sketch, plane = XY, plane_offset = 20, elements = [ { id = c, type = circle, d = 120 } ] }
+      { id = disc, op = extrude, profile = sk, distance = 6 }
+      { id = aperture, op = hole, plane = XY, plane_offset = 20, positions = [ [ 0, 0 ] ], diameter = 44, through = true }
+      { id = boltholes, op = hole, plane = XY, plane_offset = 20, diameter = 5, through = true,
+        positions = [ [ 50, 0 ], [ 35.355, 35.355 ], [ 0, 50 ], [ -35.355, 35.355 ],
+          [ -50, 0 ], [ -35.355, -35.355 ], [ 0, -50 ], [ 35.355, -35.355 ] ] }
+    ] }
+  # A single curved iris leaf, authored in a LOCAL frame centred on the optical axis. The blade is
+  # an ANNULAR SECTOR (partial revolve of a radial rectangle) sweeping 60 deg, r14..r46, 2 mm thick.
+  # Its concave inner arc is the edge that sweeps the aperture as the leaf turns on its pin. Built
+  # at z 0..2 (the hole op drills from z=0 regardless of plane_offset); the assembly lifts it to the
+  # leaf layer via the pattern instance placement. Pivot hole d4 at r36; drive-pin hole d3 inner.
+  leaf { profile = solid, material = brass_leaf,
+    connectors = [
+      { id = pivot, at_point = [ 35.8, 3.76, 1 ], axis = [ 0, 0, 1 ] }
+    ],
+    features = [
+      { id = sk, op = sketch, plane = XZ, elements = [ { id = r, type = rectangle, w = 32, h = 2, at = [ 30, 1 ] } ] }
+      { id = blade, op = revolve, profile = sk, axis = Z, angle = 60 }
+      { id = pivothole, op = hole, plane = XY, positions = [ [ 35.8, 3.76 ] ], diameter = 4, through = true }
+      { id = drivehole, op = hole, plane = XY, positions = [ [ 12.7, 12.7 ] ], diameter = 3, through = true }
+    ] }
+  # Pivot dowel: a d4 pin standing z 6..20 at the +X pivot location.
+  pivot_pin { profile = solid, material = steel_pin,
+    features = [
+      { id = sk, op = sketch, plane = XY, plane_offset = 6, elements = [ { id = c, type = circle, d = 4, at = [ 36, 0 ] } ] }
+      { id = pin, op = extrude, profile = sk, distance = 14 }
+    ] }
+  # Cap screw on the r50 bolt circle: d5 shank z 0..26 + d8 head z 26..30, at +X.
+  bolt { profile = solid, material = steel_bolt,
+    features = [
+      { id = shank_sk, op = sketch, plane = XY, elements = [ { id = c, type = circle, d = 5, at = [ 50, 0 ] } ] }
+      { id = shank, op = extrude, profile = shank_sk, distance = 26 }
+      { id = head_sk, op = sketch, plane = XY, plane_offset = 26, elements = [ { id = c, type = circle, d = 8, at = [ 50, 0 ] } ] }
+      { id = head, op = extrude, profile = head_sk, distance = 4 }
+      { id = screw, op = boolean, operation = union, target = shank, tool = head }
+    ] }
+}

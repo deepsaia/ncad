@@ -44,6 +44,13 @@ pinion turns the gear at the tooth-count ratio, real involute tooth geometry.</p
 </div>
 
 <div>
+<div class="ncad-viewer" data-ncad-model="../../assets/models/iris_shutter" data-ncad-motion="true"></div>
+<p class="ncad-caption"><strong>Iris shutter</strong> Seven curved brass leaves, circular-patterned
+from one authored leaf, each on its own pivot and synchronized from a single driver: the whole
+diaphragm closes as one verified multibody solve.</p>
+</div>
+
+<div>
 <div class="ncad-viewer" data-ncad-model="../../assets/models/l_house"></div>
 <p class="ncad-caption"><strong>L-house</strong> A multi-part building assembly (walls, floor bands,
 roof, stair, balcony, glazing): the same engine, an architectural model.</p>

@@ -1,0 +1,13 @@
+units = mm
+# Drive the iris closed: the driven leaf (pivot0) turns 0 -> 35 deg on its pin, and the six
+# belt-coupled leaves follow 1:1, so all 7 blades sweep inward in lock-step - the diaphragm closing.
+# A verified OndselSolver multibody solve (not a scripted pose): every leaf's motion is co-solved
+# from the single driver + the belt couplings. The motion liveness check confirms all 7 leaves move.
+metadata {
+  description = "Iris shutter closing: one driver sweeps 7 synchronized leaves inward over the stroke"
+  tags = [ iris, shutter, motion ]
+}
+motion {
+  assembly = "iris_shutter.asm.hocon"
+  driver = { joint = pivot0, from = 0, to = 35, steps = 35 }
+}
