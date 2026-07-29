@@ -10,6 +10,7 @@ solved group); read pose from the param handles; solve codes 0 and 5 are okay.
 """
 
 import logging
+import math
 from typing import Any
 
 from py_slvs import slvs
@@ -184,14 +185,58 @@ class MateSolver:
 
 
 def _seed_pose(seed: list | None) -> tuple:
-    """Extract (tx, ty, tz, (qw,qx,qy,qz)) from a seed 4x4; identity rotation always.
+    """Extract (tx, ty, tz, (qw,qx,qy,qz)) from a seed 4x4, seeding the AUTHORED rotation too.
 
-    Only the translation seeds the solver's initial guess; the rotation seed is identity (the
-    solver refines orientation from the constraints). A better rotation seed is a 5.3+ refinement.
+    Both the translation AND the orientation seed the solver's initial guess. Seeding the authored
+    rotation matters for a body placed at a non-identity orientation (a shared part reused at
+    90/180/270 in a ring): without it the solver started every body at identity and a
+    rotationally-symmetric constraint set could settle it back to 0, collapsing the pose. The seed
+    is row-major row-vector (row i is the image of basis e_i, i.e. R-transpose), so the standard
+    rotation matrix is the transpose of the 3x3 block; the quaternion is read from that.
     """
     if not seed:
         return 0.0, 0.0, 0.0, (1.0, 0.0, 0.0, 0.0)
-    return float(seed[3][0]), float(seed[3][1]), float(seed[3][2]), (1.0, 0.0, 0.0, 0.0)
+    tx, ty, tz = float(seed[3][0]), float(seed[3][1]), float(seed[3][2])
+    return tx, ty, tz, _quat_from_row_major(seed)
+
+
+def _quat_from_row_major(seed: list) -> tuple:
+    """Quaternion (qw,qx,qy,qz) for a row-major row-vector pose's rotation block.
+
+    The row-vector 3x3 (rows = basis images) is R-transpose, so ``r[j][i]`` is the standard
+    rotation matrix R[i][j]. Uses the numerically-stable branch-by-largest-diagonal method, then
+    normalizes. Returns the identity quaternion if the block degenerates (a zero/non-rotation seed).
+    """
+    r = [[float(seed[j][i]) for j in range(3)] for i in range(3)]  # transpose rows->columns
+    trace = r[0][0] + r[1][1] + r[2][2]
+    if trace > 0.0:
+        s = math.sqrt(trace + 1.0) * 2.0
+        qw = 0.25 * s
+        qx = (r[2][1] - r[1][2]) / s
+        qy = (r[0][2] - r[2][0]) / s
+        qz = (r[1][0] - r[0][1]) / s
+    elif r[0][0] > r[1][1] and r[0][0] > r[2][2]:
+        s = math.sqrt(1.0 + r[0][0] - r[1][1] - r[2][2]) * 2.0
+        qw = (r[2][1] - r[1][2]) / s
+        qx = 0.25 * s
+        qy = (r[0][1] + r[1][0]) / s
+        qz = (r[0][2] + r[2][0]) / s
+    elif r[1][1] > r[2][2]:
+        s = math.sqrt(1.0 + r[1][1] - r[0][0] - r[2][2]) * 2.0
+        qw = (r[0][2] - r[2][0]) / s
+        qx = (r[0][1] + r[1][0]) / s
+        qy = 0.25 * s
+        qz = (r[1][2] + r[2][1]) / s
+    else:
+        s = math.sqrt(1.0 + r[2][2] - r[0][0] - r[1][1]) * 2.0
+        qw = (r[1][0] - r[0][1]) / s
+        qx = (r[0][2] + r[2][0]) / s
+        qy = (r[1][2] + r[2][1]) / s
+        qz = 0.25 * s
+    norm = math.sqrt(qw * qw + qx * qx + qy * qy + qz * qz)
+    if norm < 1e-12:
+        return (1.0, 0.0, 0.0, 0.0)
+    return (qw / norm, qx / norm, qy / norm, qz / norm)
 
 
 def _identity() -> list[list[float]]:
